@@ -383,3 +383,7 @@ proyecto/
 ## 📝 Licencia
 
 MIT
+
+## 👤 Autor
+
+Arquitecto y diseñador del proyecto: **Jose Gomez**
