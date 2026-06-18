@@ -1,7 +1,5 @@
 /mem
 .memory/
-CLAUDE.md
-AGENTS.md
 .mcp.json
 .opencode.json
 .cursor/
