@@ -1,0 +1,98 @@
+package store
+
+import (
+	"database/sql"
+	"fmt"
+
+	"mem/types"
+)
+
+func InsertRelation(db *sql.DB, r *types.Relation) (int64, error) {
+	res, err := db.Exec(
+		`INSERT INTO memory_relations (project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, `+Now+`)`,
+		r.Project, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, r.Reasoning,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("insert relation: %w", err)
+	}
+	return res.LastInsertId()
+}
+
+func UpdateRelation(db *sql.DB, id int64, relation types.RelationType, confidence float64, reasoning string) error {
+	res, err := db.Exec(
+		`UPDATE memory_relations SET relation = ?, confidence = ?, reasoning = ? WHERE id = ?`,
+		string(relation), confidence, reasoning, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update relation: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("relation %d not found", id)
+	}
+	return nil
+}
+
+func GetRelation(db *sql.DB, project string, id int64) (*types.Relation, error) {
+	var r types.Relation
+	err := db.QueryRow(
+		`SELECT id, project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at
+		 FROM memory_relations WHERE id = ? AND project = ?`,
+		id, project,
+	).Scan(&r.ID, &r.Project, &r.MemoryIDA, &r.MemoryIDB, &r.Relation, &r.Confidence, &r.Reasoning, &r.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get relation: %w", err)
+	}
+	return &r, nil
+}
+
+func GetRelationByPair(db *sql.DB, project string, memIDA, memIDB int64) (*types.Relation, error) {
+	var r types.Relation
+	err := db.QueryRow(
+		`SELECT id, project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at
+		 FROM memory_relations
+		 WHERE project = ? AND ((memory_id_a = ? AND memory_id_b = ?) OR (memory_id_a = ? AND memory_id_b = ?))
+		 LIMIT 1`,
+		project, memIDA, memIDB, memIDB, memIDA,
+	).Scan(&r.ID, &r.Project, &r.MemoryIDA, &r.MemoryIDB, &r.Relation, &r.Confidence, &r.Reasoning, &r.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get relation by pair: %w", err)
+	}
+	return &r, nil
+}
+
+func ListRelations(db *sql.DB, project string, limit int) ([]types.Relation, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	rows, err := db.Query(
+		`SELECT id, project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at
+		 FROM memory_relations WHERE project = ? ORDER BY created_at DESC LIMIT ?`,
+		project, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list relations: %w", err)
+	}
+	defer rows.Close()
+
+	var rels []types.Relation
+	for rows.Next() {
+		var r types.Relation
+		err := rows.Scan(&r.ID, &r.Project, &r.MemoryIDA, &r.MemoryIDB, &r.Relation, &r.Confidence, &r.Reasoning, &r.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("scan relation: %w", err)
+		}
+		rels = append(rels, r)
+	}
+	if rels == nil {
+		rels = []types.Relation{}
+	}
+	return rels, rows.Err()
+}
