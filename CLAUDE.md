@@ -1,3 +1,12 @@
+## Reglas de trabajo (lecciones de campo — LEER PRIMERO)
+
+> Estas reglas tienen prioridad sobre la ceremonia. Nacieron de un caso real donde el proceso (SDD/constitución) dio falsa sensación de avance mientras los bugs reales seguían vivos.
+
+1. **El proceso se ajusta a la tarea.** Bug o paridad con un sistema que YA corre → reproducir contra el sistema EN EJECUCIÓN primero (logs / `curl` / navegador), arreglar y verificar ahí mismo. NO correr SDD (specify→plan→tasks→implement) para un bug. El SDD es solo para features nuevas no triviales.
+2. **"Verde en tests" NO es "funciona".** Un test vale lo que vale su fixture: si el mock no refleja la respuesta real del upstream, miente con cara de éxito. Antes de decir "listo": verificar contra el contenedor en ejecución (`docker exec` / `curl` / logs), no solo unit tests.
+3. **"No se ve el cambio" → primero el despliegue, no el código.** Verificar el artefacto realmente servido (bundle/binario DENTRO del contenedor), la URL y la caché del navegador ANTES de tocar código. `docker compose up` reusa la imagen vieja; usar `docker compose up --build`. El `index.html` se sirve con `no-cache`; los assets van hasheados.
+4. **La constitución es referencia de CÓMO escribir código** (capas, estilo), no un mandato de ritual por tarea. No aplicar un requisito del spec que rompa el flujo real del usuario sin contrastarlo antes.
+
 ## Orquestación del Flujo de Trabajo
 
 ### 1. Modo Plan por Defecto

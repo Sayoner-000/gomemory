@@ -1,3 +1,12 @@
+## Reglas de trabajo (lecciones de campo — LEER PRIMERO)
+
+> Estas reglas tienen prioridad sobre la ceremonia. Nacieron de un caso real donde el proceso (SDD/constitución) dio falsa sensación de avance mientras los bugs reales seguían vivos.
+
+1. **El proceso se ajusta a la tarea.** Bug o paridad con un sistema que YA corre → reproducir contra el sistema EN EJECUCIÓN primero (logs / `curl` / navegador), arreglar y verificar ahí mismo. NO correr SDD (specify→plan→tasks→implement) para un bug. El SDD es solo para features nuevas no triviales.
+2. **"Verde en tests" NO es "funciona".** Un test vale lo que vale su fixture: si el mock no refleja la respuesta real del upstream, miente con cara de éxito. Antes de decir "listo": verificar contra el contenedor en ejecución (`docker exec` / `curl` / logs), no solo unit tests.
+3. **"No se ve el cambio" → primero el despliegue, no el código.** Verificar el artefacto realmente servido (bundle/binario DENTRO del contenedor), la URL y la caché del navegador ANTES de tocar código. `docker compose up` reusa la imagen vieja; usar `docker compose up --build`. El `index.html` se sirve con `no-cache`; los assets van hasheados.
+4. **La constitución es referencia de CÓMO escribir código** (capas, estilo), no un mandato de ritual por tarea. No aplicar un requisito del spec que rompa el flujo real del usuario sin contrastarlo antes.
+
 ## Orquestación del Flujo de Trabajo
 
 ### 1. Modo Plan por Defecto
@@ -71,6 +80,19 @@ gomemory/
 ├── cmd_wrap.go               # mem wrap <comando> [args...]
 ├── cmd_mcp.go                # mem mcp — servidor MCP (7 tools + 2 resources)
 ├── cmd_mcp_setup.go          # mem setup-mcp — configura MCP multi-agente
+├── cmd_serve.go              # mem serve — servidor HTTP de plugins (127.0.0.1:9735)
+├── cmd_setup.go              # mem setup <agent> — instala plugins para agentes AI
+├── internal/
+│   ├── server/
+│   │   └── server.go         # HTTP server: sesiones, contexto, healthcheck
+│   └── setup/
+│       ├── setup.go          # Instalador idempotente con go:embed
+│       ├── opencode_setup.go # Instalación plugin OpenCode
+│       └── claude_code_setup.go # Instalación plugin Claude Code
+├── plugin/
+│   ├── opencode/
+│   │   └── plugin.ts         # Plugin TypeScript para OpenCode
+│   └── claude-code/          # Plugin para Claude Code (hooks, scripts, skills)
 ├── tui/
 │   └── tui.go                # Bubbletea TUI (list/detail/save screens)
 ├── store/
@@ -84,6 +106,9 @@ gomemory/
 │   └── types.go              # Memory, Session, MemoryType, ValidMemoryType()
 ├── docs/
 │   ├── architecture.md       # Documentación de arquitectura
+│   ├── PLUGINS.md            # Documentación del sistema de plugins
+│   ├── MEMORY-PROTOCOL.md    # Referencia técnica del Memory Protocol
+│   ├── MANUAL.md             # Guía paso a paso para usuarios
 │   ├── todo.md               # Plan de tareas
 │   └── lessons.md            # Lecciones aprendidas
 ├── README.md                 # Guía de inicio rápido
@@ -114,6 +139,8 @@ gomemory/
 | `mem wrap <comando> [args...]` | Ejecutar comando y preguntar si guardar |
 | `mem mcp` | Servidor MCP para agentes AI |
 | `mem setup-mcp` | Configurar MCP para opencode, claude, cursor, windsurf, cline |
+| `mem serve [--port N]` | Servidor HTTP de plugins (auto-inicia sesiones y contexto) |
+| `mem setup opencode\|claude-code` | Instalar plugin de memoria para agente específico |
 | `mem tui` | Abrir TUI explícitamente |
 | `mem help` | Mostrar ayuda |
 
@@ -134,6 +161,12 @@ Usuario → CLI/TUI → store.Open() → SQLite (WAL mode)
                context.Builder → .memory/context.md → agente AI lo lee al iniciar
                          ↓
                cmd_mcp.go → MCP stdio server → tools/resources para agentes MCP
+                         ↓
+     internal/server/server.go → HTTP API (127.0.0.1:9735)
+                         ↓
+               Plugin (OpenCode/Claude Code) → inyecta contexto + Memory Protocol
+                         ↓
+               Agente AI recibe memoria automáticamente en cada inferencia
 ```
 
 <!-- gomemory-protocol-v2 -->
@@ -174,3 +207,9 @@ Llama `end_session(summary)` (o `./mem session end -s "..."`) con un resumen de 
 ### Consultar memoria:
 - `search_memories(query)` (o `./mem search "tema"`) cuando el usuario pregunte por trabajo previo
 - `./mem` abre la TUI interactiva
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan:
+specs/001-plugin-memory-context/plan.md
+<!-- SPECKIT END -->

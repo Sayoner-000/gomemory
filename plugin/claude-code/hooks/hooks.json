@@ -1,0 +1,6 @@
+{
+  "PostStartup": ["scripts/session-start.sh"],
+  "PreCompact": ["scripts/post-compaction.sh"],
+  "UserPromptSubmit": ["scripts/user-prompt-submit.sh"],
+  "PreShutdown": ["scripts/session-stop.sh"]
+}

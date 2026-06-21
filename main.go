@@ -1,13 +1,22 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"mem/internal/setup"
 	"mem/store"
 	"mem/tui"
 )
+
+//go:embed plugin
+var pluginFS embed.FS
+
+func init() {
+	setup.PluginFS = pluginFS
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -41,6 +50,10 @@ func main() {
 		cmdWrap(args)
 	case "mcp":
 		cmdMCP(args)
+	case "serve":
+		cmdServe(args)
+	case "setup":
+		cmdSetup(args)
 	case "setup-mcp", "mcp-setup":
 		cmdMCPSetup(args)
 	case "list", "log":
@@ -121,6 +134,8 @@ Uso:
   mem log [-n|--limit N]           Alias de list
   mem wrap <comando> [args...]     Ejecutar comando y preguntar si guardar
   mem mcp [--root <dir>]           Servidor MCP para agentes AI
+  mem serve [--port 9735]          Servidor HTTP background para plugins
+  mem setup <agent> [--port 9735]  Instalar plugin para opencode|claude-code
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]
                                     Ver o cambiar auto-approve de las tools MCP

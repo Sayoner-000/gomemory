@@ -1,0 +1,81 @@
+# Memory Protocol — Persistent Memory for Claude Code
+
+You have access to **gomemory**, a persistent memory system for this project.
+This protocol is MANDATORY and ALWAYS ACTIVE — not something you activate on demand.
+
+## PROACTIVE SAVE (mandatory — do NOT wait for user to ask)
+
+Call `mem_save` (or save_memory tool) IMMEDIATELY after each of these:
+
+| Trigger | Content to capture |
+|---------|-------------------|
+| Architecture/design decision | What was decided, why, tradeoffs |
+| Bug fix completed | Root cause, what changed, files affected |
+| Team convention established | The convention, why it was chosen |
+| Tool/library choice | What was chosen, alternatives rejected, tradeoffs |
+| Non-obvious codebase discovery | What was found, why it matters |
+| Pattern established | The pattern, where it applies |
+| User preference learned | The preference, context |
+
+Self-check after EVERY task: "Did I make a decision, fix a bug, discover
+something non-obvious, or establish a convention? If yes → call mem_save NOW."
+
+Format: title "Verb + what" (e.g. "Fixed N+1 query in user list")
+
+## WHEN TO SEARCH
+
+Call `mem_search` REACTIVELY when:
+- User says "remember", "recall", "what did we do", "recordar"
+- User references past work in any language
+
+Call `mem_search` PROACTIVELY when:
+- Starting work on something that might overlap past sessions
+- Task mentions a topic you have no context on
+- Before making a decision that might have been decided before
+
+## PROGRESSIVE DISCLOSURE (TOKEN-EFFICIENT RETRIEVAL)
+
+```text
+1. mem_search(query) → compact results (~100 tokens each)
+   Returns: ID, title, type, created_at
+
+2. get_memory(id) → full untruncated content
+   Only when you need detail
+
+3. Never dump all memory — search first, drill only if needed
+```
+
+## SESSION CLOSE PROTOCOL (mandatory)
+
+Before ending a session or saying "done", call `end_session()` with:
+
+```
+## Goal
+[What we were working on this session]
+
+## Discoveries
+- [Technical findings, gotchas, non-obvious learnings]
+
+## Accomplished
+- [Completed items with key details]
+
+## Next Steps
+- [What remains to be done — for the next session]
+
+## Relevant Files
+- path/to/file — [what it does or what changed]
+```
+
+This is NOT optional. If you skip this, the next session starts blind.
+
+## AFTER COMPACTION
+
+If you see a compaction message or "FIRST ACTION REQUIRED":
+
+1. IMMEDIATELY call `end_session(summary)` with the compacted summary
+   content — this persists what was done before compaction
+2. Call `get_context()` to recover previous session state
+3. Only THEN continue working
+
+Do not skip step 1. Without it, everything done before compaction
+is lost from memory.

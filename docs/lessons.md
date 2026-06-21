@@ -2,6 +2,13 @@
 
 <!-- Capture patterns, gotchas, and rules after each user correction. -->
 
+## 2026-06-21
+
+- `mem setup opencode` instalaba `plugin.ts` como archivo plano en `~/.config/opencode/plugins/` en vez de dentro de `~/.config/opencode/plugins/gomemory/plugin.ts` — OpenCode requiere un subdirectorio por plugin (`plugins/<name>/plugin.ts`). Fijado cambiando el target dir en `opencode_setup.go`.
+- El embed `//go:embed` no soporta `..` en la ruta del patrón. Solución: declarar el embed en `main.go` (raíz del módulo) y asignarlo a `setup.PluginFS` via `init()`.
+- Los tests de Go deben estar en el mismo package que el código que prueban. `tests/unit/` con `package main` no compila — mover tests a `internal/server/server_test.go` e `internal/setup/setup_test.go`.
+- `replacePlaceholders` en `setup.go` hacía `bytes.ReplaceAll` asignando a `string` en vez de `[]byte` — error de tipos al cambiar entre string y []byte sin conversión explícita.
+
 ## 2026-06-17
 
 - AGENTS.md/CLAUDE.md must describe the **actual project architecture**, not a different project — wrong architecture confuses the AI into using wrong tools

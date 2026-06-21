@@ -5,3 +5,8 @@
 .cursor/
 .cline/
 .windsurf/
+.DS_Store
+.claude/
+.opencode/
+*.pdf
+speckit-constitution-gen.md
