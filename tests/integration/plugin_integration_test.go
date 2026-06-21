@@ -3,15 +3,15 @@ package main
 import (
 	"testing"
 
-	"mem/internal/server"
-	"mem/store"
+	"mem/adapters/primary/mcp"
+	"mem/adapters/secondary/persistence"
 )
 
 func TestPluginIntegration(t *testing.T) {
 	root := t.TempDir()
-	_ = store.EnsureDir(root)
+	_ = persistence.EnsureDir(root)
 
-	db, err := store.Open(root)
+	db, err := persistence.Open(root)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -19,26 +19,22 @@ func TestPluginIntegration(t *testing.T) {
 
 	project := "test-project"
 
-	// Server can be created and generates correct context
-	srv := server.New(db, project, 19735)
+	srv := mcp.New(db, project, 19735)
 
 	if srv == nil {
 		t.Fatal("expected non-nil server")
 	}
 
-	// Start a session to have context
-	session, err := store.StartSession(db, project)
+	session, err := persistence.StartSession(db, project)
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
 
-	// End the session to create history
-	if err := store.EndSession(db, session.ID, "integration test completed"); err != nil {
+	if err := persistence.EndSession(db, session.ID, "integration test completed"); err != nil {
 		t.Fatalf("end session: %v", err)
 	}
 
-	// Verify recent sessions
-	recent, err := store.RecentSessions(db, project, 5)
+	recent, err := persistence.RecentSessions(db, project, 5)
 	if err != nil {
 		t.Fatalf("recent sessions: %v", err)
 	}

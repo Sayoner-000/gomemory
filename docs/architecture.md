@@ -33,45 +33,45 @@
 
 ## Componentes
 
-### 1. CLI (`main.go` + `cmd_*.go`)
+### 1. CLI (`adapters/primary/cli/`)
 
 Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 
 | Subcomando | Archivo | Función |
 |---|---|---|
-| `init` | `cmd_init.go` | Crea `.memory/` y tablas SQLite |
-| `save` | `cmd_save.go` | Inserta una memoria con tipo, título, contenido |
-| `capture` | `cmd_capture.go` | Guarda aprendizaje estructurado con formato What/Why/Where/Learned |
-| `compare` | `cmd_compare.go` | Compara dos memorias ([flags] id1 id2) y persiste veredicto semántico |
-| `compare list` | `cmd_compare.go` | Lista relaciones guardadas entre memorias |
-| `project` | `cmd_project.go` | Detecta el proyecto actual (read-only: nombre, raíz, BD, conteo) |
-| `list` / `log` | `cmd_list.go` | Lista memorias recientes en formato tabla |
-| `search` | `cmd_search.go` | Busca por LIKE en título + contenido con ranking (título primero) |
-| `context` | `cmd_context.go` | Genera contexto markdown para el agente AI (read-only por defecto) |
-| `session` | `cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
-| `install` | `cmd_install.go` | Copia binario + init + .gitignore + AGENTS + configura MCP para todos los agentes |
-| `wrap` | `cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `cmd_mcp.go` | Servidor MCP sobre stdio con 7 tools y 2 recursos. Acepta `--root <dir>` |
-| `setup-mcp` / `mcp-setup` | `cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
-| `settings` | `cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) |
-| `tui` | `main.go:launchTUI()` | Abre interfaz TUI explícitamente |
-| *(sin args)* | `main.go` | Abre TUI automáticamente |
+| `init` | `adapters/primary/cli/cmd_init.go` | Crea `.memory/` y tablas SQLite |
+| `save` | `adapters/primary/cli/cmd_save.go` | Inserta una memoria con tipo, título, contenido |
+| `capture` | `adapters/primary/cli/cmd_capture.go` | Guarda aprendizaje estructurado con formato What/Why/Where/Learned |
+| `compare` | `adapters/primary/cli/cmd_compare.go` | Compara dos memorias ([flags] id1 id2) y persiste veredicto semántico |
+| `compare list` | `adapters/primary/cli/cmd_compare.go` | Lista relaciones guardadas entre memorias |
+| `project` | `adapters/primary/cli/cmd_project.go` | Detecta el proyecto actual (read-only: nombre, raíz, BD, conteo) |
+| `list` / `log` | `adapters/primary/cli/cmd_list.go` | Lista memorias recientes en formato tabla |
+| `search` | `adapters/primary/cli/cmd_search.go` | Busca por LIKE en título + contenido con ranking (título primero) |
+| `context` | `adapters/primary/cli/cmd_context.go` | Genera contexto markdown para el agente AI (read-only por defecto) |
+| `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
+| `install` | `adapters/primary/cli/cmd_install.go` | Copia binario + init + .gitignore + AGENTS + configura MCP para todos los agentes |
+| `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 7 tools y 2 recursos. Acepta `--root <dir>` |
+| `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
+| `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) |
+| `tui` | `adapters/primary/cli/cli.go:LaunchTUI()` | Abre interfaz TUI explícitamente |
+| *(sin args)* | `adapters/primary/cli/dispatcher.go` | Abre TUI automáticamente |
 
 Flujo:
 
 ```
-os.Args → main() → switch cmd → cmdXxx()
-                          ↓
-                  store.FindRoot()  ← busca .memory/ hacia arriba
-                          ↓
-                    store.Open()    ← abre SQLite + migraciones
-                          ↓
-                  operación (insert/search/list/context/mcp)
-                          ↓
-                    db.Close()
+os.Args → infrastructure/main.go → NewContainer() → cli.Run(cmd, args, deps)
+                                                       ↓
+                                               cli.Dispatcher switch
+                                                       ↓
+                                              CmdXxx(deps, args)
+                                                       ↓
+                                              deps.MemoryRepo / deps.ProjectRepo
+                                                       ↓
+                                          adapters/secondary/persistence/
 ```
 
-### 2. TUI (`tui/tui.go`)
+### 2. TUI (`adapters/primary/tui/tui.go`)
 
 Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea) + [Lipgloss](https://github.com/charmbracelet/lipgloss) + [Bubbles](https://github.com/charmbracelet/bubbles).
 
@@ -84,7 +84,7 @@ Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea)
 
 ```
 model
-├── db, root, project             ← contexto de la DB
+├── memRepo, sessRepo, root, project  ← contexto de la persistencia
 ├── screen                        ← estado actual (list/detail/save)
 ├── memories / cursor             ← lista completa con cursor de navegación
 ├── searching / search            ← búsqueda en vivo (filtrado por título/tipo/contenido)
@@ -109,12 +109,12 @@ model
 - Búsqueda en vivo: filtra mientras escribes por título, contenido o tipo
 - Pantalla alternativa (`tea.WithAltScreen()`) para no ensuciar el historial
 
-### 3. Store (`store/db.go`, `store/memory.go`, `store/session.go`)
+### 3. Persistence (`adapters/secondary/persistence/`)
 
 Capa de persistencia sobre SQLite usando [`modernc.org/sqlite`](https://gitlab.com/cznic/sqlite) (SQLite puro Go, sin CGO).
 
 ```
-store/
+adapters/secondary/persistence/
 ├── db.go
 │   ├── FindRoot()        ← busca .memory/ desde CWD hacia padres
 │   ├── EnsureDir()        ← crea .memory/ si no existe
@@ -134,17 +134,23 @@ store/
 │   ├── ActiveSession()    ← busca sesión sin ended_at
 │   └── RecentSessions()   ← últimas N sesiones
 │
-└── relation.go
-    ├── InsertRelation()   ← INSERT de veredicto entre dos memorias
-    ├── UpdateRelation()   ← UPDATE de veredicto existente (idempotente)
-    ├── GetRelation()      ← SELECT por ID
-    ├── GetRelationByPair()← SELECT por par (memory_id_a, memory_id_b) en cualquier orden
-    └── ListRelations()    ← últimas N relaciones
+├── relation.go
+│   ├── InsertRelation()   ← INSERT de veredicto entre dos memorias
+│   ├── UpdateRelation()   ← UPDATE de veredicto existente (idempotente)
+│   ├── GetRelation()      ← SELECT por ID
+│   ├── GetRelationByPair()← SELECT por par (memory_id_a, memory_id_b) en cualquier orden
+│   └── ListRelations()    ← últimas N relaciones
+│
+├── settings.go            ← Config local (auto-approve, etc.)
+│
+└── repositories.go        ← Wrappers que implementan ports.*Repository
 ```
 
-La conexión SQLite usa WAL mode y busy timeout de 5s para mejor concurrencia.
+La conexión SQLite usa WAL mode y busy timeout de 5s para mejor concurrencia. El archivo `repositories.go` envuelve las funciones CRUD raw en structs que implementan las interfaces definidas en `application/ports/`, permitiendo que la capa de aplicación dependa solo de contratos.
 
-### 4. Context Builder (`context/builder.go`)
+### 4. Context Builder (`application/usecases/build_context.go`)
+
+Usa las interfaces `MemoryLister` + `SessionQuerier` definidas en `application/ports/context_builder.go` en lugar de depender directamente de `*sql.DB`.
 
 Genera un markdown estructurado con toda la memoria del proyecto, agrupado por tipo:
 
@@ -183,7 +189,7 @@ mem context --write → escribe .memory/context.md
 
 El archivo `.memory/context.md` es leído por los agentes AI al inicio de cada sesión.
 
-### 5. Wrap (`cmd_wrap.go`)
+### 5. Wrap (`adapters/primary/cli/cmd_wrap.go`)
 
 Wrapper interactivo que envuelve cualquier comando:
 
@@ -194,9 +200,9 @@ Wrapper interactivo que envuelve cualquier comando:
 5. Si acepta, recolecta título/tipo/contenido y persiste
 6. Exit code propagado: el wrap termina con el mismo código que el comando envuelto
 
-### 6. MCP Server (`cmd_mcp.go`)
+### 6. MCP Server (`adapters/primary/mcp/server.go`)
 
-Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk).
+Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Ahora usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
 
 **Herramientas:**
 
@@ -217,7 +223,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `mem://context` | Contexto markdown del proyecto |
 | `mem://memory/{id}` | Memoria específica por ID (resource template) |
 
-### 7. Capture (`cmd_capture.go`)
+### 7. Capture (`adapters/primary/cli/cmd_capture.go`)
 
 Guarda aprendizajes con formato estructurado:
 
@@ -237,7 +243,7 @@ El contenido se construye como markdown estructurado:
 
 Se asocia automáticamente a la sesión activa si existe.
 
-### 8. Compare (`cmd_compare.go`)
+### 8. Compare (`adapters/primary/cli/cmd_compare.go`)
 
 Compara dos memorias y persiste un veredicto semántico en la tabla `memory_relations`:
 
@@ -261,7 +267,7 @@ Características:
 - Validación: verifica que ambas memorias existan en el proyecto
 - Listado: `mem compare list [-n N]` muestra relaciones recientes
 
-### 9. Project (`cmd_project.go`)
+### 9. Project (`adapters/primary/cli/cmd_project.go`)
 
 Comando read-only para detectar el proyecto actual:
 
@@ -278,7 +284,7 @@ Memorias: 12
 Sesión:   Activa desde 2026-06-18 10:00:00
 ```
 
-### 10. MCP Setup Multi-Agente (`cmd_mcp_setup.go`)
+### 10. MCP Setup Multi-Agente (`adapters/primary/cli/cmd_mcp_setup.go`)
 
 Configura la integración MCP para múltiples agentes AI desde un solo comando:
 
@@ -303,9 +309,9 @@ El flag `--agents all` configura los 6 agentes en un solo comando.
 
 ### El flag `--root`: por qué existe
 
-`mem mcp` resuelve el proyecto vía `store.FindRoot()`, que sube directorios desde el `cwd` del proceso buscando `.memory/`. Cuando un agente (Claude, Cursor, etc.) lanza el servidor MCP, **no garantiza qué `cwd` usará** para el subproceso — puede ser el directorio desde donde se abrió el editor, no el proyecto instalado. Por eso, cada configuración generada por `setupX`/`setupCodex` incluye `args: ["mcp", "--root", absRoot]`: el servidor recibe la raíz del proyecto explícitamente, sin depender del `cwd` real. Si `--root` no se pasa (por ejemplo, al ejecutar `./mem mcp` manualmente desde dentro del proyecto), se mantiene el comportamiento anterior basado en `FindRoot()`.
+`mem mcp` resuelve el proyecto vía `ProjectRepo.FindRoot()`, que sube directorios desde el `cwd` del proceso buscando `.memory/`. Cuando un agente (Claude, Cursor, etc.) lanza el servidor MCP, **no garantiza qué `cwd` usará** para el subproceso — puede ser el directorio desde donde se abrió el editor, no el proyecto instalado. Por eso, cada configuración generada por `setupX`/`setupCodex` incluye `args: ["mcp", "--root", absRoot]`: el servidor recibe la raíz del proyecto explícitamente, sin depender del `cwd` real. Si `--root` no se pasa (por ejemplo, al ejecutar `./mem mcp` manualmente desde dentro del proyecto), se mantiene el comportamiento anterior basado en `FindRoot()`.
 
-## Flujo de Instalación (`cmd_install.go`)
+## Flujo de Instalación (`adapters/primary/cli/cmd_install.go`)
 
 ```
 mem install /ruta/a/proyecto
@@ -389,7 +395,9 @@ mem install /ruta/a/proyecto
 
 Validación vía `ValidMemoryType()`: si el tipo no es válido, default a `learning`.
 
-## Tipos Go (`types/types.go`)
+## Tipos Go (`domain/`)
+
+Definidos en `domain/memory.go`, `domain/session.go`, `domain/relation.go` y `domain/errors.go`.
 
 ```go
 type MemoryType string
@@ -421,6 +429,30 @@ type Session struct {
     Summary   string
     CreatedAt string
     EndedAt   *string
+}
+
+type RelationType string
+
+const (
+    Related       RelationType = "related"
+    Compatible    RelationType = "compatible"
+    Scoped        RelationType = "scoped"
+    ConflictsWith RelationType = "conflicts_with"
+    Supersedes    RelationType = "supersedes"
+    NotConflict   RelationType = "not_conflict"
+)
+
+type Confidence float64
+
+type Relation struct {
+    ID         int64
+    Project    string
+    MemoryID_A int64
+    MemoryID_B int64
+    Relation   RelationType
+    Confidence Confidence
+    Reasoning  string
+    CreatedAt  string
 }
 ```
 
@@ -499,42 +531,116 @@ proyecto/
 └── ...
 ```
 
+## Arquitectura Hexagonal
+
+`gomemory` sigue una arquitectura hexagonal (puertos y adaptadores) con 4 capas:
+
+1. **`domain/`** — Capa más interna. Define tipos, validación y errores de dominio. Zero dependencias del proyecto.
+2. **`application/`** — Casos de uso y puertos (interfaces). Solo importa `domain/`. Define contratos vía `ports/*.go`.
+3. **`adapters/`** — Implementaciones concretas:
+   - `primary/` — Adaptadores driving (CLI, TUI, MCP, setup). Reciben input del exterior.
+   - `secondary/` — Adaptadores driven (persistence SQLite). Implementan los ports.
+4. **`infrastructure/`** — Composition root. `main.go` + `container.go` cablean todas las dependencias.
+
+**Reglas de dependencia:**
+- `domain` → nada del proyecto
+- `application` → solo `domain`
+- `adapters/primary` → `application` (via interfaces)
+- `adapters/secondary` → `application` + `domain` (implementa interfaces)
+- `infrastructure` → todo (cablea)
+
+Ninguna capa externa depende directamente de adapters primarios o secundarios. Todo pasa por interfaces en `application/ports/`.
+
 ## Estructura del Repositorio Fuente
 
 ```
 gomemory/
-├── main.go                   # Dispatcher CLI + launchTUI() + usage()
-├── cmd_init.go               # mem init [--force]
-├── cmd_save.go               # mem save -t "tit" -y tipo "cuerpo"
-├── cmd_list.go               # mem list [-n N]
-├── cmd_search.go             # mem search "consulta" [-n N]
-├── cmd_context.go            # mem context [-w|--write]
-├── cmd_session.go            # mem session start|end|list
-├── cmd_capture.go            # mem capture — aprendizaje estructurado What/Why/Where/Learned
-├── cmd_compare.go            # mem compare — veredictos semánticos entre memorias
-├── cmd_project.go            # mem project — detecta proyecto actual (read-only)
-├── cmd_install.go            # mem install [dir] + MCP auto-config para 5 agentes
-├── cmd_wrap.go               # mem wrap <comando> [args...]
-├── cmd_mcp.go                # mem mcp — servidor MCP (tools + resources)
-├── cmd_mcp_setup.go          # mem setup-mcp — configura MCP multi-agente
-├── tui/
-│   └── tui.go                # Bubbletea TUI (list/detail/save screens)
-├── store/
-│   ├── db.go                 # SQLite connection, FindRoot, migrations, Now()
-│   ├── memory.go             # CRUD memorias con search ranking
-│   ├── session.go            # CRUD sesiones con UUID
-│   └── relation.go           # CRUD relaciones entre memorias
-├── context/
-│   └── builder.go            # Genera .memory/context.md agrupado por tipo
-├── types/
-│   └── types.go              # Memory, Session, MemoryType, ValidMemoryType()
+├── domain/                          # Capa más interna — 0 dependencias del proyecto
+│   ├── memory.go                    #   tipos Memory, MemoryType, validación
+│   ├── session.go                   #   tipos Session
+│   ├── relation.go                  #   tipos Relation, RelationType, Confidence
+│   └── errors.go                    #   errores de dominio (ErrNotFound, ErrValidation)
+│
+├── application/                     # Capa de aplicación — solo importa domain/
+│   ├── ports/                       #   Puertos (interfaces) que definen contratos
+│   │   ├── memory_repository.go     #     MemoryRepository interface
+│   │   ├── session_repository.go    #     SessionRepository interface
+│   │   ├── relation_repository.go   #     RelationRepository interface
+│   │   ├── settings_repository.go   #     SettingsRepository interface
+│   │   ├── project_repository.go    #     ProjectRepository interface
+│   │   └── context_builder.go       #     ContextBuilder interface
+│   └── usecases/                    #   Casos de uso
+│       └── build_context.go         #     Genera .memory/context.md
+│
+├── adapters/                        # Capa de adaptadores
+│   ├── primary/                     #   Adaptadores primarios (driving)
+│   │   ├── cli/                     #     Comandos CLI
+│   │   │   ├── cli.go              #       LaunchTUI, Usage
+│   │   │   ├── deps.go             #       Deps struct (inyección de dependencias)
+│   │   │   ├── dispatcher.go       #       Run(): dispatcher central
+│   │   │   ├── cmd_init.go         #       mem init [--force]
+│   │   │   ├── cmd_save.go         #       mem save -t "tit" -y tipo "cuerpo"
+│   │   │   ├── cmd_capture.go      #       mem capture
+│   │   │   ├── cmd_compare.go      #       mem compare
+│   │   │   ├── cmd_list.go         #       mem list [-n N]
+│   │   │   ├── cmd_search.go       #       mem search "consulta" [-n N]
+│   │   │   ├── cmd_context.go      #       mem context [-w|--write]
+│   │   │   ├── cmd_session.go      #       mem session start|end|list
+│   │   │   ├── cmd_install.go      #       mem install [dir]
+│   │   │   ├── cmd_project.go      #       mem project
+│   │   │   ├── cmd_wrap.go         #       mem wrap <comando> [args...]
+│   │   │   ├── cmd_mcp.go          #       mem mcp — servidor MCP (tools + resources)
+│   │   │   ├── cmd_mcp_setup.go    #       mem setup-mcp
+│   │   │   ├── cmd_serve.go        #       mem serve — HTTP server
+│   │   │   ├── cmd_setup.go        #       mem setup <agent>
+│   │   │   └── cmd_settings.go     #       mem settings
+│   │   ├── tui/                     #     TUI (Bubbletea)
+│   │   │   └── tui.go
+│   │   ├── mcp/                     #     Servidor MCP
+│   │   │   ├── server.go           #       HTTP + MCP handlers
+│   │   │   └── server_compat.go    #       Compatibilidad con tests legacy
+│   │   └── setup/                   #     Setup de plugins
+│   │       ├── setup.go
+│   │       ├── opencode_setup.go
+│   │       └── claude_code_setup.go
+│   └── secondary/                   #   Adaptadores secundarios (driven)
+│       └── persistence/             #     Persistencia SQLite
+│           ├── db.go                #       Conexión, migraciones, FindRoot
+│           ├── memory.go            #       CRUD memorias
+│           ├── session.go           #       CRUD sesiones
+│           ├── relation.go          #       CRUD relaciones
+│           ├── settings.go          #       Config local
+│           └── repositories.go     #       Wrappers ports.*Repository
+│
+├── infrastructure/                  # Composition root
+│   ├── main.go                      #   Entry point, go:embed, dispatch
+│   ├── container.go                 #   NewContainer(): wiring de dependencias
+│   └── plugin/                      #   Plugins embebidos (go:embed)
+│       ├── opencode/
+│       │   └── plugin.ts
+│       └── claude-code/
+│           ├── hooks/
+│           ├── scripts/
+│           └── skills/
+│
+├── tests/                           # Tests
+│   ├── contract/
+│   │   └── memory_protocol_test.go
+│   └── integration/
+│       └── plugin_integration_test.go
+│
 ├── docs/
 │   ├── architecture.md       # Este documento
-│   ├── todo.md               # Plan de tareas
-│   └── lessons.md            # Lecciones aprendidas
-├── README.md                 # Guía de inicio rápido
-├── AGENTS.md                 # Instrucciones para el agente AI
-├── CLAUDE.md                 # Instrucciones para Claude Code
-├── go.mod / go.sum           # Dependencias Go
+│   ├── PLUGINS.md
+│   ├── MEMORY-PROTOCOL.md
+│   ├── MANUAL.md
+│   ├── todo.md
+│   └── lessons.md
+├── specs/                     # SDD specs
+│   ├── 001-plugin-memory-context/
+│   └── 002-hexagonal-architecture/
+├── AGENTS.md
+├── CLAUDE.md
+├── go.mod / go.sum
 └── mem                       # Binario compilado (gitignorado)
 ```

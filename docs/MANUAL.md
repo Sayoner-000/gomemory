@@ -19,7 +19,7 @@ automática con OpenCode y Claude Code.
 
 ```bash
 # Compilar gomemory
-go build -o mem .
+go build -o mem ./infrastructure/
 
 # Instalar plugin para OpenCode (recomendado si usas OpenCode)
 ./mem setup opencode
@@ -50,7 +50,7 @@ go build -o mem .
 
 Esto:
 
-1. Copia `plugin/opencode/plugin.ts` a `~/.config/opencode/plugins/gomemory/`
+1. Copia `infrastructure/plugin/opencode/plugin.ts` a `~/.config/opencode/plugins/gomemory/`
 2. Crea/actualiza `~/.config/opencode/opencode.json` con la referencia al plugin
 3. El plugin se activa automáticamente al iniciar OpenCode
 
@@ -168,7 +168,7 @@ go test ./... -v
 ### Verificar Compilación
 
 ```bash
-go build -o mem . && echo "OK"
+go build -o mem ./infrastructure/ && echo "OK"
 go vet ./... && echo "OK"
 ```
 
@@ -180,8 +180,8 @@ go vet ./... && echo "OK"
 
 ```bash
 # Asegúrate de compilar desde la raíz del proyecto
-ls plugin/opencode/plugin.ts   # debe existir
-ls plugin/claude-code/         # debe existir
+ls infrastructure/plugin/opencode/plugin.ts   # debe existir
+ls infrastructure/plugin/claude-code/         # debe existir
 ```
 
 ### Error: "address already in use"

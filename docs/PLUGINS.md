@@ -10,8 +10,8 @@ usuario tenga que invocar herramientas MCP manualmente.
 
 | Agente | Tipo | Archivos |
 |--------|------|----------|
-| OpenCode | Plugin TypeScript | `plugin/opencode/plugin.ts` |
-| Claude Code | Hooks + Skill | `plugin/claude-code/` |
+| OpenCode | Plugin TypeScript | `infrastructure/plugin/opencode/plugin.ts` |
+| Claude Code | Hooks + Skill | `infrastructure/plugin/claude-code/` |
 
 ## Arquitectura
 

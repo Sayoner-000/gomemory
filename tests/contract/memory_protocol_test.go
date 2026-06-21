@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"mem/store"
+	"mem/adapters/secondary/persistence"
 )
 
 func TestMemoryProtocolContract(t *testing.T) {
 	root := t.TempDir()
-	_ = store.EnsureDir(root)
+	_ = persistence.EnsureDir(root)
 
-	db, err := store.Open(root)
+	db, err := persistence.Open(root)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
@@ -19,8 +19,7 @@ func TestMemoryProtocolContract(t *testing.T) {
 
 	project := "test-project"
 
-	// Session lifecycle: start → end
-	session, err := store.StartSession(db, project)
+	session, err := persistence.StartSession(db, project)
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
@@ -28,7 +27,7 @@ func TestMemoryProtocolContract(t *testing.T) {
 		t.Fatal("expected non-empty session ID")
 	}
 
-	active, err := store.ActiveSession(db, project)
+	active, err := persistence.ActiveSession(db, project)
 	if err != nil {
 		t.Fatalf("active session: %v", err)
 	}
@@ -37,11 +36,11 @@ func TestMemoryProtocolContract(t *testing.T) {
 	}
 
 	summary := "Test session completed at " + time.Now().Format(time.RFC3339)
-	if err := store.EndSession(db, session.ID, summary); err != nil {
+	if err := persistence.EndSession(db, session.ID, summary); err != nil {
 		t.Fatalf("end session: %v", err)
 	}
 
-	active, err = store.ActiveSession(db, project)
+	active, err = persistence.ActiveSession(db, project)
 	if err != nil {
 		t.Fatalf("active session after end: %v", err)
 	}
@@ -49,7 +48,7 @@ func TestMemoryProtocolContract(t *testing.T) {
 		t.Fatal("expected no active session after end")
 	}
 
-	recent, err := store.RecentSessions(db, project, 5)
+	recent, err := persistence.RecentSessions(db, project, 5)
 	if err != nil {
 		t.Fatalf("recent sessions: %v", err)
 	}
