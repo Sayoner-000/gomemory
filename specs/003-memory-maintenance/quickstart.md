@@ -98,6 +98,20 @@ ls -la   # mem, .memory/, .claude/plugins/gomemory, entradas MCP y bloque de AGE
 **Esperado**: coincide con Acceptance Scenarios US4.1–US4.3 y SC-006. Detalle completo de qué
 se elimina en [contracts/cli-tui-contracts.md](./contracts/cli-tui-contracts.md#mem-uninstall-dir).
 
+Para validar la cancelación (Acceptance Scenario US4.2 — sin `--yes`, nada se borra):
+
+```bash
+/ruta/al/repo/mem install .
+./mem uninstall .   # sin --yes: pide escribir "si"; responde "no" o solo enter
+ls -la               # mem, .memory/ y el resto deben seguir intactos
+```
+
+**Nota**: `mem uninstall` no modifica `~/.codex/config.toml` automáticamente — a diferencia de
+`.mcp.json`, `.opencode.json`, etc. (que son por proyecto), ese archivo es global y compartido
+entre todos los proyectos instalados con el agente Codex; editarlo a ciegas arriesga corromper
+TOML de otros proyectos. Si instalaste el agente Codex, remueve la tabla
+`[mcp_servers."gomemory_*"]` correspondiente a mano.
+
 ## 7. Validar acciones en la TUI (FR-010)
 
 ```bash

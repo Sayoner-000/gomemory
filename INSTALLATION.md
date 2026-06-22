@@ -1,4 +1,4 @@
-# Instalación de gomemory v1.3.0
+# Instalación de gomemory v1.4.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 

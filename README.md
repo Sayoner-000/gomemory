@@ -1,4 +1,4 @@
-# gomemory v1.3.0
+# gomemory v1.4.0
 
 **Memoria colectiva para agentes AI — persistente, portable, plug-and-play.**
 
@@ -43,7 +43,7 @@ sin invocación manual de herramientas MCP.
 - **Endpoint**: `127.0.0.1:9735`
 
 ### 📋 CLI Completo
-`mem` + 18 subcomandos para gestionar memoria desde terminal.
+`mem` + 22 subcomandos para gestionar memoria desde terminal.
 
 | Comando | Descripción |
 |---------|-------------|
@@ -61,6 +61,10 @@ sin invocación manual de herramientas MCP.
 | `mem session start` | Iniciar sesión de trabajo |
 | `mem session end -s "resumen"` | Finalizar sesión |
 | `mem install [dir]` | Instalar gomemory en otro proyecto |
+| `mem uninstall [dir] [--yes]` | Desinstalar gomemory por completo (reverso de `install`) |
+| `mem purge [flags]` | Purgar memorias (proyecto actual por defecto, `--all`/`--type`/`--older-than-days`) |
+| `mem compact` | Compactar `.memory/mem.db` (recupera espacio, no borra nada) |
+| `mem gc [flags]` | Garbage collection a demanda (90 días de retención por defecto) |
 | `mem wrap <comando> [args...]` | Ejecutar comando y preguntar si guardar |
 | `mem mcp` | Servidor MCP para agentes AI |
 | `mem setup-mcp [--agents a,b,c]` | Configurar MCP multi-agente |
@@ -219,7 +223,7 @@ MIT
 
 ## Autor
 
-**Jose Gomez** — Arquitecto y desarrollador
+**Jose Gomez** ([@Sayoner-000](https://github.com/Sayoner-000)) — Arquitecto y desarrollador
 
 ---
 

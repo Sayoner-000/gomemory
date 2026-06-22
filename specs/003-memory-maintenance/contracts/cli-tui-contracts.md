@@ -92,8 +92,12 @@ Comportamiento (simétrico a CmdInstall en cmd_install.go):
         AGENTS.md/CLAUDE.md/CLAUDE.txt/.cursorrules/.windsurfrules (si el archivo queda vacío
         tras quitar el bloque y fue creado enteramente por mem install, se elimina el archivo;
         si tiene contenido adicional del usuario, se conserva el resto).
-     b. Remueve la entrada "gomemory" de .mcp.json, .cursor/mcp.json, .windsurf/mcp_config.json,
-        .cline/mcp_settings.json (inverso de setupOpenCode/setupClaude/setupCursor/etc.).
+     b. Remueve la entrada "gomemory" de .mcp.json, .opencode.json, .cursor/mcp.json,
+        .windsurf/mcp_config.json, .cline/mcp_settings.json (inverso de
+        setupOpenCode/setupClaude/setupCursor/etc.). NO toca ~/.codex/config.toml: a diferencia
+        de los anteriores (por proyecto), ese archivo es global y compartido entre todos los
+        proyectos instalados con el agente Codex — editarlo a ciegas arriesga corromper TOML de
+        otros proyectos. Se informa al usuario para que lo edite manualmente si aplica.
      c. Remueve .claude/plugins/gomemory/ y las entradas de hooks que apuntan ahí en
         .claude/settings.json (SessionStart/PreCompact/UserPromptSubmit/SessionEnd).
      d. Remueve el directorio .memory/ completo (datos incluidos).
