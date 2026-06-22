@@ -23,7 +23,7 @@ func LaunchTUI(deps *Deps) {
 
 	project := filepath.Base(root)
 
-	if err := tui.Run(deps.MemoryRepo, deps.SettingsRepo, root, project); err != nil {
+	if err := tui.Run(deps.MemoryRepo, deps.SettingsRepo, deps.MaintenanceRepo, root, project); err != nil {
 		fmt.Fprintf(os.Stderr, "Error en TUI: %v\n", err)
 		os.Exit(1)
 	}
@@ -59,6 +59,7 @@ Uso:
   mem context [-w|--write]         Mostrar contexto de memoria
   mem search <query>               Buscar en la memoria
   mem install [dir]                Instalar gomemory en un proyecto
+  mem uninstall [dir] [--yes]      Desinstalar gomemory por completo (reverso de install)
   mem session start                Iniciar nueva sesión
   mem session end [-s|--summary]   Finalizar sesión actual
   mem list [-n|--limit N]          Listar memorias recientes
@@ -70,6 +71,18 @@ Uso:
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]
                                     Ver o cambiar auto-approve de las tools MCP
+  mem purge [flags]                Vaciar memorias (proyecto actual por defecto)
+    --project <nombre>  Proyecto objetivo (default: actual)
+    --all                Purgar TODOS los proyectos del archivo
+    --type <tipo>        Filtrar por tipo de memoria
+    --older-than-days N  Solo memorias más viejas que N días
+    --yes                Omitir el prompt de confirmación
+  mem compact                      Compactar .memory/mem.db (recupera espacio, no borra nada)
+  mem gc [flags]                   Garbage collection a demanda (memorias viejas)
+    --project <nombre>  Proyecto objetivo (default: actual)
+    --all                Aplicar a todos los proyectos
+    --older-than-days N  Umbral de retención (default: 90)
+    --yes                Omitir el prompt de confirmación
   mem tui                          Abrir interfaz TUI explícitamente
   mem help                         Mostrar esta ayuda
 

@@ -12,6 +12,7 @@ automática con OpenCode y Claude Code.
 5. [Verificación](#5-verificación)
 6. [Solución de Problemas](#6-solución-de-problemas)
 7. [Memory Protocol](#7-memory-protocol)
+8. [Mantenimiento de Memoria](#8-mantenimiento-de-memoria)
 
 ---
 
@@ -281,6 +282,61 @@ de continuar.
 
 ---
 
+## 8. Mantenimiento de Memoria
+
+Cuando el almacén de memoria (`.memory/mem.db`) crece demasiado, gomemory ofrece
+cuatro acciones de mantenimiento — disponibles por CLI y, salvo desinstalar,
+también desde la TUI (tecla `m`). Ninguna se expone vía MCP: son operaciones
+destructivas que exigen confirmación humana explícita.
+
+### Purgar memorias
+
+```bash
+./mem purge                                  # Purga el proyecto actual (pide confirmación)
+./mem purge --type bugfix                    # Solo memorias de un tipo
+./mem purge --older-than-days 90             # Solo memorias más viejas que N días
+./mem purge --all --yes                      # TODOS los proyectos, sin prompt (scripts)
+```
+
+Por defecto el alcance es el proyecto actual (FR-003); `--all` requiere pasarse
+explícitamente para afectar todos los proyectos del archivo. Al borrar una
+memoria también se limpian las relaciones (`mem compare`) que la referencian.
+
+### Compactar el almacenamiento
+
+```bash
+./mem compact
+```
+
+Ejecuta `VACUUM` para recuperar el espacio en disco liberado por borrados
+previos. Nunca elimina memorias — reporta el tamaño antes/después.
+
+### Garbage collection a demanda
+
+```bash
+./mem gc                                     # 90 días de retención por defecto
+./mem gc --older-than-days 180 --all --yes
+```
+
+Limpieza por antigüedad, reutilizando la misma lógica de `purge`. Solo se
+ejecuta cuando el usuario lo pide explícitamente — nunca en segundo plano.
+
+### Desinstalación completa
+
+```bash
+./mem uninstall                              # reverso exacto de `mem install`
+./mem uninstall ~/proyectos/mi-app --yes
+```
+
+Además de los datos (`.memory/`), remueve el binario `mem`, los hooks, las
+entradas en `AGENTS.md`/`CLAUDE.md` y el registro MCP en `.mcp.json` y
+similares. Reporta qué componentes no encontró sin fallar. El archivo global
+`~/.codex/config.toml` no se toca automáticamente — se informa al usuario para
+que lo edite manualmente si instaló el agente Codex.
+
+Ver también [contracts/cli-tui-contracts.md](../specs/003-memory-maintenance/contracts/cli-tui-contracts.md)
+para el detalle completo de flags y comportamiento.
+
 ## Referencia Rápida
 
 ```bash
@@ -291,6 +347,12 @@ de continuar.
 # Servidor HTTP
 ./mem serve                       # Iniciar servidor (auto por plugins)
 ./mem serve --port 9735           # Puerto personalizado
+
+# Mantenimiento de memoria
+./mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
+./mem compact                     # Recuperar espacio en disco
+./mem gc                          # Garbage collection a demanda (90 días default)
+./mem uninstall --yes             # Desinstalación completa (reverso de install)
 
 # Verificación
 ./mem --help                      # Listar comandos

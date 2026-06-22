@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize"
 
 	"mem/application/ports"
 	"mem/domain"
@@ -18,7 +19,13 @@ const (
 	screenList screen = iota
 	screenDetail
 	screenSave
+	screenMaintenance
+	screenMaintenanceConfirm
 )
+
+const gcDefaultOlderThanDays = 90
+
+var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection"}
 
 // ─── Styles ───────────────────────────────────────────────────────
 
@@ -163,10 +170,11 @@ var (
 // ─── Model ─────────────────────────────────────────────────────────
 
 type model struct {
-	memRepo      ports.MemoryRepository
-	settingsRepo ports.SettingsRepository
-	root         string
-	project      string
+	memRepo         ports.MemoryRepository
+	settingsRepo    ports.SettingsRepository
+	maintenanceRepo ports.MaintenanceRepository
+	root            string
+	project         string
 
 	screen   screen
 	memories []domain.Memory
@@ -188,18 +196,24 @@ type model struct {
 	saveErr      string
 	saved        bool
 
+	stats        ports.StorageStats
+	maintCursor  int
+	maintAction  string // "purge" o "gc"
+	maintConfirm textinput.Model
+	maintErr     string
+
 	width  int
 	height int
 	ready  bool
 }
 
-func Run(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRepository, root, project string) error {
-	p := tea.NewProgram(initialModel(memRepo, settingsRepo, root, project), tea.WithAltScreen())
+func Run(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, root, project string) error {
+	p := tea.NewProgram(initialModel(memRepo, settingsRepo, maintenanceRepo, root, project), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
 
-func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRepository, root, project string) model {
+func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, root, project string) model {
 	mems, _ := memRepo.List(project, 200)
 
 	ti := textinput.New()
@@ -224,20 +238,33 @@ func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRep
 	tf.CharLimit = 200
 	tf.Width = 50
 
+	mc := textinput.New()
+	mc.Placeholder = "nombre del proyecto"
+	mc.CharLimit = 200
+	mc.Width = 50
+
 	settings := settingsRepo.Read(root)
 
+	var stats ports.StorageStats
+	if maintenanceRepo != nil {
+		stats, _ = maintenanceRepo.Stats(project)
+	}
+
 	return model{
-		memRepo:      memRepo,
-		settingsRepo: settingsRepo,
-		root:         root,
-		project:      project,
-		screen:       screenList,
-		memories:     mems,
-		autoApprove:  settings.AutoApprove,
-		saveTitle:    ti,
-		saveType:     ty,
-		saveContent:  tc,
-		saveFilepath: tf,
+		memRepo:         memRepo,
+		settingsRepo:    settingsRepo,
+		maintenanceRepo: maintenanceRepo,
+		root:            root,
+		project:         project,
+		screen:          screenList,
+		memories:        mems,
+		autoApprove:     settings.AutoApprove,
+		saveTitle:       ti,
+		saveType:        ty,
+		saveContent:     tc,
+		saveFilepath:    tf,
+		stats:           stats,
+		maintConfirm:    mc,
 	}
 }
 
@@ -266,6 +293,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenDetail {
 			return m.updateDetail(msg)
+		}
+		if m.screen == screenMaintenance {
+			return m.updateMaintenance(msg)
+		}
+		if m.screen == screenMaintenanceConfirm {
+			return m.updateMaintenanceConfirm(msg)
 		}
 		return m.updateList(msg)
 	}
@@ -315,6 +348,14 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusMsg = "Auto-approve desactivado"
 		}
 		m.statusTimer = 30
+
+	case "m":
+		if m.ready && m.maintenanceRepo != nil {
+			m.screen = screenMaintenance
+			m.maintCursor = 0
+			m.maintErr = ""
+			m.stats, _ = m.maintenanceRepo.Stats(m.project)
+		}
 
 	case "/":
 		m.searching = !m.searching
@@ -366,6 +407,98 @@ func (m model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = screenList
 	}
 	return m, nil
+}
+
+// ─── Maintenance screen ─────────────────────────────────────────────
+
+func (m model) updateMaintenance(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.screen = screenList
+		m.maintErr = ""
+
+	case "j", "down":
+		if m.maintCursor < len(maintenanceOptions)-1 {
+			m.maintCursor++
+		}
+
+	case "k", "up":
+		if m.maintCursor > 0 {
+			m.maintCursor--
+		}
+
+	case "enter":
+		switch m.maintCursor {
+		case 0: // Purgar
+			m.maintAction = "purge"
+			m.maintConfirm.SetValue("")
+			m.maintConfirm.Focus()
+			m.maintErr = ""
+			m.screen = screenMaintenanceConfirm
+
+		case 1: // Compactar — no destructivo, se ejecuta directo (FR-006)
+			before, after, err := m.maintenanceRepo.Compact()
+			if err != nil {
+				m.statusMsg = fmt.Sprintf("Error al compactar: %v", err)
+			} else {
+				m.statusMsg = fmt.Sprintf("Compactado: %s → %s", humanize.Bytes(uint64(before)), humanize.Bytes(uint64(after)))
+				m.stats, _ = m.maintenanceRepo.Stats(m.project)
+			}
+			m.statusTimer = 30
+
+		case 2: // Garbage Collection
+			m.maintAction = "gc"
+			m.maintConfirm.SetValue("")
+			m.maintConfirm.Focus()
+			m.maintErr = ""
+			m.screen = screenMaintenanceConfirm
+		}
+	}
+	return m, nil
+}
+
+func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.screen = screenMaintenance
+		m.maintErr = ""
+		return m, nil
+
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "enter":
+		typed := strings.TrimSpace(m.maintConfirm.Value())
+		if typed != m.project {
+			m.maintErr = "El nombre no coincide. No se eliminó nada."
+			return m, nil
+		}
+
+		filter := ports.PurgeFilter{Project: m.project}
+		actionLabel := "Purga"
+		if m.maintAction == "gc" {
+			filter.OlderThanDays = gcDefaultOlderThanDays
+			actionLabel = "Garbage collection"
+		}
+
+		deleted, err := m.maintenanceRepo.Purge(filter)
+		if err != nil {
+			m.statusMsg = fmt.Sprintf("Error: %v", err)
+		} else {
+			m.statusMsg = fmt.Sprintf("%s: %d memoria(s) eliminada(s)", actionLabel, deleted)
+			m.memories, _ = m.memRepo.List(m.project, 200)
+			m.stats, _ = m.maintenanceRepo.Stats(m.project)
+			m.cursor = 0
+		}
+		m.statusTimer = 30
+		m.maintErr = ""
+		m.screen = screenMaintenance
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.maintConfirm, cmd = m.maintConfirm.Update(msg)
+	return m, cmd
 }
 
 // ─── Save screen ───────────────────────────────────────────────────
@@ -476,6 +609,10 @@ func (m model) View() string {
 		return m.detailView()
 	case screenSave:
 		return m.saveView()
+	case screenMaintenance:
+		return m.maintenanceView()
+	case screenMaintenanceConfirm:
+		return m.maintenanceConfirmView()
 	}
 	return ""
 }
@@ -484,7 +621,11 @@ func (m model) listView() string {
 	var b strings.Builder
 
 	title := titleStyle.Render("gomemory")
-	info := subtitleStyle.Render(fmt.Sprintf("%s · %d memorias", m.project, len(m.memories)))
+	sizeInfo := ""
+	if m.maintenanceRepo != nil {
+		sizeInfo = " · " + humanize.Bytes(uint64(m.stats.FileSizeBytes)) + " en disco"
+	}
+	info := subtitleStyle.Render(fmt.Sprintf("%s · %d memorias%s", m.project, len(m.memories), sizeInfo))
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, title, "  ", info))
 	if m.autoApprove {
 		aa := lipgloss.NewStyle().Foreground(green).Render("autoApprove")
@@ -568,6 +709,63 @@ func (m model) listView() string {
 	return appStyle.Render(b.String())
 }
 
+func (m model) maintenanceView() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Mantenimiento de memoria"))
+	b.WriteString("\n")
+	b.WriteString(subtitleStyle.Render(fmt.Sprintf(
+		"%s · %d/%d memorias (proyecto/total) · %s en disco",
+		m.project, m.stats.ProjectMemoryCount, m.stats.TotalMemoryCount, humanize.Bytes(uint64(m.stats.FileSizeBytes)),
+	)))
+	b.WriteString("\n\n")
+
+	for i, label := range maintenanceOptions {
+		if i == m.maintCursor {
+			b.WriteString(itemSelected.Render("▸ " + label))
+		} else {
+			b.WriteString(itemNormal.Render("  " + label))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	if m.statusTimer > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+		b.WriteString("\n")
+	}
+	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter seleccionar  ·  esc volver"))
+	return appStyle.Render(b.String())
+}
+
+func (m model) maintenanceConfirmView() string {
+	var b strings.Builder
+
+	actionLabel := "Purgar"
+	if m.maintAction == "gc" {
+		actionLabel = "Garbage Collection"
+	}
+
+	b.WriteString(titleStyle.Render(actionLabel))
+	b.WriteString("\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(red).Bold(true).Render(
+		fmt.Sprintf("Esto eliminará memorias del proyecto %q permanentemente.", m.project),
+	))
+	b.WriteString("\n\n")
+	b.WriteString(formLabel.Render("Escribe el nombre del proyecto para confirmar:"))
+	b.WriteString("\n")
+	b.WriteString(m.maintConfirm.View())
+	b.WriteString("\n\n")
+
+	if m.maintErr != "" {
+		b.WriteString(errorStyle.Render("✕ " + m.maintErr))
+		b.WriteString("\n")
+	}
+
+	b.WriteString(helpStyle.Render("  enter confirmar  ·  esc cancelar"))
+	return appStyle.Render(b.String())
+}
+
 func (m model) detailView() string {
 	mem := m.selected
 	var b strings.Builder
@@ -645,6 +843,7 @@ func (m model) helpView() string {
 		"enter detalle",
 		"s guardar",
 		"a autoApprove",
+		"m mantenimiento",
 		"/ buscar",
 		"q salir",
 	}

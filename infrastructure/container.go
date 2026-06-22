@@ -16,12 +16,13 @@ type Container struct {
 	Root    string
 	Project string
 
-	MemoryRepo     ports.MemoryRepository
-	SessionRepo    ports.SessionRepository
-	RelationRepo   ports.RelationRepository
-	SettingsRepo   ports.SettingsRepository
-	ProjectRepo    ports.ProjectRepository
-	ContextBuilder ports.ContextBuilder
+	MemoryRepo      ports.MemoryRepository
+	SessionRepo     ports.SessionRepository
+	RelationRepo    ports.RelationRepository
+	SettingsRepo    ports.SettingsRepository
+	ProjectRepo     ports.ProjectRepository
+	ContextBuilder  ports.ContextBuilder
+	MaintenanceRepo ports.MaintenanceRepository
 
 	MCPServer *mcp.Server
 }
@@ -41,12 +42,13 @@ func NewContainer(root string) (*Container, error) {
 		Root:    root,
 		Project: project,
 
-		MemoryRepo:     memRepo,
-		SessionRepo:    sessRepo,
-		RelationRepo:   persistence.NewRelationRepository(db),
-		SettingsRepo:   persistence.NewSettingsRepository(),
-		ProjectRepo:    persistence.NewProjectRepository(),
-		ContextBuilder: usecases.New(memRepo, sessRepo, root, project),
+		MemoryRepo:      memRepo,
+		SessionRepo:     sessRepo,
+		RelationRepo:    persistence.NewRelationRepository(db),
+		SettingsRepo:    persistence.NewSettingsRepository(),
+		ProjectRepo:     persistence.NewProjectRepository(),
+		ContextBuilder:  usecases.New(memRepo, sessRepo, root, project),
+		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 
 		MCPServer: mcp.NewWithRepos(memRepo, sessRepo, project, 0),
 	}
@@ -59,17 +61,18 @@ func (c *Container) Close() {
 
 func (c *Container) ToDeps() *cli.Deps {
 	return &cli.Deps{
-		MemoryRepo:     c.MemoryRepo,
-		SessionRepo:    c.SessionRepo,
-		RelationRepo:   c.RelationRepo,
-		SettingsRepo:   c.SettingsRepo,
-		ProjectRepo:    c.ProjectRepo,
-		ContextBuilder: c.ContextBuilder,
+		MemoryRepo:      c.MemoryRepo,
+		SessionRepo:     c.SessionRepo,
+		RelationRepo:    c.RelationRepo,
+		SettingsRepo:    c.SettingsRepo,
+		ProjectRepo:     c.ProjectRepo,
+		ContextBuilder:  c.ContextBuilder,
+		MaintenanceRepo: c.MaintenanceRepo,
 	}
 }
 
 func (c *Container) RunTUI() error {
-	return tui.Run(c.MemoryRepo, c.SettingsRepo, c.Root, c.Project)
+	return tui.Run(c.MemoryRepo, c.SettingsRepo, c.MaintenanceRepo, c.Root, c.Project)
 }
 
 func isMockMode() bool {

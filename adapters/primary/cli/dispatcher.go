@@ -39,6 +39,14 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdList(deps, args)
 	case "settings":
 		CmdSettings(deps, args)
+	case "purge":
+		CmdPurge(deps, args)
+	case "compact":
+		CmdCompact(deps, args)
+	case "gc":
+		CmdGC(deps, args)
+	case "uninstall":
+		CmdUninstall(deps, args)
 	case "tui":
 		LaunchTUI(deps)
 	case "help", "-h", "--help":

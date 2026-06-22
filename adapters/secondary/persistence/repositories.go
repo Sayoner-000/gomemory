@@ -149,3 +149,38 @@ func (r *ProjectRepository) DbPath(root string) string {
 }
 
 var _ ports.ProjectRepository = (*ProjectRepository)(nil)
+
+type MaintenanceRepository struct {
+	db     *sql.DB
+	dbPath string
+}
+
+func NewMaintenanceRepository(db *sql.DB, dbPath string) ports.MaintenanceRepository {
+	return &MaintenanceRepository{db: db, dbPath: dbPath}
+}
+
+func (r *MaintenanceRepository) Stats(project string) (ports.StorageStats, error) {
+	projectCount, totalCount, err := StatsQuery(r.db, r.dbPath, project)
+	if err != nil {
+		return ports.StorageStats{}, err
+	}
+	size, err := FileSize(r.dbPath)
+	if err != nil {
+		return ports.StorageStats{}, err
+	}
+	return ports.StorageStats{
+		ProjectMemoryCount: projectCount,
+		TotalMemoryCount:   totalCount,
+		FileSizeBytes:      size,
+	}, nil
+}
+
+func (r *MaintenanceRepository) Purge(filter ports.PurgeFilter) (int64, error) {
+	return PurgeMemories(r.db, filter)
+}
+
+func (r *MaintenanceRepository) Compact() (int64, int64, error) {
+	return CompactDB(r.db, r.dbPath)
+}
+
+var _ ports.MaintenanceRepository = (*MaintenanceRepository)(nil)

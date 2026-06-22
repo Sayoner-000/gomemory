@@ -10,3 +10,5 @@
 .opencode/
 *.pdf
 speckit-constitution-gen.md
+*.test
+*.out
