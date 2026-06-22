@@ -56,8 +56,8 @@ mem setup opencode
 # Plugin para Claude Code
 mem setup claude-code
 
-# Con puerto personalizado
-mem setup opencode --port 9735
+# Con puerto personalizado (los flags van ANTES del agente)
+mem setup --port 9735 opencode
 ```
 
 ## Servidor HTTP

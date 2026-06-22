@@ -8,6 +8,17 @@ _No tasks in progress._
 
 ## Completed
 
+### 2026-06-22 — Fix instalación multi-agente + Memory Protocol en AGENTS.md/CLAUDE.md + v1.3.0
+
+- **Bug**: `session-start.sh` y `plugin/opencode/plugin.ts` invocaban el binario como `mem` literal (sin `PATH`) en vez de usar `{{BIN_PATH}}` → `command not found` al disparar el hook
+- **Bug**: hooks de Claude Code registrados como `PostStartup`/`PreShutdown` (eventos inexistentes) en `claude_code_setup.go` y `hooks/hooks.json` → corregido a `SessionStart`/`SessionEnd`
+- **Bug**: `//go:embed plugin` sin prefijo `all:` excluía `.claude-plugin/plugin.json` y el `.mcp.json` del template — nunca se instalaban a pesar de estar documentados
+- **Bug de uso**: `mem setup <agent> --port N` no respeta `--port`/`--target` si el agente (posicional) va antes de los flags — limitación del paquete `flag` de Go; documentado el orden correcto (`mem setup --port N <agent>`) en `cli.go`, `cmd_setup.go` y todos los docs
+- **Feature**: agregado bloque "Memory Protocol" (triggers de `save_memory`/`search_memories`/`end_session`) a `AGENTS.md` y `CLAUDE.md` de este repo
+- **Docs**: `AGENTS.md` tenía la arquitectura de OTRO proyecto (Python/FastAPI/Jinja2) y una sección `graphify` sin uso — reemplazado por el resumen real de gomemory (Go hexagonal)
+- **Docs**: corregidas referencias a `.memory/plugins/claude-code/` (ruta real: `.claude/plugins/gomemory/`) en README.md y docs/MANUAL.md
+- Versión bump: `1.0.0` → `1.3.0` (README, INSTALLATION, plugin.json, MCP server Implementation)
+
 ### 2026-06-18 — Nuevas funcionalidades: Capture, Compare, Project + Documentación completa
 
 **Implementación:**

@@ -80,10 +80,10 @@ Archivo `.claude/settings.json` (hooks):
 ```json
 {
   "hooks": {
-    "PostStartup": ["scripts/session-start.sh"],
+    "SessionStart": ["scripts/session-start.sh"],
     "PreCompact": ["scripts/post-compaction.sh"],
     "UserPromptSubmit": ["scripts/user-prompt-submit.sh"],
-    "PreShutdown": ["scripts/session-stop.sh"]
+    "SessionEnd": ["scripts/session-stop.sh"]
   }
 }
 ```

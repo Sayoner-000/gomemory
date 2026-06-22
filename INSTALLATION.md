@@ -1,4 +1,4 @@
-# Instalación de gomemory v1.0.0
+# Instalación de gomemory v1.3.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 
@@ -128,8 +128,8 @@ Instala en `~/.config/opencode/plugins/gomemory/plugin.ts`.
 Instala en `.claude/plugins/gomemory/` (hooks + scripts + skill).
 
 **Qué hace**:
-- Crea sesión al iniciar (hook PostStartup)
-- Cierra sesión al terminar (hook PreShutdown)
+- Crea sesión al iniciar (hook SessionStart)
+- Cierra sesión al terminar (hook SessionEnd)
 - Inyecta contexto post-compactación
 - Skill de memoria siempre disponible
 
@@ -272,7 +272,7 @@ ls .claude/plugins/gomemory/scripts/
 ```bash
 # Puerto 9735 ocupado — usar otro puerto
 ./mem serve --port 19735
-./mem setup opencode --port 19735
+./mem setup --port 19735 opencode
 
 # O matar el proceso anterior
 lsof -i :9735

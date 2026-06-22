@@ -66,7 +66,7 @@ Uso:
   mem wrap <comando> [args...]     Ejecutar comando y preguntar si guardar
   mem mcp [--root <dir>]           Servidor MCP para agentes AI
   mem serve [--port 9735]          Servidor HTTP background para plugins
-  mem setup <agent> [--port 9735]  Instalar plugin para opencode|claude-code
+  mem setup [--port 9735] <agent>  Instalar plugin para opencode|claude-code (flags ANTES del agente)
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]
                                     Ver o cambiar auto-approve de las tools MCP

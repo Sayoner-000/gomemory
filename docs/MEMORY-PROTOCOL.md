@@ -46,7 +46,7 @@ sistema (Qwen, Mistral/Ministral via llama.cpp).
 ### Claude Code
 
 El protocolo se inyecta como skill de memoria en `skills/memory/SKILL.md`,
-disponible permanentemente para el agente. Además, los hooks `PostStartup` y
+disponible permanentemente para el agente. Además, los hooks `SessionStart` y
 `PreCompact` inyectan contexto adicional en momentos específicos.
 
 ## Contenido del Protocolo

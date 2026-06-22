@@ -71,10 +71,10 @@ func InstallClaudeCode(root, binPath string, port int) error {
 
 	hooksCfg := map[string]interface{}{
 		"hooks": map[string]interface{}{
-			"PostStartup":    []string{filepath.Join(pluginDir, "scripts", "session-start.sh")},
-			"PreCompact":     []string{filepath.Join(pluginDir, "scripts", "post-compaction.sh")},
+			"SessionStart":     []string{filepath.Join(pluginDir, "scripts", "session-start.sh")},
+			"PreCompact":       []string{filepath.Join(pluginDir, "scripts", "post-compaction.sh")},
 			"UserPromptSubmit": []string{filepath.Join(pluginDir, "scripts", "user-prompt-submit.sh")},
-			"PreShutdown":    []string{filepath.Join(pluginDir, "scripts", "session-stop.sh")},
+			"SessionEnd":       []string{filepath.Join(pluginDir, "scripts", "session-stop.sh")},
 		},
 	}
 
@@ -89,11 +89,11 @@ func InstallClaudeCode(root, binPath string, port int) error {
 		if h == nil {
 			h = make(map[string]interface{})
 		}
-		if _, has := h["PostStartup"]; !has {
-			h["PostStartup"] = hooksCfg["hooks"].(map[string]interface{})["PostStartup"]
+		if _, has := h["SessionStart"]; !has {
+			h["SessionStart"] = hooksCfg["hooks"].(map[string]interface{})["SessionStart"]
 			h["PreCompact"] = hooksCfg["hooks"].(map[string]interface{})["PreCompact"]
 			h["UserPromptSubmit"] = hooksCfg["hooks"].(map[string]interface{})["UserPromptSubmit"]
-			h["PreShutdown"] = hooksCfg["hooks"].(map[string]interface{})["PreShutdown"]
+			h["SessionEnd"] = hooksCfg["hooks"].(map[string]interface{})["SessionEnd"]
 		}
 		settings["hooks"] = h
 	}

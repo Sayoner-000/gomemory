@@ -22,7 +22,7 @@ function ensureServer() {
   try {
     // Attempt to start the gomemory HTTP server as a subprocess
     const { execSync } = require("child_process");
-    execSync(`mem serve --port ${port} &`, {
+    execSync(`{{BIN_PATH}} serve --port ${port} &`, {
       stdio: "ignore",
       detached: true,
     });

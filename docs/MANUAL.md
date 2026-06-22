@@ -83,25 +83,27 @@ cat ~/.config/opencode/opencode.json
 ./mem setup claude-code
 ```
 
-Esto instala en `.memory/plugins/claude-code/` dentro del proyecto:
+Esto instala en `.claude/plugins/gomemory/` dentro del proyecto:
 
-1. `.mcp.json` — Configuración MCP apuntando a `mem mcp`
-2. `.claude-plugin/plugin.json` — Manifest del plugin
-3. `hooks/hooks.json` — Hooks registrados para startup, compact, submit, shutdown
-4. `scripts/session-start.sh` — Inicia sesión HTTP, importa git-sync
-5. `scripts/session-stop.sh` — Cierra sesión HTTP
-6. `scripts/user-prompt-submit.sh` — ToolSearch en primer prompt
-7. `scripts/post-compaction.sh` — Recuperación post-compactación
-8. `skills/memory/SKILL.md` — Memory Protocol skill
+1. `.claude-plugin/plugin.json` — Manifest del plugin
+2. `hooks/hooks.json` — Hooks registrados para `SessionStart`, `PreCompact`, `UserPromptSubmit`, `SessionEnd`
+3. `scripts/session-start.sh` — Inicia el servidor HTTP si no está corriendo, crea sesión
+4. `scripts/session-stop.sh` — Cierra sesión HTTP
+5. `scripts/user-prompt-submit.sh` — ToolSearch en primer prompt
+6. `scripts/post-compaction.sh` — Recuperación post-compactación
+7. `skills/memory/SKILL.md` — Memory Protocol skill
+
+La configuración MCP real (`.mcp.json` con la ruta absoluta del binario) se escribe en la raíz del proyecto, no dentro del directorio del plugin.
 
 ### Verificación
 
 ```bash
-ls -la .memory/plugins/claude-code/
-# hooks.json, scripts/, skills/, .mcp.json, .claude-plugin/
+ls -la .claude/plugins/gomemory/
+# hooks/, scripts/, skills/, .claude-plugin/
 
 # Verificar que los hooks están registrados
-cat .memory/plugins/claude-code/hooks/hooks.json
+cat .claude/plugins/gomemory/hooks/hooks.json
+cat .claude/settings.json   # hooks efectivos para Claude Code
 ```
 
 ---
@@ -188,7 +190,7 @@ ls infrastructure/plugin/claude-code/         # debe existir
 
 ```bash
 # Puerto 9735 ocupado — usa otro puerto
-./mem setup opencode --port 19735
+./mem setup --port 19735 opencode
 
 # O mata el proceso anterior
 lsof -i :9735
@@ -220,7 +222,10 @@ cat ~/.config/opencode/opencode.json
 
 ```bash
 # Verificar archivos instalados
-ls .memory/plugins/claude-code/
+ls .claude/plugins/gomemory/
+
+# Verificar que .mcp.json apunta al binario correcto en esta máquina
+cat .mcp.json
 
 # Reinstalar
 ./mem setup claude-code
@@ -230,9 +235,18 @@ ls .memory/plugins/claude-code/
 
 ## 7. Memory Protocol
 
-El Memory Protocol es un conjunto de reglas inyectadas en el system prompt del
-agente. No requiere configuración adicional — se activa automáticamente con
-cualquier plugin.
+El Memory Protocol es un conjunto de reglas que le dicen al agente cuándo
+guardar, buscar y cerrar sesión de memoria.
+
+- **Con plugin (OpenCode, Claude Code)**: se inyecta automáticamente en el
+  system prompt — no requiere configuración adicional.
+- **Sin plugin (Cursor, Windsurf, Cline, Codex)**: `mem setup-mcp` solo
+  registra el servidor MCP, no inyecta el protocolo por sí solo. La fuente de
+  verdad es el bloque que `mem install` agrega a `AGENTS.md`/`CLAUDE.md` (y
+  `.cursorrules`/`.windsurfrules` si existen) — ese bloque es el que le indica
+  al agente cuándo usar `save_memory`, `search_memories`, etc. Sin ese
+  archivo leído por el agente, las tools MCP existen pero nadie las invoca
+  proactivamente.
 
 ### Save Triggers
 

@@ -20,7 +20,7 @@ func bootstrapDeps() *cli.Deps {
 	}
 }
 
-//go:embed plugin
+//go:embed all:plugin
 var pluginFS embed.FS
 
 func init() {

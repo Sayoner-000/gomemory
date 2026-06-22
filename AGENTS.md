@@ -56,33 +56,40 @@
 5. *Documenta Resultados*: Añade una sección de revisión en tasks/todo.md
 6. *Captura Lecciones*: Actualiza tasks/lessons.md después de correcciones
 
+## Memory Protocol — Memoria Persistente (gomemory)
+
+Tenés acceso a gomemory vía MCP. Tools disponibles: `save_memory`, `search_memories`, `list_memories`, `get_memory`, `start_session`, `end_session`, `get_context`. Este protocolo es OBLIGATORIO y SIEMPRE ACTIVO — no es algo que se active a pedido.
+
+### Cuándo guardar (`save_memory`) — inmediatamente después de:
+- Decisión de arquitectura o diseño
+- Bug corregido (incluí la causa raíz)
+- Convención o patrón establecido
+- Elección de librería/herramienta con sus tradeoffs
+- Hallazgo no obvio sobre el código
+
+Autochequeo después de CADA tarea: "¿tomé una decisión, arreglé un bug, descubrí algo o establecí un patrón? Si sí → `save_memory` ahora, sin esperar a que se pida."
+
+### Cuándo buscar (`search_memories`)
+- Reactivo: el usuario dice "recordás", "qué hicimos antes", o referencia trabajo previo
+- Proactivo: al empezar algo que podría solaparse con sesiones anteriores
+
+Revelación progresiva: `search_memories(query)` para resultados compactos → `get_memory(id)` solo si necesitás el contenido completo. Nunca volcar toda la memoria de una.
+
+### Sesión de trabajo (`start_session` / `end_session`)
+Con Claude Code u OpenCode la sesión se crea y cierra sola (hooks del plugin); en cualquier otro agente (Cursor, Windsurf, Cline, Codex) no hay hook — llamá `start_session()` al empezar a trabajar y `end_session(summary)` antes de terminar, con Goal/Discoveries/Accomplished/Next Steps/Relevant Files. Sin esto, la sesión nunca se cierra del lado de esos agentes.
+
 ## Arquitectura del Proyecto
 
-Ver `docs/ARCHITECTURE.md` para el detalle completo de la arquitectura del proyecto.
+Ver `docs/architecture.md` para el detalle completo de la arquitectura del proyecto.
 
 Resumen rápido para orientarse:
-- **Stack**: Python 3.11 + FastAPI/Uvicorn (backend), Jinja2 SSR (templates), frontend Vanilla JS ES2022 (sin bundler), Caddy 2 como proxy/TLS, todo en Docker Compose.
-- **Backend**: routers en `app/routes/` (`auth`, `client`, `diagnostic`, `kolmena`, `mcp`, `performance`, `admin`); adaptadores en `app/adapters/` (`security/`, `console/`).
-- **Frontend**: arquitectura hexagonal por vista en `app/static/js/{diagnostico,admin}/` con capas `domain/`, `application/`, `infrastructure/`, `ui/`.
-- **Stack Docker**: `aria-frontend` (FastAPI), `console-agent` (Go, panel de consola de eventos), `caddy` (TLS + proxy inverso).
+- **Stack**: Go puro, sin CGO. CLI + TUI (Bubbletea) + servidor MCP (`modelcontextprotocol/go-sdk`) + servidor HTTP, todo sobre el mismo binario (`mem`). Persistencia en SQLite embebido (`modernc.org/sqlite`).
+- **Arquitectura hexagonal en 4 capas**: `domain/` (tipos y validación, cero dependencias del proyecto) → `application/` (casos de uso + puertos/interfaces en `application/ports/`) → `adapters/` (`primary/` = CLI, TUI, MCP, setup de plugins; `secondary/` = persistencia SQLite) → `infrastructure/` (composition root: `main.go`, `container.go`, plugins embebidos vía `go:embed`).
+- **Regla de dependencias**: nada depende directamente de `adapters/primary` o `adapters/secondary` — todo pasa por interfaces en `application/ports/`.
+- **Integración multi-agente**: `mem setup <agente>` instala plugin completo (hooks + inyección automática de protocolo + sesión autónoma) para Claude Code y OpenCode; `mem setup-mcp --agents <lista>` solo registra el servidor MCP (sin automatización de sesión/protocolo) para Cursor, Windsurf, Cline y Codex.
 
 ### Principios
 
 - *Simplicidad Primero*: Haz cada cambio lo más simple posible. Impacta el mínimo código.
 - *Sin Pereza*: Encuentra la causa raíz. Nada de soluciones temporales.
 - *Impacto Mínimo*: Los cambios deben tocar solo lo necesario.
-
-## graphify
-
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
-
-When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
-
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
-
-

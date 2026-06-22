@@ -1,4 +1,4 @@
-# gomemory v1.0.0
+# gomemory v1.3.0
 
 **Memoria colectiva para agentes AI — persistente, portable, plug-and-play.**
 
@@ -151,11 +151,11 @@ y configura la activación automática. El plugin:
 ./mem setup claude-code
 ```
 
-Instala hooks, scripts y skill en `.memory/plugins/claude-code/`. El plugin:
-- Crea sesión al iniciar (hook PostStartup)
-- Cierra sesión al terminar (hook PreShutdown)
-- Importa git-sync para memoria entre equipos
+Instala hooks, scripts y skill en `.claude/plugins/gomemory/`. El plugin:
+- Crea sesión al iniciar (hook SessionStart)
+- Cierra sesión al terminar (hook SessionEnd)
 - Inyecta contexto post-compactación
+- Skill de memoria (`skills/memory/SKILL.md`) siempre disponible para el agente
 
 ---
 

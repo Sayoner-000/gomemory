@@ -21,7 +21,7 @@ func CmdSetup(deps *Deps, args []string) {
 	}
 
 	if *agent == "" {
-		fmt.Println("Uso: mem setup <agent> [--target dir] [--port 9735]")
+		fmt.Println("Uso: mem setup [--target dir] [--port 9735] <agent>  (flags ANTES del agente)")
 		fmt.Println("Agentes: opencode, claude-code")
 		os.Exit(1)
 	}

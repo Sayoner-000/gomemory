@@ -56,8 +56,35 @@
 5. *Documenta Resultados*: Añade una sección de revisión en tasks/todo.md  
 6. *Captura Lecciones*: Actualiza tasks/lessons.md después de correcciones  
 
+## Memory Protocol — Memoria Persistente (gomemory)
+
+tienes acceso a gomemory vía MCP. Tools disponibles: `save_memory`, `search_memories`, `list_memories`, `get_memory`, `start_session`, `end_session`, `get_context`. Este protocolo es OBLIGATORIO y SIEMPRE ACTIVO — no es algo que se active a pedido.
+
+### Cuándo guardar (`save_memory`) — inmediatamente después de:
+- Decisión de arquitectura o diseño
+- Bug corregido (incluí la causa raíz)
+- Convención o patrón establecido
+- Elección de librería/herramienta con sus tradeoffs
+- Hallazgo no obvio sobre el código
+
+Autochequeo después de CADA tarea: "¿tomé una decisión, arreglé un bug, descubrí algo o establecí un patrón? Si sí → `save_memory` ahora, sin esperar a que se pida."
+
+### Cuándo buscar (`search_memories`)
+- Reactivo: el usuario dice "recordás", "qué hicimos antes", o referencia trabajo previo
+- Proactivo: al empezar algo que podría solaparse con sesiones anteriores
+
+Revelación progresiva: `search_memories(query)` para resultados compactos → `get_memory(id)` solo si necesitás el contenido completo. Nunca volcar toda la memoria de una.
+
+### Cierre de sesión (`end_session`)
+Antes de terminar o decir "listo", llamá `end_session(summary)` con Goal/Discoveries/Accomplished/Next Steps/Relevant Files. El hook `SessionEnd` cierra la sesión como red de seguridad si te olvidás, pero sin resumen rico — eso lo aportás vos llamando `end_session` antes de cerrar.
+
 ## Principios Fundamentales
 
 - *Simplicidad Primero*: Haz cada cambio lo más simple posible. Impacta el mínimo código.
 - *Sin Pereza*: Encuentra la causa raíz. Nada de soluciones temporales. Estándares de desarrollador senior.
 - *Impacto Mínimo*: Los cambios deben tocar solo lo necesario. Evita introducir errores.
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->

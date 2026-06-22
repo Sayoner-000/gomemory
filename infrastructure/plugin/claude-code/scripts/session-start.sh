@@ -2,7 +2,7 @@
 set -e
 
 PORT=${GOMMY_PORT:-9735}
-BIN="${GOMMY_BIN:-mem}"
+BIN="{{BIN_PATH}}"
 
 # Ensure HTTP server is running
 if ! curl -sf http://127.0.0.1:$PORT/health >/dev/null 2>&1; then

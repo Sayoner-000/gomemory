@@ -2,6 +2,14 @@
 
 <!-- Capture patterns, gotchas, and rules after each user correction. -->
 
+## 2026-06-22
+
+- `session-start.sh` resolvía el binario como `BIN="${GOMMY_BIN:-mem}"`. `GOMMY_BIN` nunca se exporta en ningún hook, así que siempre caía al literal `"mem"`, ausente del `PATH` → `command not found`. El mecanismo para hornear la ruta absoluta (`{{BIN_PATH}}` en `replacePlaceholders`) ya existía pero el template nunca lo usaba. Mismo bug en `plugin/opencode/plugin.ts` (`mem serve` literal). **Regla: cuando un template de plugin necesite invocar el propio binario, usar siempre `{{BIN_PATH}}`, nunca un nombre bare que dependa del `PATH`.**
+- Los hooks de Claude Code se registraban como `PostStartup`/`PreShutdown` en `claude_code_setup.go` y `hooks/hooks.json` — **esos eventos no existen** en Claude Code (los reales son `SessionStart`/`SessionEnd`). Una instalación nueva nunca dispararía esos hooks (fallarían en silencio, sin error visible). **Regla: verificar contra la documentación real de eventos de hooks del agente, no asumir nombres "parecidos".**
+- `//go:embed plugin` (sin el prefijo `all:`) excluye silenciosamente archivos/directorios que empiezan con `.` — por eso `.claude-plugin/plugin.json` y el `.mcp.json` del template nunca se copiaban a proyectos instalados, a pesar de estar documentados. **Regla: cualquier directorio embebido que incluya archivos `.algo` necesita `//go:embed all:dir`, no `//go:embed dir`.**
+- `.mcp.json` es local y gitignorado — si el proyecto se clona/copia a otra máquina o usuario, queda con una ruta de binario stale (vimos un path de macOS de otro usuario en un checkout Linux). Reinstalar (`./mem setup claude-code`) lo regenera porque `InstallClaudeCode` sobreescribe la entrada `gomemory` sin condición.
+- El flag `--target` de `mem setup` se pierde si se pasa el agente posicional ANTES de los flags (`mem setup claude-code --target X`) — el paquete `flag` de Go deja de parsear flags en el primer argumento no-flag. Hay que pasar `mem setup --target X --port N claude-code` (flags antes del posicional) para que efectivamente se respete.
+
 ## 2026-06-21
 
 - `mem setup opencode` instalaba `plugin.ts` como archivo plano en `~/.config/opencode/plugins/` en vez de dentro de `~/.config/opencode/plugins/gomemory/plugin.ts` — OpenCode requiere un subdirectorio por plugin (`plugins/<name>/plugin.ts`). Fijado cambiando el target dir en `opencode_setup.go`.
