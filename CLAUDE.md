@@ -58,25 +58,25 @@
 
 ## Memory Protocol — Memoria Persistente (gomemory)
 
-tienes acceso a gomemory vía MCP. Tools disponibles: `save_memory`, `search_memories`, `list_memories`, `get_memory`, `start_session`, `end_session`, `get_context`. Este protocolo es OBLIGATORIO y SIEMPRE ACTIVO — no es algo que se active a pedido.
+Hay acceso a gomemory vía MCP. Tools disponibles: `save_memory`, `search_memories`, `list_memories`, `get_memory`, `start_session`, `end_session`, `get_context`. Este protocolo es OBLIGATORIO y SIEMPRE ACTIVO — no es algo que se active a pedido.
 
 ### Cuándo guardar (`save_memory`) — inmediatamente después de:
 - Decisión de arquitectura o diseño
-- Bug corregido (incluí la causa raíz)
+- Bug corregido (incluir la causa raíz)
 - Convención o patrón establecido
 - Elección de librería/herramienta con sus tradeoffs
 - Hallazgo no obvio sobre el código
 
-Autochequeo después de CADA tarea: "¿tomé una decisión, arreglé un bug, descubrí algo o establecí un patrón? Si sí → `save_memory` ahora, sin esperar a que se pida."
+Autochequeo después de CADA tarea: "¿se tomó una decisión, se arregló un bug, se descubrió algo o se estableció un patrón? Si sí → `save_memory` ahora, sin esperar a que se pida."
 
 ### Cuándo buscar (`search_memories`)
-- Reactivo: el usuario dice "recordás", "qué hicimos antes", o referencia trabajo previo
+- Reactivo: el usuario dice "recuerdas", "qué hicimos antes", o referencia trabajo previo
 - Proactivo: al empezar algo que podría solaparse con sesiones anteriores
 
-Revelación progresiva: `search_memories(query)` para resultados compactos → `get_memory(id)` solo si necesitás el contenido completo. Nunca volcar toda la memoria de una.
+Revelación progresiva: `search_memories(query)` para resultados compactos → `get_memory(id)` solo si se necesita el contenido completo. Nunca volcar toda la memoria de una.
 
 ### Cierre de sesión (`end_session`)
-Antes de terminar o decir "listo", llamá `end_session(summary)` con Goal/Discoveries/Accomplished/Next Steps/Relevant Files. El hook `SessionEnd` cierra la sesión como red de seguridad si te olvidás, pero sin resumen rico — eso lo aportás vos llamando `end_session` antes de cerrar.
+Antes de terminar o decir "listo", llamar a `end_session(summary)` con Goal/Discoveries/Accomplished/Next Steps/Relevant Files. El hook `SessionEnd` cierra la sesión como red de seguridad si no se hace, pero sin resumen rico — ese resumen lo aporta el modelo llamando a `end_session` antes de cerrar.
 
 ## Principios Fundamentales
 

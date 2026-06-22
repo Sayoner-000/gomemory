@@ -151,26 +151,17 @@ func CmdInstall(deps *Deps, args []string) {
 		fmt.Printf("  ✅ Integración ya presente en AGENTS.md/CLAUDE.md\n")
 	}
 	if found == 0 {
-		srcRoot, err := deps.ProjectRepo.FindRoot()
-		if err == nil {
-			copied := 0
-			for _, fname := range []string{"AGENTS.md", "CLAUDE.md"} {
-				src := filepath.Join(srcRoot, fname)
-				dst := filepath.Join(target, fname)
-				if _, err := os.Stat(src); err == nil {
-					if _, err := os.Stat(dst); err != nil {
-						copyFile(src, dst)
-						fmt.Printf("  ✅ %s creado desde plantilla base\n", fname)
-						copied++
-					}
-				}
+		created := 0
+		for _, fname := range []string{"AGENTS.md", "CLAUDE.md"} {
+			dst := filepath.Join(target, fname)
+			if err := os.WriteFile(dst, []byte(defaultAgentFile(fname)), 0644); err != nil {
+				continue
 			}
-			if copied == 0 {
-				fmt.Printf("  ℹ️  No se encontró AGENTS.md/CLAUDE.md en el proyecto destino.\n")
-				fmt.Printf("     Crea uno manualmente o copia la plantilla desde %s\n", srcRoot)
-			}
-		} else {
-			fmt.Printf("  ℹ️  No se encontró AGENTS.md/CLAUDE.md en el proyecto destino.\n")
+			fmt.Printf("  ✅ %s creado con protocolo de memoria\n", fname)
+			created++
+		}
+		if created == 0 {
+			fmt.Printf("  ⚠️  No se pudo crear AGENTS.md/CLAUDE.md en el proyecto destino.\n")
 		}
 	}
 
@@ -276,6 +267,17 @@ func buildIntegrationBlock() string {
 		"",
 	}
 	return strings.Join(lines, "\n")
+}
+
+// defaultAgentFile genera un AGENTS.md/CLAUDE.md universal desde cero,
+// sin depender del cwd ni de archivos en disco — todo el contenido vive
+// en el binario vía buildIntegrationBlock().
+func defaultAgentFile(fname string) string {
+	title := "# Instrucciones para agentes AI"
+	if fname == "CLAUDE.md" {
+		title = "# Instrucciones para Claude Code"
+	}
+	return title + "\n" + buildIntegrationBlock()
 }
 
 type MCPEntry struct {
