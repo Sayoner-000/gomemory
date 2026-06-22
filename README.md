@@ -100,7 +100,7 @@ sin invocación manual de herramientas MCP.
 
 ```bash
 # Compilar
-go build -o mem .
+go build -o mem ./infrastructure/
 
 # Instalar plugin para OpenCode (recomendado)
 ./mem setup opencode
@@ -188,10 +188,10 @@ Instala hooks, scripts y skill en `.memory/plugins/claude-code/`. El plugin:
 
 ```bash
 # Cross-compile sin toolchain adicional
-GOOS=darwin  GOARCH=arm64 go build -o mem-darwin-arm64 .
-GOOS=darwin  GOARCH=amd64 go build -o mem-darwin-amd64 .
-GOOS=linux   GOARCH=amd64 go build -o mem-linux-amd64 .
-GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe .
+GOOS=darwin  GOARCH=arm64 go build -o mem-darwin-arm64 ./infrastructure/
+GOOS=darwin  GOARCH=amd64 go build -o mem-darwin-amd64 ./infrastructure/
+GOOS=linux   GOARCH=amd64 go build -o mem-linux-amd64 ./infrastructure/
+GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe ./infrastructure/
 ```
 
 - `.memory/mem.db` es SQLite WAL — cópialo entre máquinas sin migraciones
@@ -204,7 +204,7 @@ GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe .
 ## Pruebas
 
 ```bash
-go build -o mem .      # compilar
+go build -o mem ./infrastructure/      # compilar
 go vet ./...           # verificación estática
 go test ./... -v       # tests unitarios + integración + contrato
 ```

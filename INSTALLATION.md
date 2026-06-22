@@ -27,7 +27,7 @@ cd gomemory
 ## 2. Compilar
 
 ```bash
-go build -o mem .
+go build -o mem ./infrastructure/
 ```
 
 Esto produce el binario `mem` en el directorio actual.
@@ -36,16 +36,16 @@ Esto produce el binario `mem` en el directorio actual.
 
 ```bash
 # macOS Apple Silicon
-GOOS=darwin  GOARCH=arm64 go build -o mem-darwin-arm64 .
+GOOS=darwin  GOARCH=arm64 go build -o mem-darwin-arm64 ./infrastructure/
 
 # macOS Intel
-GOOS=darwin  GOARCH=amd64 go build -o mem-darwin-amd64 .
+GOOS=darwin  GOARCH=amd64 go build -o mem-darwin-amd64 ./infrastructure/
 
 # Linux
-GOOS=linux   GOARCH=amd64 go build -o mem-linux-amd64 .
+GOOS=linux   GOARCH=amd64 go build -o mem-linux-amd64 ./infrastructure/
 
 # Windows
-GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe .
+GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe ./infrastructure/
 ```
 
 No se necesita toolchain adicional — el cross-compile funciona out of the box
@@ -233,7 +233,7 @@ Configuración multi-agente automática:
 ```bash
 cd gomemory
 git pull
-go build -o mem .
+go build -o mem ./infrastructure/
 # Reemplazar el binario en cada proyecto donde esté instalado
 cp mem /ruta/a/tu/proyecto/mem
 # Reinstalar plugins si hubo cambios

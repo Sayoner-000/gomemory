@@ -11,7 +11,7 @@
 ### 1. Estado Inicial (antes de migrar)
 
 ```bash
-cd /Users/josegomezj/home/rcw/go_memory
+cd /ruta/a/go_memory
 
 # Verificar que todo compila y tests pasan ANTES
 go build ./...

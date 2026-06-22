@@ -23,7 +23,11 @@ func InstallOpenCode(root, binPath string, port int) error {
 		Port:        port,
 	}
 
-	pluginDir := filepath.Join(os.Getenv("HOME"), ".config", "opencode", "plugins", "gomemory")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("obtener home del usuario: %w", err)
+	}
+	pluginDir := filepath.Join(homeDir, ".config", "opencode", "plugins", "gomemory")
 	if err := os.MkdirAll(pluginDir, 0755); err != nil {
 		return fmt.Errorf("create opencode plugin dir: %w", err)
 	}
