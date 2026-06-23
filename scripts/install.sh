@@ -2,7 +2,7 @@
 # Instalador universal de gomemory para Linux y macOS.
 #
 # Uso:
-#   curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.sh | bash
 #
 # Opciones (variables de entorno):
 #   GOMEMORY_VERSION=v1.5.0   Instala una versión específica (por defecto: latest)

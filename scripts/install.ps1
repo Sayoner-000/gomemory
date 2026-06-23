@@ -1,10 +1,10 @@
 # Instalador universal de gomemory para Windows (PowerShell).
 #
 # Uso:
-#   irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
 #
 # Desinstalar:
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1))) -Uninstall
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1))) -Uninstall
 
 param(
   [switch]$Uninstall,
