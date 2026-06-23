@@ -9,6 +9,8 @@
 .claude/
 .opencode/
 *.pdf
-speckit-constitution-gen.md
+# Constitución generada por `mem install` en la raíz de proyectos (no la fuente
+# embebida en infrastructure/templates/, que sí se versiona).
+/speckit-constitution-gen.md
 *.test
 *.out
