@@ -1,4 +1,4 @@
-# Instalación de gomemory v1.5.0
+# Instalación de gomemory v1.6.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 
@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts
 irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
 ```
 
-Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=v1.5.0` para fijar versión,
+Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=v1.6.0` para fijar versión,
 `GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino.
 
 Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`.

@@ -15,29 +15,49 @@ usuario tenga que invocar herramientas MCP manualmente.
 
 ## Arquitectura
 
+Cada agente integra la memoria por dos vías comunes (MCP stdio para las tools, y
+el bloque del Memory Protocol en sus instrucciones) pero el **ciclo de vida**
+—abrir/cerrar sesión, inyectar contexto, recuperar tras compactación— se conecta
+distinto según el agente:
+
 ```
-Agente (OpenCode / Claude Code)
-    │
-    ├── Plugin (inyecta Memory Protocol + contexto)
-    │
-    ├── MCP stdio (mem mcp → tools de memoria)
-    │
-    └── HTTP API (mem serve → sesiones + contexto)
-              │
-              └── SQLite (.memory/mem.db)
+                 ┌──────────────────────────── OpenCode ───────────────────────┐
+                 │  plugin.ts  ──HTTP──▶  mem serve (127.0.0.1:9735)            │
+                 │                                  │                           │
+ Agente ─────────┤                                  ├──▶ SQLite (.memory/mem.db)│
+                 │                                  │                           │
+                 │  ┌────────────────────────── Claude Code ────────────────┐  │
+                 │  │  hooks  ──▶  mem hook <evento>  ──directo──▶ repos ─────┘  │
+                 │  └────────────────────────────────────────────────────────┘  │
+                 └──────────────────────────────────────────────────────────────┘
+        + común a ambos:  MCP stdio (mem mcp → tools)  ·  Memory Protocol en instrucciones
 ```
+
+- **OpenCode** (`plugin.ts`): gestiona el ciclo de vida vía el **servidor HTTP**
+  (`mem serve`), que auto-inicia.
+- **Claude Code** (hooks): gestiona el ciclo de vida con **hooks portables**
+  (`mem hook <evento>`) que hablan **directo a los repositorios** — sin HTTP, sin
+  `bash`/`curl`. Funcionan igual en Windows.
 
 ### Componentes
 
-1. **Plugin del agente**: Código específico por agente que se integra en su
-   ciclo de vida. Inyecta el Memory Protocol, gestiona sesiones y proporciona
-   contexto automático.
+1. **Plugin / hooks del agente**: integra la memoria en su ciclo de vida —
+   gestiona sesiones, inyecta contexto y recupera tras compactación.
 
-2. **Servidor HTTP** (`mem serve`): Servidor de background que maneja sesiones
-   y genera contexto. Escucha en `127.0.0.1:9735` por defecto.
+2. **Servidor HTTP** (`mem serve`): background para **OpenCode**. Maneja sesiones
+   y genera contexto. Escucha en `127.0.0.1:9735` por defecto. Claude Code no lo usa.
 
-3. **Memory Protocol**: Conjunto de reglas inyectadas en el system prompt del
+3. **Memory Protocol**: conjunto de reglas inyectadas en las instrucciones del
    agente que definen cuándo guardar, buscar y cerrar memoria.
+
+### Hooks de Claude Code — para qué sirve cada uno
+
+| Evento | Subcomando | Función |
+|--------|-----------|---------|
+| `SessionStart` | `session-start` | Abre sesión si no hay activa + inyecta contexto de sesiones previas |
+| `SessionEnd` | `session-end` | Cierra la sesión activa como red de seguridad (acepta `summary` por stdin) |
+| `PreCompact` | `pre-compact` | Inyecta instrucciones de recuperación + contexto antes de compactar |
+| `UserPromptSubmit` | `user-prompt-submit` | Primer prompt: activa tools MCP + recordatorio del protocolo; luego pasivo |
 
 ### Capas de Resiliencia
 

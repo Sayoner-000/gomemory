@@ -23,8 +23,12 @@ func bootstrapDeps() *cli.Deps {
 //go:embed all:plugin
 var pluginFS embed.FS
 
+//go:embed all:templates
+var templatesFS embed.FS
+
 func init() {
 	setup.PluginFS = pluginFS
+	cli.TemplatesFS = templatesFS
 }
 
 // rootIndependentCommands no requieren un .memory/ preexistente: ellos mismos

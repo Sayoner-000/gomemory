@@ -1,4 +1,4 @@
-# gomemory v1.5.0
+# gomemory v1.6.0
 
 **Memoria colectiva para agentes AI — persistente, portable, plug-and-play.**
 
@@ -43,7 +43,7 @@ sin invocación manual de herramientas MCP.
 - **Endpoint**: `127.0.0.1:9735`
 
 ### 📋 CLI Completo
-`mem` + 22 subcomandos para gestionar memoria desde terminal.
+`mem` + 23 subcomandos para gestionar memoria desde terminal.
 
 | Comando | Descripción |
 |---------|-------------|
@@ -68,6 +68,7 @@ sin invocación manual de herramientas MCP.
 | `mem wrap <comando> [args...]` | Ejecutar comando y preguntar si guardar |
 | `mem mcp` | Servidor MCP para agentes AI |
 | `mem hook <evento>` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `user-prompt-submit`) |
+| `mem settings [--auto-approve\|--show]` | Ver/cambiar auto-approve de las tools MCP |
 | `mem setup-mcp [--agents a,b,c]` | Configurar MCP multi-agente |
 | `mem serve [--port N]` | Servidor HTTP de plugins (auto-inicia sesiones y contexto) |
 | `mem setup opencode\|claude-code` | Instalar plugin de memoria para agente específico |
@@ -138,10 +139,16 @@ mem search "API"
 mem context --write
 ```
 
-`mem install .` crea `.memory/`, configura MCP y hooks portables para todos los
-agentes (Claude, OpenCode, Cursor, Windsurf, Cline, Codex), y genera
-`AGENTS.md`/`CLAUDE.md` con la integración del Memory Protocol.
+`mem install .`:
+- crea `.memory/` y actualiza `.gitignore`;
+- configura el **MCP** de los 6 agentes (Claude, OpenCode, Cursor, Windsurf, Cline, Codex);
+- genera/actualiza `AGENTS.md` y `CLAUDE.md` con el **pack de trabajo**: reglas de
+  trabajo (lecciones de campo) + orquestación + el Memory Protocol;
+- copia la **constitución** (`speckit-constitution-gen.md`) a la raíz del proyecto.
 
+> Los **hooks** de los agentes no se instalan con `install` — usa
+> `mem setup claude-code` o `mem setup opencode` para registrarlos.
+>
 > Desde el fuente: `go build -o mem ./infrastructure/` y luego `./mem install .`.
 
 ---
@@ -170,11 +177,19 @@ mem setup claude-code
 Configura hooks portables en `.claude/settings.json` e instala el skill en
 `.claude/plugins/gomemory/`. Los hooks son **subcomandos del binario**
 (`mem hook <evento>`), no scripts shell: no dependen de `bash`/`curl` ni de un
-servidor HTTP, y corren igual en Windows. El plugin:
-- Crea sesión al iniciar (hook `SessionStart` → `mem hook session-start`)
-- Cierra sesión al terminar (hook `SessionEnd` → `mem hook session-end`)
-- Inyecta contexto + recordatorio del protocolo en cada prompt y tras compactación
-- Skill de memoria (`skills/memory/SKILL.md`) siempre disponible para el agente
+servidor HTTP, y corren igual en Windows. Para qué sirve cada uno:
+- **`SessionStart`** → abre sesión si no hay activa **e inyecta el contexto de
+  sesiones previas**: el agente arranca recordando el proyecto.
+- **`SessionEnd`** → cierra la sesión activa como **red de seguridad** (aunque el
+  modelo no llame `end_session`).
+- **`PreCompact`** → antes de compactar, inyecta **instrucciones de recuperación +
+  contexto** para que la compactación no borre el estado de trabajo.
+- **`UserPromptSubmit`** → en el **primer** prompt activa las tools MCP de memoria
+  e inyecta el recordatorio del protocolo; luego es pasivo (sin overhead).
+- Skill de memoria (`skills/memory/SKILL.md`) siempre disponible para el agente.
+
+> Regla de oro: un hook nunca aborta el arranque del agente — ante cualquier
+> error sale silencioso con código 0.
 
 > Los hooks se escriben referenciando `mem` por PATH (o `${CLAUDE_PROJECT_DIR}/mem`
 > como fallback por-proyecto), nunca una ruta absoluta de máquina.
