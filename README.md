@@ -1,4 +1,4 @@
-# gomemory v1.4.0
+# gomemory v1.5.0
 
 **Memoria colectiva para agentes AI — persistente, portable, plug-and-play.**
 
@@ -67,6 +67,7 @@ sin invocación manual de herramientas MCP.
 | `mem gc [flags]` | Garbage collection a demanda (90 días de retención por defecto) |
 | `mem wrap <comando> [args...]` | Ejecutar comando y preguntar si guardar |
 | `mem mcp` | Servidor MCP para agentes AI |
+| `mem hook <evento>` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `user-prompt-submit`) |
 | `mem setup-mcp [--agents a,b,c]` | Configurar MCP multi-agente |
 | `mem serve [--port N]` | Servidor HTTP de plugins (auto-inicia sesiones y contexto) |
 | `mem setup opencode\|claude-code` | Instalar plugin de memoria para agente específico |
@@ -100,37 +101,48 @@ sin invocación manual de herramientas MCP.
 
 ---
 
-## Inicio rápido
+## Instalación universal (consola)
+
+Un solo comando instala el binario `mem` en el PATH, sin compilar ni clonar.
+Funciona en Linux, macOS y Windows.
 
 ```bash
-# Compilar
-go build -o mem ./infrastructure/
-
-# Instalar plugin para OpenCode (recomendado)
-./mem setup opencode
-
-# O para Claude Code
-./mem setup claude-code
-
-# Servidor HTTP (auto-iniciado por plugins, o manual)
-./mem serve &
-
-# Guardar y buscar
-./mem save -t "API REST" -y decision "Usamos Fiber para rutas"
-./mem search "API"
-./mem context --write
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
+```
+
+Para desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`
+(Linux/macOS) o `... -Uninstall` (Windows).
+
+> ¿Por qué un binario en el PATH? Toda la config de agentes referencia `mem`
+> por nombre — nunca una ruta absoluta de tu máquina. Así la config es portable
+> entre equipos y SO, y los hooks corren igual en Claude, OpenCode, Cursor, etc.
 
 ---
 
-## Instalación en proyecto
+## Inicio rápido
 
 ```bash
-./mem install /ruta/a/tu/proyecto
+# Cablear memoria + agentes en tu proyecto (asume `mem` ya en el PATH)
+cd /ruta/a/tu/proyecto
+mem install .
+
+# Guardar y buscar
+mem save -t "API REST" -y decision "Usamos Fiber para rutas"
+mem search "API"
+mem context --write
 ```
 
-Esto crea `.memory/`, configura MCP para todos los agentes, y genera
-`AGENTS.md`/`CLAUDE.md` con integración.
+`mem install .` crea `.memory/`, configura MCP y hooks portables para todos los
+agentes (Claude, OpenCode, Cursor, Windsurf, Cline, Codex), y genera
+`AGENTS.md`/`CLAUDE.md` con la integración del Memory Protocol.
+
+> Desde el fuente: `go build -o mem ./infrastructure/` y luego `./mem install .`.
 
 ---
 
@@ -152,14 +164,20 @@ y configura la activación automática. El plugin:
 ### Claude Code
 
 ```bash
-./mem setup claude-code
+mem setup claude-code
 ```
 
-Instala hooks, scripts y skill en `.claude/plugins/gomemory/`. El plugin:
-- Crea sesión al iniciar (hook SessionStart)
-- Cierra sesión al terminar (hook SessionEnd)
-- Inyecta contexto post-compactación
+Configura hooks portables en `.claude/settings.json` e instala el skill en
+`.claude/plugins/gomemory/`. Los hooks son **subcomandos del binario**
+(`mem hook <evento>`), no scripts shell: no dependen de `bash`/`curl` ni de un
+servidor HTTP, y corren igual en Windows. El plugin:
+- Crea sesión al iniciar (hook `SessionStart` → `mem hook session-start`)
+- Cierra sesión al terminar (hook `SessionEnd` → `mem hook session-end`)
+- Inyecta contexto + recordatorio del protocolo en cada prompt y tras compactación
 - Skill de memoria (`skills/memory/SKILL.md`) siempre disponible para el agente
+
+> Los hooks se escriben referenciando `mem` por PATH (o `${CLAUDE_PROJECT_DIR}/mem`
+> como fallback por-proyecto), nunca una ruta absoluta de máquina.
 
 ---
 

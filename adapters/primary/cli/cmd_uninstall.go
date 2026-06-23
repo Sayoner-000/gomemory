@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"mem/adapters/primary/setup"
 )
 
 // uninstallAgentFiles son los mismos archivos que CmdInstall puede haber
@@ -205,8 +207,9 @@ func removeClaudePlugin(target string) {
 		}
 		kept := make([]interface{}, 0, len(entries))
 		for _, e := range entries {
-			path, ok := e.(string)
-			if ok && strings.Contains(path, filepath.Join(".claude", "plugins", "gomemory")) {
+			// Reconoce tanto el formato objeto nuevo (command "mem hook ...")
+			// como el legado ([]string a scripts/*.sh del plugin).
+			if setup.IsGomemoryHookEntry(e) {
 				changed = true
 				continue
 			}

@@ -167,12 +167,12 @@ func CmdInstall(deps *Deps, args []string) {
 
 	// 5. MCP server config for all agents
 	fmt.Printf("  🔌 Configurando MCP para agentes...\n")
-	setupOpenCode(target, destBin)
-	setupClaude(target, destBin)
-	setupCursor(target, destBin)
-	setupWindsurf(target, destBin)
-	setupCline(target, destBin)
-	setupCodex(target, destBin)
+	setupOpenCode(target)
+	setupClaude(target)
+	setupCursor(target)
+	setupWindsurf(target)
+	setupCline(target)
+	setupCodex(target)
 
 	// 6. Apply autoApprove settings if configured
 	settings := deps.SettingsRepo.Read(target)

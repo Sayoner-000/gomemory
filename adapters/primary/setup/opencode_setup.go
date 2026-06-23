@@ -16,11 +16,10 @@ type OpenCodeConfig struct {
 	MCPServers map[string]MCPEntry `json:"mcpServers"`
 }
 
-func InstallOpenCode(root, binPath string, port int) error {
+func InstallOpenCode(root string, ref AgentRef) error {
 	ctx := &PluginContext{
 		ProjectRoot: root,
-		BinPath:     binPath,
-		Port:        port,
+		BinPath:     ref.MCPCommand,
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -46,8 +45,8 @@ func InstallOpenCode(root, binPath string, port int) error {
 
 	cfgPath := filepath.Join(root, ".opencode.json")
 	entry := MCPEntry{
-		Command: binPath,
-		Args:    []string{"mcp", "--root", root},
+		Command: ref.MCPCommand,
+		Args:    ref.MCPArgs,
 	}
 
 	var cfg OpenCodeConfig

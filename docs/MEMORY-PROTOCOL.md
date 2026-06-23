@@ -46,8 +46,26 @@ sistema (Qwen, Mistral/Ministral via llama.cpp).
 ### Claude Code
 
 El protocolo se inyecta como skill de memoria en `skills/memory/SKILL.md`,
-disponible permanentemente para el agente. Además, los hooks `SessionStart` y
-`PreCompact` inyectan contexto adicional en momentos específicos.
+disponible permanentemente para el agente. Además, los hooks portables
+(`mem hook <evento>`, sin scripts shell ni servidor HTTP) inyectan contexto y
+recordatorios en momentos específicos.
+
+### Memoria dinámica (recordatorio por hook)
+
+El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
+
+- `mem hook user-prompt-submit` — en el primer prompt de la sesión inyecta el
+  bootstrap de tools MCP + un recordatorio corto del protocolo ("¿decisión / bug
+  / patrón / hallazgo? → `save_memory` ahora"). Los prompts siguientes son
+  pasivos (sin overhead). El marcador `.memory/.session-tools-injected` controla
+  el "primer prompt".
+- `mem hook pre-compact` — antes de compactar, inyecta instrucciones de
+  recuperación + el contexto previo.
+- `mem hook session-end` — cierra la sesión como **red de seguridad**, aunque el
+  modelo no haya llamado `end_session`. El resumen rico lo aporta el modelo.
+
+Decisión de diseño: el agente decide qué guardar (con el empujón del
+recordatorio); no se hace extracción autónoma con LLM ni se requieren API keys.
 
 ## Contenido del Protocolo
 
@@ -123,7 +141,8 @@ After compaction, IMMEDIATELY:
 | Capa | Dónde se inyecta | Sobrevive compactación? |
 |------|------------------|------------------------|
 | System Prompt | Via plugin transform | ✅ Siempre |
-| Compaction Hook | script post-compaction.sh | ✅ Se ejecuta post-compactación |
+| Per-prompt reminder | `mem hook user-prompt-submit` | ✅ Se reinyecta por sesión |
+| Compaction Hook | `mem hook pre-compact` | ✅ Se ejecuta pre-compactación |
 | Agent Config | AGENTS.md / CLAUDE.md | ✅ Siempre |
 
 ## Token Budget
