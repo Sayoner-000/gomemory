@@ -1,4 +1,4 @@
-# gomemory v1.6.0
+# gomemory v1.6.1
 
 **Memoria colectiva para agentes AI — persistente, portable, plug-and-play.**
 
