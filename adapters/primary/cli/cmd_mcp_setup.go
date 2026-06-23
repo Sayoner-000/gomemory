@@ -29,14 +29,6 @@ func CmdMCPSetup(deps *Deps, args []string) {
 		fail("ruta inválida: %v", err)
 	}
 
-	binPath := filepath.Join(absRoot, "mem")
-	if _, err := os.Stat(binPath); os.IsNotExist(err) {
-		self, err := os.Executable()
-		if err == nil {
-			binPath = self
-		}
-	}
-
 	fmt.Printf("🔌 Configurando MCP para gomemory en %s\n\n", absRoot)
 
 	agentList := strings.Split(*agents, ",")
@@ -46,46 +38,46 @@ func CmdMCPSetup(deps *Deps, args []string) {
 		agent = strings.TrimSpace(agent)
 		switch agent {
 		case "opencode":
-			if setupOpenCode(absRoot, binPath) {
+			if setupOpenCode(absRoot) {
 				generated++
 			}
 		case "claude":
-			if setupClaude(absRoot, binPath) {
+			if setupClaude(absRoot) {
 				generated++
 			}
 		case "cursor":
-			if setupCursor(absRoot, binPath) {
+			if setupCursor(absRoot) {
 				generated++
 			}
 		case "windsurf":
-			if setupWindsurf(absRoot, binPath) {
+			if setupWindsurf(absRoot) {
 				generated++
 			}
 		case "cline":
-			if setupCline(absRoot, binPath) {
+			if setupCline(absRoot) {
 				generated++
 			}
 		case "codex":
-			if setupCodex(absRoot, binPath) {
+			if setupCodex(absRoot) {
 				generated++
 			}
 		case "all":
-			if setupOpenCode(absRoot, binPath) {
+			if setupOpenCode(absRoot) {
 				generated++
 			}
-			if setupClaude(absRoot, binPath) {
+			if setupClaude(absRoot) {
 				generated++
 			}
-			if setupCursor(absRoot, binPath) {
+			if setupCursor(absRoot) {
 				generated++
 			}
-			if setupWindsurf(absRoot, binPath) {
+			if setupWindsurf(absRoot) {
 				generated++
 			}
-			if setupCline(absRoot, binPath) {
+			if setupCline(absRoot) {
 				generated++
 			}
-			if setupCodex(absRoot, binPath) {
+			if setupCodex(absRoot) {
 				generated++
 			}
 		default:
@@ -101,12 +93,13 @@ func CmdMCPSetup(deps *Deps, args []string) {
 	}
 }
 
-func setupOpenCode(root, binPath string) bool {
+func setupOpenCode(root string) bool {
 	cfgPath := filepath.Join(root, ".opencode.json")
+	ref := binRefFor(root)
 
 	entry := MCPEntry{
-		Command: binPath,
-		Args:    []string{"mcp", "--root", root},
+		Command: ref.MCPCommand,
+		Args:    ref.MCPArgs,
 	}
 
 	var cfg OpenCodeConfig
@@ -133,7 +126,8 @@ func setupOpenCode(root, binPath string) bool {
 	return true
 }
 
-func setupClaude(root, binPath string) bool {
+func setupClaude(root string) bool {
+	ref := binRefFor(root)
 	mcpPath := filepath.Join(root, ".mcp.json")
 	if data, err := os.ReadFile(mcpPath); err == nil {
 		var existing map[string]interface{}
@@ -150,8 +144,8 @@ func setupClaude(root, binPath string) bool {
 	mcpCfg := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"gomemory": map[string]interface{}{
-				"command": binPath,
-				"args":    []string{"mcp", "--root", root},
+				"command": ref.MCPCommand,
+				"args":    ref.MCPArgs,
 			},
 		},
 	}
@@ -165,7 +159,8 @@ func setupClaude(root, binPath string) bool {
 	return true
 }
 
-func setupCursor(root, binPath string) bool {
+func setupCursor(root string) bool {
+	ref := binRefFor(root)
 	cursorDir := filepath.Join(root, ".cursor")
 	os.MkdirAll(cursorDir, 0755)
 	mcpPath := filepath.Join(cursorDir, "mcp.json")
@@ -173,8 +168,8 @@ func setupCursor(root, binPath string) bool {
 	mcpCfg := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"gomemory": map[string]interface{}{
-				"command": binPath,
-				"args":    []string{"mcp", "--root", root},
+				"command": ref.MCPCommand,
+				"args":    ref.MCPArgs,
 			},
 		},
 	}
@@ -195,8 +190,8 @@ func setupCursor(root, binPath string) bool {
 			return true
 		}
 		ms["gomemory"] = map[string]interface{}{
-			"command": binPath,
-			"args":    []string{"mcp", "--root", root},
+			"command": ref.MCPCommand,
+			"args":    ref.MCPArgs,
 		}
 		existing["mcpServers"] = ms
 	}
@@ -210,7 +205,8 @@ func setupCursor(root, binPath string) bool {
 	return true
 }
 
-func setupWindsurf(root, binPath string) bool {
+func setupWindsurf(root string) bool {
+	ref := binRefFor(root)
 	windsufDir := filepath.Join(root, ".windsurf")
 	os.MkdirAll(windsufDir, 0755)
 	mcpPath := filepath.Join(windsufDir, "mcp_config.json")
@@ -218,8 +214,8 @@ func setupWindsurf(root, binPath string) bool {
 	mcpCfg := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"gomemory": map[string]interface{}{
-				"command": binPath,
-				"args":    []string{"mcp", "--root", root},
+				"command": ref.MCPCommand,
+				"args":    ref.MCPArgs,
 			},
 		},
 	}
@@ -240,8 +236,8 @@ func setupWindsurf(root, binPath string) bool {
 			return true
 		}
 		ms["gomemory"] = map[string]interface{}{
-			"command": binPath,
-			"args":    []string{"mcp", "--root", root},
+			"command": ref.MCPCommand,
+			"args":    ref.MCPArgs,
 		}
 		existing["mcpServers"] = ms
 	}
@@ -255,7 +251,8 @@ func setupWindsurf(root, binPath string) bool {
 	return true
 }
 
-func setupCline(root, binPath string) bool {
+func setupCline(root string) bool {
+	ref := binRefFor(root)
 	clineDir := filepath.Join(root, ".cline")
 	os.MkdirAll(clineDir, 0755)
 	mcpPath := filepath.Join(clineDir, "mcp_settings.json")
@@ -263,8 +260,8 @@ func setupCline(root, binPath string) bool {
 	mcpCfg := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"gomemory": map[string]interface{}{
-				"command":     binPath,
-				"args":        []string{"mcp", "--root", root},
+				"command":     ref.MCPCommand,
+				"args":        ref.MCPArgs,
 				"disabled":    false,
 				"autoApprove": []string{},
 			},
@@ -287,8 +284,8 @@ func setupCline(root, binPath string) bool {
 			return true
 		}
 		ms["gomemory"] = map[string]interface{}{
-			"command":     binPath,
-			"args":        []string{"mcp", "--root", root},
+			"command":     ref.MCPCommand,
+			"args":        ref.MCPArgs,
 			"disabled":    false,
 			"autoApprove": []string{},
 		}
@@ -304,7 +301,8 @@ func setupCline(root, binPath string) bool {
 	return true
 }
 
-func setupCodex(root, binPath string) bool {
+func setupCodex(root string) bool {
+	ref := binRefFor(root)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Printf("  ⚠️  codex: no se pudo determinar el home: %v\n", err)
@@ -327,8 +325,11 @@ func setupCodex(root, binPath string) bool {
 		}
 	}
 
-	block := fmt.Sprintf("\n%s\ncommand = %q\nargs = [%q, %q, %q]\ncwd = %q\n",
-		tableHeader, binPath, "mcp", "--root", root, root)
+	// ~/.codex/config.toml es un archivo global de la máquina (nunca se
+	// commitea), así que cwd=root es aceptable y necesario para ubicar el
+	// proyecto; el command se referencia de forma portable vía PATH.
+	block := fmt.Sprintf("\n%s\ncommand = %q\nargs = [%q]\ncwd = %q\n",
+		tableHeader, ref.MCPCommand, "mcp", root)
 
 	f, err := os.OpenFile(cfgPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
