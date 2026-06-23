@@ -15,6 +15,9 @@ set -euo pipefail
 REPO="Sayoner-000/gomemory"
 BIN_NAME="mem"
 VERSION="${GOMEMORY_VERSION:-latest}"
+# Global para que la trap de limpieza en EXIT lo vea (no debe ser local de main,
+# o bajo `set -u` daría "tmp: unbound variable" al salir).
+tmp=""
 
 info()  { printf '\033[1;34m›\033[0m %s\n' "$*"; }
 ok()    { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
@@ -72,7 +75,7 @@ uninstall() {
 main() {
   if [ "${1:-}" = "--uninstall" ]; then uninstall; fi
 
-  local os arch bin_dir asset url tmp
+  local os arch bin_dir asset url
   os="$(detect_os)"
   arch="$(detect_arch)"
   bin_dir="$(pick_bin_dir)"
