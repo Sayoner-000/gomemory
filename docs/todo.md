@@ -8,6 +8,18 @@ _No tasks in progress._
 
 ## Completed
 
+### 2026-06-22 — Instalación universal + hooks portables + memoria dinámica + v1.5.0
+
+- **Causa raíz**: `mem install`/`mem setup` horneaban rutas absolutas de la máquina de instalación en `.mcp.json` y `.claude/settings.json` (vía `filepath.Abs`). Esos archivos viajaban entre máquinas (Linux↔Mac) y rompían los hooks: `SessionStart:startup hook error … /home/admindocker/…/session-start.sh: No such file or directory`
+- **Feature**: nuevo subcomando `mem hook <evento>` (`session-start`, `session-end`, `pre-compact`, `user-prompt-submit`) en `adapters/primary/cli/cmd_hook.go` — habla directo a los repos (sin servidor HTTP ni `curl`), portable a Windows. Reemplaza los 4 scripts `.sh`, que quedan como wrappers finos que delegan al binario
+- **Fix portabilidad**: nuevo helper `binRefFor` (`adapters/primary/cli/binref.go`) referencia `mem` por PATH (agnóstico de agente y SO) o `${CLAUDE_PROJECT_DIR}/mem` como fallback por-proyecto; **nunca** una ruta absoluta. Aplicado a todos los setups (Claude, OpenCode, Cursor, Windsurf, Cline, Codex). MCP usa `args:[mcp]` sin `--root` absoluto (resuelve por `cwd` con `FindRoot`)
+- **Fix**: `InstallClaudeCode` reescribe hooks en el formato objeto correcto de Claude (`{matcher, hooks:[{type,command}]}`) con `mem hook <evento>`, y **elimina entradas viejas de gomemory** (incluidas las rutas rotas) antes de añadir las nuevas (`filterOutGomemoryHooks`/`IsGomemoryHookEntry`)
+- **Fix uninstall**: `removeClaudePlugin` reconoce ahora el formato objeto y comandos `mem hook` (antes solo la ruta `.claude/plugins/gomemory`)
+- **Memoria dinámica**: `mem hook user-prompt-submit` inyecta tools + recordatorio del protocolo en el primer prompt (marcador `.memory/.session-tools-injected`); `pre-compact` inyecta recuperación; `SessionEnd` como red de seguridad. El agente decide qué guardar (sin extracción LLM ni API keys)
+- **Instalador universal**: `scripts/install.sh` (curl|bash, Linux/macOS) e `scripts/install.ps1` (irm|iex, Windows) bajan el binario a `~/.local/bin`/`%LOCALAPPDATA%` y aseguran PATH; con soporte `--uninstall`. `.goreleaser.yml` (CGO_ENABLED=0, 5 plataformas) + `.github/workflows/release.yml` publican a GitHub Releases
+- **Verificación**: cross-compile OK a linux/{amd64,arm64}, darwin/{amd64,arm64}, windows/amd64; los 4 hooks probados contra el repo sin servidor; `go test ./...` verde
+- Versión bump: `1.4.0` → `1.5.0` (README, INSTALLATION, plugin.json, MCP server Implementation)
+
 ### 2026-06-22 — Mantenimiento de memoria: purgar, compactar, GC, desinstalar + v1.4.0
 
 - **Feature**: `mem purge [flags]` — vacía memorias con alcance acotado al proyecto actual por defecto (`--all` para todos), filtros `--type`/`--older-than-days`, confirmación explícita obligatoria salvo `--yes`

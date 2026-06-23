@@ -31,6 +31,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdMCP(deps, args)
 	case "serve":
 		CmdServe(deps, args)
+	case "hook":
+		CmdHook(deps, args)
 	case "setup":
 		CmdSetup(deps, args)
 	case "setup-mcp", "mcp-setup":

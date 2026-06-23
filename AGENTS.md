@@ -93,3 +93,42 @@ Resumen rápido para orientarse:
 - *Simplicidad Primero*: Haz cada cambio lo más simple posible. Impacta el mínimo código.
 - *Sin Pereza*: Encuentra la causa raíz. Nada de soluciones temporales.
 - *Impacto Mínimo*: Los cambios deben tocar solo lo necesario.
+
+<!-- gomemory-protocol-v2 -->
+## Memoria Persistente (`mem`) — Protocolo Activo
+
+Este proyecto tiene el servidor MCP `gomemory` conectado. Este protocolo es OBLIGATORIO
+y SIEMPRE ACTIVO — no esperes a que el usuario lo pida explícitamente.
+
+### Herramientas MCP disponibles
+- `save_memory(title, type, content, filepath?)` — guarda una memoria
+- `search_memories(query, limit?)` — busca en memorias del proyecto
+- `list_memories(limit?)` — lista memorias recientes
+- `get_memory(id)` — obtiene una memoria específica
+- `start_session()` / `end_session(summary?)` — gestiona la sesión de trabajo
+- `get_context()` — contexto completo del proyecto en markdown
+
+Si el MCP no está disponible en el agente actual, usa el CLI equivalente:
+`./mem save -t "título" -y tipo "contenido"`, `./mem search "tema"`, `./mem context`, `./mem session start|end`.
+
+### GUARDAR PROACTIVAMENTE — no esperes a que el usuario lo pida
+Llama a `save_memory` (o `./mem save`) INMEDIATAMENTE después de:
+- Una decisión técnica o de arquitectura
+- Un bug corregido (incluye causa raíz)
+- Un patrón o convención establecida
+- Un descubrimiento no obvio sobre el código
+- El usuario confirma o rechaza un enfoque propuesto
+
+Autochequeo después de CADA tarea: "¿Tomé una decisión, corregí un bug, descubrí algo
+o establecí una convención? Si sí → `save_memory` AHORA."
+
+### Al inicio de cada sesión:
+1. Llama `get_context()` (o `./mem context`) para cargar el contexto histórico
+2. Si no hay sesión activa, llama `start_session()` (o `./mem session start`)
+
+### Al cerrar la sesión (antes de decir "listo"):
+Llama `end_session(summary)` (o `./mem session end -s "..."`) con un resumen de lo realizado.
+
+### Consultar memoria:
+- `search_memories(query)` (o `./mem search "tema"`) cuando el usuario pregunte por trabajo previo
+- `./mem` abre la TUI interactiva

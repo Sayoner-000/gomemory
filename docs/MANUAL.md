@@ -18,26 +18,49 @@ automática con OpenCode y Claude Code.
 
 ## 1. Instalación Rápida
 
+### Opción A — Instalador universal de consola (recomendado)
+
+Deja el binario `mem` en el PATH, sin compilar. Linux, macOS y Windows.
+
 ```bash
-# Compilar gomemory
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
+```
+
+Luego, en tu proyecto:
+
+```bash
+cd tu-proyecto
+mem install .        # Cablea memoria + MCP + hooks para todos los agentes
+mem --help
+```
+
+### Opción B — Desde el fuente
+
+```bash
 go build -o mem ./infrastructure/
-
-# Instalar plugin para OpenCode (recomendado si usas OpenCode)
-./mem setup opencode
-
-# O para Claude Code
-./mem setup claude-code
-
-# Verificar que funciona
+./mem setup opencode      # o claude-code
 ./mem --help
 ```
 
+### Hooks portables
+
+Los hooks de Claude Code son subcomandos del binario (`mem hook session-start`,
+`session-end`, `pre-compact`, `user-prompt-submit`): no usan `bash`/`curl` ni
+servidor HTTP y funcionan igual en Windows. Se configuran solos con
+`mem install .` o `mem setup claude-code`.
+
 ### Prerrequisitos
 
-- Go 1.22+
-- OpenCode 0.70+ (para plugin OpenCode)
-- Claude Code (para plugin Claude Code)
-- No se necesita CGO
+- Para la Opción A: ninguno (binario autocontenido).
+- Para la Opción B: Go 1.25+.
+- OpenCode 0.70+ (para plugin OpenCode), Claude Code (para hooks/plugin).
+- No se necesita CGO.
 
 ---
 

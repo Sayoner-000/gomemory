@@ -1,0 +1,55 @@
+# Cross-compilación universal de gomemory.
+# El driver SQLite es modernc.org/sqlite (Go puro), así que CGO_ENABLED=0
+# permite compilar a Linux, macOS y Windows sin toolchain de C.
+version: 2
+
+project_name: gomemory
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: mem
+    main: ./infrastructure
+    binary: mem
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: default
+    ids:
+      - mem
+    # Nombre estable y predecible para que install.sh / install.ps1 puedan
+    # construir la URL del asset: mem_<os>_<arch>.<ext>
+    name_template: "mem_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE*
+      - INSTALLATION.md
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: Sayoner-000
+    name: gomemory
+  draft: false
+  prerelease: auto

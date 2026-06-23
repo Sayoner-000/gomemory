@@ -1,6 +1,31 @@
-# Instalación de gomemory v1.4.0
+# Instalación de gomemory v1.5.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
+
+---
+
+## 0. Instalación universal (recomendada)
+
+Un solo comando descarga el binario `mem` y lo deja en el PATH. No requiere Go,
+Git ni compilar. Funciona en Linux, macOS y Windows.
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
+```
+
+Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=v1.5.0` para fijar versión,
+`GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino.
+
+Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`.
+
+Tras instalar, salta a la sección **4. Instalar en un proyecto** (`mem install .`).
+Las secciones 1–3 son solo para compilar desde el fuente.
 
 ---
 
@@ -122,16 +147,22 @@ Instala en `~/.config/opencode/plugins/gomemory/plugin.ts`.
 ### Claude Code
 
 ```bash
-./mem setup claude-code
+mem setup claude-code
 ```
 
-Instala en `.claude/plugins/gomemory/` (hooks + scripts + skill).
+Configura hooks portables en `.claude/settings.json` e instala el skill en
+`.claude/plugins/gomemory/`. Los hooks son subcomandos del binario
+(`mem hook <evento>`) — sin `bash`/`curl` ni servidor HTTP, y funcionan en Windows.
 
 **Qué hace**:
-- Crea sesión al iniciar (hook SessionStart)
-- Cierra sesión al terminar (hook SessionEnd)
-- Inyecta contexto post-compactación
+- Crea sesión al iniciar (`SessionStart` → `mem hook session-start`)
+- Cierra sesión al terminar (`SessionEnd` → `mem hook session-end`)
+- Inyecta contexto + recordatorio del protocolo en cada prompt y tras compactación
 - Skill de memoria siempre disponible
+
+Los hooks referencian `mem` por PATH (o `${CLAUDE_PROJECT_DIR}/mem` como fallback
+por-proyecto), nunca una ruta absoluta de máquina: la config es portable entre
+equipos y SO.
 
 **Reinicia Claude Code** para activarlo.
 

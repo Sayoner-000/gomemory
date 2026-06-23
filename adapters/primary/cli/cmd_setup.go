@@ -40,23 +40,22 @@ func CmdSetup(deps *Deps, args []string) {
 		fail("ruta inválida: %v", err)
 	}
 
-	binPath := filepath.Join(absRoot, "mem")
-	if _, err := os.Stat(binPath); os.IsNotExist(err) {
-		self, err := os.Executable()
-		if err == nil {
-			binPath = self
-		}
+	br := binRefFor(absRoot)
+	ref := setup.AgentRef{
+		HookCommand: br.HookCommand,
+		MCPCommand:  br.MCPCommand,
+		MCPArgs:     br.MCPArgs,
 	}
 
 	fmt.Printf("🔌 Instalando plugin de gomemory para %s\n\n", *agent)
 
 	switch *agent {
 	case "opencode":
-		if err := setup.InstallOpenCode(absRoot, binPath, *port); err != nil {
+		if err := setup.InstallOpenCode(absRoot, ref); err != nil {
 			fail("error instalando plugin opencode: %v", err)
 		}
 	case "claude-code", "claude":
-		if err := setup.InstallClaudeCode(absRoot, binPath, *port); err != nil {
+		if err := setup.InstallClaudeCode(absRoot, ref); err != nil {
 			fail("error instalando plugin claude-code: %v", err)
 		}
 	default:

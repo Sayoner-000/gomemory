@@ -1,6 +1,16 @@
 {
-  "SessionStart": ["scripts/session-start.sh"],
-  "PreCompact": ["scripts/post-compaction.sh"],
-  "UserPromptSubmit": ["scripts/user-prompt-submit.sh"],
-  "SessionEnd": ["scripts/session-stop.sh"]
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "mem hook session-start" }] }
+    ],
+    "PreCompact": [
+      { "hooks": [{ "type": "command", "command": "mem hook pre-compact" }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "mem hook user-prompt-submit" }] }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "mem hook session-end" }] }
+    ]
+  }
 }
