@@ -44,7 +44,7 @@ function ensureSession(context: PluginContext) {
       // Inject context from previous sessions
       const ctxRes = await fetch(`http://127.0.0.1:${port}/context`);
       const ctx = await ctxRes.json();
-      if (ctx.recentMemories?.length > 0 || ctx.recentSessions?.length > 0) {
+      if (ctx.recent_memories?.length > 0 || ctx.recent_sessions?.length > 0) {
         context.chat.system.transform((systemMsg: string) => {
           const contextBlock = formatContextBlock(ctx);
           return systemMsg + "\n\n" + contextBlock;
@@ -104,19 +104,19 @@ function registerLifecycleHooks(context: PluginContext) {
 
 function formatContextBlock(ctx: any): string {
   const lines: string[] = ["## Previous Session Context\n"];
-  if (ctx.activeSession) {
+  if (ctx.active_session) {
     lines.push("- There is an active session for this project.");
   }
-  if (ctx.recentSessions?.length > 0) {
+  if (ctx.recent_sessions?.length > 0) {
     lines.push("\n### Recent Sessions");
-    for (const s of ctx.recentSessions.slice(0, 3)) {
+    for (const s of ctx.recent_sessions.slice(0, 3)) {
       const summary = s.summary || "no summary";
       lines.push(`- ${s.created_at}: ${summary}`);
     }
   }
-  if (ctx.recentMemories?.length > 0) {
+  if (ctx.recent_memories?.length > 0) {
     lines.push("\n### Recent Memories");
-    for (const m of ctx.recentMemories.slice(0, 5)) {
+    for (const m of ctx.recent_memories.slice(0, 5)) {
       lines.push(`- [${m.type}] ${m.title}`);
     }
   }
