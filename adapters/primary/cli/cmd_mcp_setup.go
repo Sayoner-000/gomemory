@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"mem/adapters/primary/setup"
 )
 
 func CmdMCPSetup(deps *Deps, args []string) {
@@ -94,35 +96,17 @@ func CmdMCPSetup(deps *Deps, args []string) {
 }
 
 func setupOpenCode(root string) bool {
-	cfgPath := filepath.Join(root, ".opencode.json")
-	ref := binRefFor(root)
-
-	entry := MCPEntry{
-		Command: ref.MCPCommand,
-		Args:    ref.MCPArgs,
+	br := binRefFor(root)
+	ref := setup.AgentRef{
+		HookCommand: br.HookCommand,
+		MCPCommand:  br.MCPCommand,
+		MCPArgs:     br.MCPArgs,
 	}
-
-	var cfg OpenCodeConfig
-	if data, err := os.ReadFile(cfgPath); err == nil {
-		json.Unmarshal(data, &cfg)
-	}
-
-	if cfg.MCPServers == nil {
-		cfg.MCPServers = make(map[string]MCPEntry)
-	}
-	if _, exists := cfg.MCPServers["gomemory"]; exists {
-		cfg.MCPServers["gomemory"] = entry
-		fmt.Println("  ✅ opencode: .opencode.json actualizado")
-		return true
-	}
-
-	cfg.MCPServers["gomemory"] = entry
-	data, _ := json.MarshalIndent(cfg, "", "  ")
-	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
-		fmt.Printf("  ⚠️  opencode: error al escribir %s: %v\n", cfgPath, err)
+	if err := setup.WriteOpenCodeMCP(root, ref); err != nil {
+		fmt.Printf("  ⚠️  opencode: %v\n", err)
 		return false
 	}
-	fmt.Println("  ✅ opencode: .opencode.json creado/actualizado")
+	fmt.Printf("  ✅ opencode: MCP configurado en %s\n", filepath.Join(root, "opencode.json"))
 	return true
 }
 
