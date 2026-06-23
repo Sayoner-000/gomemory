@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"mem/adapters/primary/setup"
 )
 
 func CmdInstall(deps *Deps, args []string) {
@@ -166,10 +168,23 @@ func CmdInstall(deps *Deps, args []string) {
 		}
 	}
 
-	// 5. MCP server config for all agents
-	fmt.Printf("  🔌 Configurando MCP para agentes...\n")
-	setupOpenCode(target)
-	setupClaude(target)
+	// 5. MCP server config + plugins/hooks for all agents.
+	// Para OpenCode y Claude Code instalamos el plugin completo (que incluye los
+	// hooks automáticos), no solo el MCP: `install` debe dejar todo listo en un
+	// solo paso. El resto de agentes solo soportan config MCP.
+	fmt.Printf("  🔌 Configurando agentes (MCP + hooks)...\n")
+	br := binRefFor(target)
+	ref := setup.AgentRef{
+		HookCommand: br.HookCommand,
+		MCPCommand:  br.MCPCommand,
+		MCPArgs:     br.MCPArgs,
+	}
+	if err := setup.InstallOpenCode(target, ref); err != nil {
+		fmt.Printf("  ⚠️  opencode: %v\n", err)
+	}
+	if err := setup.InstallClaudeCode(target, ref); err != nil {
+		fmt.Printf("  ⚠️  claude-code: %v\n", err)
+	}
 	setupCursor(target)
 	setupWindsurf(target)
 	setupCline(target)
