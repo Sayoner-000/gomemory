@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.sh | bash
 #
 # Opciones (variables de entorno):
-#   GOMEMORY_VERSION=v1.5.0   Instala una versión específica (por defecto: latest)
+#   GOMEMORY_VERSION=v1.6.0   Instala una versión específica (por defecto: latest)
 #   GOMEMORY_BIN_DIR=/ruta    Directorio de instalación (por defecto: ~/.local/bin)
 #
 # Desinstalar:

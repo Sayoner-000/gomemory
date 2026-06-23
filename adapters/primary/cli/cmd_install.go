@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,7 +108,8 @@ func CmdInstall(deps *Deps, args []string) {
 		fmt.Printf("  ✅ .gitignore actualizado\n")
 	}
 
-	// 4. Update AGENTS.md or CLAUDE.md
+	// 4. Update AGENTS.md or CLAUDE.md (preámbulo de reglas + protocolo de memoria)
+	preamble := embeddedTemplate("agent-preamble.md")
 	integrationBlock := buildIntegrationBlock()
 
 	agentFiles := []string{"AGENTS.md", "CLAUDE.md", "CLAUDE.txt", ".cursorrules", ".windsurfrules"}
@@ -121,29 +123,14 @@ func CmdInstall(deps *Deps, args []string) {
 		}
 		found++
 		data, _ := os.ReadFile(fpath)
-		content := string(data)
-
-		if strings.Contains(content, integrationVersionMarker) {
+		newContent, changed := composeAgentFile(string(data), preamble, integrationBlock)
+		if !changed {
 			continue
 		}
-
-		if idx := strings.Index(content, integrationMarker); idx != -1 {
-			content = strings.TrimRight(content[:idx], "\n")
-			if err := os.WriteFile(fpath, []byte(content+"\n"+integrationBlock), 0644); err != nil {
-				continue
-			}
-			fmt.Printf("  ✅ %s actualizado a protocolo de memoria vigente\n", fname)
-			updated = true
+		if err := os.WriteFile(fpath, []byte(newContent), 0644); err != nil {
 			continue
 		}
-
-		f, err := os.OpenFile(fpath, os.O_APPEND|os.O_WRONLY, 0644)
-		if err != nil {
-			continue
-		}
-		f.WriteString(integrationBlock)
-		f.Close()
-		fmt.Printf("  ✅ %s actualizado con instrucciones de memoria\n", fname)
+		fmt.Printf("  ✅ %s actualizado (reglas de trabajo + protocolo de memoria)\n", fname)
 		updated = true
 	}
 
@@ -154,14 +141,28 @@ func CmdInstall(deps *Deps, args []string) {
 		created := 0
 		for _, fname := range []string{"AGENTS.md", "CLAUDE.md"} {
 			dst := filepath.Join(target, fname)
-			if err := os.WriteFile(dst, []byte(defaultAgentFile(fname)), 0644); err != nil {
+			if err := os.WriteFile(dst, []byte(defaultAgentFile(fname, preamble)), 0644); err != nil {
 				continue
 			}
-			fmt.Printf("  ✅ %s creado con protocolo de memoria\n", fname)
+			fmt.Printf("  ✅ %s creado (reglas de trabajo + protocolo de memoria)\n", fname)
 			created++
 		}
 		if created == 0 {
 			fmt.Printf("  ⚠️  No se pudo crear AGENTS.md/CLAUDE.md en el proyecto destino.\n")
+		}
+	}
+
+	// 4b. Copiar la constitución del proyecto (parte del "pack" de trabajo).
+	if consti := embeddedTemplate("speckit-constitution-gen.md"); consti != "" {
+		cpath := filepath.Join(target, "speckit-constitution-gen.md")
+		if _, err := os.Stat(cpath); err != nil {
+			if err := os.WriteFile(cpath, []byte(consti), 0644); err != nil {
+				fmt.Printf("  ⚠️  Error al copiar la constitución: %v\n", err)
+			} else {
+				fmt.Printf("  ✅ Constitución copiada a %s\n", cpath)
+			}
+		} else {
+			fmt.Printf("  ✅ Constitución ya presente, no se sobrescribe\n")
 		}
 	}
 
@@ -221,6 +222,65 @@ func runIn(dir, bin string, args ...string) error {
 
 const integrationMarker = "## Memoria Persistente"
 const integrationVersionMarker = "<!-- gomemory-protocol-v2 -->"
+const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
+
+// TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
+// y constitución). Lo inyecta infrastructure/main.go vía go:embed. Si es nil
+// (p. ej. en algunos tests), embeddedTemplate devuelve "" y el instalador
+// degrada con gracia: omite el preámbulo/constitución sin fallar.
+var TemplatesFS fs.FS
+
+func embeddedTemplate(name string) string {
+	if TemplatesFS == nil {
+		return ""
+	}
+	data, err := fs.ReadFile(TemplatesFS, "templates/"+name)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// composeAgentFile garantiza que el archivo de agente contenga, en orden, el
+// preámbulo de reglas de trabajo y luego el bloque del protocolo de memoria.
+// Es idempotente: si ambos marcadores ya están presentes, no cambia nada.
+// Devuelve el contenido resultante y si hubo cambios.
+func composeAgentFile(existing, preamble, integration string) (string, bool) {
+	out := existing
+	changed := false
+
+	// 1. Preámbulo de reglas, SIEMPRE antes del protocolo de memoria.
+	if preamble != "" && !strings.Contains(out, workRulesMarker) {
+		block := strings.TrimRight(preamble, "\n")
+		if idx := protocolStart(out); idx != -1 {
+			out = strings.TrimRight(out[:idx], "\n") + "\n\n" + block + "\n\n" + out[idx:]
+		} else {
+			out = strings.TrimRight(out, "\n") + "\n\n" + block + "\n"
+		}
+		changed = true
+	}
+
+	// 2. Protocolo de memoria (versionado). Reemplaza bloques v1 si existen.
+	if !strings.Contains(out, integrationVersionMarker) {
+		if idx := strings.Index(out, integrationMarker); idx != -1 {
+			out = strings.TrimRight(out[:idx], "\n") + "\n" + integration
+		} else {
+			out = strings.TrimRight(out, "\n") + "\n" + integration
+		}
+		changed = true
+	}
+
+	return out, changed
+}
+
+// protocolStart devuelve el índice donde empieza el bloque del protocolo de
+// memoria (marcador de versión vigente o heading legado), o -1 si no existe.
+func protocolStart(content string) int {
+	if idx := strings.Index(content, integrationVersionMarker); idx != -1 {
+		return idx
+	}
+	return strings.Index(content, integrationMarker)
+}
 
 func buildIntegrationBlock() string {
 	bt := "`"
@@ -270,14 +330,19 @@ func buildIntegrationBlock() string {
 }
 
 // defaultAgentFile genera un AGENTS.md/CLAUDE.md universal desde cero,
-// sin depender del cwd ni de archivos en disco — todo el contenido vive
-// en el binario vía buildIntegrationBlock().
-func defaultAgentFile(fname string) string {
+// sin depender del cwd: el protocolo vive en el binario vía
+// buildIntegrationBlock() y el preámbulo de reglas vía go:embed (templates/).
+func defaultAgentFile(fname, preamble string) string {
 	title := "# Instrucciones para agentes AI"
 	if fname == "CLAUDE.md" {
 		title = "# Instrucciones para Claude Code"
 	}
-	return title + "\n" + buildIntegrationBlock()
+	content := title + "\n"
+	if preamble != "" {
+		content += strings.TrimRight(preamble, "\n") + "\n"
+	}
+	content += buildIntegrationBlock()
+	return content
 }
 
 type MCPEntry struct {

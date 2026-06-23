@@ -36,9 +36,15 @@ Luego, en tu proyecto:
 
 ```bash
 cd tu-proyecto
-mem install .        # Cablea memoria + MCP + hooks para todos los agentes
+mem install .        # Memoria + MCP (6 agentes) + pack de trabajo + constitución
+mem setup claude-code   # (opcional) registra los hooks de Claude Code
 mem --help
 ```
+
+`mem install .` configura el **MCP** de los 6 agentes y escribe el "pack de
+trabajo" en `AGENTS.md`/`CLAUDE.md` (reglas de trabajo + orquestación + Memory
+Protocol) más la constitución (`speckit-constitution-gen.md`). Los **hooks** de
+cada agente se registran aparte con `mem setup claude-code` / `mem setup opencode`.
 
 ### Opción B — Desde el fuente
 
@@ -107,35 +113,50 @@ cat ~/.config/opencode/opencode.json
 ./mem setup claude-code
 ```
 
-Esto instala en `.claude/plugins/gomemory/` dentro del proyecto:
+Esto:
 
-1. `.claude-plugin/plugin.json` — Manifest del plugin
-2. `hooks/hooks.json` — Hooks registrados para `SessionStart`, `PreCompact`, `UserPromptSubmit`, `SessionEnd`
-3. `scripts/session-start.sh` — Inicia el servidor HTTP si no está corriendo, crea sesión
-4. `scripts/session-stop.sh` — Cierra sesión HTTP
-5. `scripts/user-prompt-submit.sh` — ToolSearch en primer prompt
-6. `scripts/post-compaction.sh` — Recuperación post-compactación
-7. `skills/memory/SKILL.md` — Memory Protocol skill
+1. Copia el skill de memoria a `.claude/plugins/gomemory/skills/memory/SKILL.md`.
+2. Escribe `.mcp.json` en la raíz con el server MCP `gomemory` (referencia
+   **portable**: `command: "mem"` por PATH, no una ruta absoluta de máquina).
+3. Registra **hooks portables** en `.claude/settings.json`: cada evento de Claude
+   Code apunta a un subcomando del binario (`mem hook <evento>`), no a scripts
+   `.sh`. No dependen de `bash`/`curl` ni del servidor HTTP y corren igual en
+   Windows.
 
-La configuración MCP real (`.mcp.json` con la ruta absoluta del binario) se escribe en la raíz del proyecto, no dentro del directorio del plugin.
+### Para qué sirve cada hook
+
+| Evento | Subcomando | Función |
+|--------|-----------|---------|
+| `SessionStart` | `session-start` | Abre sesión si no hay activa **e inyecta el contexto de sesiones previas**. El agente arranca recordando el proyecto. |
+| `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. |
+| `PreCompact` | `pre-compact` | Antes de compactar, inyecta **instrucciones de recuperación + contexto** para que no se pierda el estado de trabajo. |
+| `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. |
+
+> Regla de oro: un hook nunca aborta el arranque del agente — ante error sale con
+> código 0. Los hooks son lo que hace que la memoria "tome todo bien": sin ellos,
+> las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto solo.
 
 ### Verificación
 
 ```bash
-ls -la .claude/plugins/gomemory/
-# hooks/, scripts/, skills/, .claude-plugin/
+# Skill instalado
+ls -la .claude/plugins/gomemory/skills/memory/
 
-# Verificar que los hooks están registrados
-cat .claude/plugins/gomemory/hooks/hooks.json
-cat .claude/settings.json   # hooks efectivos para Claude Code
+# Hooks portables registrados (deben referenciar `mem hook ...`)
+cat .claude/settings.json
+
+# MCP configurado (command: "mem")
+cat .mcp.json
 ```
 
 ---
 
-## 4. Servidor HTTP
+## 4. Servidor HTTP (plugin de OpenCode)
 
-El servidor HTTP corre en `127.0.0.1:9735` y es auto-iniciado por los plugins.
-También puede iniciarse manualmente:
+El servidor HTTP corre en `127.0.0.1:9735` y lo auto-inicia el **plugin de
+OpenCode** para gestionar sesiones y contexto. Los hooks de Claude Code **no** lo
+usan: hablan directo a los repositorios vía `mem hook`. También puede iniciarse
+manualmente:
 
 ```bash
 ./mem serve                # Puerto default 9735
