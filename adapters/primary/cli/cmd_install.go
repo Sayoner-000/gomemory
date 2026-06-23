@@ -359,12 +359,3 @@ func defaultAgentFile(fname, preamble string) string {
 	content += buildIntegrationBlock()
 	return content
 }
-
-type MCPEntry struct {
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
-}
-
-type OpenCodeConfig struct {
-	MCPServers map[string]MCPEntry `json:"mcpServers,omitempty"`
-}
