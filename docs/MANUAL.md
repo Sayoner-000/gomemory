@@ -24,12 +24,12 @@ Deja el binario `mem` en el PATH, sin compilar. Linux, macOS y Windows.
 
 ```bash
 # Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
 ```
 
 Luego, en tu proyecto:
