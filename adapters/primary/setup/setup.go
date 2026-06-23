@@ -81,10 +81,6 @@ func copyFileOrDir(fsys fs.FS, baseDir string, entry os.DirEntry, targetDir stri
 		return count, nil
 	}
 
-	if _, err := os.Stat(dstPath); err == nil {
-		return 0, nil
-	}
-
 	data, err := fs.ReadFile(fsys, srcPath)
 	if err != nil {
 		return 0, fmt.Errorf("read embedded file %s: %w", srcPath, err)
@@ -92,6 +88,14 @@ func copyFileOrDir(fsys fs.FS, baseDir string, entry os.DirEntry, targetDir stri
 
 	if ctx != nil {
 		data = replacePlaceholders(data, *ctx)
+	}
+
+	// Refrescar archivos gestionados: si el destino ya tiene exactamente el
+	// mismo contenido, no se reescribe (count=0 → mensaje "ya instalado"). Si
+	// difiere (plugin viejo de una versión anterior), se sobrescribe para que
+	// `install`/`setup` siempre entreguen la versión actual del plugin.
+	if existing, err := os.ReadFile(dstPath); err == nil && bytes.Equal(existing, data) {
+		return 0, nil
 	}
 
 	if err := os.WriteFile(dstPath, data, 0644); err != nil {
