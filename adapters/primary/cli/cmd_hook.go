@@ -156,4 +156,10 @@ se pierde de la memoria.`
 const memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
 	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +
 	`un patrón o convención establecida, o un hallazgo no obvio. No esperes a que el ` +
-	`usuario lo pida. Antes de cerrar, llama a end_session(summary).`
+	`usuario lo pida. Antes de cerrar, llama a end_session(summary).
+
+IMPORTANTE — no confundir sistemas: este proyecto usa EXCLUSIVAMENTE las tools MCP de ` +
+	`gomemory (save_memory, search_memories, get_memory, list_memories, start_session, ` +
+	`end_session, get_context). El sistema de memoria nativo del harness (archivo MEMORY.md ` +
+	`bajo ~/.claude/projects/.../memory/) NO aplica aquí — ignóralo por completo en este ` +
+	`proyecto y no lo consultes ni escribas en él.`
