@@ -41,7 +41,7 @@ func CmdMCP(deps *Deps, args []string) {
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gomemory",
-		Version: "1.6.2",
+		Version: "1.6.3",
 	}, nil)
 
 	registerTools(server, deps, project)
