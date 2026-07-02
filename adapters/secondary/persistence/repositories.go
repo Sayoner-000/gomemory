@@ -27,6 +27,10 @@ func (r *MemoryRepository) Search(project, query string, limit int) ([]domain.Me
 	return SearchMemories(r.db, project, query, limit)
 }
 
+func (r *MemoryRepository) Delete(project string, id int64) (bool, error) {
+	return DeleteMemory(r.db, project, id)
+}
+
 var _ ports.MemoryRepository = (*MemoryRepository)(nil)
 
 type SessionRepository struct {

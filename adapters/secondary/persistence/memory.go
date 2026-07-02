@@ -3,15 +3,22 @@ package persistence
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"mem/domain"
 )
 
 func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
+	title := domain.RedactPrivate(m.Title)
+	content := domain.RedactPrivate(m.Content)
+	if strings.TrimSpace(content) == "" {
+		return 0, fmt.Errorf("insert memory: contenido vacío tras redactar <private>")
+	}
+
 	res, err := db.Exec(
 		`INSERT INTO memories (project, session_id, type, title, content, filepath, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
-		m.Project, m.SessionID, string(m.Type), m.Title, m.Content, m.Filepath,
+		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert memory: %w", err)
@@ -50,6 +57,18 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 		mems = []domain.Memory{}
 	}
 	return mems, rows.Err()
+}
+
+func DeleteMemory(db *sql.DB, project string, id int64) (bool, error) {
+	res, err := db.Exec(`DELETE FROM memories WHERE id = ? AND project = ?`, id, project)
+	if err != nil {
+		return false, fmt.Errorf("delete memory: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("delete memory: %w", err)
+	}
+	return affected > 0, nil
 }
 
 func SearchMemories(db *sql.DB, project, query string, limit int) ([]domain.Memory, error) {

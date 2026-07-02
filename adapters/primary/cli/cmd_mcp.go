@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"mem/application/usecases"
 	"mem/domain"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -41,7 +42,7 @@ func CmdMCP(deps *Deps, args []string) {
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gomemory",
-		Version: "1.6.3",
+		Version: "1.7.3",
 	}, nil)
 
 	registerTools(server, deps, project)
@@ -218,6 +219,80 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("✓ Sesión %s finalizada", sess.ID[:8])}},
+		}, nil, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "forget_memory",
+		Description: "Borra una memoria específica del proyecto por su ID (irreversible)",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		ID int `json:"id" jsonschema:"ID de la memoria a borrar"`
+	}) (*mcp.CallToolResult, any, error) {
+		deleted, err := deps.MemoryRepo.Delete(project, int64(in.ID))
+		if err != nil {
+			return nil, nil, fmt.Errorf("borrar memoria: %w", err)
+		}
+		if !deleted {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Memoria %d no encontrada", in.ID)}},
+			}, nil, nil
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("✓ Memoria %d eliminada", in.ID)}},
+		}, nil, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "judge_memories",
+		Description: "Actúa como juez imparcial entre dos memorias que se contradicen: releé el código/archivo " +
+			"fuente actual para verificar cuál refleja los hechos reales (no asumas que la más reciente gana) y " +
+			"registrá el veredicto",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		IDA        int     `json:"id_a" jsonschema:"ID de la primera memoria"`
+		IDB        int     `json:"id_b" jsonschema:"ID de la segunda memoria"`
+		Verdict    string  `json:"verdict" jsonschema:"Veredicto: related|compatible|scoped|conflicts_with|supersedes|not_conflict"`
+		Confidence float64 `json:"confidence,omitempty" jsonschema:"Confianza del veredicto (0.0-1.0, default 1.0)"`
+		Reasoning  string  `json:"reasoning" jsonschema:"Por qué se llegó a este veredicto — obligatorio, debe citar los hechos verificados"`
+	}) (*mcp.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Reasoning) == "" {
+			return nil, nil, fmt.Errorf("reasoning es obligatorio: explicá qué hechos verificaste para llegar a este veredicto")
+		}
+		confidence := in.Confidence
+		if confidence <= 0 {
+			confidence = 1.0
+		}
+
+		mems, err := deps.MemoryRepo.List(project, 200)
+		if err != nil {
+			return nil, nil, fmt.Errorf("listar memorias: %w", err)
+		}
+		foundA, foundB := false, false
+		for _, m := range mems {
+			if m.ID == int64(in.IDA) {
+				foundA = true
+			}
+			if m.ID == int64(in.IDB) {
+				foundB = true
+			}
+		}
+		if !foundA {
+			return nil, nil, fmt.Errorf("memoria %d no encontrada", in.IDA)
+		}
+		if !foundB {
+			return nil, nil, fmt.Errorf("memoria %d no encontrada", in.IDB)
+		}
+
+		relType := domain.ValidRelationType(in.Verdict)
+		rel, updated, err := usecases.RecordVerdict(deps.RelationRepo, project, int64(in.IDA), int64(in.IDB), relType, confidence, in.Reasoning)
+		if err != nil {
+			return nil, nil, err
+		}
+		verb := "guardado"
+		if updated {
+			verb = "actualizado"
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("✓ Veredicto %s (id=%d): %d ↔ %d → %s", verb, rel.ID, in.IDA, in.IDB, relType)}},
 		}, nil, nil
 	})
 
