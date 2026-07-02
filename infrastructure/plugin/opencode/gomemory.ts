@@ -16,7 +16,7 @@ import type { Plugin } from "@opencode-ai/plugin";
 // (normalmente "mem" en el PATH).
 const BIN = "{{BIN_PATH}}";
 
-export const GomemoryPlugin: Plugin = async ({ $, directory }) => {
+export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   const root = directory;
 
   // Ejecuta `mem <args>` en la raíz del proyecto y devuelve stdout (trim).
@@ -29,11 +29,78 @@ export const GomemoryPlugin: Plugin = async ({ $, directory }) => {
     }
   };
 
+  // Igual que `mem`, pero pasando `input` por stdin (usado por turn-end para
+  // mandar {files, commands} sin depender de un transcript en disco, a
+  // diferencia de Claude Code que sí lo tiene).
+  const memWithStdin = async (args: string[], input: string): Promise<string> => {
+    try {
+      const proc = $`${BIN} ${args}`.cwd(root).quiet();
+      const writer = proc.stdin.getWriter();
+      await writer.write(new TextEncoder().encode(input));
+      await writer.close();
+      return (await proc.text()).trim();
+    } catch {
+      return "";
+    }
+  };
+
+  // Último messageID de sesión ya inspeccionado para checkpoint, para no
+  // reprocesar el historial completo en cada session.idle.
+  const lastCheckpointedMessage = new Map<string, string>();
+
+  // Equivalente en OpenCode del hook "Stop" de Claude Code: dispara cuando la
+  // sesión queda idle (el asistente terminó de responder). Recolecta,
+  // determinísticamente y sin gastar tokens del agente, qué archivos se
+  // editaron/escribieron y qué comandos de shell corrieron desde el último
+  // checkpoint, y se lo pasa a `mem hook turn-end` (misma lógica de guardado
+  // que usa Claude Code, ver adapters/primary/cli/cmd_hook.go).
+  const handleTurnEnd = async (sessionID: string): Promise<void> => {
+    try {
+      const res = await client.session.messages({ path: { id: sessionID } });
+      const messages: Array<{ info: any; parts: any[] }> = (res as any)?.data ?? [];
+      if (messages.length === 0) return;
+
+      const lastSeen = lastCheckpointedMessage.get(sessionID);
+      let startIdx = 0;
+      if (lastSeen) {
+        const idx = messages.findIndex((m) => m.info?.id === lastSeen);
+        if (idx >= 0) startIdx = idx + 1;
+      }
+      const newMessages = messages.slice(startIdx);
+      if (newMessages.length === 0) return;
+      lastCheckpointedMessage.set(sessionID, messages[messages.length - 1].info?.id);
+
+      const files = new Set<string>();
+      const commands: string[] = [];
+      for (const msg of newMessages) {
+        for (const part of msg.parts ?? []) {
+          if (part.type !== "tool" || part.state?.status !== "completed") continue;
+          const input = part.state.input ?? {};
+          if (part.tool === "bash" && typeof input.command === "string") {
+            commands.push(input.command);
+          } else if (part.tool === "edit" || part.tool === "write") {
+            const path = input.filePath ?? input.path ?? input.file;
+            if (typeof path === "string" && path) files.add(path);
+          }
+        }
+      }
+      if (files.size === 0 && commands.length === 0) return;
+
+      await memWithStdin(["hook", "turn-end"], JSON.stringify({ files: [...files], commands }));
+    } catch {
+      // best-effort: un checkpoint fallido nunca debe romper la sesión.
+    }
+  };
+
   return {
-    // Arranca una sesión de gomemory cuando OpenCode crea una sesión nueva.
+    // Arranca una sesión de gomemory cuando OpenCode crea una sesión nueva;
+    // dispara el checkpoint de turno cuando la sesión queda idle.
     event: async ({ event }) => {
       if (event.type === "session.created") {
         await mem(["session", "start"]);
+      }
+      if (event.type === "session.idle") {
+        await handleTurnEnd(event.properties.sessionID);
       }
     },
 
@@ -73,18 +140,31 @@ export const GomemoryPlugin: Plugin = async ({ $, directory }) => {
 const MEMORY_PROTOCOL = `## Memory Protocol — gomemory (MANDATORY, ALWAYS ACTIVE)
 
 You have a persistent memory system for this project via MCP tools
-(save_memory, search_memories, get_memory, list_memories, get_context,
-start_session, end_session). Do NOT wait for the user to ask.
+(save_memory, search_memories, get_memory, list_memories, forget_memory,
+judge_memories, get_context, start_session, end_session). Do NOT wait for the
+user to ask.
 
 SAVE immediately after: an architecture/design decision, a bug fix (include
 root cause), a convention or pattern established, a tool/library choice with
-tradeoffs, or a non-obvious discovery about the codebase.
+tradeoffs, or a non-obvious discovery about the codebase. Routine activity
+(which files changed, which commands ran) is already captured automatically as
+a checkpoint — don't duplicate it by hand.
 Self-check after every task: "Did I decide, fix, discover, or establish
 something? If yes → save_memory now."
 
 SEARCH (progressive disclosure): search_memories(query) for compact hits, then
 get_memory(id) only when you need full content. Search reactively when the user
 references past work, and proactively when starting something that may overlap.
+
+IMPARTIAL JUDGE: if two memories contradict each other (shown under "Conflictos
+sin resolver" in the context, or noticed while searching), don't assume the
+newer one is correct. Re-read the current code/source to verify which one
+reflects reality, then record the verdict with
+judge_memories(id_a, id_b, verdict, confidence, reasoning) — explain in
+reasoning what you verified.
+
+PRIVACY: if content to save includes a secret, token, or credential, wrap that
+part in <private>...</private> — it is never persisted.
 
 SESSION CLOSE: before saying "done", call end_session(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;

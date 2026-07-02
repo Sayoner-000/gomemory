@@ -1,4 +1,4 @@
-# gomemory v1.6.3
+# gomemory v1.7.3
 
 **Memoria colectiva para agentes AI — persistente, portable, plug-and-play.**
 
@@ -20,8 +20,8 @@ todo el contexto** sin que tengas que pedírselo.
 ### 🧠 Memoria Persistente
 - **Contexto entre sesiones** de OpenCode, Claude, Cursor, Windsurf, Cline, Codex
   o cualquier agente AI compatible con MCP
-- **6 tipos de memoria**: `architecture`, `decision`, `bugfix`, `pattern`,
-  `learning`, `discovery`
+- **7 tipos de memoria**: `architecture`, `decision`, `bugfix`, `pattern`,
+  `learning`, `discovery`, `checkpoint` (auto, ver checkpoints por turno)
 - **Búsqueda con ranking** por relevancia (título primero, contenido después)
 - **Relaciones semánticas** entre memorias: `related`, `compatible`, `scoped`,
   `conflicts_with`, `supersedes`, `not_conflict`
@@ -43,7 +43,7 @@ sin invocación manual de herramientas MCP.
 - **Endpoint**: `127.0.0.1:9735`
 
 ### 📋 CLI Completo
-`mem` + 23 subcomandos para gestionar memoria desde terminal.
+`mem` + 24 subcomandos para gestionar memoria desde terminal.
 
 | Comando | Descripción |
 |---------|-------------|
@@ -51,8 +51,9 @@ sin invocación manual de herramientas MCP.
 | `mem init [--force]` | Inicializar `.memory/` en el proyecto |
 | `mem save -t "título" -y tipo "cuerpo"` | Guardar memoria |
 | `mem capture [flags]` | Guardar aprendizaje estructurado (What/Why/Where/Learned) |
-| `mem compare [flags] <id1> <id2>` | Comparar memorias y persistir veredicto semántico |
+| `mem compare [flags] <id1> <id2>` (alias `mem judge`) | Comparar memorias y persistir veredicto semántico |
 | `mem compare list [-n N]` | Listar relaciones guardadas |
+| `mem forget <id>` | Borrar una memoria puntual por ID (irreversible) |
 | `mem project` | Detectar proyecto actual (read-only) |
 | `mem list [-n N]` | Listar memorias recientes |
 | `mem log` | Alias de `list` |
@@ -67,7 +68,7 @@ sin invocación manual de herramientas MCP.
 | `mem gc [flags]` | Garbage collection a demanda (90 días de retención por defecto) |
 | `mem wrap <comando> [args...]` | Ejecutar comando y preguntar si guardar |
 | `mem mcp` | Servidor MCP para agentes AI |
-| `mem hook <evento>` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `user-prompt-submit`) |
+| `mem hook <evento>` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `user-prompt-submit`, `turn-end`) |
 | `mem settings [--auto-approve\|--show]` | Ver/cambiar auto-approve de las tools MCP |
 | `mem setup-mcp [--agents a,b,c]` | Configurar MCP multi-agente |
 | `mem serve [--port N]` | Servidor HTTP de plugins (auto-inicia sesiones y contexto) |
@@ -83,11 +84,35 @@ sin invocación manual de herramientas MCP.
 - Auto-approve de herramientas MCP
 
 ### 🔗 MCP Server (Model Context Protocol)
-- **7 herramientas MCP**: `save_memory`, `search_memories`, `list_memories`,
-  `get_memory`, `start_session`, `end_session`, `get_context`
+- **9 herramientas MCP**: `save_memory`, `search_memories`, `list_memories`,
+  `get_memory`, `forget_memory`, `judge_memories`, `start_session`,
+  `end_session`, `get_context`
 - **2 recursos MCP**: `mem://context`, `mem://memory/{id}`
 - `--root` flag para resolver proyecto sin depender del `cwd`
 - Configuración multi-agente vía `mem setup-mcp`
+
+### 🧠 Checkpoints automáticos por turno
+- En Claude Code (hook `Stop`) y OpenCode (evento `session.idle`), cada turno
+  con actividad real (archivos editados, comandos corridos) se registra solo
+  como memoria `checkpoint`, sin gastar tokens del agente ni depender de que
+  decida llamar `save_memory`. Turnos de puro chat no generan ruido.
+- El agente sigue usando `save_memory` para lo que requiere síntesis
+  (decisiones, causas raíz, patrones); ver sección `## Actividad Reciente
+  (auto)` del contexto para lo capturado automáticamente.
+
+### ⚖️ Juez imparcial de memorias en conflicto
+- `judge_memories` (MCP) / `mem judge` (CLI, alias de `mem compare`) deja que
+  el agente registre un veredicto — `related|compatible|scoped|conflicts_with|
+  supersedes|not_conflict` — con `reasoning` obligatorio explicando qué hechos
+  verificó contra el código actual.
+- El contexto (`get_context`/`mem context`) muestra proactivamente una sección
+  `## ⚠ Conflictos sin resolver` con los pares de memorias en `conflicts_with`
+  para que el agente no las ignore.
+
+### 🔒 Privacidad
+- Cualquier contenido envuelto en `<private>...</private>` se redacta antes de
+  guardar — nunca llega a la base de datos, sin importar por qué comando o
+  tool se guardó (`save_memory`, `mem save`, `mem capture`, `mem wrap`, TUI).
 
 ### ⚙️ Capture Estructurado
 - Campos: What / Why / Where / Learned

@@ -236,7 +236,7 @@ func runIn(dir, bin string, args ...string) error {
 }
 
 const integrationMarker = "## Memoria Persistente"
-const integrationVersionMarker = "<!-- gomemory-protocol-v2 -->"
+const integrationVersionMarker = "<!-- gomemory-protocol-v3 -->"
 const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
 
 // TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
@@ -312,11 +312,13 @@ func buildIntegrationBlock() string {
 		"- " + bt + "search_memories(query, limit?)" + bt + " — busca en memorias del proyecto",
 		"- " + bt + "list_memories(limit?)" + bt + " — lista memorias recientes",
 		"- " + bt + "get_memory(id)" + bt + " — obtiene una memoria específica",
+		"- " + bt + "forget_memory(id)" + bt + " — borra una memoria puntual (irreversible)",
+		"- " + bt + "judge_memories(id_a, id_b, verdict, confidence, reasoning)" + bt + " — veredicto imparcial entre dos memorias en conflicto",
 		"- " + bt + "start_session()" + bt + " / " + bt + "end_session(summary?)" + bt + " — gestiona la sesión de trabajo",
 		"- " + bt + "get_context()" + bt + " — contexto completo del proyecto en markdown",
 		"",
 		"Si el MCP no está disponible en el agente actual, usa el CLI equivalente:",
-		bt + `./mem save -t "título" -y tipo "contenido"` + bt + ", " + bt + `./mem search "tema"` + bt + ", " + bt + "./mem context" + bt + ", " + bt + "./mem session start|end" + bt + ".",
+		bt + `./mem save -t "título" -y tipo "contenido"` + bt + ", " + bt + `./mem search "tema"` + bt + ", " + bt + "./mem context" + bt + ", " + bt + "./mem session start|end" + bt + ", " + bt + "./mem forget <id>" + bt + ", " + bt + "./mem judge -r <veredicto> -m \"razón\" <id1> <id2>" + bt + ".",
 		"",
 		"### GUARDAR PROACTIVAMENTE — no esperes a que el usuario lo pida",
 		"Llama a " + bt + "save_memory" + bt + " (o " + bt + "./mem save" + bt + ") INMEDIATAMENTE después de:",
@@ -328,6 +330,16 @@ func buildIntegrationBlock() string {
 		"",
 		"Autochequeo después de CADA tarea: \"¿Tomé una decisión, corregí un bug, descubrí algo",
 		"o establecí una convención? Si sí → " + bt + "save_memory" + bt + " AHORA.\"",
+		"",
+		"### Juez imparcial (memorias en conflicto)",
+		"Si el contexto muestra " + bt + "## Conflictos sin resolver" + bt + ", o notás dos memorias que se",
+		"contradicen al buscar, no asumas que la más reciente tiene razón: releé el código/archivo",
+		"fuente actual para verificar cuál refleja los hechos reales, y registrá el veredicto con",
+		bt + "judge_memories" + bt + " (o " + bt + "./mem judge" + bt + "), explicando en el razonamiento qué verificaste.",
+		"",
+		"### Privacidad",
+		"Si vas a guardar un secreto, token o credencial, envolvé esa parte en",
+		bt + "<private>...</private>" + bt + " — nunca se persiste.",
 		"",
 		"### Al inicio de cada sesión:",
 		"1. Llama " + bt + "get_context()" + bt + " (o " + bt + "./mem context" + bt + ") para cargar el contexto histórico",

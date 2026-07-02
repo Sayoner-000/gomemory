@@ -13,8 +13,10 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdSave(deps, args)
 	case "capture":
 		CmdCapture(deps, args)
-	case "compare":
+	case "compare", "judge":
 		CmdCompare(deps, args)
+	case "forget":
+		CmdForget(deps, args)
 	case "project":
 		CmdProject(deps, args)
 	case "context":

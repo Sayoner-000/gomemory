@@ -6,6 +6,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"mem/domain"
 )
 
 // CmdHook es el entrypoint portable de los hooks de agentes.
@@ -32,6 +35,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookPreCompact(deps)
 	case "user-prompt-submit":
 		hookUserPromptSubmit(deps)
+	case "turn-end":
+		hookTurnEnd(deps)
 	default:
 		// Evento desconocido: salida vacía, sin error.
 		os.Exit(0)
@@ -125,6 +130,89 @@ func hookUserPromptSubmit(deps *Deps) {
 	os.Exit(0)
 }
 
+// hookTurnEnd corre al terminar cada turno del agente (hook "Stop" en Claude
+// Code, evento "session.idle" en OpenCode). Registra determinísticamente —
+// sin gastar tokens del agente — qué archivos se editaron y qué comandos
+// corrieron en el turno recién terminado, como red de seguridad ante
+// actividad que el agente no llegó a resumir con save_memory. Turnos de puro
+// chat (sin ediciones ni comandos) no generan checkpoint.
+func hookTurnEnd(deps *Deps) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		os.Exit(0)
+	}
+	project := filepath.Base(root)
+
+	payload := readHookStdin()
+	if payload == nil {
+		os.Exit(0)
+	}
+
+	var activity turnActivity
+	if tp, ok := payload["transcript_path"].(string); ok && tp != "" {
+		activity = extractLastTurnActivity(tp)
+	} else {
+		activity = turnActivity{
+			Files:    stringSliceFromPayload(payload["files"]),
+			Commands: stringSliceFromPayload(payload["commands"]),
+		}
+	}
+
+	if activity.empty() {
+		os.Exit(0)
+	}
+
+	sessionID := ""
+	if sess, _ := deps.SessionRepo.Active(project); sess != nil {
+		sessionID = sess.ID
+	}
+
+	filePath := ""
+	if len(activity.Files) > 0 {
+		filePath = activity.Files[0]
+	}
+
+	mem := domain.Memory{
+		Project:   project,
+		SessionID: sessionID,
+		Type:      domain.Checkpoint,
+		Title:     "Checkpoint automático",
+		Content:   formatCheckpoint(activity),
+		Filepath:  filePath,
+	}
+	deps.MemoryRepo.Insert(&mem)
+	os.Exit(0)
+}
+
+func stringSliceFromPayload(v any) []string {
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok && s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func formatCheckpoint(a turnActivity) string {
+	var parts []string
+	if len(a.Files) > 0 {
+		parts = append(parts, "Editó: "+strings.Join(a.Files, ", "))
+	}
+	if len(a.Commands) > 0 {
+		cmds := a.Commands
+		if len(cmds) > 5 {
+			cmds = cmds[:5]
+		}
+		parts = append(parts, "Comandos: "+strings.Join(cmds, "; "))
+	}
+	return strings.Join(parts, ". ")
+}
+
 // readHookStdin lee el payload JSON que el agente pasa por stdin. Devuelve nil
 // si no hay datos en pipe (ejecución manual en terminal) o si el parseo falla.
 func readHookStdin() map[string]any {
@@ -156,10 +244,21 @@ se pierde de la memoria.`
 const memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
 	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +
 	`un patrón o convención establecida, o un hallazgo no obvio. No esperes a que el ` +
-	`usuario lo pida. Antes de cerrar, llama a end_session(summary).
+	`usuario lo pida. La actividad rutinaria (qué archivos se editaron, qué comandos ` +
+	`corrieron) ya se registra sola como checkpoint automático — no hace falta duplicarla ` +
+	`a mano. Antes de cerrar, llama a end_session(summary).
+
+JUEZ IMPARCIAL: si dos memorias se contradicen (aparecen en "Conflictos sin resolver" del ` +
+	`contexto, o las notás al buscar), no asumas que la más reciente tiene razón. Releé el ` +
+	`código/archivo fuente actual para verificar cuál refleja los hechos reales y registrá el ` +
+	`veredicto con judge_memories(id_a, id_b, verdict, confidence, reasoning), explicando en ` +
+	`reasoning qué verificaste.
+
+PRIVACIDAD: si vas a guardar algo que incluye un secreto, token o credencial, envolvé esa ` +
+	`parte en <private>...</private> — nunca se persiste.
 
 IMPORTANTE — no confundir sistemas: este proyecto usa EXCLUSIVAMENTE las tools MCP de ` +
-	`gomemory (save_memory, search_memories, get_memory, list_memories, start_session, ` +
-	`end_session, get_context). El sistema de memoria nativo del harness (archivo MEMORY.md ` +
-	`bajo ~/.claude/projects/.../memory/) NO aplica aquí — ignóralo por completo en este ` +
-	`proyecto y no lo consultes ni escribas en él.`
+	`gomemory (save_memory, search_memories, get_memory, list_memories, forget_memory, ` +
+	`judge_memories, start_session, end_session, get_context). El sistema de memoria nativo ` +
+	`del harness (archivo MEMORY.md bajo ~/.claude/projects/.../memory/) NO aplica aquí — ` +
+	`ignóralo por completo en este proyecto y no lo consultes ni escribas en él.`

@@ -14,7 +14,7 @@ type Settings struct {
 func DefaultSettings() Settings {
 	return Settings{
 		AutoApprove:      false,
-		AutoApproveTools: []string{"save_memory", "start_session", "end_session", "search_memories", "get_memory", "get_context"},
+		AutoApproveTools: []string{"save_memory", "start_session", "end_session", "search_memories", "get_memory", "get_context", "judge_memories"},
 	}
 }
 

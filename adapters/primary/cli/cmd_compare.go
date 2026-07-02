@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"text/tabwriter"
 
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -80,28 +81,14 @@ func CmdCompare(deps *Deps, args []string) {
 		reasonText = fmt.Sprintf("Veredicto: %s (confianza: %.2f)", relType, *confidence)
 	}
 
-	// Check existing relation for this pair
-	existing, _ := deps.RelationRepo.GetByPair(project, id1, id2)
-	if existing != nil {
-		// Update existing
-		if err := deps.RelationRepo.Update(existing.ID, relType, *confidence, reasonText); err != nil {
-			fail("actualizar relación: %v", err)
-		}
-		fmt.Printf("✓ Relación actualizada (id=%d): %s ↔ %s → %s\n", existing.ID, positional[0], positional[1], relType)
+	rel, updated, err := usecases.RecordVerdict(deps.RelationRepo, project, id1, id2, relType, *confidence, reasonText)
+	if err != nil {
+		fail("%v", err)
+	}
+	if updated {
+		fmt.Printf("✓ Relación actualizada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
 	} else {
-		rel := &domain.Relation{
-			Project:    project,
-			MemoryIDA:  id1,
-			MemoryIDB:  id2,
-			Relation:   relType,
-			Confidence: *confidence,
-			Reasoning:  reasonText,
-		}
-		id, err := deps.RelationRepo.Insert(rel)
-		if err != nil {
-			fail("guardar relación: %v", err)
-		}
-		fmt.Printf("✓ Relación guardada (id=%d): %s ↔ %s → %s\n", id, positional[0], positional[1], relType)
+		fmt.Printf("✓ Relación guardada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
 	}
 	fmt.Printf("  Razonamiento: %s\n", reasonText)
 }
