@@ -11,6 +11,9 @@
     ],
     "SessionEnd": [
       { "hooks": [{ "type": "command", "command": "mem hook session-end" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "mem hook turn-end" }] }
     ]
   }
 }

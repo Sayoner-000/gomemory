@@ -37,6 +37,7 @@ func NewContainer(root string) (*Container, error) {
 
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)
+	relRepo := persistence.NewRelationRepository(db)
 
 	c := &Container{
 		Root:    root,
@@ -44,10 +45,10 @@ func NewContainer(root string) (*Container, error) {
 
 		MemoryRepo:      memRepo,
 		SessionRepo:     sessRepo,
-		RelationRepo:    persistence.NewRelationRepository(db),
+		RelationRepo:    relRepo,
 		SettingsRepo:    persistence.NewSettingsRepository(),
 		ProjectRepo:     persistence.NewProjectRepository(),
-		ContextBuilder:  usecases.New(memRepo, sessRepo, root, project),
+		ContextBuilder:  usecases.New(memRepo, sessRepo, relRepo, root, project),
 		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 
 		MCPServer: mcp.NewWithRepos(memRepo, sessRepo, project, 0),

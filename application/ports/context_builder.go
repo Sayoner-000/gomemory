@@ -11,6 +11,10 @@ type SessionQuerier interface {
 	Recent(project string, limit int) ([]domain.Session, error)
 }
 
+type RelationLister interface {
+	List(project string, limit int) ([]domain.Relation, error)
+}
+
 type ContextBuilder interface {
 	Build() (string, error)
 	WriteFile() error

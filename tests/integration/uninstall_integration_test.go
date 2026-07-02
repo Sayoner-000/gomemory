@@ -44,7 +44,7 @@ func buildFakeInstall(t *testing.T, target string) {
 	}
 
 	agentContent := "# Instrucciones\n\nContenido del usuario que NO debe perderse.\n" +
-		"\n<!-- gomemory-protocol-v2 -->\n## Memoria Persistente (`mem`) — Protocolo Activo\n\nTexto del protocolo...\n"
+		"\n<!-- gomemory-protocol-v3 -->\n## Memoria Persistente (`mem`) — Protocolo Activo\n\nTexto del protocolo...\n"
 	if err := os.WriteFile(filepath.Join(target, "AGENTS.md"), []byte(agentContent), 0644); err != nil {
 		t.Fatalf("write AGENTS.md: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestUninstallRemovesFullInstallation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AGENTS.md no debió eliminarse (tenía contenido del usuario): %v", err)
 	}
-	if strings.Contains(string(agentData), "gomemory-protocol-v2") {
+	if strings.Contains(string(agentData), "gomemory-protocol-v3") {
 		t.Fatal("AGENTS.md todavía contiene el bloque de protocolo tras uninstall")
 	}
 	if !strings.Contains(string(agentData), "Contenido del usuario que NO debe perderse") {
@@ -102,7 +102,7 @@ func TestUninstallDeletesAgentFileGeneratedEntirelyByInstall(t *testing.T) {
 	// Reproduce defaultAgentFile("AGENTS.md"): solo título + bloque, sin
 	// contenido previo del usuario — todo el archivo es generado por install.
 	generated := "# Instrucciones para agentes AI\n" +
-		"\n<!-- gomemory-protocol-v2 -->\n## Memoria Persistente (`mem`) — Protocolo Activo\n\nTexto del protocolo...\n"
+		"\n<!-- gomemory-protocol-v3 -->\n## Memoria Persistente (`mem`) — Protocolo Activo\n\nTexto del protocolo...\n"
 	if err := os.WriteFile(filepath.Join(target, "AGENTS.md"), []byte(generated), 0644); err != nil {
 		t.Fatalf("write AGENTS.md: %v", err)
 	}

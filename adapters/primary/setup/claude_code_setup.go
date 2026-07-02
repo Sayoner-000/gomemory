@@ -28,6 +28,7 @@ var claudeHookEvents = map[string]string{
 	"PreCompact":       "pre-compact",
 	"UserPromptSubmit": "user-prompt-submit",
 	"SessionEnd":       "session-end",
+	"Stop":             "turn-end",
 }
 
 func InstallClaudeCode(root string, ref AgentRef) error {
@@ -171,6 +172,7 @@ func hookCommandIsGomemory(cmd string) bool {
 		strings.Contains(cmd, "hook session-end") ||
 		strings.Contains(cmd, "hook pre-compact") ||
 		strings.Contains(cmd, "hook user-prompt-submit") ||
+		strings.Contains(cmd, "hook turn-end") ||
 		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
 		strings.Contains(cmd, "plugins/gomemory")
 }

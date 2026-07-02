@@ -131,6 +131,7 @@ Esto:
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. |
 | `PreCompact` | `pre-compact` | Antes de compactar, inyecta **instrucciones de recuperación + contexto** para que no se pierda el estado de trabajo. |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. |
+| `Stop` | `turn-end` | Al terminar cada turno, registra automáticamente (sin gastar tokens del agente) qué archivos se editaron y qué comandos corrieron, como memoria tipo `checkpoint`. Turnos de puro chat no generan nada. En OpenCode el equivalente es el evento `session.idle`. |
 
 > Regla de oro: un hook nunca aborta el arranque del agente — ante error sale con
 > código 0. Los hooks son lo que hace que la memoria "tome todo bien": sin ellos,

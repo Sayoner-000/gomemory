@@ -45,6 +45,35 @@ Call `mem_search` PROACTIVELY when:
 3. Never dump all memory — search first, drill only if needed
 ```
 
+## AUTOMATIC CHECKPOINTS
+
+Routine turn activity (which files were edited, which commands ran) is
+captured automatically as a `checkpoint` memory after each turn — you don't
+need to call `save_memory` for that. Keep using `save_memory` for things that
+require synthesis: decisions, root causes, conventions, discoveries.
+
+## IMPARTIAL JUDGE (conflicting memories)
+
+If the context shows a `## Conflictos sin resolver` section, or you notice two
+memories that contradict each other while searching, act as an impartial
+judge:
+
+1. Do NOT assume the more recent memory is correct.
+2. Re-read the actual current code/source to verify which memory reflects
+   reality.
+3. Record the verdict: `judge_memories(id_a, id_b, verdict, confidence, reasoning)`
+   — `reasoning` is required and must state what you verified.
+
+## PRIVACY
+
+Wrap secrets, tokens, or credentials in `<private>...</private>` before saving
+— content inside those tags is stripped and never persisted.
+
+## FORGETTING
+
+If a memory is wrong, obsolete, or was saved by mistake, remove it with
+`forget_memory(id)` instead of leaving stale/incorrect information around.
+
 ## SESSION CLOSE PROTOCOL (mandatory)
 
 Before ending a session or saying "done", call `end_session()` with:
