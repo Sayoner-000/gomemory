@@ -58,7 +58,7 @@
 
 ## Memory Protocol — Memoria Persistente (gomemory)
 
-Hay acceso a gomemory vía MCP. Tools disponibles: `save_memory`, `search_memories`, `list_memories`, `get_memory`, `start_session`, `end_session`, `get_context`. Este protocolo es OBLIGATORIO y SIEMPRE ACTIVO — no es algo que se active a pedido.
+Hay acceso a gomemory vía MCP. Tools disponibles: `save_memory`, `search_memories`, `list_memories`, `get_memory`, `forget_memory`, `judge_memories`, `start_session`, `end_session`, `get_context`. Este protocolo es OBLIGATORIO y SIEMPRE ACTIVO — no es algo que se active a pedido.
 
 ### Cuándo guardar (`save_memory`) — inmediatamente después de:
 - Decisión de arquitectura o diseño

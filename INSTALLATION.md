@@ -1,4 +1,4 @@
-# Instalación de gomemory v1.7.3
+# Instalación de gomemory v1.8.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 
@@ -111,7 +111,7 @@ proyecto/
 │   └── context.md
 ├── AGENTS.md              # Instrucciones de integración
 ├── CLAUDE.md              # Instrucciones para Claude Code
-├── .opencode.json         # MCP para OpenCode
+├── opencode.json           # MCP para OpenCode
 ├── .mcp.json              # MCP para Claude
 ├── .cursor/mcp.json       # MCP para Cursor
 ├── .windsurf/mcp_config.json
@@ -220,6 +220,8 @@ Herramientas MCP disponibles:
 | `search_memories` | Buscar en la memoria del proyecto |
 | `list_memories` | Listar memorias recientes |
 | `get_memory` | Obtener una memoria por ID |
+| `forget_memory` | Borrar una memoria por ID (irreversible) |
+| `judge_memories` | Registrar veredicto imparcial entre dos memorias |
 | `start_session` | Iniciar sesión de trabajo |
 | `end_session` | Finalizar sesión con resumen |
 | `get_context` | Obtener contexto completo del proyecto |
