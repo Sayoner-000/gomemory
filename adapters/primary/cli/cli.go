@@ -38,7 +38,7 @@ Uso:
   mem init [--force]               Inicializar .memory/ en el proyecto
   mem save [flags] <texto>         Guardar un aprendizaje
     -t, --title    Título descriptivo
-    -y, --type     Tipo: learning|decision|architecture|bugfix|pattern|discovery
+    -y, --type     Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference
     -f, --filepath Archivo relacionado
 
   mem capture [flags]              Guardar aprendizaje estructurado (What/Why/Where/Learned)

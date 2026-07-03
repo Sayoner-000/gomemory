@@ -76,6 +76,14 @@ func (b *Builder) Build() (string, error) {
 		}
 	}
 
+	if prefs, ok := byType[domain.Preference]; ok {
+		sb.WriteString("## Preferencias del Usuario\n\n")
+		for _, m := range prefs {
+			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", displayTitle(m), m.Content))
+		}
+		sb.WriteString("\n")
+	}
+
 	if arch, ok := byType[domain.Architecture]; ok {
 		sb.WriteString("## Decisiones de Arquitectura\n\n")
 		for _, m := range arch {
@@ -117,7 +125,7 @@ func (b *Builder) Build() (string, error) {
 	sb.WriteString("## Aprendizajes Recientes\n\n")
 	count := 0
 	for _, m := range mems {
-		if m.Type == domain.Architecture || m.Type == domain.Decision || m.Type == domain.Pattern || m.Type == domain.Bugfix || m.Type == domain.Checkpoint {
+		if m.Type == domain.Architecture || m.Type == domain.Decision || m.Type == domain.Pattern || m.Type == domain.Bugfix || m.Type == domain.Preference || m.Type == domain.Checkpoint {
 			continue
 		}
 		if count >= 15 {
