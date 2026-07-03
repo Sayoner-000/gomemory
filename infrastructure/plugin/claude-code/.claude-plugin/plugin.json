@@ -1,6 +1,6 @@
 {
   "name": "gomemory",
-  "version": "1.5.0",
+  "version": "{{VERSION}}",
   "description": "Persistent memory for AI coding agents",
   "author": "gomemory",
   "license": "MIT"
