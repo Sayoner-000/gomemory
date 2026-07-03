@@ -27,8 +27,12 @@ type Builder struct {
 	Lister    ports.MemoryLister
 	Session   ports.SessionQuerier
 	Relations ports.RelationLister
-	Project   string
-	Root      string
+	// Graph es opcional: si está seteado (ver infrastructure/container.go) y
+	// el proyecto tiene código indexado, Build() agrega un resumen del grafo.
+	// nil-checked para no romper wiring/tests existentes que no lo setean.
+	Graph   ports.GraphStatusQuerier
+	Project string
+	Root    string
 }
 
 func New(lister ports.MemoryLister, session ports.SessionQuerier, relations ports.RelationLister, root, project string) *Builder {
@@ -64,7 +68,7 @@ func (b *Builder) Build() (string, error) {
 				for _, r := range conflicts {
 					titleA := titleByID[r.MemoryIDA]
 					titleB := titleByID[r.MemoryIDB]
-					sb.WriteString(fmt.Sprintf("- [%d] %q ↔ [%d] %q — releé el código actual y llamá a judge_memories para resolverlo\n",
+					sb.WriteString(fmt.Sprintf("- [%d] %q ↔ [%d] %q — relee el código actual y llama a judge_memories para resolverlo\n",
 						r.MemoryIDA, titleA, r.MemoryIDB, titleB))
 				}
 				sb.WriteString("\n")
@@ -141,6 +145,21 @@ func (b *Builder) Build() (string, error) {
 			sb.WriteString(fmt.Sprintf("- %s\n", m.Content))
 		}
 		sb.WriteString("\n")
+	}
+
+	if b.Graph != nil {
+		if status, err := b.Graph.Status(b.Project); err == nil && status.Nodes > 0 {
+			sb.WriteString("## Código indexado\n\n")
+			sb.WriteString(fmt.Sprintf("%d archivos, %d símbolos, %d relaciones.", status.Files, status.Nodes, status.Edges))
+			if len(status.TopPackages) > 0 {
+				names := make([]string, 0, len(status.TopPackages))
+				for _, p := range status.TopPackages {
+					names = append(names, p.Package)
+				}
+				sb.WriteString(" Paquetes principales: " + strings.Join(names, ", ") + ".")
+			}
+			sb.WriteString(" Usa search_code/get_symbol/list_dependencies para consultarlo.\n\n")
+		}
 	}
 
 	sess, _ := b.Session.Active(b.Project)

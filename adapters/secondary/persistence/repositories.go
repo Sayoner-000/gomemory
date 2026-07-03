@@ -188,3 +188,49 @@ func (r *MaintenanceRepository) Compact() (int64, int64, error) {
 }
 
 var _ ports.MaintenanceRepository = (*MaintenanceRepository)(nil)
+
+type CodeGraphRepository struct {
+	db *sql.DB
+}
+
+func NewCodeGraphRepository(db *sql.DB) ports.CodeGraphRepository {
+	return &CodeGraphRepository{db: db}
+}
+
+func (r *CodeGraphRepository) FileHashes(project string) (map[string]string, error) {
+	return FileHashesQuery(r.db, project)
+}
+
+func (r *CodeGraphRepository) ReplaceFile(project, path, hash string, nodes []domain.CodeNode) ([]domain.CodeNode, error) {
+	return ReplaceFileNodes(r.db, project, path, hash, nodes)
+}
+
+func (r *CodeGraphRepository) DeleteFile(project, path string) error {
+	return DeleteCodeFile(r.db, project, path)
+}
+
+func (r *CodeGraphRepository) InsertEdges(project, srcPath string, edges []domain.CodeEdge) error {
+	return InsertCodeEdges(r.db, project, srcPath, edges)
+}
+
+func (r *CodeGraphRepository) SearchNodes(project, query string, limit int) ([]domain.CodeNode, error) {
+	return SearchCodeNodes(r.db, project, query, limit)
+}
+
+func (r *CodeGraphRepository) NodesByName(project, name string) ([]domain.CodeNode, error) {
+	return NodesByName(r.db, project, name)
+}
+
+func (r *CodeGraphRepository) UpsertPackageNode(project, importPath string) (domain.CodeNode, error) {
+	return UpsertPackageNode(r.db, project, importPath)
+}
+
+func (r *CodeGraphRepository) Neighbors(project string, nodeID int64, kind domain.CodeEdgeKind, direction string, depth int) ([]domain.CodeNode, []domain.CodeEdge, error) {
+	return Neighbors(r.db, project, nodeID, kind, direction, depth)
+}
+
+func (r *CodeGraphRepository) Status(project string) (domain.GraphStatus, error) {
+	return CodeGraphStatus(r.db, project)
+}
+
+var _ ports.CodeGraphRepository = (*CodeGraphRepository)(nil)

@@ -11,6 +11,7 @@ import (
 
 	"mem/application/usecases"
 	"mem/domain"
+	"mem/version"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -34,7 +35,9 @@ func CmdMCP(deps *Deps, args []string) {
 		var err error
 		root, err = deps.ProjectRepo.FindRoot()
 		if err != nil {
-			log.Fatalf("Error: %v", err)
+			log.Fatalf("Error: %v\nEl server MCP se lanzó fuera del proyecto (el cwd actual no tiene .memory/). "+
+				"Si tu cliente MCP no fija el cwd al proyecto, lanza el server explícitamente con "+
+				"'mem mcp --root /ruta/al/proyecto'.", err)
 		}
 	}
 
@@ -42,10 +45,11 @@ func CmdMCP(deps *Deps, args []string) {
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gomemory",
-		Version: "1.7.3",
+		Version: version.Version,
 	}, nil)
 
 	registerTools(server, deps, project)
+	registerCodeTools(server, deps, root, project)
 	registerResources(server, deps, project)
 
 	log.Printf("MCP server iniciado para proyecto '%s'", project)
@@ -244,9 +248,9 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "judge_memories",
-		Description: "Actúa como juez imparcial entre dos memorias que se contradicen: releé el código/archivo " +
+		Description: "Actúa como juez imparcial entre dos memorias que se contradicen: relee el código/archivo " +
 			"fuente actual para verificar cuál refleja los hechos reales (no asumas que la más reciente gana) y " +
-			"registrá el veredicto",
+			"registra el veredicto",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		IDA        int     `json:"id_a" jsonschema:"ID de la primera memoria"`
 		IDB        int     `json:"id_b" jsonschema:"ID de la segunda memoria"`
@@ -255,7 +259,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		Reasoning  string  `json:"reasoning" jsonschema:"Por qué se llegó a este veredicto — obligatorio, debe citar los hechos verificados"`
 	}) (*mcp.CallToolResult, any, error) {
 		if strings.TrimSpace(in.Reasoning) == "" {
-			return nil, nil, fmt.Errorf("reasoning es obligatorio: explicá qué hechos verificaste para llegar a este veredicto")
+			return nil, nil, fmt.Errorf("reasoning es obligatorio: explica qué hechos verificaste para llegar a este veredicto")
 		}
 		confidence := in.Confidence
 		if confidence <= 0 {

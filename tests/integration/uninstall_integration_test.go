@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -147,4 +148,81 @@ func TestUninstallReportsMissingComponentsWithoutFailing(t *testing.T) {
 	// Directorio vacío: gomemory nunca se instaló aquí.
 	cli.CmdUninstall(deps, []string{target, "--yes"})
 	// Si llegamos aquí sin panic/os.Exit, "reporta sin fallar" se cumple.
+}
+
+// TestUninstallRemovesPermissionsAndStopHook cubre dos bugs reales: (a) los
+// permisos mcp__gomemory__* pre-aprobados por install sobrevivían a uninstall,
+// y (b) el hook "Stop" (turn-end) no estaba en la lista de eventos limpiados,
+// así que sobrevivía a la desinstalación.
+func TestUninstallRemovesPermissionsAndStopHook(t *testing.T) {
+	target := t.TempDir()
+	deps := uninstallTestDeps()
+
+	if err := persistence.EnsureDir(target); err != nil {
+		t.Fatalf("ensure dir: %v", err)
+	}
+	db, err := persistence.Open(target)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	db.Close()
+
+	settingsContent := `{
+		"hooks": {
+			"Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "mem hook turn-end"}]}],
+			"SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "mem hook session-start"}]}]
+		},
+		"permissions": {"allow": ["mcp__gomemory__save_memory", "mcp__other_server__some_tool"]},
+		"enabledMcpjsonServers": ["gomemory", "other_server"]
+	}`
+	settingsPath := filepath.Join(target, ".claude", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0755); err != nil {
+		t.Fatalf("mkdir .claude: %v", err)
+	}
+	if err := os.WriteFile(settingsPath, []byte(settingsContent), 0644); err != nil {
+		t.Fatalf("write settings.json: %v", err)
+	}
+
+	cli.CmdUninstall(deps, []string{target, "--yes"})
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("settings.json no debió eliminarse: %v", err)
+	}
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatalf("settings.json inválido tras uninstall: %v", err)
+	}
+
+	if hooks, ok := settings["hooks"].(map[string]interface{}); ok {
+		if _, has := hooks["Stop"]; has {
+			t.Error("el hook Stop (turn-end) debió removerse en uninstall")
+		}
+	}
+
+	if perms, ok := settings["permissions"].(map[string]interface{}); ok {
+		allow, _ := perms["allow"].([]interface{})
+		for _, v := range allow {
+			if v == "mcp__gomemory__save_memory" {
+				t.Error("el permiso mcp__gomemory__save_memory debió removerse en uninstall")
+			}
+		}
+		hasOther := false
+		for _, v := range allow {
+			if v == "mcp__other_server__some_tool" {
+				hasOther = true
+			}
+		}
+		if !hasOther {
+			t.Error("no debió eliminar el permiso de un servidor de terceros")
+		}
+	}
+
+	if servers, ok := settings["enabledMcpjsonServers"].([]interface{}); ok {
+		for _, v := range servers {
+			if v == "gomemory" {
+				t.Error("'gomemory' debió removerse de enabledMcpjsonServers")
+			}
+		}
+	}
 }
