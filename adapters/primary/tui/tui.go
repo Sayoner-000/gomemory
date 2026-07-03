@@ -56,6 +56,8 @@ func typeColor(t string) lipgloss.Color {
 		return lipgloss.Color("#FBBF24")
 	case string(domain.Discovery):
 		return lipgloss.Color("#22D3EE")
+	case string(domain.Preference):
+		return lipgloss.Color("#F472B6")
 	default:
 		return lipgloss.Color("#52525B")
 	}
@@ -75,6 +77,8 @@ func typeIcon(t string) string {
 		return "●"
 	case string(domain.Discovery):
 		return "◇"
+	case string(domain.Preference):
+		return "♥"
 	default:
 		return "●"
 	}
@@ -94,6 +98,8 @@ func typeLabel(t string) string {
 		return "Aprendizaje"
 	case string(domain.Discovery):
 		return "Hallazgo"
+	case string(domain.Preference):
+		return "Preferencia"
 	default:
 		return t
 	}
@@ -222,7 +228,7 @@ func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRep
 	ti.Width = 50
 
 	ty := textinput.New()
-	ty.Placeholder = "learning, decision, architecture, bugfix, pattern, discovery"
+	ty.Placeholder = "learning, decision, architecture, bugfix, pattern, discovery, preference"
 	ty.CharLimit = 20
 	ty.Width = 50
 	ty.SetValue("learning")
@@ -652,7 +658,7 @@ func (m model) listView() string {
 		b.WriteString("\n")
 	} else {
 		grouped := groupByType(visible)
-		typeOrder := []string{"architecture", "decision", "pattern", "bugfix", "learning", "discovery"}
+		typeOrder := []string{"preference", "architecture", "decision", "pattern", "bugfix", "learning", "discovery"}
 		globalIdx := 0
 
 		for _, t := range typeOrder {

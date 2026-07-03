@@ -9,6 +9,10 @@ const (
 	Bugfix       MemoryType = "bugfix"
 	Pattern      MemoryType = "pattern"
 	Discovery    MemoryType = "discovery"
+	// Preference captura preferencias de interacción del usuario (cómo quiere
+	// que le hable el agente, correcciones de estilo/flujo, confirmación de
+	// un enfoque) — distinto de conocimiento sobre el código.
+	Preference MemoryType = "preference"
 	// Checkpoint es un registro automático de actividad de un turno (archivos
 	// tocados, comandos corridos), generado por el hook turn-end sin
 	// intervención del agente — no por save_memory.
@@ -17,7 +21,7 @@ const (
 
 func ValidMemoryType(s string) MemoryType {
 	switch MemoryType(s) {
-	case Learning, Decision, Architecture, Bugfix, Pattern, Discovery, Checkpoint:
+	case Learning, Decision, Architecture, Bugfix, Pattern, Discovery, Preference, Checkpoint:
 		return MemoryType(s)
 	default:
 		return Learning

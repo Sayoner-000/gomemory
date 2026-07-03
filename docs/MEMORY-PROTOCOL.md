@@ -79,7 +79,9 @@ Call save_memory() IMMEDIATELY after:
 - Tool or library choice with tradeoffs
 - Non-obvious discovery about the codebase
 - Pattern established (naming, structure, convention)
-- User preference or constraint learned
+- User preference or constraint learned (type=preference — interactive/session
+  memory about how the user wants to be worked with; save it here, not in an
+  external store)
 
 Self-check after EVERY task: "Did I make a decision, fix a bug,
 discover something, or establish a convention?"

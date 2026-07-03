@@ -71,7 +71,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		Description: "Guarda un aprendizaje, decisión o descubrimiento en la memoria del proyecto",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		Title    string `json:"title" jsonschema:"Título descriptivo de la memoria"`
-		Type     string `json:"type" jsonschema:"Tipo: learning|decision|architecture|bugfix|pattern|discovery"`
+		Type     string `json:"type" jsonschema:"Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference"`
 		Content  string `json:"content" jsonschema:"Contenido del aprendizaje"`
 		Filepath string `json:"filepath,omitempty" jsonschema:"Archivo relacionado (opcional)"`
 	}) (*mcp.CallToolResult, any, error) {

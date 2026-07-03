@@ -27,7 +27,7 @@ todo el contexto** sin que tengas que pedírselo.
 - **Contexto entre sesiones** — OpenCode, Claude Code, Cursor, Windsurf, Cline, Codex o cualquier agente compatible con MCP recuerda todo el historial del proyecto.
 - **Sin dependencias runtime** — binario autocontenido (~16MB). SQLite embebido via `modernc.org/sqlite` (sin CGO). Descarga, ejecuta, listo.
 - **Multi-agente** — un solo `mem install` configura MCP, hooks e instrucciones para 6 agentes simultáneamente.
-- **7 tipos de memoria** — `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `checkpoint` (auto por turno).
+- **8 tipos de memoria** — `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint` (auto por turno).
 - **Búsqueda con ranking** — relevancia por título primero, contenido después. Búsqueda semántica y por patrón de nombre.
 - **CLI completo** — 24 subcomandos para gestionar memoria desde terminal, más una TUI interactiva con Bubbletea.
 - **Servidor HTTP background** — auto-iniciado por los plugins, sesiones persistentes, contexto optimizado (< 200 tokens por request).
@@ -78,7 +78,7 @@ mem context --write
 
 ### Memoria Persistente
 
-- **7 tipos de memoria**: `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `checkpoint` (auto, ver checkpoints por turno)
+- **8 tipos de memoria**: `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint` (auto, ver checkpoints por turno)
 - **Búsqueda con ranking** por relevancia (título primero, contenido después)
 - **Relaciones semánticas** entre memorias: `related`, `compatible`, `scoped`, `conflicts_with`, `supersedes`, `not_conflict`
 - **Agrupación por sesiones** de trabajo con UUID y resumen markdown
@@ -307,7 +307,7 @@ Reiniciar el agente. Verificar con `/mcp` — deberías ver `gomemory` con 9 too
 
 | Tool | Descripción |
 |------|-------------|
-| `save_memory` | Guardar una memoria (learning, decision, bugfix, pattern, discovery, architecture) |
+| `save_memory` | Guardar una memoria (learning, decision, bugfix, pattern, discovery, architecture, preference) |
 | `list_memories` | Listar las memorias más recientes del proyecto |
 | `search_memories` | Buscar en todas las memorias por texto |
 | `get_memory` | Obtener una memoria específica por ID |
