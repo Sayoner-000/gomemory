@@ -51,7 +51,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
 | `install` | `adapters/primary/cli/cmd_install.go` | Copia binario + init + .gitignore + AGENTS + configura MCP para todos los agentes |
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 7 tools y 2 recursos. Acepta `--root <dir>` |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 9 tools de memoria + 5 de grafo de codigo y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `serve` | `adapters/primary/cli/cmd_serve.go` | Servidor HTTP de plugins (`127.0.0.1:9735`). Lo usa el plugin de OpenCode |
@@ -211,7 +211,7 @@ Wrapper interactivo que envuelve cualquier comando:
 
 Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Ahora usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
 
-**Herramientas:**
+**Herramientas de memoria (9):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -219,9 +219,21 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `search_memories` | query, limit | Busca en la memoria con ranking por relevancia |
 | `list_memories` | limit | Lista memorias recientes |
 | `get_memory` | id | Obtiene una por ID (tipo, título, fecha, sesión, contenido) |
+| `forget_memory` | id | Borra una memoria por ID (irreversible) |
+| `judge_memories` | id_a, id_b, verdict, confidence, reasoning | Registra veredicto imparcial entre dos memorias |
 | `start_session` | — | Inicia sesión de trabajo (valida que no haya activa) |
 | `end_session` | summary | Finaliza sesión activa |
 | `get_context` | — | Contexto markdown completo del proyecto |
+
+**Herramientas de grafo de codigo (5):**
+
+| Tool | Input | Descripción |
+|---|---|---|
+| `index_project` | force | Indexa o reindexa el codigo Go en el grafo de simbolos |
+| `graph_status` | — | Muestra el tamano del grafo de codigo indexado |
+| `search_code` | query, limit | Busca simbolos por nombre, firma o paquete |
+| `get_symbol` | name | Obtiene definicion con callers y callees directos |
+| `list_dependencies` | name, direction, kind, depth | Recorre dependencias por profundidad |
 
 **Recursos:**
 
@@ -434,7 +446,7 @@ El contenido inyectado se versiona con marcadores HTML para upgrades idempotente
 | `id` | INTEGER PK | Auto-incremental |
 | `project` | TEXT | Nombre del proyecto (basename del root) |
 | `session_id` | TEXT? | Sesión asociada (UUID) |
-| `type` | TEXT | `learning`, `decision`, `architecture`, `bugfix`, `pattern`, `discovery` |
+| `type` | TEXT | `learning`, `decision`, `architecture`, `bugfix`, `pattern`, `discovery`, `checkpoint` |
 | `title` | TEXT | Título descriptivo |
 | `content` | TEXT | Cuerpo del aprendizaje |
 | `filepath` | TEXT? | Archivo relacionado |
@@ -442,6 +454,42 @@ El contenido inyectado se versiona con marcadores HTML para upgrades idempotente
 | `updated_at` | TEXT | Timestamp UTC-5 (Colombia) |
 
 Índices: `project`, `type`, `created_at DESC`.
+
+### `code_files`
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `project` | TEXT | Nombre del proyecto |
+| `path` | TEXT | Ruta relativa del archivo |
+| `hash` | TEXT | Hash del contenido para reindexado incremental |
+| `indexed_at` | TEXT | Timestamp de ultima indexacion |
+
+### `code_nodes`
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremental |
+| `project` | TEXT | Nombre del proyecto |
+| `kind` | TEXT | `file`, `package`, `function`, `method`, `type` |
+| `name` | TEXT | Nombre del simbolo |
+| `package` | TEXT | Ruta del paquete |
+| `file` | TEXT | Archivo fuente |
+| `receiver` | TEXT | Tipo receptor (metodos) |
+| `signature` | TEXT | Firma de la funcion |
+| `start_line` | INTEGER | Linea inicial |
+| `end_line` | INTEGER | Linea final |
+| `exported` | INTEGER | 1 si es exportado |
+
+### `code_edges`
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremental |
+| `project` | TEXT | Nombre del proyecto |
+| `from_id` | INTEGER | FK → code_nodes(id) |
+| `to_id` | INTEGER | FK → code_nodes(id) |
+| `kind` | TEXT | `defines`, `imports`, `calls` |
+| `confidence` | REAL | Precision de la resolucion (0.0-1.0) |
 
 ### `sessions`
 
@@ -478,6 +526,7 @@ El contenido inyectado se versiona con marcadores HTML para upgrades idempotente
 | `bugfix` | ✕ | `types.Bugfix` | Bugs corregidos y causa raíz |
 | `learning` | ● | `types.Learning` | Descubrimientos y aprendizajes |
 | `discovery` | ◇ | `types.Discovery` | Hallazgos sin categoría |
+| `checkpoint` | ○ | `types.Checkpoint` | Registro automatico de actividad por turno |
 
 Validación vía `ValidMemoryType()`: si el tipo no es válido, default a `learning`.
 
@@ -495,6 +544,7 @@ const (
     Bugfix       MemoryType = "bugfix"
     Pattern      MemoryType = "pattern"
     Discovery    MemoryType = "discovery"
+    Checkpoint   MemoryType = "checkpoint"
 )
 
 type Memory struct {
@@ -601,7 +651,7 @@ proyecto/
 │   └── context.md              ← Contexto markdown generado
 ├── AGENTS.md                   ← Instrucciones de integración
 ├── CLAUDE.md                   ← Ídem para Claude Code
-├── .opencode.json              ← MCP server config (opencode)
+├── opencode.json                ← MCP server config (opencode)
 ├── .mcp.json                   ← MCP server config (Claude)
 ├── .cursor/
 │   └── mcp.json                ← MCP server config (Cursor)
@@ -645,6 +695,8 @@ gomemory/
 │   ├── memory.go                    #   tipos Memory, MemoryType, validación
 │   ├── session.go                   #   tipos Session
 │   ├── relation.go                  #   tipos Relation, RelationType, Confidence
+│   ├── code.go                      #   tipos CodeNode, CodeEdge, CodeNodeKind, GraphStatus
+│   ├── redact.go                    #   redacción de <private>...</private>
 │   └── errors.go                    #   errores de dominio (ErrNotFound, ErrValidation)
 │
 ├── application/                     # Capa de aplicación — solo importa domain/
@@ -654,9 +706,14 @@ gomemory/
 │   │   ├── relation_repository.go   #     RelationRepository interface
 │   │   ├── settings_repository.go   #     SettingsRepository interface
 │   │   ├── project_repository.go    #     ProjectRepository interface
-│   │   └── context_builder.go       #     ContextBuilder interface
+│   │   ├── context_builder.go       #     ContextBuilder + MemoryLister + SessionQuerier
+│   │   ├── code_graph_repository.go #     CodeGraphRepository interface
+│   │   └── maintenance_repository.go#     MaintenanceRepository (purge/compact/stats)
 │   └── usecases/                    #   Casos de uso
-│       └── build_context.go         #     Genera .memory/context.md
+│       ├── build_context.go         #     Genera .memory/context.md
+│       ├── index_project.go         #     Indexador de código Go (go/parser)
+│       ├── goparse.go               #     Parseo de archivos Go a nodos/aristas
+│       └── record_verdict.go        #     Registro de veredicto semántico entre memorias
 │
 ├── adapters/                        # Capa de adaptadores
 │   ├── primary/                     #   Adaptadores primarios (driving)
@@ -672,12 +729,14 @@ gomemory/
 │   │   │   ├── cmd_list.go         #       mem list [-n N]
 │   │   │   ├── cmd_search.go       #       mem search "consulta" [-n N]
 │   │   │   ├── cmd_context.go      #       mem context [-w|--write]
+│   │   │   ├── cmd_forget.go       #       mem forget <id>
 │   │   │   ├── cmd_session.go      #       mem session start|end|list
 │   │   │   ├── cmd_install.go      #       mem install [dir] (pack: reglas + protocolo + constitución)
 │   │   │   ├── cmd_uninstall.go    #       mem uninstall [dir] [--yes]
 │   │   │   ├── cmd_project.go      #       mem project
 │   │   │   ├── cmd_wrap.go         #       mem wrap <comando> [args...]
 │   │   │   ├── cmd_mcp.go          #       mem mcp — servidor MCP (tools + resources)
+│   │   │   ├── cmd_mcp_code_tools.go #     tools MCP de grafo de código (index_project, search_code, etc.)
 │   │   │   ├── cmd_mcp_setup.go    #       mem setup-mcp
 │   │   │   ├── cmd_serve.go        #       mem serve — servidor HTTP (plugin OpenCode)
 │   │   │   ├── cmd_hook.go         #       mem hook <evento> — hooks portables Claude Code
@@ -685,12 +744,17 @@ gomemory/
 │   │   │   ├── cmd_settings.go     #       mem settings — auto-approve MCP
 │   │   │   ├── cmd_purge.go        #       mem purge
 │   │   │   ├── cmd_compact.go      #       mem compact
-│   │   │   └── cmd_gc.go           #       mem gc
+│   │   │   ├── cmd_gc.go           #       mem gc
+│   │   │   ├── cmd_index.go        #       mem index — indexación manual de código Go
+│   │   │   ├── cmd_update.go       #       mem update — auto-actualización del binario
+│   │   │   ├── transcript.go       #       extractor de actividad de turno (checkpoints)
+│   │   │   └── transcript_test.go  #       tests del extractor de checkpoints
 │   │   ├── tui/                     #     TUI (Bubbletea)
 │   │   │   └── tui.go
 │   │   ├── mcp/                     #     Servidor MCP
-│   │   │   ├── server.go           #       HTTP + MCP handlers
-│   │   │   └── server_compat.go    #       Compatibilidad con tests legacy
+│   │   │   ├── server.go           #       HTTP server de plugins (session, context, health)
+│   │   │   ├── server_compat.go    #       Compatibilidad con tests legacy
+│   │   │   └── server_test.go      #       Tests del servidor HTTP
 │   │   └── setup/                   #     Setup de plugins (plugin + hooks)
 │   │       ├── setup.go
 │   │       ├── opencode_setup.go
@@ -699,8 +763,11 @@ gomemory/
 │       └── persistence/             #     Persistencia SQLite
 │           ├── db.go                #       Conexión, migraciones, FindRoot
 │           ├── memory.go            #       CRUD memorias
+│           ├── memory_test.go       #       Tests de memoria CRUD
 │           ├── session.go           #       CRUD sesiones
 │           ├── relation.go          #       CRUD relaciones
+│           ├── code_graph.go        #       CRUD del grafo de código (code_files, code_nodes, code_edges)
+│           ├── code_graph_test.go   #       Tests del grafo de código
 │           ├── maintenance.go       #       Purge/Compact/GC (no expuesto vía MCP)
 │           ├── settings.go          #       Config local
 │           └── repositories.go     #       Wrappers ports.*Repository
@@ -721,9 +788,16 @@ gomemory/
 │
 ├── tests/                           # Tests
 │   ├── contract/
-│   │   └── memory_protocol_test.go
+│   │   ├── memory_protocol_test.go  #     Test del protocolo de memoria MCP
+│   │   ├── maintenance_cli_test.go  #     Tests de purge/compact/gc CLI
+│   │   └── skill_tool_names_test.go #     Tests de nombres de tools/skills
 │   └── integration/
-│       └── plugin_integration_test.go
+│       ├── code_graph_mcp_integration_test.go  # Tests de integración del grafo de código
+│       ├── hook_marker_integration_test.go     # Tests del marcador de hooks
+│       ├── maintenance_integration_test.go     # Tests de integración de mantenimiento
+│       ├── plugin_integration_test.go          # Tests de instalación de plugins
+│       ├── uninstall_integration_test.go       # Tests de desinstalación
+│       └── update_integration_test.go          # Tests de auto-actualización
 │
 ├── docs/
 │   ├── architecture.md       # Este documento
