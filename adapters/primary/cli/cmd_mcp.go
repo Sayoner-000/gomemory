@@ -52,6 +52,13 @@ func CmdMCP(deps *Deps, args []string) {
 	registerCodeTools(server, deps, root, project)
 	registerResources(server, deps, project)
 
+	// Auto-start session on MCP server start (best-effort, no debe romper el server)
+	if active, _ := deps.SessionRepo.Active(project); active == nil {
+		if sess, err := deps.SessionRepo.Start(project); err == nil {
+			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
+		}
+	}
+
 	log.Printf("MCP server iniciado para proyecto '%s'", project)
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatalf("Server error: %v", err)
