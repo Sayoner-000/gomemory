@@ -72,7 +72,7 @@ func saveInteractive(reader *bufio.Reader, deps *Deps, project string) {
 	title, _ := reader.ReadString('\n')
 	title = strings.TrimSpace(title)
 
-	fmt.Fprint(os.Stderr, "Tipo (learning/decision/bugfix/pattern/architecture) [learning]: ")
+	fmt.Fprint(os.Stderr, "Tipo (learning/decision/bugfix/pattern/architecture/discovery/preference) [learning]: ")
 	typeStr, _ := reader.ReadString('\n')
 	typeStr = strings.TrimSpace(typeStr)
 	if typeStr == "" {

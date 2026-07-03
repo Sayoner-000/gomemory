@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"mem/adapters/primary/setup"
@@ -236,7 +237,7 @@ func runIn(dir, bin string, args ...string) error {
 }
 
 const integrationMarker = "## Memoria Persistente"
-const integrationVersionMarker = "<!-- gomemory-protocol-v3 -->"
+const integrationVersionMarker = "<!-- gomemory-protocol-v4 -->"
 const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
 
 // TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
@@ -275,9 +276,10 @@ func composeAgentFile(existing, preamble, integration string) (string, bool) {
 		changed = true
 	}
 
-	// 2. Protocolo de memoria (versionado). Reemplaza bloques v1 si existen.
+	// 2. Protocolo de memoria (versionado). Reemplaza bloques de cualquier
+	// versión anterior si existen (ver protocolStart).
 	if !strings.Contains(out, integrationVersionMarker) {
-		if idx := strings.Index(out, integrationMarker); idx != -1 {
+		if idx := protocolStart(out); idx != -1 {
 			out = strings.TrimRight(out[:idx], "\n") + "\n" + integration
 		} else {
 			out = strings.TrimRight(out, "\n") + "\n" + integration
@@ -288,11 +290,19 @@ func composeAgentFile(existing, preamble, integration string) (string, bool) {
 	return out, changed
 }
 
+// versionMarkerPattern reconoce el marcador de versión del protocolo sin
+// importar el número de versión (v1, v2, v3...), para poder ubicar el
+// comienzo real del bloque instalado aunque sea de una versión anterior a
+// integrationVersionMarker.
+var versionMarkerPattern = regexp.MustCompile(`<!-- gomemory-protocol-v\d+ -->`)
+
 // protocolStart devuelve el índice donde empieza el bloque del protocolo de
-// memoria (marcador de versión vigente o heading legado), o -1 si no existe.
+// memoria: el marcador de versión (de la versión que esté instalada, para no
+// dejar huérfana la línea del marcador viejo al subir de versión) o, si no
+// hay marcador, el heading legado sin versionar; -1 si no existe ninguno.
 func protocolStart(content string) int {
-	if idx := strings.Index(content, integrationVersionMarker); idx != -1 {
-		return idx
+	if loc := versionMarkerPattern.FindStringIndex(content); loc != nil {
+		return loc[0]
 	}
 	return strings.Index(content, integrationMarker)
 }
@@ -327,6 +337,7 @@ func buildIntegrationBlock() string {
 		"- Un patrón o convención establecida",
 		"- Un descubrimiento no obvio sobre el código",
 		"- El usuario confirma o rechaza un enfoque propuesto",
+		"- El usuario expresa una preferencia o corrige tu forma de interactuar (" + bt + "type=preference" + bt + ") — esto incluye memoria interactiva de sesión (estilo, tono, flujo de trabajo); no la guardes fuera de gomemory",
 		"",
 		"Autochequeo después de CADA tarea: \"¿Tomé una decisión, corregí un bug, descubrí algo",
 		"o establecí una convención? Si sí → " + bt + "save_memory" + bt + " AHORA.\"",

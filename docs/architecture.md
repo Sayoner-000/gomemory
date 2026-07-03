@@ -446,7 +446,7 @@ El contenido inyectado se versiona con marcadores HTML para upgrades idempotente
 | `id` | INTEGER PK | Auto-incremental |
 | `project` | TEXT | Nombre del proyecto (basename del root) |
 | `session_id` | TEXT? | Sesión asociada (UUID) |
-| `type` | TEXT | `learning`, `decision`, `architecture`, `bugfix`, `pattern`, `discovery`, `checkpoint` |
+| `type` | TEXT | `learning`, `decision`, `architecture`, `bugfix`, `pattern`, `discovery`, `preference`, `checkpoint` |
 | `title` | TEXT | Título descriptivo |
 | `content` | TEXT | Cuerpo del aprendizaje |
 | `filepath` | TEXT? | Archivo relacionado |
@@ -526,6 +526,7 @@ El contenido inyectado se versiona con marcadores HTML para upgrades idempotente
 | `bugfix` | ✕ | `types.Bugfix` | Bugs corregidos y causa raíz |
 | `learning` | ● | `types.Learning` | Descubrimientos y aprendizajes |
 | `discovery` | ◇ | `types.Discovery` | Hallazgos sin categoría |
+| `preference` | ♥ | `types.Preference` | Preferencias de interacción del usuario (estilo, tono, flujo) |
 | `checkpoint` | ○ | `types.Checkpoint` | Registro automatico de actividad por turno |
 
 Validación vía `ValidMemoryType()`: si el tipo no es válido, default a `learning`.
@@ -544,6 +545,7 @@ const (
     Bugfix       MemoryType = "bugfix"
     Pattern      MemoryType = "pattern"
     Discovery    MemoryType = "discovery"
+    Preference   MemoryType = "preference"
     Checkpoint   MemoryType = "checkpoint"
 )
 

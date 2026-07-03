@@ -17,7 +17,7 @@ func CmdCapture(deps *Deps, args []string) {
 	why := fs.String("y", "", "¿Por qué se hizo así?")
 	where := fs.String("f", "", "Archivos afectados (separados por coma)")
 	learned := fs.String("l", "", "¿Qué se aprendió? (gotchas, edge cases)")
-	mtype := fs.String("t", "learning", "Tipo: learning|decision|architecture|bugfix|pattern|discovery")
+	mtype := fs.String("t", "learning", "Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference")
 	interactive := fs.Bool("i", false, "Modo interactivo")
 	fs.Parse(args)
 
