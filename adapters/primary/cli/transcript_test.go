@@ -44,9 +44,9 @@ const (
 
 func TestExtractLastTurnActivity_OnlyCapturesLatestTurn(t *testing.T) {
 	lines := []string{
-		fmtLine(userPlain, "arreglá el bug en foo.go"),
+		fmtLine(userPlain, "arregla el bug en foo.go"),
 		fmtLine(assistantEdit, "foo.go"), // turno viejo — no debe aparecer
-		fmtLine(userPlain, "ahora corré los tests y actualizá bar.go"),
+		fmtLine(userPlain, "ahora corre los tests y actualiza bar.go"),
 		fmtLine(assistantBash, "go test ./..."),
 		userToolResult,
 		fmtLine(assistantEdit, "bar.go"),

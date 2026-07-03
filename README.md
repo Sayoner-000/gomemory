@@ -1,4 +1,4 @@
-# gomemory v1.7.3
+# gomemory v1.8.0
 
 **Memoria colectiva para agentes AI — persistente, portable, plug-and-play.**
 
@@ -63,6 +63,8 @@ sin invocación manual de herramientas MCP.
 | `mem session end -s "resumen"` | Finalizar sesión |
 | `mem install [dir]` | Instalar gomemory en otro proyecto |
 | `mem uninstall [dir] [--yes]` | Desinstalar gomemory por completo (reverso de `install`) |
+| `mem update [--check] [--version vX.Y.Z]` | Actualizar el binario y refrescar hooks/MCP/permisos del proyecto |
+| `mem version` | Mostrar la versión instalada |
 | `mem purge [flags]` | Purgar memorias (proyecto actual por defecto, `--all`/`--type`/`--older-than-days`) |
 | `mem compact` | Compactar `.memory/mem.db` (recupera espacio, no borra nada) |
 | `mem gc [flags]` | Garbage collection a demanda (90 días de retención por defecto) |
@@ -151,6 +153,42 @@ Para desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall
 
 ---
 
+## Actualización
+
+```bash
+mem update --check              # muestra versión actual vs. disponible, sin instalar
+mem update                      # descarga la última versión, reemplaza el binario
+mem update --version v1.8.0     # instala una versión específica
+```
+
+`mem update` reemplaza el binario de forma atómica y, si se ejecuta dentro de
+un proyecto con `.memory/`, además vuelve a correr `mem install` con el
+binario nuevo para refrescar hooks, config MCP y permisos pre-aprobados de
+forma idempotente — así una instalación vieja con bugs ya corregidos (como los
+permisos MCP faltantes o el recordatorio de protocolo que no se re-inyectaba)
+queda al día sin pasos manuales.
+
+En Windows, el binario en ejecución no se puede sobrescribir: `mem update`
+deja el binario nuevo listo junto al actual y muestra el comando exacto para
+completar el reemplazo manualmente una vez cerrado el proceso.
+
+---
+
+## Desinstalación
+
+```bash
+mem uninstall [dir] [--yes]
+```
+
+Reverso completo de `mem install`: quita el binario, los hooks, la config
+MCP en todos los agentes soportados, los permisos `mcp__gomemory__*`
+pre-aprobados, los bloques de protocolo en `AGENTS.md`/`CLAUDE.md` (preserva
+el resto del contenido del usuario) y `.memory/` con toda la memoria
+guardada. `~/.codex/config.toml` no se toca automáticamente por ser un
+archivo global compartido entre proyectos — se avisa para removerlo a mano.
+
+---
+
 ## Inicio rápido
 
 ```bash
@@ -209,9 +247,18 @@ servidor HTTP, y corren igual en Windows. Para qué sirve cada uno:
   modelo no llame `end_session`).
 - **`PreCompact`** → antes de compactar, inyecta **instrucciones de recuperación +
   contexto** para que la compactación no borre el estado de trabajo.
-- **`UserPromptSubmit`** → en el **primer** prompt activa las tools MCP de memoria
-  e inyecta el recordatorio del protocolo; luego es pasivo (sin overhead).
+- **`UserPromptSubmit`** → en el **primer prompt de cada sesión** activa las
+  tools MCP de memoria e inyecta el recordatorio del protocolo; luego es
+  pasivo (sin overhead) hasta la próxima sesión.
 - Skill de memoria (`skills/memory/SKILL.md`) siempre disponible para el agente.
+
+`mem install`/`mem setup claude-code` también pre-aprueba en
+`.claude/settings.json` → `permissions.allow` las tools MCP de solo lectura o
+de escritura reversible (`save_memory`, `search_memories`, `list_memories`,
+`get_memory`, `start_session`, `end_session`, `get_context`,
+`judge_memories`), para que el agente pueda usarlas sin que cada llamada
+quede esperando confirmación manual. `forget_memory` queda deliberadamente
+fuera por ser destructiva/irreversible.
 
 > Regla de oro: un hook nunca aborta el arranque del agente — ante cualquier
 > error sale silencioso con código 0.

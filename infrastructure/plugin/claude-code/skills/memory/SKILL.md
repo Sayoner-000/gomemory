@@ -5,7 +5,7 @@ This protocol is MANDATORY and ALWAYS ACTIVE — not something you activate on d
 
 ## PROACTIVE SAVE (mandatory — do NOT wait for user to ask)
 
-Call `mem_save` (or save_memory tool) IMMEDIATELY after each of these:
+Call `save_memory` IMMEDIATELY after each of these:
 
 | Trigger | Content to capture |
 |---------|-------------------|
@@ -18,17 +18,17 @@ Call `mem_save` (or save_memory tool) IMMEDIATELY after each of these:
 | User preference learned | The preference, context |
 
 Self-check after EVERY task: "Did I make a decision, fix a bug, discover
-something non-obvious, or establish a convention? If yes → call mem_save NOW."
+something non-obvious, or establish a convention? If yes → call save_memory NOW."
 
 Format: title "Verb + what" (e.g. "Fixed N+1 query in user list")
 
 ## WHEN TO SEARCH
 
-Call `mem_search` REACTIVELY when:
+Call `search_memories` REACTIVELY when:
 - User says "remember", "recall", "what did we do", "recordar"
 - User references past work in any language
 
-Call `mem_search` PROACTIVELY when:
+Call `search_memories` PROACTIVELY when:
 - Starting work on something that might overlap past sessions
 - Task mentions a topic you have no context on
 - Before making a decision that might have been decided before
@@ -36,7 +36,7 @@ Call `mem_search` PROACTIVELY when:
 ## PROGRESSIVE DISCLOSURE (TOKEN-EFFICIENT RETRIEVAL)
 
 ```text
-1. mem_search(query) → compact results (~100 tokens each)
+1. search_memories(query) → compact results (~100 tokens each)
    Returns: ID, title, type, created_at
 
 2. get_memory(id) → full untruncated content

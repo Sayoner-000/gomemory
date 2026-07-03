@@ -98,7 +98,57 @@ func migrate(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_relations_project ON memory_relations(project);
 	CREATE INDEX IF NOT EXISTS idx_relations_mem_a ON memory_relations(memory_id_a);
 	CREATE INDEX IF NOT EXISTS idx_relations_mem_b ON memory_relations(memory_id_b);
-	`, Now, Now, Now, Now)
-	_, err := db.Exec(schema)
-	return err
+	CREATE TABLE IF NOT EXISTS code_files (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		path TEXT NOT NULL,
+		hash TEXT NOT NULL,
+		indexed_at TEXT NOT NULL DEFAULT (%s),
+		UNIQUE(project, path)
+	);
+	CREATE INDEX IF NOT EXISTS idx_code_files_project ON code_files(project);
+	CREATE TABLE IF NOT EXISTS code_nodes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		file_id INTEGER NOT NULL DEFAULT 0,
+		kind TEXT NOT NULL,
+		name TEXT NOT NULL,
+		package TEXT NOT NULL DEFAULT '',
+		file TEXT NOT NULL DEFAULT '',
+		receiver TEXT NOT NULL DEFAULT '',
+		signature TEXT NOT NULL DEFAULT '',
+		start_line INTEGER NOT NULL DEFAULT 0,
+		end_line INTEGER NOT NULL DEFAULT 0,
+		exported INTEGER NOT NULL DEFAULT 0,
+		UNIQUE(project, kind, name, file_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_code_nodes_project_name ON code_nodes(project, name);
+	CREATE INDEX IF NOT EXISTS idx_code_nodes_file ON code_nodes(file_id);
+	CREATE TABLE IF NOT EXISTS code_edges (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		from_id INTEGER NOT NULL,
+		to_id INTEGER NOT NULL,
+		kind TEXT NOT NULL,
+		confidence REAL NOT NULL DEFAULT 1.0,
+		src_file_id INTEGER NOT NULL DEFAULT 0,
+		UNIQUE(project, from_id, to_id, kind)
+	);
+	CREATE INDEX IF NOT EXISTS idx_code_edges_from ON code_edges(from_id);
+	CREATE INDEX IF NOT EXISTS idx_code_edges_to ON code_edges(to_id);
+	CREATE INDEX IF NOT EXISTS idx_code_edges_src_file ON code_edges(src_file_id);
+	`, Now, Now, Now, Now, Now)
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+
+	// FTS5 es best-effort y separado del schema principal: si la build de
+	// sqlite en uso no lo soporta, code_search simplemente no existe y
+	// SearchNodes cae a LIKE — no debe romper la migración del resto de
+	// gomemory (memorias, sesiones, relaciones).
+	db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(
+		name, signature, package, node_id UNINDEXED
+	)`)
+
+	return nil
 }

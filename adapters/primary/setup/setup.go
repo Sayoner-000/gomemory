@@ -15,6 +15,7 @@ type PluginContext struct {
 	ProjectRoot string
 	BinPath     string
 	Port        int
+	Version     string
 }
 
 func InstallPlugin(fsys fs.FS, pluginDir, targetDir string, ctx *PluginContext) (int, error) {
@@ -108,5 +109,6 @@ func replacePlaceholders(data []byte, ctx PluginContext) []byte {
 	result := bytes.ReplaceAll(data, []byte("{{PROJECT_ROOT}}"), []byte(ctx.ProjectRoot))
 	result = bytes.ReplaceAll(result, []byte("{{BIN_PATH}}"), []byte(ctx.BinPath))
 	result = bytes.ReplaceAll(result, []byte("{{PORT}}"), []byte(fmt.Sprintf("%d", ctx.Port)))
+	result = bytes.ReplaceAll(result, []byte("{{VERSION}}"), []byte(ctx.Version))
 	return result
 }

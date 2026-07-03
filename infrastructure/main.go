@@ -43,6 +43,10 @@ var rootIndependentCommands = map[string]bool{
 	"help":      true,
 	"-h":        true,
 	"--help":    true,
+	"update":    true,
+	"version":   true,
+	"--version": true,
+	"-v":        true,
 }
 
 func main() {

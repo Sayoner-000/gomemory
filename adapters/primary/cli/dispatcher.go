@@ -3,10 +3,18 @@ package cli
 import (
 	"fmt"
 	"os"
+
+	"mem/version"
 )
 
 func Run(cmd string, args []string, deps *Deps) {
 	switch cmd {
+	case "version", "--version", "-v":
+		fmt.Println("gomemory " + version.Version)
+	case "update":
+		CmdUpdate(deps, args)
+	case "index":
+		CmdIndex(deps, args)
 	case "init":
 		CmdInit(deps, args)
 	case "save":

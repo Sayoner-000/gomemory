@@ -74,6 +74,7 @@ func CmdUninstall(deps *Deps, args []string) {
 	removeIntegrationBlocks(target)
 	removeMCPEntries(target)
 	removeClaudePlugin(target)
+	removeClaudePermissions(target)
 	removeMemoryDir(target, deps.ProjectRepo.MemDir())
 	removeBinary(target)
 
@@ -200,7 +201,7 @@ func removeClaudePlugin(target string) {
 	}
 
 	changed := false
-	for _, key := range []string{"SessionStart", "PreCompact", "UserPromptSubmit", "SessionEnd"} {
+	for _, key := range []string{"SessionStart", "PreCompact", "UserPromptSubmit", "SessionEnd", "Stop"} {
 		entries, ok := hooks[key].([]interface{})
 		if !ok {
 			continue
@@ -234,6 +235,19 @@ func removeClaudePlugin(target string) {
 		return
 	}
 	fmt.Println("  ✅ .claude/settings.json: hooks de gomemory removidos")
+}
+
+func removeClaudePermissions(target string) {
+	changed, err := setup.RemoveClaudePermissions(target)
+	if err != nil {
+		fmt.Printf("  ⚠️  .claude/settings.json: error al limpiar permisos: %v\n", err)
+		return
+	}
+	if !changed {
+		fmt.Println("  ℹ️  .claude/settings.json: sin permisos de gomemory")
+		return
+	}
+	fmt.Println("  ✅ .claude/settings.json: permisos de gomemory removidos")
 }
 
 func removeMemoryDir(target, memDir string) {

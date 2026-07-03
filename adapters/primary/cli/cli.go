@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"mem/adapters/primary/tui"
+	"mem/version"
 )
 
 func LaunchTUI(deps *Deps) {
@@ -30,8 +31,8 @@ func LaunchTUI(deps *Deps) {
 }
 
 func Usage() {
-	fmt.Print(`gomemory — Memoria colectiva para agentes AI
-
+	fmt.Printf("gomemory %s — Memoria colectiva para agentes AI\n", version.Version)
+	fmt.Print(`
 Uso:
   mem                              Abrir interfaz TUI
   mem init [--force]               Inicializar .memory/ en el proyecto
@@ -53,6 +54,9 @@ Uso:
     -c, --confidence  Confianza 0.0-1.0 (default: 1.0)
     -m, --reasoning   Razonamiento del veredicto
   mem compare list [-n N]          Listar relaciones guardadas
+  mem judge ...                    Alias de compare
+
+  mem forget <id>                  Borrar una memoria por ID (irreversible)
 
   mem project                      Detectar proyecto actual y mostrar información
 
@@ -66,6 +70,7 @@ Uso:
   mem log [-n|--limit N]           Alias de list
   mem wrap <comando> [args...]     Ejecutar comando y preguntar si guardar
   mem mcp [--root <dir>]           Servidor MCP para agentes AI
+  mem hook <evento>                Entrypoint de hooks de agentes (uso interno, invocado por Claude Code/OpenCode)
   mem serve [--port 9735]          Servidor HTTP background para plugins
   mem setup [--port 9735] <agent>  Instalar plugin para opencode|claude-code (flags ANTES del agente)
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
@@ -83,7 +88,11 @@ Uso:
     --all                Aplicar a todos los proyectos
     --older-than-days N  Umbral de retención (default: 90)
     --yes                Omitir el prompt de confirmación
+  mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)
   mem tui                          Abrir interfaz TUI explícitamente
+  mem update [--check] [--version vX.Y.Z]
+                                    Actualizar el binario y refrescar la integración del proyecto
+  mem version                      Mostrar la versión instalada
   mem help                         Mostrar esta ayuda
 
 Ejemplos:

@@ -23,6 +23,7 @@ type Container struct {
 	ProjectRepo     ports.ProjectRepository
 	ContextBuilder  ports.ContextBuilder
 	MaintenanceRepo ports.MaintenanceRepository
+	CodeGraphRepo   ports.CodeGraphRepository
 
 	MCPServer *mcp.Server
 }
@@ -38,6 +39,10 @@ func NewContainer(root string) (*Container, error) {
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)
 	relRepo := persistence.NewRelationRepository(db)
+	codeGraphRepo := persistence.NewCodeGraphRepository(db)
+
+	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
+	contextBuilder.Graph = codeGraphRepo
 
 	c := &Container{
 		Root:    root,
@@ -48,8 +53,9 @@ func NewContainer(root string) (*Container, error) {
 		RelationRepo:    relRepo,
 		SettingsRepo:    persistence.NewSettingsRepository(),
 		ProjectRepo:     persistence.NewProjectRepository(),
-		ContextBuilder:  usecases.New(memRepo, sessRepo, relRepo, root, project),
+		ContextBuilder:  contextBuilder,
 		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
+		CodeGraphRepo:   codeGraphRepo,
 
 		MCPServer: mcp.NewWithRepos(memRepo, sessRepo, project, 0),
 	}
@@ -69,6 +75,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		ProjectRepo:     c.ProjectRepo,
 		ContextBuilder:  c.ContextBuilder,
 		MaintenanceRepo: c.MaintenanceRepo,
+		CodeGraphRepo:   c.CodeGraphRepo,
 	}
 }
 

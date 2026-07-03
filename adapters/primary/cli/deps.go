@@ -10,4 +10,5 @@ type Deps struct {
 	ProjectRepo     ports.ProjectRepository
 	ContextBuilder  ports.ContextBuilder
 	MaintenanceRepo ports.MaintenanceRepository
+	CodeGraphRepo   ports.CodeGraphRepository
 }
