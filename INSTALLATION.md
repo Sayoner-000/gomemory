@@ -130,10 +130,12 @@ Todos los tests deben pasar.
 ## 4. Instalar en un proyecto (flujo clásico, opcional)
 
 > Para Claude Code/Codex/OpenCode, la sección **0.1 Registro global** reemplaza
-> este paso — regístralo una vez y listo para todos tus proyectos. Esta
-> sección sigue siendo necesaria para Cursor, Windsurf y Cline (registro por
-> proyecto), o si prefieres seguir usando el flujo con binario copiado y
-> `AGENTS.md`/`CLAUDE.md` generados.
+> este paso — regístralo una vez y listo para todos tus proyectos. Para
+> Cursor, Windsurf y Cline, la sección 0.1 ya cubre el registro MCP por
+> proyecto con `mem setup-mcp --scope project --agents cursor,windsurf,cline
+> --target <dir>` — este paso (`mem install`) ya NO es necesario para ningún
+> agente, es un pack completo opcional (binario copiado + `AGENTS.md`/`CLAUDE.md`
+> generados + constitución) si lo prefieres sobre el registro MCP a secas.
 
 ```bash
 # Desde el directorio de gomemory
@@ -171,7 +173,11 @@ sin necesidad de invocar herramientas MCP manualmente.
 ./mem setup opencode
 ```
 
-Instala en `~/.config/opencode/plugins/gomemory/plugin.ts`.
+Instala en `~/.config/opencode/plugins/gomemory.ts` (archivo suelto — OpenCode
+auto-descubre plugins ahí, sin subcarpeta) y registra el MCP en el
+`opencode.json` del proyecto actual. Para registrar el MCP una sola vez para
+todos tus proyectos, usa `mem setup-mcp --scope global --agents opencode`
+en su lugar (ver sección **0.1**).
 
 **Qué hace**:
 - Inicia `mem serve` en background automáticamente
@@ -208,7 +214,8 @@ equipos y SO.
 
 ```bash
 # OpenCode
-ls ~/.config/opencode/plugins/gomemory/
+ls ~/.config/opencode/plugins/gomemory.ts
+opencode debug config   # config resuelta (mergea scope global + proyecto)
 
 # Claude Code
 ls .claude/plugins/gomemory/scripts/
@@ -327,8 +334,8 @@ Actualiza Go a 1.25+: `go install golang.org/dl/go1.25@latest && go1.25 download
 ### "plugin not found after setup"
 
 ```bash
-# Verificar que el plugin se instaló en el directorio correcto
-ls ~/.config/opencode/plugins/gomemory/
+# Verificar que el plugin se instaló en el archivo correcto
+ls ~/.config/opencode/plugins/gomemory.ts
 ls .claude/plugins/gomemory/scripts/
 
 # Reinstalar

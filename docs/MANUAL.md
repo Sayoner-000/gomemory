@@ -80,18 +80,18 @@ servidor HTTP y funcionan igual en Windows. Se configuran solos con
 
 Esto:
 
-1. Copia `infrastructure/plugin/opencode/plugin.ts` a `~/.config/opencode/plugins/gomemory/`
-2. Crea/actualiza `~/.config/opencode/opencode.json` con la referencia al plugin
-3. El plugin se activa automáticamente al iniciar OpenCode
+1. Copia `infrastructure/plugin/opencode/plugin.ts` a `~/.config/opencode/plugins/gomemory.ts` (archivo suelto — OpenCode auto-descubre plugins como archivos en `plugins/`, no en subcarpetas)
+2. Crea/actualiza el `opencode.json` **del proyecto actual** con la entrada `mcp.gomemory` (usa `mem setup-mcp --scope global --agents opencode` en vez de esto para registrar el MCP una sola vez, en `~/.config/opencode/opencode.json`, para todos los proyectos)
+3. El plugin se activa automáticamente al iniciar OpenCode — OpenCode lo descubre solo, sin que ningún `opencode.json` lo referencie explícitamente
 
 ### Verificación
 
 ```bash
-ls ~/.config/opencode/plugins/gomemory/
-# Debería ver: plugin.ts
+ls ~/.config/opencode/plugins/
+# Debería ver: gomemory.ts
 
-cat ~/.config/opencode/opencode.json
-# Buscar "plugins" conteniendo "gomemory"
+cat opencode.json   # o ~/.config/opencode/opencode.json si usaste --scope global
+# Buscar la clave "mcp" conteniendo "gomemory"
 ```
 
 ### Qué Hace el Plugin
@@ -254,14 +254,14 @@ curl http://127.0.0.1:9735/health
 ### El Plugin OpenCode No se Activa
 
 ```bash
-# Verificar que el plugin está instalado
-ls ~/.config/opencode/plugins/gomemory/
+# Verificar que el plugin está instalado (archivo suelto, no subcarpeta)
+ls ~/.config/opencode/plugins/gomemory.ts
 
-# Verificar que opencode.json lo referencia
-cat ~/.config/opencode/opencode.json
+# Verificar la config resuelta (mergea global + proyecto)
+opencode debug config
 
 # Reinstalar si es necesario
-./mem setup opencode --force
+./mem setup opencode
 ```
 
 ### El Plugin Claude Code No se Activa
