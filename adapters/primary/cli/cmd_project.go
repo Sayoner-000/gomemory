@@ -2,16 +2,15 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 )
 
 func CmdProject(deps *Deps, args []string) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		fail("no se encontró proyecto gomemory: %v\nEjecuta 'mem init' para inicializar uno", err)
+		fail("no se pudo determinar el directorio de trabajo: %v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 	dbPath := deps.ProjectRepo.DbPath(root)
 
 	fmt.Printf("Proyecto: %s\n", project)

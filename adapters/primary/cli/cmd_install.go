@@ -206,6 +206,11 @@ func CmdInstall(deps *Deps, args []string) {
 	fmt.Println("   ./mem --help     # Ver todos los comandos")
 	fmt.Println()
 	fmt.Println("   Y el agente AI usará la memoria automáticamente al leer AGENTS.md.")
+	fmt.Println()
+	fmt.Println("   💡 Desde v1.9, gomemory ya no necesita instalarse por proyecto para")
+	fmt.Println("      Claude Code/Codex: 'mem setup-mcp --scope global --agents claude,codex'")
+	fmt.Println("      registra el MCP una sola vez para todos tus proyectos, y el store de")
+	fmt.Println("      memoria se crea solo al primer uso (mem save/mem mcp), sin 'mem install'.")
 }
 
 func copyFile(src, dst string) error {

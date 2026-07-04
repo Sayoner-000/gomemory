@@ -137,7 +137,7 @@ func TestCmdPurgeRequiresConfirmationThenDeletes(t *testing.T) {
 	deps, target, cleanup := chdirTemp(t)
 	defer cleanup()
 
-	project := filepath.Base(target)
+	project := deps.ProjectRepo.Key(target)
 	fixture := domainMemoryFixture(project)
 	if _, err := deps.MemoryRepo.Insert(&fixture); err != nil {
 		t.Fatalf("insert: %v", err)
@@ -167,7 +167,7 @@ func TestCmdGCEndToEnd(t *testing.T) {
 	deps, target, cleanup := chdirTemp(t)
 	defer cleanup()
 
-	project := filepath.Base(target)
+	project := deps.ProjectRepo.Key(target)
 	fixture := domainMemoryFixture(project)
 	if _, err := deps.MemoryRepo.Insert(&fixture); err != nil {
 		t.Fatalf("insert: %v", err)

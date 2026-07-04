@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"mem/adapters/primary/tui"
 	"mem/version"
@@ -12,17 +11,11 @@ import (
 func LaunchTUI(deps *Deps) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "No hay .memory/ en este proyecto.")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  Primero inicializa la memoria:")
-		fmt.Fprintln(os.Stderr, "    mem init")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  O consulta la ayuda:")
-		fmt.Fprintln(os.Stderr, "    mem help")
+		fmt.Fprintf(os.Stderr, "Error: no se pudo determinar el directorio de trabajo: %v\n", err)
 		os.Exit(1)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	if err := tui.Run(deps.MemoryRepo, deps.SettingsRepo, deps.MaintenanceRepo, root, project); err != nil {
 		fmt.Fprintf(os.Stderr, "Error en TUI: %v\n", err)
@@ -35,7 +28,8 @@ func Usage() {
 	fmt.Print(`
 Uso:
   mem                              Abrir interfaz TUI
-  mem init [--force]               Inicializar .memory/ en el proyecto
+  mem init [--force]               Ya no es obligatorio: el store global se crea solo al primer uso
+  mem migrate [--force]            Migrar .memory/mem.db legado (instalación por proyecto) al store global
   mem save [flags] <texto>         Guardar un aprendizaje
     -t, --title    Título descriptivo
     -y, --type     Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference

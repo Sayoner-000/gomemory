@@ -26,7 +26,8 @@ todo el contexto** sin que tengas que pedírselo.
 
 - **Contexto entre sesiones** — OpenCode, Claude Code, Cursor, Windsurf, Cline, Codex o cualquier agente compatible con MCP recuerda todo el historial del proyecto.
 - **Sin dependencias runtime** — binario autocontenido (~16MB). SQLite embebido via `modernc.org/sqlite` (sin CGO). Descarga, ejecuta, listo.
-- **Multi-agente** — un solo `mem install` configura MCP, hooks e instrucciones para 6 agentes simultáneamente.
+- **Sin instalación por proyecto (Claude Code, Codex)** — `mem setup-mcp --scope global` registra gomemory una sola vez por máquina; cada proyecto nuevo guarda y consulta memoria desde el primer uso, sin tocar el repo (ni `.mcp.json`, ni binario copiado, ni `AGENTS.md`).
+- **Multi-agente** — `mem install` sigue disponible para configurar MCP, hooks e instrucciones por proyecto en los 6 agentes (necesario para Cursor/Windsurf/Cline, que no tienen registro global).
 - **8 tipos de memoria** — `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint` (auto por turno).
 - **Búsqueda con ranking** — relevancia por título primero, contenido después. Búsqueda semántica y por patrón de nombre.
 - **CLI completo** — 24 subcomandos para gestionar memoria desde terminal, más una TUI interactiva con Bubbletea.
@@ -49,8 +50,26 @@ curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts
 irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
 ```
 
+**Opción recomendada — Claude Code / Codex, sin instalar nada por proyecto:**
+
 ```bash
-# Cablear memoria + agentes en tu proyecto
+# Una sola vez, en cualquier directorio
+mem setup-mcp --scope global --agents claude,codex
+
+# Ya funciona en cualquier proyecto nuevo, sin mem install:
+cd /ruta/a/cualquier/proyecto
+mem save -t "API REST" -y decision "Usamos Fiber para rutas"
+mem search "API"
+```
+
+El store de memoria (`mem.db`) se crea solo, por proyecto, en un directorio
+global del usuario (`~/.local/share/gomemory/`), identificado por la raíz de
+git — cero archivos nuevos en el repo. Si ya tenías proyectos instalados a la
+manera antigua, su historial se migra solo al primer uso (o con `mem migrate`).
+
+**Flujo clásico — por proyecto (Cursor, Windsurf, Cline, o si prefieres el pack completo):**
+
+```bash
 cd /ruta/a/tu/proyecto
 mem install .
 
@@ -261,7 +280,11 @@ go build -o mem ./infrastructure/
 <details>
 <summary>Si prefieres no usar el instalador</summary>
 
-Agregar a `~/.claude/.mcp.json` (global) o `.mcp.json` del proyecto:
+Con `mem` en el PATH, `claude mcp add -s user gomemory mem mcp` registra el
+mismo resultado que `mem setup-mcp --scope global --agents claude` (delegar
+en el CLI de Claude Code es más seguro que editar `~/.claude.json` a mano:
+es un archivo grande con formato propio). Si prefieres editarlo directamente,
+la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
 
 ```json
 {
@@ -274,7 +297,14 @@ Agregar a `~/.claude/.mcp.json` (global) o `.mcp.json` del proyecto:
 }
 ```
 
-Reiniciar el agente. Verificar con `/mcp` — deberías ver `gomemory` con 9 tools.
+Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
+en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ver
+`gomemory` con 9 tools.
+
+> Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
+> con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado
+> empíricamente. Si registraste el scope global y no ves el cambio, revisa que
+> el repo actual no tenga su propio `.mcp.json` residual.
 
 </details>
 
@@ -282,16 +312,25 @@ Reiniciar el agente. Verificar con `/mcp` — deberías ver `gomemory` con 9 too
 
 ## Multi-Agente
 
-`mem install` detecta y configura automáticamente todos los agentes instalados:
+Dos formas de configurar agentes, según si soportan registro MCP a nivel de usuario:
+
+**Global (una vez por máquina)** — `mem setup-mcp --scope global --agents claude,codex`:
+
+| Agente | Config MCP | Notas |
+|--------|-----------|-------|
+| **Claude Code** | `~/.claude.json` → `mcpServers.gomemory` (scope `user`) | Registrado vía `claude mcp add`, con detección de colisión de nombre |
+| **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
+
+**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para el resto, opcional para Claude/Codex:
 
 | Agente | Config MCP | Instrucciones | Hooks |
 |--------|-----------|---------------|-------|
-| **Claude Code** | `.claude/.mcp.json` | `AGENTS.md` + `CLAUDE.md` | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
-| **OpenCode** | `opencode.json` | `AGENTS.md` | `plugin/opencode/plugin.ts` (auto-inicio) |
+| **Claude Code** | `.mcp.json` | `AGENTS.md` + `CLAUDE.md` | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
+| **OpenCode** | `opencode.json` | `AGENTS.md` | `plugin/opencode/plugin.ts` (auto-inicio, ya es global) |
 | **Cursor** | `.cursor/mcp.json` | — | — |
 | **Windsurf** | `.windsurf/mcp.json` | — | — |
 | **Cline** | `.cline/mcp.json` | — | — |
-| **Codex** | `~/.codex/config.toml` | `.codex/AGENTS.md` | SessionStart |
+| **Codex** | `~/.codex/config.toml` (tabla por proyecto, `gomemory_<proyecto>`) | `.codex/AGENTS.md` | SessionStart |
 
 > Los hooks son subcomandos del binario (`mem hook <evento>`), no scripts shell:
 > no dependen de `bash`/`curl` ni de un servidor HTTP, y corren igual en Windows.
@@ -422,10 +461,12 @@ mem settings --auto-approve     # togglear auto-approve de tools MCP
 
 ### Variables de Entorno
 
+No requiere ninguna para operación normal — el proyecto se identifica por su
+git root y el store de datos se resuelve solo. Una variable opcional:
+
 | Variable | Valor por defecto | Descripción |
 |----------|-------------------|-------------|
-| `GOMEMORY_DB` | `.memory/mem.db` | Ruta de la base de datos SQLite |
-| `GOMEMORY_LOG_LEVEL` | `info` | Nivel de log (`debug`, `info`, `warn`, `error`) |
+| `GOMEMORY_DATA_HOME` | `$XDG_DATA_HOME/gomemory` o `~/.local/share/gomemory` (Linux/macOS); `%LOCALAPPDATA%\gomemory` (Windows) | Override del directorio de datos donde vive `projects/<clave>/mem.db` |
 
 ---
 

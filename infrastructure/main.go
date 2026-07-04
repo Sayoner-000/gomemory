@@ -4,6 +4,8 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/setup"
@@ -58,13 +60,7 @@ func main() {
 	if len(os.Args) < 2 {
 		root, err := persistence.FindRoot()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "No hay .memory/ en este proyecto.")
-			fmt.Fprintln(os.Stderr, "")
-			fmt.Fprintln(os.Stderr, "  Primero inicializa la memoria:")
-			fmt.Fprintln(os.Stderr, "    mem init")
-			fmt.Fprintln(os.Stderr, "")
-			fmt.Fprintln(os.Stderr, "  O consulta la ayuda:")
-			fmt.Fprintln(os.Stderr, "    mem help")
+			fmt.Fprintf(os.Stderr, "Error: no se pudo determinar el directorio de trabajo: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -82,15 +78,9 @@ func main() {
 		return
 	}
 
-	root, err := persistence.FindRoot()
+	root, err := resolveRootForCommand(os.Args[1], os.Args[2:])
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "No hay .memory/ en este proyecto.")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  Primero inicializa la memoria:")
-		fmt.Fprintln(os.Stderr, "    mem init")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  O consulta la ayuda:")
-		fmt.Fprintln(os.Stderr, "    mem help")
+		fmt.Fprintf(os.Stderr, "Error: no se pudo determinar el directorio de trabajo: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -102,4 +92,26 @@ func main() {
 	defer container.Close()
 
 	cli.Run(os.Args[1], os.Args[2:], container.ToDeps())
+}
+
+// resolveRootForCommand determina la raíz de proyecto a usar antes de
+// construir el Container. Por defecto resuelve por FindRoot() (git root o
+// cwd — ver adapters/secondary/persistence.FindProjectRoot). El comando
+// "mcp" es la única excepción: si trae --root explícito, ese valor manda,
+// porque el proceso que lo lanza (un cliente MCP) puede no fijar el cwd al
+// proyecto. Sin este caso especial, --root solo afectaría qué "project" ve
+// CmdMCP internamente, pero no cambiaría a qué base de datos se conecta el
+// Container ya construido — un desajuste real que este fix cierra.
+func resolveRootForCommand(command string, args []string) (string, error) {
+	if command == "mcp" {
+		for i, a := range args {
+			if a == "--root" && i+1 < len(args) {
+				return filepath.Abs(args[i+1])
+			}
+			if v, ok := strings.CutPrefix(a, "--root="); ok {
+				return filepath.Abs(v)
+			}
+		}
+	}
+	return persistence.FindRoot()
 }

@@ -14,33 +14,60 @@ const DbName = "mem.db"
 
 const Now = "datetime('now', '-5 hours')"
 
+// FindRoot resuelve la identidad del proyecto activo. Ya no exige que
+// `.memory/` exista en el cwd o en algún padre: delega en FindProjectRoot,
+// que usa el git root (o el cwd si no hay `.git`) como identidad. Se
+// mantiene el nombre por compatibilidad con el resto del código, que la
+// sigue usando para decir "dónde estoy parado", no "dónde ya se instaló".
 func FindRoot() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	dir := cwd
-	for {
-		if _, err := os.Stat(filepath.Join(dir, MemDir)); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", fmt.Errorf("no %s directory found in any parent (run 'mem init' first)", MemDir)
-		}
-		dir = parent
-	}
+	return FindProjectRoot()
 }
 
+// EnsureDir prepara el proyecto para usarse: crea su directorio en el store
+// global (init perezoso — nunca falla por ausencia de instalación previa),
+// migra un `.memory/mem.db` legado si lo encuentra, y mantiene `.memory/`
+// dentro del árbol del proyecto para los archivos auxiliares que siguen
+// viviendo ahí (marcador de sesión de hooks, `context.md` — ver
+// specs/005-global-mcp-store/data-model.md, alcance de esta feature).
 func EnsureDir(root string) error {
+	key := ProjectKey(root)
+
+	globalDir, err := GlobalProjectDir(key)
+	if err != nil {
+		return err
+	}
+	if err := migrateLegacyIfPresent(root, key); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		return err
+	}
+
 	return os.MkdirAll(filepath.Join(root, MemDir), 0755)
 }
 
+// DbPath devuelve la ruta del mem.db de un proyecto en el store global. Solo
+// puede fallar si no se puede resolver el directorio de datos del usuario
+// (sin $HOME/$USERPROFILE: un entorno ya roto para casi cualquier
+// herramienta), caso en el que se prefiere fallar rápido antes que fingir
+// una ruta local que rompería el aislamiento del store global.
 func DbPath(root string) string {
-	return filepath.Join(root, MemDir, DbName)
+	path, err := GlobalDbPath(ProjectKey(root))
+	if err != nil {
+		panic(fmt.Sprintf("gomemory: no se pudo resolver el store global: %v", err))
+	}
+	return path
 }
 
+// Open abre (y migra el esquema de) el mem.db de un proyecto en el store
+// global. Llama a EnsureDir primero: el directorio destino puede no existir
+// todavía (init perezoso, FR-003) y sql.Open nunca crea directorios, solo
+// archivos dentro de uno ya existente.
 func Open(root string) (*sql.DB, error) {
+	if err := EnsureDir(root); err != nil {
+		return nil, fmt.Errorf("preparar directorio del proyecto: %w", err)
+	}
+
 	path := DbPath(root)
 	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
@@ -53,10 +80,10 @@ func Open(root string) (*sql.DB, error) {
 	return db, nil
 }
 
+// Init es un alias de Open: se conserva por compatibilidad con callers que
+// documentan la intención de "primera inicialización", aunque desde el
+// init perezoso ambos hacen exactamente lo mismo.
 func Init(root string) (*sql.DB, error) {
-	if err := EnsureDir(root); err != nil {
-		return nil, fmt.Errorf("create .memory dir: %w", err)
-	}
 	return Open(root)
 }
 
