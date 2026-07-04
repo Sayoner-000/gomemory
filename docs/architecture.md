@@ -339,7 +339,7 @@ Configura la integración MCP para múltiples agentes AI desde un solo comando, 
 
 ```
 mem setup-mcp --scope project [--target dir] [--agents opencode,claude,cursor,windsurf,cline,codex,all]
-mem setup-mcp --scope global [--agents claude,codex,all]
+mem setup-mcp --scope global [--agents claude,codex,opencode,all]
 ```
 
 **`--scope project`** (default, compatibilidad con el flujo por-proyecto anterior) — soporta 6 agentes:
@@ -359,7 +359,8 @@ mem setup-mcp --scope global [--agents claude,codex,all]
 |---|---|---|
 | `claude` | `claude mcp add -s user gomemory mem mcp` | Se delega la escritura al CLI oficial de Claude Code — gomemory nunca edita `~/.claude.json` a mano, solo lo **lee** para detectar colisiones de nombre (FR-008: si `gomemory` ya existe apuntando a otro comando, se detiene y pide resolución manual en vez de sobrescribir) |
 | `codex` | `~/.codex/config.toml`, tabla única `[mcp_servers.gomemory]` | Sin `cwd` ni sufijo por proyecto — el server ya resuelve el proyecto por git-root del cwd real en cada invocación |
-| `opencode`, `cursor`, `windsurf`, `cline` | No soportado | `runGlobalScopeSetup` imprime el mensaje explícito y remite a `--scope project --target <dir>`. OpenCode en particular no se evaluó a ciegas: no hay forma de verificar si soporta config MCP global sin el CLI de OpenCode instalado |
+| `opencode` | `~/.config/opencode/opencode.json`, clave `mcp.gomemory` (mismo esquema que el scope project) + plugin en `~/.config/opencode/plugins/gomemory.ts` | Confirmado empíricamente con `opencode debug config`: OpenCode mergea el `opencode.json` de usuario con el del proyecto activo, así que una sola entrada global aplica a todos los proyectos. Reemplaza la limitación documentada antes en `specs/005-global-mcp-store/tasks.md` T027 (no se pudo verificar sin el CLI de OpenCode instalado) |
+| `cursor`, `windsurf`, `cline` | No soportado | `runGlobalScopeSetup` imprime el mensaje explícito y remite a `--scope project --target <dir>` |
 
 Cada función de setup es idempotente: detecta si la configuración ya existe y la salta o actualiza. `setupCodex`/`setupCodexGlobal` nunca reescriben el archivo completo — solo hacen `append` de su propia tabla TOML, para no arriesgar corromper otras entradas ya presentes en `~/.codex/config.toml`.
 

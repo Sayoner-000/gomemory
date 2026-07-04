@@ -17,16 +17,22 @@ import (
 // specs/005-global-mcp-store). Cursor, Windsurf y Cline no tienen un
 // mecanismo de config MCP a nivel de usuario conocido — se documenta como
 // limitación de esos agentes, no de gomemory (contracts/cli-contracts.md).
+//
+// OpenCode se confirmó empíricamente con `opencode debug config`: mergea
+// ~/.config/opencode/opencode.json (scope usuario) con el opencode.json del
+// proyecto, mismo esquema "mcp". La limitación documentada en
+// specs/005-global-mcp-store/tasks.md T027 quedó obsoleta.
 var globalScopeAgents = map[string]bool{
-	"claude": true,
-	"codex":  true,
+	"claude":   true,
+	"codex":    true,
+	"opencode": true,
 }
 
 func CmdMCPSetup(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("setup-mcp", flag.ContinueOnError)
 	target := fs.String("target", ".", "Directorio del proyecto donde instalar configs (solo aplica a --scope project)")
 	agents := fs.String("agents", "opencode,claude", "Agentes objetivo (separados por coma): opencode, claude, cursor, windsurf, cline, codex, all")
-	scope := fs.String("scope", "project", "project (default, por repo) o global (una vez por máquina — solo claude, codex)")
+	scope := fs.String("scope", "project", "project (default, por repo) o global (una vez por máquina — claude, codex, opencode)")
 	fs.Parse(args)
 
 	agentList := strings.Split(*agents, ",")
@@ -159,9 +165,26 @@ func runGlobalScopeAgent(agent string, ref BinRef) bool {
 		return setupClaudeGlobal(ref)
 	case "codex":
 		return setupCodexGlobal(ref)
+	case "opencode":
+		return setupOpenCodeGlobal(ref)
 	default:
 		return false
 	}
+}
+
+// setupOpenCodeGlobal instala el plugin (ya global por naturaleza) y registra
+// el MCP en ~/.config/opencode/opencode.json, para todos los proyectos.
+func setupOpenCodeGlobal(ref BinRef) bool {
+	agentRef := setup.AgentRef{
+		HookCommand: ref.HookCommand,
+		MCPCommand:  ref.MCPCommand,
+		MCPArgs:     ref.MCPArgs,
+	}
+	if err := setup.InstallOpenCodeGlobal(agentRef); err != nil {
+		fmt.Printf("  ⚠️  opencode: %v\n", err)
+		return false
+	}
+	return true
 }
 
 // setupClaudeGlobal registra gomemory en el scope de usuario de Claude Code
