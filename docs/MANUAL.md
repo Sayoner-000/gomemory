@@ -13,6 +13,10 @@ automática con OpenCode y Claude Code.
 6. [Solución de Problemas](#6-solución-de-problemas)
 7. [Memory Protocol](#7-memory-protocol)
 8. [Mantenimiento de Memoria](#8-mantenimiento-de-memoria)
+9. [Registro Multi-Agente (detalle completo)](#9-registro-multi-agente-detalle-completo)
+10. [Seguridad](#10-seguridad)
+11. [Stack Técnico](#11-stack-técnico)
+12. [Portabilidad](#12-portabilidad)
 
 ---
 
@@ -277,6 +281,18 @@ cat .mcp.json
 ./mem setup claude-code
 ```
 
+### Otros problemas comunes
+
+| Problema | Solución |
+|----------|----------|
+| `/mcp` no muestra el servidor | Verificar que `.mcp.json` tenga la ruta absoluta a `mem`. Reiniciar el agente. |
+| `mem install` falla | Verificar que `mem` esté en el PATH: `which mem` (Linux/macOS) o `where mem` (Windows). |
+| Memoria no se persiste entre sesiones | Verificar que `.memory/` exista y tenga permisos de escritura. Ejecutar `mem init --force`. |
+| Binario no encontrado después de instalar | Agregar al PATH: `export PATH="$HOME/.local/bin:$PATH"` (Linux/macOS). |
+| `mem update` en Windows | El binario en ejecución no se sobrescribe. Cerrar el proceso y ejecutar el comando que `mem update` sugiere. |
+| Contexto muy grande | Ejecutar `mem gc` para limpiar memorias antiguas (retención de 90 días por defecto). |
+| Base de datos corrupta | Ejecutar `mem compact` para recuperar espacio. Si persiste, borrar `.memory/mem.db` y re-indexar. |
+
 ---
 
 ## 7. Memory Protocol
@@ -408,3 +424,110 @@ go test ./...                     # Tests
 Para más detalles técnicos, ver:
 - `docs/PLUGINS.md` — Arquitectura del sistema de plugins
 - `docs/MEMORY-PROTOCOL.md` — Referencia técnica del protocolo
+
+---
+
+## 9. Registro Multi-Agente (detalle completo)
+
+Dos formas de configurar agentes, según si soportan registro MCP a nivel de usuario:
+
+**Global (una vez por máquina)** — `mem setup-mcp --scope global --agents claude,codex,opencode`:
+
+| Agente | Config MCP | Notas |
+|--------|-----------|-------|
+| **Claude Code** | `~/.claude.json` → `mcpServers.gomemory` (scope `user`) | Registrado vía `claude mcp add`, con detección de colisión de nombre |
+| **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
+| **OpenCode** | `~/.config/opencode/opencode.json` → `mcp.gomemory` | OpenCode mergea la config de usuario con la del proyecto activo (confirmado con `opencode debug config`); el plugin se instala en el mismo paso |
+
+**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor/Windsurf/Cline (sin registro global conocido), opcional para Claude/Codex/OpenCode:
+
+| Agente | Config MCP | `AGENTS.md`/`CLAUDE.md` (refuerzo opcional) | Hooks |
+|--------|-----------|---------------------------------------------|-------|
+| **Claude Code** | `.mcp.json` | Sí, si se instaló con `mem install` | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
+| **OpenCode** | `opencode.json` | Sí, si se instaló con `mem install` | `plugin/opencode/plugin.ts` (auto-inicio, ya es global) |
+| **Cursor** | `.cursor/mcp.json` | — | — |
+| **Windsurf** | `.windsurf/mcp.json` | — | — |
+| **Cline** | `.cline/mcp.json` | — | — |
+| **Codex** | `~/.codex/config.toml` (tabla por proyecto, `gomemory_<proyecto>`) | Sí, si se instaló con `mem install` | SessionStart |
+
+> Los hooks son subcomandos del binario (`mem hook <evento>`), no scripts shell:
+> no dependen de `bash`/`curl` ni de un servidor HTTP, y corren igual en Windows.
+>
+> Regla de oro: un hook nunca aborta el arranque del agente — ante cualquier
+> error sale silencioso con código 0.
+>
+> El protocolo de memoria (cuándo guardar, buscar, cerrar sesión) ya no depende
+> de `AGENTS.md`/`CLAUDE.md`: el servidor `mem mcp` lo declara él mismo en
+> `initialize.instructions`, en la descripción de cada tool, y embebido en la
+> respuesta de `get_context` — funciona igual con solo el MCP conectado, sin
+> `mem install` ni archivos en el repo. El bloque en `AGENTS.md`/`CLAUDE.md`
+> queda como refuerzo, no como requisito.
+
+### Configuración Manual MCP
+
+Si prefieres no usar el instalador: con `mem` en el PATH, `claude mcp add -s user gomemory mem mcp` registra el
+mismo resultado que `mem setup-mcp --scope global --agents claude` (delegar
+en el CLI de Claude Code es más seguro que editar `~/.claude.json` a mano:
+es un archivo grande con formato propio). Si prefieres editarlo directamente,
+la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
+
+```json
+{
+  "mcpServers": {
+    "gomemory": {
+      "command": "/ruta/a/mem",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
+en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ver
+`gomemory` con 9 tools.
+
+> Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
+> con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado
+> empíricamente. Si registraste el scope global y no ves el cambio, revisa que
+> el repo actual no tenga su propio `.mcp.json` residual.
+
+---
+
+## 10. Seguridad
+
+- **Sin telemetría** — gomemory no envía datos a ningún servidor. Todo ocurre localmente.
+- **Binario autocontenido** — sin dependencias compartidas que puedan ser comprometidas.
+- **Redacción automática** — contenido envuelto en `<private>...</private>` se elimina antes de llegar a la base de datos.
+- **SQLite WAL** — integridad ACID con Write-Ahead Logging. Los datos sobreviven cortes de energía.
+- **Permisos MCP granulares** — `forget_memory` queda fuera de auto-approve por ser destructivo/irreversible.
+
+---
+
+## 11. Stack Técnico
+
+| Componente | Tecnología |
+|------------|------------|
+| Lenguaje | Go 1.25+ |
+| Base de datos | SQLite embebido (`modernc.org/sqlite`, sin CGO) |
+| TUI | `charmbracelet/bubbletea` + `bubbles` + `lipgloss` |
+| MCP SDK | `github.com/modelcontextprotocol/go-sdk` |
+| Timestamps | UTC-5 (Bogotá/Colombia, sin DST) |
+| Dependencias runtime | 0 — binario autocontenido (~16MB) |
+| Portabilidad | Linux, macOS, Windows (cross-compile nativo) |
+
+---
+
+## 12. Portabilidad
+
+```bash
+# Cross-compile sin toolchain adicional
+GOOS=darwin  GOARCH=arm64 go build -o mem-darwin-arm64 ./infrastructure/
+GOOS=darwin  GOARCH=amd64 go build -o mem-darwin-amd64 ./infrastructure/
+GOOS=linux   GOARCH=amd64 go build -o mem-linux-amd64 ./infrastructure/
+GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe ./infrastructure/
+```
+
+- `.memory/mem.db` es SQLite WAL — cópialo entre máquinas sin migraciones
+- Timestamps UTC-5 independientes de la zona horaria local
+- Las configuraciones MCP usan rutas absolutas — regenera con `setup-mcp`
+  después de mover el proyecto
