@@ -3,7 +3,6 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"path/filepath"
 
 	"mem/adapters/primary/mcp"
 )
@@ -15,10 +14,10 @@ func CmdServe(deps *Deps, args []string) {
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		fail("no hay .memory/ en este proyecto. Ejecuta 'mem init' primero")
+		fail("no se pudo determinar el directorio de trabajo: %v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	srv := mcp.NewWithRepos(deps.MemoryRepo, deps.SessionRepo, project, *port)
 	fmt.Printf("🧠 gomemory server corriendo en 127.0.0.1:%d\n", *port)

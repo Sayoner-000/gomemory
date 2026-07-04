@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"mem/domain"
@@ -27,7 +26,7 @@ func CmdWrap(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	if *autoSession {
 		active, _ := deps.SessionRepo.Active(project)

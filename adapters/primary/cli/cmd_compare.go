@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"text/tabwriter"
 
@@ -51,7 +50,7 @@ func CmdCompare(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	// Verify both memories exist
 	mems, err := deps.MemoryRepo.List(project, 200)
@@ -103,7 +102,7 @@ func cmdCompareList(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 	rels, err := deps.RelationRepo.List(project, *limit)
 	if err != nil {
 		fail("listar relaciones: %v", err)

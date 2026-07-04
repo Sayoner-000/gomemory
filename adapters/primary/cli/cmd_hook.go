@@ -57,9 +57,9 @@ func sessionMarkerPath(deps *Deps, root string) string {
 func hookSessionStart(deps *Deps) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		os.Exit(0) // Proyecto sin .memory/: nada que hacer.
+		os.Exit(0) // No se pudo resolver el directorio de trabajo: nada que hacer.
 	}
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	if active, _ := deps.SessionRepo.Active(project); active == nil {
 		deps.SessionRepo.Start(project)
@@ -83,7 +83,7 @@ func hookSessionEnd(deps *Deps) {
 	if err != nil {
 		os.Exit(0)
 	}
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	// Best-effort defensivo: cubre compactación/cierre sin un session-start
 	// intermedio, para que el próximo primer prompt vuelva a inyectar el
@@ -159,7 +159,7 @@ func hookTurnEnd(deps *Deps) {
 	if err != nil {
 		os.Exit(0)
 	}
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	payload := readHookStdin()
 	if payload == nil {

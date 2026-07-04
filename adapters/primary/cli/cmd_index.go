@@ -3,7 +3,6 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"path/filepath"
 
 	"mem/application/usecases"
 )
@@ -23,7 +22,7 @@ func CmdIndex(deps *Deps, args []string) {
 	if err != nil {
 		fail("%v", err)
 	}
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	ix := usecases.NewIndexer(deps.CodeGraphRepo, root, project)
 	fmt.Println("🔍 Indexando código Go...")

@@ -3,7 +3,6 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"mem/domain"
@@ -28,7 +27,7 @@ func CmdSave(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	var sessionID string
 	sess, _ := deps.SessionRepo.Active(project)

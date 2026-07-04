@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 	"strconv"
 )
 
@@ -24,7 +23,7 @@ func CmdForget(deps *Deps, args []string) {
 	if err != nil {
 		fail("%v", err)
 	}
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	deleted, err := deps.MemoryRepo.Delete(project, id)
 	if err != nil {

@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
 )
@@ -35,7 +34,7 @@ func cmdSessionStart(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	active, _ := deps.SessionRepo.Active(project)
 	if active != nil {
@@ -63,7 +62,7 @@ func cmdSessionEnd(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 	sess, err := deps.SessionRepo.Active(project)
 	if err != nil {
 		fail("%v", err)
@@ -100,7 +99,7 @@ func cmdSessionList(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 	sessions, err := deps.SessionRepo.Recent(project, *limit)
 	if err != nil {
 		fail("%v", err)

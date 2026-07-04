@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"mem/domain"
@@ -26,7 +25,7 @@ func CmdCapture(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 
 	if *interactive || (*what == "" && *why == "" && *learned == "") {
 		reader := bufio.NewReader(os.Stdin)

@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
 )
@@ -24,7 +23,7 @@ func CmdSearch(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 	mems, err := deps.MemoryRepo.Search(project, query, *limit)
 	if err != nil {
 		fail("buscar: %v", err)

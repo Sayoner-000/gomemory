@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"text/tabwriter"
 )
 
@@ -18,7 +17,7 @@ func CmdList(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 
-	project := filepath.Base(root)
+	project := deps.ProjectRepo.Key(root)
 	mems, err := deps.MemoryRepo.List(project, *limit)
 	if err != nil {
 		fail("%v", err)
