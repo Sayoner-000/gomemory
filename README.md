@@ -26,7 +26,7 @@ todo el contexto** sin que tengas que pedírselo.
 
 - **Contexto entre sesiones** — OpenCode, Claude Code, Cursor, Windsurf, Cline, Codex o cualquier agente compatible con MCP recuerda todo el historial del proyecto.
 - **Sin dependencias runtime** — binario autocontenido (~16MB). SQLite embebido via `modernc.org/sqlite` (sin CGO). Descarga, ejecuta, listo.
-- **Sin instalación por proyecto (Claude Code, Codex)** — `mem setup-mcp --scope global` registra gomemory una sola vez por máquina; cada proyecto nuevo guarda y consulta memoria desde el primer uso, sin tocar el repo (ni `.mcp.json`, ni binario copiado, ni `AGENTS.md`).
+- **Sin instalación por proyecto (Claude Code, Codex, OpenCode)** — `mem setup-mcp --scope global` registra gomemory una sola vez por máquina; cada proyecto nuevo guarda y consulta memoria desde el primer uso, sin tocar el repo (ni `.mcp.json`/`opencode.json`, ni binario copiado, ni `AGENTS.md`).
 - **Multi-agente** — `mem install` sigue disponible para configurar MCP, hooks e instrucciones por proyecto en los 6 agentes (necesario para Cursor/Windsurf/Cline, que no tienen registro global).
 - **8 tipos de memoria** — `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint` (auto por turno).
 - **Búsqueda con ranking** — relevancia por título primero, contenido después. Búsqueda semántica y por patrón de nombre.
@@ -50,11 +50,11 @@ curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts
 irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
 ```
 
-**Opción recomendada — Claude Code / Codex, sin instalar nada por proyecto:**
+**Opción recomendada — Claude Code / Codex / OpenCode, sin instalar nada por proyecto:**
 
 ```bash
 # Una sola vez, en cualquier directorio
-mem setup-mcp --scope global --agents claude,codex
+mem setup-mcp --scope global --agents claude,codex,opencode
 
 # Ya funciona en cualquier proyecto nuevo, sin mem install:
 cd /ruta/a/cualquier/proyecto
@@ -314,14 +314,15 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 Dos formas de configurar agentes, según si soportan registro MCP a nivel de usuario:
 
-**Global (una vez por máquina)** — `mem setup-mcp --scope global --agents claude,codex`:
+**Global (una vez por máquina)** — `mem setup-mcp --scope global --agents claude,codex,opencode`:
 
 | Agente | Config MCP | Notas |
 |--------|-----------|-------|
 | **Claude Code** | `~/.claude.json` → `mcpServers.gomemory` (scope `user`) | Registrado vía `claude mcp add`, con detección de colisión de nombre |
 | **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
+| **OpenCode** | `~/.config/opencode/opencode.json` → `mcp.gomemory` | OpenCode mergea la config de usuario con la del proyecto activo (confirmado con `opencode debug config`); el plugin se instala en el mismo paso |
 
-**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para el resto, opcional para Claude/Codex:
+**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para el resto, opcional para Claude/Codex/OpenCode:
 
 | Agente | Config MCP | Instrucciones | Hooks |
 |--------|-----------|---------------|-------|

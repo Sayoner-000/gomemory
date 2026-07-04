@@ -1,4 +1,4 @@
-# Instalación de gomemory v1.8.0
+# Instalación de gomemory v1.11.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 
@@ -32,14 +32,17 @@ Las secciones 1–3 son solo para compilar desde el fuente.
 
 ## 0.1 Registro global (recomendado — sin instalar por proyecto)
 
-**Claude Code y Codex no necesitan `mem install` por repositorio**.
+**Claude Code, Codex y OpenCode no necesitan `mem install` por repositorio**.
 Con el binario `mem` en el PATH, un solo comando registra gomemory a nivel de
 usuario, disponible automáticamente en cualquier proyecto:
 
 ```bash
-mem setup-mcp --scope global --agents claude,codex
+mem setup-mcp --scope global --agents claude,codex,opencode
 ```
 
+- Para OpenCode, este mismo comando instala también el plugin
+  (`~/.config/opencode/plugins/gomemory.ts`) además de registrar el MCP en
+  `~/.config/opencode/opencode.json` — no hace falta un paso aparte.
 - El store de memoria (`mem.db`) se crea solo, por proyecto, en el primer
   `mem save`/`mem mcp` — no hace falta `mem init` previo.
 - La identidad de cada proyecto se deriva de su raíz de git (o del directorio
@@ -126,9 +129,9 @@ Todos los tests deben pasar.
 
 ## 4. Instalar en un proyecto (flujo clásico, opcional)
 
-> Para Claude Code/Codex, la sección **0.1 Registro global** reemplaza este
-> paso — regístralo una vez y listo para todos tus proyectos. Esta sección
-> sigue siendo necesaria para Cursor, Windsurf y Cline (registro por
+> Para Claude Code/Codex/OpenCode, la sección **0.1 Registro global** reemplaza
+> este paso — regístralo una vez y listo para todos tus proyectos. Esta
+> sección sigue siendo necesaria para Cursor, Windsurf y Cline (registro por
 > proyecto), o si prefieres seguir usando el flujo con binario copiado y
 > `AGENTS.md`/`CLAUDE.md` generados.
 
