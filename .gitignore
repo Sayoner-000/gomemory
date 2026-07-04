@@ -2,6 +2,7 @@
 .memory/
 .mcp.json
 .opencode.json
+opencode.json
 .cursor/
 .cline/
 .windsurf/

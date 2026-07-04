@@ -2,7 +2,6 @@ package main
 
 import (
 	"os"
-	"path/filepath"
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/mcp"
@@ -34,7 +33,7 @@ func NewContainer(root string) (*Container, error) {
 		return nil, err
 	}
 
-	project := filepath.Base(root)
+	project := persistence.ProjectKey(root)
 
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)
@@ -68,6 +67,8 @@ func (c *Container) Close() {
 
 func (c *Container) ToDeps() *cli.Deps {
 	return &cli.Deps{
+		Root:            c.Root,
+		Project:         c.Project,
 		MemoryRepo:      c.MemoryRepo,
 		SessionRepo:     c.SessionRepo,
 		RelationRepo:    c.RelationRepo,

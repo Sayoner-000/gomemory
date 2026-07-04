@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"mem/application/ports"
@@ -66,7 +65,7 @@ func CmdPurge(deps *Deps, args []string) {
 	if err != nil {
 		fail("%v", err)
 	}
-	defaultProject := filepath.Base(root)
+	defaultProject := deps.ProjectRepo.Key(root)
 
 	filter, yes, err := ParsePurgeFlags(args, defaultProject)
 	if err != nil {

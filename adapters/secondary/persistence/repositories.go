@@ -152,6 +152,14 @@ func (r *ProjectRepository) DbPath(root string) string {
 	return DbPath(root)
 }
 
+func (r *ProjectRepository) Key(root string) string {
+	return ProjectKey(root)
+}
+
+func (r *ProjectRepository) MigrateLegacy(root string, force bool) (bool, error) {
+	return MigrateLegacy(root, force)
+}
+
 var _ ports.ProjectRepository = (*ProjectRepository)(nil)
 
 type MaintenanceRepository struct {

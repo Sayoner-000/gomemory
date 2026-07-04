@@ -24,8 +24,37 @@ Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=v1.6.0` para fijar versió
 
 Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`.
 
-Tras instalar, salta a la sección **4. Instalar en un proyecto** (`mem install .`).
+Tras instalar, sigue con **0.1 Registro global** (recomendado, sin pasos por proyecto)
+o salta a la sección **4. Instalar en un proyecto** (el flujo clásico, todavía soportado).
 Las secciones 1–3 son solo para compilar desde el fuente.
+
+---
+
+## 0.1 Registro global (recomendado — sin instalar por proyecto)
+
+**Claude Code y Codex no necesitan `mem install` por repositorio**.
+Con el binario `mem` en el PATH, un solo comando registra gomemory a nivel de
+usuario, disponible automáticamente en cualquier proyecto:
+
+```bash
+mem setup-mcp --scope global --agents claude,codex
+```
+
+- El store de memoria (`mem.db`) se crea solo, por proyecto, en el primer
+  `mem save`/`mem mcp` — no hace falta `mem init` previo.
+- La identidad de cada proyecto se deriva de su raíz de git (o del directorio
+  actual si no hay `.git`), no del nombre de la carpeta — dos proyectos
+  distintos nunca comparten memoria aunque se llamen igual.
+- Si ya tenías un proyecto instalado a la manera antigua (`.memory/mem.db`
+  dentro del repo), su historial se migra solo al primer uso, o de forma
+  explícita con `mem migrate`.
+- Cursor, Windsurf y Cline todavía no tienen un mecanismo de registro MCP a
+  nivel de usuario conocido — siguen requiriendo `mem setup-mcp --scope
+  project --agents cursor,windsurf,cline --target <dir>` por repositorio.
+
+Si `mem setup-mcp --scope global` reporta una colisión de nombre (ya existe
+una entrada `gomemory` global de otra herramienta), resuélvela manualmente
+antes de reintentar — gomemory nunca sobrescribe esa entrada en silencio.
 
 ---
 
@@ -95,7 +124,13 @@ Todos los tests deben pasar.
 
 ---
 
-## 4. Instalar en un proyecto
+## 4. Instalar en un proyecto (flujo clásico, opcional)
+
+> Para Claude Code/Codex, la sección **0.1 Registro global** reemplaza este
+> paso — regístralo una vez y listo para todos tus proyectos. Esta sección
+> sigue siendo necesaria para Cursor, Windsurf y Cline (registro por
+> proyecto), o si prefieres seguir usando el flujo con binario copiado y
+> `AGENTS.md`/`CLAUDE.md` generados.
 
 ```bash
 # Desde el directorio de gomemory

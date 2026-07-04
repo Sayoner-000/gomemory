@@ -17,6 +17,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdIndex(deps, args)
 	case "init":
 		CmdInit(deps, args)
+	case "migrate":
+		CmdMigrate(deps, args)
 	case "save":
 		CmdSave(deps, args)
 	case "capture":

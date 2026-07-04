@@ -2,11 +2,8 @@ package cli
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"mem/application/usecases"
@@ -16,32 +13,15 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// CmdMCP arranca el servidor MCP stdio. root y project ya vienen resueltos
+// por el composition root (infrastructure.NewContainer, vía
+// resolveRootForCommand) — respeta --root si se pasó, o el cwd (git root o
+// cwd si no hay .git) en caso contrario. No se re-resuelven aquí: hacerlo
+// llevaría a un desajuste entre la base de datos ya abierta en deps y el
+// "project" usado para filtrar, si --root difiere del cwd real.
 func CmdMCP(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("mcp", flag.ContinueOnError)
-	rootFlag := fs.String("root", "", "Raíz absoluta del proyecto (evita depender del cwd del proceso que lo lanza)")
-	fs.Parse(args)
-
-	var root string
-	if *rootFlag != "" {
-		absRoot, err := filepath.Abs(*rootFlag)
-		if err != nil {
-			log.Fatalf("Error: --root inválido: %v", err)
-		}
-		if _, err := os.Stat(filepath.Join(absRoot, deps.ProjectRepo.MemDir())); err != nil {
-			log.Fatalf("Error: no existe %s en %s (ejecuta 'mem init' primero)", deps.ProjectRepo.MemDir(), absRoot)
-		}
-		root = absRoot
-	} else {
-		var err error
-		root, err = deps.ProjectRepo.FindRoot()
-		if err != nil {
-			log.Fatalf("Error: %v\nEl server MCP se lanzó fuera del proyecto (el cwd actual no tiene .memory/). "+
-				"Si tu cliente MCP no fija el cwd al proyecto, lanza el server explícitamente con "+
-				"'mem mcp --root /ruta/al/proyecto'.", err)
-		}
-	}
-
-	project := filepath.Base(root)
+	root := deps.Root
+	project := deps.Project
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gomemory",

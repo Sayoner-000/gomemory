@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"mem/application/ports"
@@ -34,7 +33,7 @@ func CmdGC(deps *Deps, args []string) {
 	if err != nil {
 		fail("%v", err)
 	}
-	defaultProject := filepath.Base(root)
+	defaultProject := deps.ProjectRepo.Key(root)
 
 	filter, yes, err := ParseGCFlags(args, defaultProject)
 	if err != nil {

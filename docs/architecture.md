@@ -4,6 +4,14 @@
 
 `gomemory` es un CLI + TUI + MCP server en Go que persiste contexto de agentes AI por proyecto. Usa SQLite embebido (sin CGO) como almacenamiento y expone la memoria como herramientas nativas vía MCP (Model Context Protocol) para múltiples agentes.
 
+Desde `specs/005-global-mcp-store`, "por proyecto" describe el
+**aislamiento de datos** (cada proyecto tiene su propio `mem.db`, identificado
+por su git-root), no una instalación física dentro del repo: el servidor MCP
+se registra **una sola vez por máquina** para los agentes que lo soportan
+(Claude Code, Codex), y el store de datos vive en un directorio global del
+usuario, creado solo al primer uso — sin `mem install` ni archivos nuevos en
+el árbol del proyecto.
+
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         gomemory                                       │
@@ -20,15 +28,20 @@
 │                    │  (SQLite)    │                                     │
 │                    └───────┬───────┘                                     │
 │                            │                                             │
-│                    ┌───────┴───────┐                                     │
-│                    │ .memory/mem.db│                                     │
-│                    └───────────────┘                                     │
+│           ┌────────────────┴────────────────┐                            │
+│           │ ~/.local/share/gomemory/         │  (store global, fuera     │
+│           │   projects/<slug>-<hash>/mem.db  │   del árbol del proyecto) │
+│           └──────────────────────────────────┘                            │
 └──────────────────────────────────────────────────────────────────────────┘
                               │
-         ┌────────────────────┼────────────────────┐
-         ▼                    ▼                    ▼
-   opencode    Claude    Cursor/Windsurf/Cline    Codex
-   (.opencode.json) (.mcp.json) (.cursor/mcp.json, etc.) (~/.codex/config.toml)
+   ┌───────────┬──────────────┼──────────────┬───────────────────────┐
+   ▼           ▼              ▼              ▼                       ▼
+opencode    Claude (global*)  Codex (global*)  Cursor/Windsurf/Cline (por-proyecto)
+(opencode.json, por-proyecto) (~/.claude.json, scope user) (~/.codex/config.toml, tabla única)
+
+* Registro global: una vez por máquina, vía `mem setup-mcp --scope global`.
+  El resto de agentes siguen usando config MCP por proyecto (`--scope project`,
+  el flujo de `mem install`/`mem setup-mcp` de versiones anteriores).
 ```
 
 ## Componentes
@@ -120,15 +133,31 @@ model
 
 Capa de persistencia sobre SQLite usando [`modernc.org/sqlite`](https://gitlab.com/cznic/sqlite) (SQLite puro Go, sin CGO).
 
+Desde `specs/005-global-mcp-store`, el `mem.db` de cada proyecto ya
+no vive dentro del repo (`<root>/.memory/mem.db`) sino en un **store global
+del usuario**, indexado por la identidad del proyecto — ver
+`globalstore.go` más abajo. `.memory/` dentro del repo se conserva solo para
+archivos auxiliares que no forman parte del dato persistente en sí
+(marcador de sesión de hooks, `context.md` generado por `mem context
+--write`), no para el `mem.db`.
+
 ```
 adapters/secondary/persistence/
 ├── db.go
-│   ├── FindRoot()        ← busca .memory/ desde CWD hacia padres
-│   ├── EnsureDir()        ← crea .memory/ si no existe
-│   ├── DbPath()           ← path completo a .memory/mem.db
-│   ├── Open()             ← abre DB + migraciones automáticas (WAL mode, busy timeout 5s)
-│   ├── Init()             ← EnsureDir + Open
-│   └── migrate()          ← CREATE TABLE IF NOT EXISTS (memories, sessions, memory_relations)
+│   ├── FindRoot()        ← alias de FindProjectRoot() (ver globalstore.go)
+│   ├── EnsureDir()        ← prepara el directorio global del proyecto + migra legado si existe + mantiene .memory/ local para auxiliares
+│   ├── DbPath()           ← path completo al mem.db EN EL STORE GLOBAL (no en el repo)
+│   ├── Open()             ← EnsureDir() + abre DB + migraciones automáticas (WAL mode, busy timeout 5s)
+│   ├── Init()             ← alias de Open() (init perezoso: ya no requiere un paso previo)
+│   └── migrate()          ← CREATE TABLE IF NOT EXISTS (memories, sessions, memory_relations, code_files, code_nodes, code_edges)
+│
+├── globalstore.go
+│   ├── FindProjectRoot()  ← git root subiendo desde el cwd; sin .git, usa el cwd absoluto
+│   ├── ProjectKey(root)   ← slug + sha256[:8](ruta absoluta) — identidad de proyecto, ya no filepath.Base(root)
+│   ├── DataHome()         ← $GOMEMORY_DATA_HOME > $XDG_DATA_HOME/gomemory > ~/.local/share/gomemory (Linux/macOS); %LOCALAPPDATA%\gomemory (Windows)
+│   ├── GlobalProjectDir/GlobalDbPath(key) ← rutas dentro del store global: $DataHome/projects/<key>/
+│   ├── migrateLegacyIfPresent(root, key)  ← ruta perezosa (nunca sobrescribe), llamada desde EnsureDir
+│   └── MigrateLegacy(root, force)         ← ruta explícita de `mem migrate`, reporta si migró y soporta --force
 │
 ├── memory.go
 │   ├── InsertMemory()     ← INSERT con timestamps UTC-5
@@ -294,41 +323,53 @@ Comando read-only para detectar el proyecto actual:
 mem project
 ```
 
-Salida:
+Salida (`Proyecto` es el `ProjectKey`, no el nombre de carpeta; `BD` apunta al
+store global, no al repo):
 ```
-Proyecto: gomemory
+Proyecto: proyecto-a1b2c3d4
 Raíz:     /home/user/proyecto
-BD:       /home/user/proyecto/.memory/mem.db
+BD:       /home/user/.local/share/gomemory/projects/proyecto-a1b2c3d4/mem.db
 Memorias: 12
 Sesión:   Activa desde 2026-06-18 10:00:00
 ```
 
 ### 10. MCP Setup Multi-Agente (`adapters/primary/cli/cmd_mcp_setup.go`)
 
-Configura la integración MCP para múltiples agentes AI desde un solo comando:
+Configura la integración MCP para múltiples agentes AI desde un solo comando, en dos scopes posibles:
 
 ```
-mem setup-mcp [--target dir] [--agents opencode,claude,cursor,windsurf,cline,codex,all]
+mem setup-mcp --scope project [--target dir] [--agents opencode,claude,cursor,windsurf,cline,codex,all]
+mem setup-mcp --scope global [--agents claude,codex,all]
 ```
 
-Soporta 6 agentes:
+**`--scope project`** (default, compatibilidad con el flujo por-proyecto anterior) — soporta 6 agentes:
 
 | Agente | Archivo destino | Configuración |
 |---|---|---|
-| `opencode` | `.opencode.json` | `mcpServers.gomemory = { command, args: ["mcp", "--root", absRoot] }` |
+| `opencode` | `opencode.json` | `mcp.gomemory = { command, args: ["mcp"] }` |
 | `claude` | `.mcp.json` (proyecto) | `mcpServers.gomemory` — servidor MCP sobre stdio |
 | `cursor` | `.cursor/mcp.json` | `mcpServers.gomemory` |
 | `windsurf` | `.windsurf/mcp_config.json` | `mcpServers.gomemory` |
 | `cline` | `.cline/mcp_settings.json` | `mcpServers.gomemory` con `disabled: false` |
 | `codex` | `~/.codex/config.toml` (global, una tabla por proyecto) | `[mcp_servers."gomemory_<proyecto>"]` con `command`, `args`, `cwd` |
 
-Cada función de setup (`setupOpenCode`, `setupClaude`, `setupCursor`, `setupWindsurf`, `setupCline`, `setupCodex`) es idempotente: detecta si la configuración ya existe y la salta o actualiza. `setupCodex` nunca reescribe el archivo completo — solo hace `append` de su propia tabla TOML, para no arriesgar corromper otras entradas ya presentes en `~/.codex/config.toml`.
+**`--scope global`** (recomendado, `specs/005-global-mcp-store`) — solo agentes con mecanismo de registro a nivel de usuario:
 
-El flag `--agents all` configura los 6 agentes en un solo comando.
+| Agente | Mecanismo | Detalle |
+|---|---|---|
+| `claude` | `claude mcp add -s user gomemory mem mcp` | Se delega la escritura al CLI oficial de Claude Code — gomemory nunca edita `~/.claude.json` a mano, solo lo **lee** para detectar colisiones de nombre (FR-008: si `gomemory` ya existe apuntando a otro comando, se detiene y pide resolución manual en vez de sobrescribir) |
+| `codex` | `~/.codex/config.toml`, tabla única `[mcp_servers.gomemory]` | Sin `cwd` ni sufijo por proyecto — el server ya resuelve el proyecto por git-root del cwd real en cada invocación |
+| `opencode`, `cursor`, `windsurf`, `cline` | No soportado | `runGlobalScopeSetup` imprime el mensaje explícito y remite a `--scope project --target <dir>`. OpenCode en particular no se evaluó a ciegas: no hay forma de verificar si soporta config MCP global sin el CLI de OpenCode instalado |
 
-### El flag `--root`: por qué existe
+Cada función de setup es idempotente: detecta si la configuración ya existe y la salta o actualiza. `setupCodex`/`setupCodexGlobal` nunca reescriben el archivo completo — solo hacen `append` de su propia tabla TOML, para no arriesgar corromper otras entradas ya presentes en `~/.codex/config.toml`.
 
-`mem mcp` resuelve el proyecto vía `ProjectRepo.FindRoot()`, que sube directorios desde el `cwd` del proceso buscando `.memory/`. Cuando un agente (Claude, Cursor, etc.) lanza el servidor MCP, **no garantiza qué `cwd` usará** para el subproceso — puede ser el directorio desde donde se abrió el editor, no el proyecto instalado. Por eso, cada configuración generada por `setupX`/`setupCodex` incluye `args: ["mcp", "--root", absRoot]`: el servidor recibe la raíz del proyecto explícitamente, sin depender del `cwd` real. Si `--root` no se pasa (por ejemplo, al ejecutar `./mem mcp` manualmente desde dentro del proyecto), se mantiene el comportamiento anterior basado en `FindRoot()`.
+El flag `--agents all` configura todos los agentes soportados por el scope elegido en un solo comando.
+
+### El flag `--root` de `mem mcp`: por qué existe
+
+`mem mcp` resuelve el proyecto vía `ProjectRepo.FindRoot()` → `FindProjectRoot()` (git root subiendo desde el `cwd`, o el `cwd` mismo si no hay `.git` — ver `globalstore.go`). Cuando un agente lanza el servidor MCP, **no garantiza qué `cwd` usará** para el subproceso. Por eso `mem mcp --root <dir>` permite forzar la raíz explícitamente.
+
+**Importante (fix de `specs/005-global-mcp-store`):** antes, `--root` solo afectaba el string `project` usado para filtrar consultas — la conexión real a la base de datos la decidía `infrastructure/main.go` resolviendo `root` por `cwd` ANTES de que `CmdMCP` llegara a parsear su propio `--root`, un desajuste real si ambos diferían. Ahora `resolveRootForCommand(cmd, args)` en `main.go` reconoce el comando `mcp` como caso especial: si trae `--root`, ese valor se usa para construir el `Container` (y por tanto la conexión a la BD) desde el principio. `CmdMCP` ya no reparsea `--root` — usa `deps.Root`/`deps.Project`, ya resueltos de forma consistente.
 
 ### 11. Hooks portables de Claude Code (`adapters/primary/cli/cmd_hook.go`)
 
@@ -399,6 +440,14 @@ irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/instal
 Descargan el binario del release de GitHub correspondiente al SO/arquitectura y lo instalan (Linux/macOS: `GOMEMORY_VERSION`, `GOMEMORY_BIN_DIR` para fijar versión/destino; `--uninstall`/`-Uninstall` para remover). Los releases los publica GoReleaser vía el workflow `.github/workflows/release.yml` al pushear un tag `v*`.
 
 ## Flujo de Instalación (`adapters/primary/cli/cmd_install.go`)
+
+> **Este flujo es opcional para Claude Code/Codex** — `mem
+> setup-mcp --scope global --agents claude,codex` (una sola vez por máquina)
+> más el init perezoso del store global (`specs/005-global-mcp-store`)
+> cubren el mismo resultado sin tocar el repo. `mem install` se conserva sin
+> cambios de comportamiento (compatibilidad, y porque sigue siendo necesario
+> para Cursor/Windsurf/Cline, que no tienen registro MCP a nivel de
+> usuario) — al terminar imprime una nota señalando la alternativa nueva.
 
 ```
 mem install /ruta/a/proyecto
@@ -608,13 +657,19 @@ Zero dependencias en runtime para el usuario final. El binario compilado es auto
 
 ## Variables de Entorno
 
-No requiere variables de entorno para operación normal. Toda la configuración es implícita (directorio actual + `.memory/`).
+No requiere variables de entorno para operación normal — la identidad del
+proyecto se deriva del git root (o el cwd si no hay `.git`) y el store de
+datos se resuelve solo. Una variable opcional:
+
+| Variable | Uso |
+|---|---|
+| `GOMEMORY_DATA_HOME` | Override explícito del directorio de datos de gomemory (por defecto `$XDG_DATA_HOME/gomemory` o `~/.local/share/gomemory` en Linux/macOS, `%LOCALAPPDATA%\gomemory` en Windows). Pensado para usuarios avanzados y para sandboxear tests sin tocar el `$HOME` real — ver `TestMain` en `adapters/secondary/persistence`, `application/usecases`, `tests/contract` y `tests/integration` |
 
 ## Decisiones Técnicas
 
 1. **SQLite sin CGO**: `modernc.org/sqlite` evita depender de gcc/libsqlite3. Binario portátil.
 
-2. **Búsqueda de `.memory/` hacia arriba**: `FindRoot()` sube directorios hasta encontrar `.memory/`, permitiendo ejecutar `mem` desde cualquier subdirectorio.
+2. **Identidad de proyecto por git-root + hash, no por nombre de carpeta**: `FindProjectRoot()` sube directorios hasta encontrar `.git` (o usa el cwd si no hay), permitiendo ejecutar `mem` desde cualquier subdirectorio. `ProjectKey()` deriva la clave del store global de esa ruta absoluta (slug + `sha256[:8]`), así que dos proyectos con el mismo nombre de carpeta en rutas distintas nunca comparten memoria — a diferencia del antiguo `filepath.Base(root)`.
 
 3. **WAL mode**: `_pragma=journal_mode(WAL)` permite lectores concurrentes sin bloqueo. Busy timeout de 5s.
 
@@ -644,17 +699,40 @@ No requiere variables de entorno para operación normal. Toda la configuración 
 
 16. **Project como comando read-only**: `mem project` solo lee el sistema de archivos y la BD, nunca escribe. Ideal para verificar contexto antes de operar.
 
-## Estructura de Directorios del Proyecto Instalado
+## Estructura de Directorios del Proyecto
+
+### Flujo recomendado (registro global, sin `mem install`)
+
+```
+~/.local/share/gomemory/            (o $GOMEMORY_DATA_HOME / %LOCALAPPDATA%\gomemory)
+└── projects/
+    └── <slug>-<hash>/              ← ProjectKey(root): slug legible + sha256[:8](ruta absoluta)
+        └── mem.db                  ← SQLite (WAL mode) — el único dato persistente por proyecto
+
+proyecto/
+├── .memory/                        ← SOLO archivos auxiliares (gitignorado), ya NO contiene mem.db
+│   ├── .session-tools-injected     ← marcador de hooks (por sesión)
+│   └── context.md                  ← si se corrió `mem context --write`
+└── ...                             ← cero archivos de gomemory en el árbol versionado
+```
+
+El registro MCP vive fuera del repo por completo: `~/.claude.json` (`mcpServers.gomemory`,
+scope `user`) y/o `~/.codex/config.toml` (`[mcp_servers.gomemory]`), registrados una
+vez con `mem setup-mcp --scope global --agents claude,codex`.
+
+### Flujo clásico (`mem install`, todavía soportado — Cursor/Windsurf/Cline)
 
 ```
 proyecto/
-├── .memory/                    ← DB + contexto (gitignorado)
-│   ├── mem.db                  ← SQLite (WAL mode)
+├── .memory/                    ← Solo auxiliares en este flujo también (mem.db vive en el store global)
 │   └── context.md              ← Contexto markdown generado
 ├── AGENTS.md                   ← Instrucciones de integración
 ├── CLAUDE.md                   ← Ídem para Claude Code
 ├── opencode.json                ← MCP server config (opencode)
-├── .mcp.json                   ← MCP server config (Claude)
+├── .mcp.json                   ← MCP server config (Claude) — ¡ojo! si además se registró
+│                                  gomemory en scope global, esta entrada de proyecto tiene
+│                                  precedencia sobre la global para el mismo nombre (confirmado
+│                                  empíricamente) — quitarla si se quiere depender solo de la global
 ├── .cursor/
 │   └── mcp.json                ← MCP server config (Cursor)
 ├── .windsurf/
@@ -715,7 +793,8 @@ gomemory/
 │       ├── build_context.go         #     Genera .memory/context.md
 │       ├── index_project.go         #     Indexador de código Go (go/parser)
 │       ├── goparse.go               #     Parseo de archivos Go a nodos/aristas
-│       └── record_verdict.go        #     Registro de veredicto semántico entre memorias
+│       ├── record_verdict.go        #     Registro de veredicto semántico entre memorias
+│       └── testmain_test.go         #     Sandboxea GOMEMORY_DATA_HOME para el paquete
 │
 ├── adapters/                        # Capa de adaptadores
 │   ├── primary/                     #   Adaptadores primarios (driving)
@@ -724,7 +803,8 @@ gomemory/
 │   │   │   ├── deps.go             #       Deps struct (inyección de dependencias)
 │   │   │   ├── dispatcher.go       #       Run(): dispatcher central
 │   │   │   ├── binref.go           #       BinRef/binRefFor: referencia portable a `mem`
-│   │   │   ├── cmd_init.go         #       mem init [--force]
+│   │   │   ├── cmd_init.go         #       mem init [--force] — no-op informativo + dispara migración de legado
+│   │   │   ├── cmd_migrate.go      #       mem migrate [--force] — migra .memory/mem.db legado al store global
 │   │   │   ├── cmd_save.go         #       mem save -t "tit" -y tipo "cuerpo"
 │   │   │   ├── cmd_capture.go      #       mem capture
 │   │   │   ├── cmd_compare.go      #       mem compare
@@ -737,9 +817,10 @@ gomemory/
 │   │   │   ├── cmd_uninstall.go    #       mem uninstall [dir] [--yes]
 │   │   │   ├── cmd_project.go      #       mem project
 │   │   │   ├── cmd_wrap.go         #       mem wrap <comando> [args...]
-│   │   │   ├── cmd_mcp.go          #       mem mcp — servidor MCP (tools + resources)
+│   │   │   ├── cmd_mcp.go          #       mem mcp — servidor MCP (tools + resources), usa deps.Root/deps.Project ya resueltos
 │   │   │   ├── cmd_mcp_code_tools.go #     tools MCP de grafo de código (index_project, search_code, etc.)
-│   │   │   ├── cmd_mcp_setup.go    #       mem setup-mcp
+│   │   │   ├── cmd_mcp_setup.go    #       mem setup-mcp --scope project|global
+│   │   │   ├── cmd_mcp_setup_test.go #     tests de detección de colisión (FR-008) y registro global de Codex
 │   │   │   ├── cmd_serve.go        #       mem serve — servidor HTTP (plugin OpenCode)
 │   │   │   ├── cmd_hook.go         #       mem hook <evento> — hooks portables Claude Code
 │   │   │   ├── cmd_setup.go        #       mem setup <agent> — plugin + hooks
@@ -763,7 +844,10 @@ gomemory/
 │   │       └── claude_code_setup.go #       writeClaudeHooks: hooks portables en settings.json
 │   └── secondary/                   #   Adaptadores secundarios (driven)
 │       └── persistence/             #     Persistencia SQLite
-│           ├── db.go                #       Conexión, migraciones, FindRoot
+│           ├── db.go                #       Conexión, migraciones, FindRoot/Open/Init (delegan al store global)
+│           ├── globalstore.go       #       ProjectKey, DataHome, GlobalDbPath, migración legado→global
+│           ├── globalstore_test.go  #       Tests de ProjectKey/DataHome/FindProjectRoot
+│           ├── testmain_test.go     #       Sandboxea GOMEMORY_DATA_HOME para toda la suite del paquete
 │           ├── memory.go            #       CRUD memorias
 │           ├── memory_test.go       #       Tests de memoria CRUD
 │           ├── session.go           #       CRUD sesiones
@@ -790,10 +874,15 @@ gomemory/
 │
 ├── tests/                           # Tests
 │   ├── contract/
+│   │   ├── testmain_test.go         #     Sandboxea GOMEMORY_DATA_HOME para el paquete
 │   │   ├── memory_protocol_test.go  #     Test del protocolo de memoria MCP
 │   │   ├── maintenance_cli_test.go  #     Tests de purge/compact/gc CLI
 │   │   └── skill_tool_names_test.go #     Tests de nombres de tools/skills
 │   └── integration/
+│       ├── testmain_test.go         #     Sandboxea GOMEMORY_DATA_HOME para el paquete
+│       ├── lazy_init_test.go               # US1: mem mcp/save/search sin instalación previa; SC-003 cero huella
+│       ├── legacy_migration_test.go        # US2: migración de .memory/mem.db legado, mem migrate --force
+│       ├── project_isolation_test.go       # US3: proyectos con nombre de carpeta duplicado no comparten memoria
 │       ├── code_graph_mcp_integration_test.go  # Tests de integración del grafo de código
 │       ├── hook_marker_integration_test.go     # Tests del marcador de hooks
 │       ├── maintenance_integration_test.go     # Tests de integración de mantenimiento
