@@ -27,7 +27,7 @@ todo el contexto** sin que tengas que pedírselo.
 - **Contexto entre sesiones** — OpenCode, Claude Code, Cursor, Windsurf, Cline, Codex o cualquier agente compatible con MCP recuerda todo el historial del proyecto.
 - **Sin dependencias runtime** — binario autocontenido (~16MB). SQLite embebido via `modernc.org/sqlite` (sin CGO). Descarga, ejecuta, listo.
 - **Sin instalación por proyecto (Claude Code, Codex, OpenCode)** — `mem setup-mcp --scope global` registra gomemory una sola vez por máquina; cada proyecto nuevo guarda y consulta memoria desde el primer uso, sin tocar el repo (ni `.mcp.json`/`opencode.json`, ni binario copiado, ni `AGENTS.md`).
-- **Multi-agente** — `mem install` sigue disponible para configurar MCP, hooks e instrucciones por proyecto en los 6 agentes (necesario para Cursor/Windsurf/Cline, que no tienen registro global).
+- **Multi-agente** — `mem setup-mcp --scope project` registra el MCP por proyecto para Cursor/Windsurf/Cline (sin registro global conocido); `mem install` sigue disponible como pack completo opcional (MCP + hooks + `AGENTS.md`/`CLAUDE.md` + constitución) para cualquier agente.
 - **8 tipos de memoria** — `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint` (auto por turno).
 - **Búsqueda con ranking** — relevancia por título primero, contenido después. Búsqueda semántica y por patrón de nombre.
 - **CLI completo** — 24 subcomandos para gestionar memoria desde terminal, más una TUI interactiva con Bubbletea.
@@ -67,7 +67,18 @@ global del usuario (`~/.local/share/gomemory/`), identificado por la raíz de
 git — cero archivos nuevos en el repo. Si ya tenías proyectos instalados a la
 manera antigua, su historial se migra solo al primer uso (o con `mem migrate`).
 
-**Flujo clásico — por proyecto (Cursor, Windsurf, Cline, o si prefieres el pack completo):**
+**Cursor / Windsurf / Cline — registro MCP por proyecto** (todavía sin registro global conocido):
+
+```bash
+cd /ruta/a/tu/proyecto
+mem setup-mcp --scope project --agents cursor,windsurf,cline --target .
+```
+
+Solo escribe la config MCP de cada agente (`.cursor/mcp.json`, `.windsurf/mcp.json`,
+`.cline/mcp.json`) — el store de memoria se crea solo al primer uso, igual que en
+el flujo global.
+
+**`mem install .` — pack completo (opcional, para cualquier agente):**
 
 ```bash
 cd /ruta/a/tu/proyecto
@@ -79,12 +90,14 @@ mem search "API"
 mem context --write
 ```
 
-`mem install .`:
+Además del MCP de los 6 agentes (Claude, OpenCode, Cursor, Windsurf, Cline,
+Codex), `mem install .`:
 - crea `.memory/` y actualiza `.gitignore`;
-- configura el **MCP** de los 6 agentes (Claude, OpenCode, Cursor, Windsurf, Cline, Codex);
 - genera/actualiza `AGENTS.md` y `CLAUDE.md` con el **pack de trabajo**: reglas de
   trabajo (lecciones de campo) + orquestación + el Memory Protocol;
 - copia la **constitución** (`speckit-constitution-gen.md`) a la raíz del proyecto.
+
+Úsalo si quieres ese pack de instrucciones en el repo, no solo la conexión MCP.
 
 > Los **hooks** de los agentes no se instalan con `install` — usa
 > `mem setup claude-code` o `mem setup opencode` para registrarlos.

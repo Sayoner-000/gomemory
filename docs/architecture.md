@@ -404,7 +404,7 @@ Los hooks son el mecanismo que hace que la memoria "tome todo bien" en Claude Co
 
 `mem setup <agente>` instala el plugin **y sus hooks** para un agente concreto:
 
-- `mem setup opencode` → copia `plugin.ts` a `~/.config/opencode/plugins/gomemory/` y lo referencia en `opencode.json`.
+- `mem setup opencode` → copia `plugin.ts` como archivo suelto a `~/.config/opencode/plugins/gomemory.ts` (OpenCode auto-descubre plugins ahí, sin subcarpeta ni referencia explícita en ningún `opencode.json`) y escribe la entrada MCP en el `opencode.json` del proyecto actual.
 - `mem setup claude-code` → copia el plugin a `.claude/plugins/gomemory/`, escribe `.mcp.json` y registra los hooks portables (`mem hook <evento>`) en `.claude/settings.json`.
 
 La referencia al binario es portable (`BinRef`/`binRefFor` en `cmd_install.go`/`binref.go`): se usa `mem` por PATH, nunca una ruta absoluta de máquina. El fallback por-proyecto de los hooks de Claude usa `${CLAUDE_PROJECT_DIR}/mem`, que Claude expande en runtime.
