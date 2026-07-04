@@ -23,10 +23,16 @@ func CmdMCP(deps *Deps, args []string) {
 	root := deps.Root
 	project := deps.Project
 
+	// Instructions viaja en la respuesta initialize del MCP: el protocolo de
+	// memoria queda disponible para cualquier cliente MCP compatible sin
+	// depender de un AGENTS.md/CLAUDE.md por proyecto (necesario sobre todo en
+	// scope global, donde no se genera ningún archivo en el repo). Reusa
+	// buildIntegrationBlock() (mismo texto que install inserta en AGENTS.md)
+	// para no mantener el protocolo en dos lugares.
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gomemory",
 		Version: version.Version,
-	}, nil)
+	}, &mcp.ServerOptions{Instructions: buildIntegrationBlock()})
 
 	registerTools(server, deps, project)
 	registerCodeTools(server, deps, root, project)
@@ -47,8 +53,11 @@ func CmdMCP(deps *Deps, args []string) {
 
 func registerTools(server *mcp.Server, deps *Deps, project string) {
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "save_memory",
-		Description: "Guarda un aprendizaje, decisión o descubrimiento en la memoria del proyecto",
+		Name: "save_memory",
+		Description: "Guarda un aprendizaje, decisión, bugfix, patrón o descubrimiento en la memoria del " +
+			"proyecto. Llámala PROACTIVAMENTE, sin esperar a que el usuario lo pida, inmediatamente después " +
+			"de: una decisión técnica, un bug corregido (con causa raíz), un patrón establecido, un " +
+			"descubrimiento no obvio, o una preferencia que el usuario exprese sobre cómo trabajar contigo.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		Title    string `json:"title" jsonschema:"Título descriptivo de la memoria"`
 		Type     string `json:"type" jsonschema:"Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference"`
@@ -172,8 +181,10 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "start_session",
-		Description: "Inicia una nueva sesión de trabajo. Las próximas memorias se asociarán a esta sesión.",
+		Name: "start_session",
+		Description: "Inicia una nueva sesión de trabajo (las próximas memorias se asocian a ella). " +
+			"Normalmente no hace falta llamarla a mano: el servidor ya abre una sesión automáticamente " +
+			"al conectarse si no hay ninguna activa.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 		active, _ := deps.SessionRepo.Active(project)
 		if active != nil {
@@ -191,8 +202,9 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "end_session",
-		Description: "Finaliza la sesión de trabajo activa con un resumen",
+		Name: "end_session",
+		Description: "Finaliza la sesión de trabajo activa con un resumen. Llámala antes de dar la tarea " +
+			"por terminada, no solo cuando el usuario lo pida explícitamente.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		Summary string `json:"summary,omitempty" jsonschema:"Resumen de lo realizado en la sesión"`
 	}) (*mcp.CallToolResult, any, error) {
@@ -288,15 +300,17 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "get_context",
-		Description: "Obtiene el contexto completo del proyecto como markdown: arquitectura, decisiones, bugs, aprendizajes",
+		Name: "get_context",
+		Description: "Obtiene el contexto completo del proyecto como markdown: arquitectura, decisiones, " +
+			"bugs, aprendizajes, sesiones previas. Llámala SIEMPRE al inicio de una sesión de trabajo, " +
+			"antes de cualquier otra acción — la respuesta incluye el protocolo de memoria activo.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 		output, err := deps.ContextBuilder.Build()
 		if err != nil {
 			return nil, nil, fmt.Errorf("generar contexto: %w", err)
 		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: output}},
+			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + output}},
 		}, nil, nil
 	})
 }
@@ -305,7 +319,7 @@ func registerResources(server *mcp.Server, deps *Deps, project string) {
 	server.AddResource(&mcp.Resource{
 		URI:         "mem://context",
 		Name:        "Project Context",
-		Description: "Contexto completo del proyecto en markdown",
+		Description: "Contexto completo del proyecto en markdown, con el protocolo de memoria activo",
 		MIMEType:    "text/markdown",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		output, err := deps.ContextBuilder.Build()
@@ -314,7 +328,7 @@ func registerResources(server *mcp.Server, deps *Deps, project string) {
 		}
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{
-				{URI: "mem://context", Text: output, MIMEType: "text/markdown"},
+				{URI: "mem://context", Text: memoryProtocolReminder + "\n\n" + output, MIMEType: "text/markdown"},
 			},
 		}, nil
 	})
