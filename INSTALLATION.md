@@ -1,4 +1,4 @@
-# Instalación de gomemory v1.11.0
+# Instalación de gomemory v1.12.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 
@@ -54,6 +54,11 @@ mem setup-mcp --scope global --agents claude,codex,opencode
 - Cursor, Windsurf y Cline todavía no tienen un mecanismo de registro MCP a
   nivel de usuario conocido — siguen requiriendo `mem setup-mcp --scope
   project --agents cursor,windsurf,cline --target <dir>` por repositorio.
+- El protocolo de memoria (cuándo guardar, buscar y cerrar sesión) no depende
+  de `AGENTS.md`/`CLAUDE.md`: el propio servidor `mem mcp` lo declara en
+  `initialize.instructions`, en la descripción de cada tool, y embebido en la
+  respuesta de `get_context` — funciona igual con solo este registro global,
+  sin `mem install` ni archivos en el repo (ver `docs/MEMORY-PROTOCOL.md`).
 
 Si `mem setup-mcp --scope global` reporta una colisión de nombre (ya existe
 una entrada `gomemory` global de otra herramienta), resuélvela manualmente
