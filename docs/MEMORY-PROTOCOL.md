@@ -50,6 +50,32 @@ disponible permanentemente para el agente. Además, los hooks portables
 (`mem hook <evento>`, sin scripts shell ni servidor HTTP) inyectan contexto y
 recordatorios en momentos específicos.
 
+### Cualquier agente MCP (Cursor, Windsurf, Cline, Codex, o Claude/OpenCode sin `mem install`)
+
+Estos agentes no tienen plugin ni hooks propios, pero el protocolo llega igual
+porque vive en el propio servidor `mem mcp` (`adapters/primary/cli/cmd_mcp.go`),
+no en un archivo del proyecto:
+
+1. **`initialize.instructions`** — el campo `Instructions` de `ServerOptions`
+   lleva el bloque completo del protocolo (mismo texto que `buildIntegrationBlock()`
+   inserta en `AGENTS.md`/`CLAUDE.md` vía `mem install`, una sola fuente de verdad).
+   Es el mecanismo que el propio spec de MCP definió para esto; el cliente
+   decide si lo muestra al modelo.
+2. **Descripciones de tools** — `save_memory`, `get_context`, `start_session`,
+   `end_session` incluyen el "cuándo llamar" directamente en su `Description`.
+   Esta capa es 100% garantizada: cualquier cliente MCP lista las tools con su
+   descripción, sin excepción.
+3. **`get_context` embebe el recordatorio en su propia respuesta** — el texto de
+   `memoryProtocolReminder` (el mismo que usa el hook `user-prompt-submit` de
+   Claude Code) va concatenado al inicio del resultado de la tool y del recurso
+   `mem://context`. Es la capa más fuerte de las tres: el resultado de una tool
+   siempre vuelve al modelo, en cualquier cliente, sin depender de que honre
+   `instructions`.
+
+Con esto, el bloque estático en `AGENTS.md`/`CLAUDE.md` deja de ser necesario
+para que el protocolo funcione — queda como refuerzo opcional (útil como red de
+seguridad si un cliente ignora `instructions`), no como requisito.
+
 ### Memoria dinámica (recordatorio por hook)
 
 El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
@@ -140,12 +166,15 @@ After compaction, IMMEDIATELY:
 
 ## Capas de Inyección
 
-| Capa | Dónde se inyecta | Sobrevive compactación? |
-|------|------------------|------------------------|
-| System Prompt | Via plugin transform | ✅ Siempre |
-| Per-prompt reminder | `mem hook user-prompt-submit` | ✅ Se reinyecta por sesión |
-| Compaction Hook | `mem hook pre-compact` | ✅ Se ejecuta pre-compactación |
-| Agent Config | AGENTS.md / CLAUDE.md | ✅ Siempre |
+| Capa | Dónde se inyecta | Requiere `mem install`/archivo en el repo? | Sobrevive compactación? |
+|------|------------------|---------------------------------------------|------------------------|
+| System Prompt (OpenCode) | Via plugin transform | Sí (o `mem setup opencode`) | ✅ Siempre |
+| Per-prompt reminder (Claude Code) | `mem hook user-prompt-submit` | Sí (o `mem setup claude-code`) | ✅ Se reinyecta por sesión |
+| Compaction Hook (Claude Code) | `mem hook pre-compact` | Sí (o `mem setup claude-code`) | ✅ Se ejecuta pre-compactación |
+| `initialize.instructions` (MCP nativo) | `mem mcp` (`ServerOptions.Instructions`) | **No** — cualquier scope/agente | ✅ Una vez por conexión |
+| Descripciones de tools (MCP nativo) | `mem mcp` (`Tool.Description`) | **No** — cualquier scope/agente | ✅ Siempre visibles |
+| `get_context` embebido (MCP nativo) | `mem mcp` (tool + recurso `mem://context`) | **No** — cualquier scope/agente | ✅ Cada llamada |
+| Agent Config (refuerzo opcional) | AGENTS.md / CLAUDE.md | Sí (`mem install`) | ✅ Siempre |
 
 ## Token Budget
 

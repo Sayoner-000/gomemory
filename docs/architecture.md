@@ -680,7 +680,7 @@ datos se resuelve solo. Una variable opcional:
 
 6. **Multi-agente MCP**: `setup-mcp` configura opencode, Claude, Cursor, Windsurf, Cline y Codex desde un solo comando. Cada función de setup es idempotente. El `cwd` real del proceso que lanza `mem mcp` no es confiable entre agentes, así que la raíz del proyecto se pasa explícita vía `--root` en `args` (ver sección "El flag `--root`").
 
-7. **Doble vía de integración**: MCP (automática, para agentes compatibles) + instrucciones en AGENTS.md (fallback, para cualquier agente).
+7. **Triple vía de integración**: MCP nativo (`initialize.instructions` + descripciones de tools + `get_context` embebido en `cmd_mcp.go` — funciona en cualquier agente/scope, sin archivos en el repo) + plugin/hooks (ciclo de vida completo para OpenCode/Claude Code) + AGENTS.md/CLAUDE.md (refuerzo opcional vía `mem install`). Ver `docs/MEMORY-PROTOCOL.md` para el detalle de cada capa.
 
 8. **AlphaScreen en TUI**: Bubbletea usa pantalla alternativa (`tea.WithAltScreen()`) para no ensuciar el historial.
 

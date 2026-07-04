@@ -28,6 +28,7 @@ todo el contexto** sin que tengas que pedírselo.
 - **Sin dependencias runtime** — binario autocontenido (~16MB). SQLite embebido via `modernc.org/sqlite` (sin CGO). Descarga, ejecuta, listo.
 - **Sin instalación por proyecto (Claude Code, Codex, OpenCode)** — `mem setup-mcp --scope global` registra gomemory una sola vez por máquina; cada proyecto nuevo guarda y consulta memoria desde el primer uso, sin tocar el repo (ni `.mcp.json`/`opencode.json`, ni binario copiado, ni `AGENTS.md`).
 - **Multi-agente** — `mem setup-mcp --scope project` registra el MCP por proyecto para Cursor/Windsurf/Cline (sin registro global conocido); `mem install` sigue disponible como pack completo opcional (MCP + hooks + `AGENTS.md`/`CLAUDE.md` + constitución) para cualquier agente.
+- **Protocolo de memoria nativo del MCP** — el propio servidor `mem mcp` declara cuándo guardar, buscar y cerrar sesión (`instructions` de `initialize`, descripciones de las tools, y la respuesta de `get_context`) — funciona en cualquier agente/scope sin necesitar `AGENTS.md`/`CLAUDE.md`.
 - **8 tipos de memoria** — `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint` (auto por turno).
 - **Búsqueda con ranking** — relevancia por título primero, contenido después. Búsqueda semántica y por patrón de nombre.
 - **CLI completo** — 24 subcomandos para gestionar memoria desde terminal, más una TUI interactiva con Bubbletea.
@@ -67,42 +68,19 @@ global del usuario (`~/.local/share/gomemory/`), identificado por la raíz de
 git — cero archivos nuevos en el repo. Si ya tenías proyectos instalados a la
 manera antigua, su historial se migra solo al primer uso (o con `mem migrate`).
 
-**Cursor / Windsurf / Cline — registro MCP por proyecto** (todavía sin registro global conocido):
+**Cursor / Windsurf / Cline** (todavía sin registro global conocido) — por proyecto:
 
 ```bash
 cd /ruta/a/tu/proyecto
 mem setup-mcp --scope project --agents cursor,windsurf,cline --target .
 ```
 
-Solo escribe la config MCP de cada agente (`.cursor/mcp.json`, `.windsurf/mcp.json`,
-`.cline/mcp.json`) — el store de memoria se crea solo al primer uso, igual que en
-el flujo global.
-
-**`mem install .` — pack completo (opcional, para cualquier agente):**
-
-```bash
-cd /ruta/a/tu/proyecto
-mem install .
-
-# Guardar y buscar
-mem save -t "API REST" -y decision "Usamos Fiber para rutas"
-mem search "API"
-mem context --write
-```
-
-Además del MCP de los 6 agentes (Claude, OpenCode, Cursor, Windsurf, Cline,
-Codex), `mem install .`:
-- crea `.memory/` y actualiza `.gitignore`;
-- genera/actualiza `AGENTS.md` y `CLAUDE.md` con el **pack de trabajo**: reglas de
-  trabajo (lecciones de campo) + orquestación + el Memory Protocol;
-- copia la **constitución** (`speckit-constitution-gen.md`) a la raíz del proyecto.
-
-Úsalo si quieres ese pack de instrucciones en el repo, no solo la conexión MCP.
-
-> Los **hooks** de los agentes no se instalan con `install` — usa
-> `mem setup claude-code` o `mem setup opencode` para registrarlos.
->
-> Desde el fuente: `go build -o mem ./infrastructure/` y luego `./mem install .`.
+El protocolo de memoria (cuándo guardar, cómo cerrar sesión, juez imparcial)
+viaja con el propio servidor MCP — no depende de `AGENTS.md`/`CLAUDE.md` ni de
+ningún archivo generado en el repo, en ningún agente ni scope. `mem install`
+sigue disponible como pack opcional adicional (binario copiado, `.gitignore`,
+`AGENTS.md`/`CLAUDE.md` con el pack de trabajo completo, constitución) — ver
+sección **Multi-Agente** más abajo.
 
 ---
 
@@ -335,22 +313,29 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 | **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
 | **OpenCode** | `~/.config/opencode/opencode.json` → `mcp.gomemory` | OpenCode mergea la config de usuario con la del proyecto activo (confirmado con `opencode debug config`); el plugin se instala en el mismo paso |
 
-**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para el resto, opcional para Claude/Codex/OpenCode:
+**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor/Windsurf/Cline (sin registro global conocido), opcional para Claude/Codex/OpenCode:
 
-| Agente | Config MCP | Instrucciones | Hooks |
-|--------|-----------|---------------|-------|
-| **Claude Code** | `.mcp.json` | `AGENTS.md` + `CLAUDE.md` | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
-| **OpenCode** | `opencode.json` | `AGENTS.md` | `plugin/opencode/plugin.ts` (auto-inicio, ya es global) |
+| Agente | Config MCP | `AGENTS.md`/`CLAUDE.md` (refuerzo opcional) | Hooks |
+|--------|-----------|---------------------------------------------|-------|
+| **Claude Code** | `.mcp.json` | Sí, si se instaló con `mem install` | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
+| **OpenCode** | `opencode.json` | Sí, si se instaló con `mem install` | `plugin/opencode/plugin.ts` (auto-inicio, ya es global) |
 | **Cursor** | `.cursor/mcp.json` | — | — |
 | **Windsurf** | `.windsurf/mcp.json` | — | — |
 | **Cline** | `.cline/mcp.json` | — | — |
-| **Codex** | `~/.codex/config.toml` (tabla por proyecto, `gomemory_<proyecto>`) | `.codex/AGENTS.md` | SessionStart |
+| **Codex** | `~/.codex/config.toml` (tabla por proyecto, `gomemory_<proyecto>`) | Sí, si se instaló con `mem install` | SessionStart |
 
 > Los hooks son subcomandos del binario (`mem hook <evento>`), no scripts shell:
 > no dependen de `bash`/`curl` ni de un servidor HTTP, y corren igual en Windows.
 >
 > Regla de oro: un hook nunca aborta el arranque del agente — ante cualquier
 > error sale silencioso con código 0.
+>
+> El protocolo de memoria (cuándo guardar, buscar, cerrar sesión) ya no depende
+> de `AGENTS.md`/`CLAUDE.md`: el servidor `mem mcp` lo declara él mismo en
+> `initialize.instructions`, en la descripción de cada tool, y embebido en la
+> respuesta de `get_context` — funciona igual con solo el MCP conectado, sin
+> `mem install` ni archivos en el repo. El bloque en `AGENTS.md`/`CLAUDE.md`
+> queda como refuerzo, no como requisito.
 
 ---
 
