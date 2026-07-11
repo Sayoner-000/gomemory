@@ -47,6 +47,51 @@ func TestInsertMemory_RedactsPrivateBlocks(t *testing.T) {
 	}
 }
 
+func TestSecondsSinceLastSave(t *testing.T) {
+	db := openTestDB(t)
+
+	// Proyecto sin memorias: no hay guardado real.
+	if _, exists, err := SecondsSinceLastSave(db, "proj"); err != nil || exists {
+		t.Fatalf("proyecto vacío debía dar exists=false, got exists=%v err=%v", exists, err)
+	}
+
+	// Solo un checkpoint reciente: no cuenta como guardado real.
+	if _, err := InsertMemory(db, &domain.Memory{Project: "proj", Type: domain.Checkpoint, Content: "actividad"}); err != nil {
+		t.Fatalf("insert checkpoint: %v", err)
+	}
+	if _, exists, err := SecondsSinceLastSave(db, "proj"); err != nil || exists {
+		t.Fatalf("solo checkpoint debía dar exists=false, got exists=%v err=%v", exists, err)
+	}
+
+	// Un guardado real retrasado 20 min: existe y el reloj lo refleja.
+	id, err := InsertMemory(db, &domain.Memory{Project: "proj", Type: domain.Decision, Content: "elegimos X"})
+	if err != nil {
+		t.Fatalf("insert decision: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE memories SET created_at = datetime('now','-5 hours','-20 minutes') WHERE id = ?`, id); err != nil {
+		t.Fatalf("backdate: %v", err)
+	}
+	secs, exists, err := SecondsSinceLastSave(db, "proj")
+	if err != nil || !exists {
+		t.Fatalf("con guardado real debía dar exists=true, got exists=%v err=%v", exists, err)
+	}
+	if secs < 900 {
+		t.Fatalf("esperaba > 900s desde el guardado real, got %d", secs)
+	}
+
+	// Un checkpoint reciente NO debe reiniciar el reloj del guardado real.
+	if _, err := InsertMemory(db, &domain.Memory{Project: "proj", Type: domain.Checkpoint, Content: "más actividad"}); err != nil {
+		t.Fatalf("insert checkpoint 2: %v", err)
+	}
+	secs2, exists2, err := SecondsSinceLastSave(db, "proj")
+	if err != nil || !exists2 {
+		t.Fatalf("checkpoint reciente no debía borrar el guardado real, got exists=%v err=%v", exists2, err)
+	}
+	if secs2 < 900 {
+		t.Fatalf("el checkpoint reciente reinició el reloj indebidamente: %d", secs2)
+	}
+}
+
 func TestInsertMemory_EmptyAfterRedactionFails(t *testing.T) {
 	db := openTestDB(t)
 

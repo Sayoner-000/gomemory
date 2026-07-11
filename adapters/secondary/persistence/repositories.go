@@ -31,6 +31,10 @@ func (r *MemoryRepository) Delete(project string, id int64) (bool, error) {
 	return DeleteMemory(r.db, project, id)
 }
 
+func (r *MemoryRepository) SecondsSinceLastSave(project string) (int64, bool, error) {
+	return SecondsSinceLastSave(r.db, project)
+}
+
 var _ ports.MemoryRepository = (*MemoryRepository)(nil)
 
 type SessionRepository struct {

@@ -8,6 +8,30 @@ import (
 	"mem/domain"
 )
 
+// SecondsSinceLastSave devuelve cuántos segundos pasaron desde la última
+// memoria REAL del proyecto, excluyendo los checkpoints automáticos (type =
+// 'checkpoint') que se insertan en cada turno con actividad: esos no reflejan
+// que el agente haya registrado un aprendizaje, así que no deben reiniciar el
+// reloj del recordatorio de guardado. El segundo valor es false si el proyecto
+// todavía no tiene ninguna memoria real. El offset '-5 hours' es el mismo que
+// usa Now al escribir created_at (reusado literalmente aquí), así que se cancela
+// en la resta y el resultado es tiempo real transcurrido.
+func SecondsSinceLastSave(db *sql.DB, project string) (int64, bool, error) {
+	var secs sql.NullFloat64
+	err := db.QueryRow(
+		`SELECT (julianday(`+Now+`) - julianday(MAX(created_at))) * 86400
+		 FROM memories WHERE project = ? AND type != 'checkpoint'`,
+		project,
+	).Scan(&secs)
+	if err != nil {
+		return 0, false, fmt.Errorf("seconds since last save: %w", err)
+	}
+	if !secs.Valid {
+		return 0, false, nil
+	}
+	return int64(secs.Float64), true, nil
+}
+
 func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	title := domain.RedactPrivate(m.Title)
 	content := domain.RedactPrivate(m.Content)
