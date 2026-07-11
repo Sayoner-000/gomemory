@@ -109,6 +109,22 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       await mem(["session", "end"]);
     },
 
+    // Se dispara una vez por mensaje del usuario, antes de que lo vea el LLM
+    // (equivalente a UserPromptSubmit de Claude Code). Persiste el prompt del
+    // turno en la sesión activa vía `mem hook prompt` para que `mem` lo adjunte
+    // como provenance a lo que se guarde (misma lógica en Go). El texto real
+    // viene en output.parts (type "text").
+    "chat.message": async (_input, output) => {
+      const prompt = (output.parts ?? [])
+        .filter((p: any) => p.type === "text")
+        .map((p: any) => p.text ?? "")
+        .join("\n")
+        .trim();
+      if (prompt.length > 0) {
+        await memWithStdin(["hook", "prompt"], JSON.stringify({ prompt }));
+      }
+    },
+
     // Inyecta el protocolo de memoria y el contexto histórico en el system
     // prompt de cada turno, para que el agente sepa que debe usar las tools y
     // arranque con la memoria previa cargada.

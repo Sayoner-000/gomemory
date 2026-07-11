@@ -35,4 +35,4 @@ Leyenda: `[X]` hecho · `[ ]` pendiente
 
 - [X] T016 Captura pasiva de subagentes: hook `SubagentStop` → checkpoint desde el transcript del subagente (`recordActivityCheckpoint` reutilizado por `turn-end` y `subagent-stop`). Registrado en el instalador (`claudeHookEvents`). v1.14.0. (feat #3)
 - [X] T017 Re-inyección post-compactación: `SessionStart` matcher `compact` → `post-compact` (re-inyecta recuperación + contexto y borra el marcador para re-materializar las tools diferidas). Reemplaza a `PreCompact`. Transversal: OpenCode reusa el mismo texto vía `experimental.session.compacting` → `mem hook post-compact`. v1.15.0. (feat #4)
-- [ ] T018 Persistir el prompt originante junto al guardado. (feat #5, menor)
+- [X] T018 Persistir el prompt originante junto al guardado: `sessions.last_prompt` (capturado por turno) + `memories.origin_prompt` (backfill en `InsertMemory`, choke point único). Captura transversal: Claude Code inline en `user-prompt-submit`, OpenCode vía `chat.message` → `mem hook prompt`; agentes sin hook de mensaje degradan a `origin_prompt` vacío. v1.16.0. (feat #5)

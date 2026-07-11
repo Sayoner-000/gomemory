@@ -54,10 +54,11 @@ distinto según el agente:
 
 | Evento | Subcomando | Función |
 |--------|-----------|---------|
-| `SessionStart` | `session-start` | Abre sesión si no hay activa + inyecta contexto de sesiones previas |
+| `SessionStart` (`startup\|resume\|clear`) | `session-start` | Abre sesión si no hay activa + inyecta contexto de sesiones previas |
+| `SessionStart` (`compact`) | `post-compact` | **Después** de compactar, re-inyecta recuperación + contexto y reactiva las tools MCP diferidas. Sobrevive a la compactación (reemplaza al `pre-compact` legado) |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como red de seguridad (acepta `summary` por stdin) |
-| `PreCompact` | `pre-compact` | Inyecta instrucciones de recuperación + contexto antes de compactar |
-| `UserPromptSubmit` | `user-prompt-submit` | Primer prompt: activa tools MCP + recordatorio del protocolo; luego pasivo |
+| `SubagentStop` | `subagent-stop` | Al terminar un subagente (`Task`), registra un checkpoint con su actividad |
+| `UserPromptSubmit` | `user-prompt-submit` | Primer prompt: activa tools MCP + recordatorio del protocolo; luego pasivo. Además persiste el prompt del turno como provenance (equivale a `mem hook prompt`) |
 
 ### Capas de Resiliencia
 

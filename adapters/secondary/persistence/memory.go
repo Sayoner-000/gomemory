@@ -39,15 +39,42 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 		return 0, fmt.Errorf("insert memory: contenido vacío tras redactar <private>")
 	}
 
+	// Provenance: si el llamador no fijó un prompt originante, se hereda del
+	// último prompt de la sesión activa (lo persiste el hook/plugin por turno).
+	// Choke point único: así TODAS las vías de guardado (MCP, checkpoint, CLI,
+	// TUI) adjuntan la provenance sin tocar cada call site. Vacío si el agente
+	// no expone el prompt (clientes MCP sin hooks) — degradación limpia.
+	origin := domain.RedactPrivate(m.OriginPrompt)
+	if strings.TrimSpace(origin) == "" {
+		origin = activeSessionLastPrompt(db, m.Project)
+	}
+
 	res, err := db.Exec(
-		`INSERT INTO memories (project, session_id, type, title, content, filepath, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
-		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath,
+		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
+		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert memory: %w", err)
 	}
 	return res.LastInsertId()
+}
+
+// activeSessionLastPrompt devuelve el último prompt registrado en la sesión
+// activa del proyecto (o "" si no hay sesión activa o prompt). Best-effort: ante
+// cualquier error devuelve "" para no bloquear el guardado.
+func activeSessionLastPrompt(db *sql.DB, project string) string {
+	var p sql.NullString
+	err := db.QueryRow(
+		`SELECT last_prompt FROM sessions
+		 WHERE project = ? AND ended_at IS NULL
+		 ORDER BY created_at DESC LIMIT 1`,
+		project,
+	).Scan(&p)
+	if err != nil || !p.Valid {
+		return ""
+	}
+	return p.String
 }
 
 func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error) {
@@ -56,7 +83,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 	}
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), created_at, updated_at
 		 FROM memories WHERE project = ? ORDER BY created_at DESC LIMIT ?`,
 		project, limit,
 	)
@@ -70,7 +97,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 		var m domain.Memory
 		var memType string
 		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.CreatedAt, &m.UpdatedAt)
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.CreatedAt, &m.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
@@ -102,7 +129,7 @@ func SearchMemories(db *sql.DB, project, query string, limit int) ([]domain.Memo
 	like := "%" + query + "%"
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), created_at, updated_at
 		 FROM memories WHERE project = ? AND (content LIKE ? OR title LIKE ?)
 		 ORDER BY
 		   CASE
@@ -124,7 +151,7 @@ func SearchMemories(db *sql.DB, project, query string, limit int) ([]domain.Memo
 		var m domain.Memory
 		var memType string
 		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.CreatedAt, &m.UpdatedAt)
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.CreatedAt, &m.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}

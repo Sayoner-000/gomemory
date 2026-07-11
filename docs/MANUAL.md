@@ -61,9 +61,9 @@ go build -o mem ./infrastructure/
 ### Hooks portables
 
 Los hooks de Claude Code son subcomandos del binario (`mem hook session-start`,
-`session-end`, `pre-compact`, `user-prompt-submit`): no usan `bash`/`curl` ni
-servidor HTTP y funcionan igual en Windows. Se configuran solos con
-`mem install .` o `mem setup claude-code`.
+`session-end`, `post-compact`, `user-prompt-submit`, `subagent-stop`): no usan
+`bash`/`curl` ni servidor HTTP y funcionan igual en Windows. Se configuran solos
+con `mem install .` o `mem setup claude-code`.
 
 ### Prerrequisitos
 
@@ -131,10 +131,11 @@ Esto:
 
 | Evento | Subcomando | Función |
 |--------|-----------|---------|
-| `SessionStart` | `session-start` | Abre sesión si no hay activa **e inyecta el contexto de sesiones previas**. El agente arranca recordando el proyecto. |
+| `SessionStart` (`startup\|resume\|clear`) | `session-start` | Abre sesión si no hay activa **e inyecta el contexto de sesiones previas**. El agente arranca recordando el proyecto. |
+| `SessionStart` (`compact`) | `post-compact` | **Después** de compactar, re-inyecta recuperación + contexto y reactiva las tools MCP diferidas. Sobrevive a la compactación (reemplaza al `pre-compact` legado). En OpenCode lo cubre `experimental.session.compacting`. |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. |
-| `PreCompact` | `pre-compact` | Antes de compactar, inyecta **instrucciones de recuperación + contexto** para que no se pierda el estado de trabajo. |
-| `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. |
+| `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. En **cada** prompt persiste el texto del turno como provenance (`origin_prompt`) de lo que se guarde. En OpenCode el equivalente es `chat.message` → `mem hook prompt`. |
+| `SubagentStop` | `subagent-stop` | Al terminar un subagente (tool `Task`), registra un **checkpoint** con los archivos y comandos que tocó (actividad que vive solo en el transcript del subagente). |
 | `Stop` | `turn-end` | Al terminar cada turno, registra automáticamente (sin gastar tokens del agente) qué archivos se editaron y qué comandos corrieron, como memoria tipo `checkpoint`. Turnos de puro chat no generan nada. En OpenCode el equivalente es el evento `session.idle`. |
 
 > Regla de oro: un hook nunca aborta el arranque del agente — ante error sale con
