@@ -34,5 +34,5 @@ Leyenda: `[X]` hecho · `[ ]` pendiente
 ## Pendiente para iteraciones futuras (fuera de alcance de v1.13.0)
 
 - [X] T016 Captura pasiva de subagentes: hook `SubagentStop` → checkpoint desde el transcript del subagente (`recordActivityCheckpoint` reutilizado por `turn-end` y `subagent-stop`). Registrado en el instalador (`claudeHookEvents`). v1.14.0. (feat #3)
-- [ ] T017 Re-inyección post-compactación: `SessionStart` matcher `compact` que sobreviva a la compactación (hoy parcial vía `PreCompact`). (feat #4)
+- [X] T017 Re-inyección post-compactación: `SessionStart` matcher `compact` → `post-compact` (re-inyecta recuperación + contexto y borra el marcador para re-materializar las tools diferidas). Reemplaza a `PreCompact`. Transversal: OpenCode reusa el mismo texto vía `experimental.session.compacting` → `mem hook post-compact`. v1.15.0. (feat #4)
 - [ ] T018 Persistir el prompt originante junto al guardado. (feat #5, menor)

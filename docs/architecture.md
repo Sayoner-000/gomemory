@@ -68,7 +68,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `serve` | `adapters/primary/cli/cmd_serve.go` | Servidor HTTP de plugins (`127.0.0.1:9735`). Lo usa el plugin de OpenCode |
-| `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `nudge`) |
+| `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `post-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `nudge`) |
 | `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) |
 | `purge` | `adapters/primary/cli/cmd_purge.go` | Borra memorias (proyecto actual por defecto; `--all`/`--type`/`--older-than-days`) |
 | `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` de `.memory/mem.db` (recupera espacio, no borra nada) |
@@ -382,9 +382,10 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 
 | Evento Claude Code | Subcomando | Para qué sirve |
 |---|---|---|
-| `SessionStart` | `session-start` | Abre una sesión si no hay activa **e inyecta el contexto de sesiones previas** como `additionalContext`. El agente arranca recordando el proyecto sin que se lo pidan |
+| `SessionStart` (matcher `startup\|resume\|clear`) | `session-start` | Abre una sesión si no hay activa **e inyecta el contexto de sesiones previas** como `additionalContext`. El agente arranca recordando el proyecto sin que se lo pidan |
+| `SessionStart` (matcher `compact`) | `post-compact` | **Después** de compactar, re-inyecta **instrucciones de recuperación + el contexto previo** y borra el marcador `.session-tools-injected` para que el siguiente prompt vuelva a materializar las tools MCP diferidas. Su salida sobrevive a la compactación (a diferencia de `pre-compact`). En OpenCode lo cubre `experimental.session.compacting`, que empuja el mismo texto (vía `mem hook post-compact`) al contexto retenido |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta un `summary` opcional por stdin). Evita sesiones colgadas aunque el modelo no llame `end_session` |
-| `PreCompact` | `pre-compact` | Antes de compactar el contexto, inyecta **instrucciones de recuperación + el contexto previo** para que la compactación no borre el estado de trabajo |
+| `PreCompact` _(legado)_ | `pre-compact` | Registro anterior: inyectaba recuperación **antes** de compactar, pero esa salida es justo lo que la compactación resume/descarta. Reemplazado por `SessionStart(compact)`; el handler se conserva para instalaciones previas |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt fuerza la carga de las tools MCP diferidas con un `systemMessage` (`ToolSearch select:` + nombres reales) e inyecta el recordatorio del protocolo como `additionalContext`; en los prompts siguientes recuerda guardar si el agente lleva >15 min sin un guardado real (con debounce de 15 min). El marcador `.session-tools-injected` distingue el primer prompt |
 | `SubagentStop` | `subagent-stop` | Cuando un subagente (tool `Task`) termina, registra un **checkpoint de subagente** con los archivos y comandos que tocó. Llena un hueco real: esa actividad vive en el transcript propio del subagente y el hook `Stop` del agente principal no la ve (allí el subagente aparece solo como un `tool_use` `Task`). En OpenCode no hace falta: los subagentes son sub-sesiones que emiten `session.idle` y ya los captura el mismo camino de `turn-end` |
 | _(interno, transversal)_ | `nudge` | Imprime en texto plano el recordatorio de guardado (o nada) según la misma decisión que `user-prompt-submit`. Lo consumen integraciones sin acceso al JSON de Claude Code, como el plugin de OpenCode, para que el comportamiento sea idéntico entre agentes |
