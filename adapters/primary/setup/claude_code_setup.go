@@ -322,6 +322,22 @@ func writeClaudeHooks(root string, ref AgentRef) error {
 		}
 		hooks[event] = kept
 	}
+
+	// Limpia entradas de gomemory en eventos que ya NO gestionamos (p. ej.
+	// PreCompact, retirado a favor de SessionStart(compact)): al subir de versión
+	// y re-correr setup no deben quedar hooks huérfanos que dupliquen trabajo.
+	// Solo toca entradas de gomemory; preserva las de terceros y elimina la clave
+	// del evento si queda vacía.
+	for event, raw := range hooks {
+		if _, managed := claudeHookEvents[event]; managed {
+			continue
+		}
+		if kept := filterOutGomemoryHooks(raw); len(kept) == 0 {
+			delete(hooks, event)
+		} else {
+			hooks[event] = kept
+		}
+	}
 	settings["hooks"] = hooks
 
 	data, _ := json.MarshalIndent(settings, "", "  ")

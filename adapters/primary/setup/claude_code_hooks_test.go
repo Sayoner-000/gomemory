@@ -1,6 +1,8 @@
 package setup
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -62,6 +64,43 @@ func TestWriteClaudeHooksIsIdempotent(t *testing.T) {
 	entries := sessionStartEntries(t, readSettings(t, root))
 	if len(entries) != 2 {
 		t.Errorf("tras dos corridas esperaba exactamente 2 entradas SessionStart, got %d: %v", len(entries), entries)
+	}
+}
+
+func TestWriteClaudeHooksRemovesRetiredGomemoryEvents(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".claude"), 0755); err != nil {
+		t.Fatalf("mkdir .claude: %v", err)
+	}
+	// Simula una instalación anterior: PreCompact de gomemory (ya retirado) +
+	// un PreCompact de un tercero que NO debe tocarse.
+	existing := `{
+		"hooks": {
+			"PreCompact": [
+				{"matcher": "", "hooks": [{"type": "command", "command": "mem hook pre-compact"}]},
+				{"matcher": "", "hooks": [{"type": "command", "command": "otra-tool hook whatever"}]}
+			]
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(root, ".claude", "settings.json"), []byte(existing), 0644); err != nil {
+		t.Fatalf("write settings.json: %v", err)
+	}
+
+	if err := writeClaudeHooks(root, AgentRef{HookCommand: "mem"}); err != nil {
+		t.Fatalf("writeClaudeHooks: %v", err)
+	}
+
+	settings := readSettings(t, root)
+	hooks, _ := settings["hooks"].(map[string]interface{})
+	pre, _ := hooks["PreCompact"].([]interface{})
+	for _, e := range pre {
+		if IsGomemoryHookEntry(e) {
+			t.Error("la entrada retirada de gomemory (pre-compact) debió limpiarse al re-correr setup")
+		}
+	}
+	// El hook de un tercero en PreCompact debe sobrevivir.
+	if len(pre) != 1 {
+		t.Errorf("esperaba conservar solo el PreCompact de terceros, got %d entradas", len(pre))
 	}
 }
 
