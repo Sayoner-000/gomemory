@@ -99,8 +99,14 @@ El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
   actividad que de otro modo se perdería: vive en el transcript propio del
   subagente, no en el del agente principal. En OpenCode ya la cubre el camino de
   `turn-end` sobre la sub-sesión.
-- `mem hook pre-compact` — antes de compactar, inyecta instrucciones de
-  recuperación + el contexto previo.
+- `mem hook post-compact` — **después** de compactar (Claude Code lo dispara vía
+  `SessionStart` matcher `compact`), re-inyecta las instrucciones de recuperación
+  + el contexto previo y borra el marcador de sesión para que el siguiente prompt
+  vuelva a materializar las tools MCP diferidas. A diferencia del antiguo
+  `pre-compact` (cuya salida la propia compactación resume/descarta), esta
+  sobrevive. En OpenCode lo cubre `experimental.session.compacting`, que empuja el
+  mismo texto (vía `mem hook post-compact`) al contexto retenido. `pre-compact`
+  se conserva solo como handler legado para instalaciones anteriores.
 - `mem hook session-end` — cierra la sesión como **red de seguridad**, aunque el
   modelo no haya llamado `end_session`. El resumen rico lo aporta el modelo.
 
@@ -190,7 +196,7 @@ After compaction, IMMEDIATELY:
 | System Prompt (OpenCode) | Via plugin transform | Sí (o `mem setup opencode`) | ✅ Siempre |
 | Bootstrap de tools + reminder (Claude Code) | `mem hook user-prompt-submit` (1er prompt) | Sí (o `mem setup claude-code`) | ✅ Se reinyecta por sesión |
 | Recordatorio de guardado (transversal) | `mem hook user-prompt-submit` (siguientes) / `mem hook nudge` (OpenCode y otros) | Sí (o `mem setup <agente>`) | ✅ Por turno, con debounce |
-| Compaction Hook (Claude Code) | `mem hook pre-compact` | Sí (o `mem setup claude-code`) | ✅ Se ejecuta pre-compactación |
+| Recuperación post-compactación (transversal) | `mem hook post-compact` — Claude Code: `SessionStart` matcher `compact`; OpenCode: `experimental.session.compacting` | Sí (o `mem setup <agente>`) | ✅ Se ejecuta **después** de compactar |
 | `initialize.instructions` (MCP nativo) | `mem mcp` (`ServerOptions.Instructions`) | **No** — cualquier scope/agente | ✅ Una vez por conexión |
 | Descripciones de tools (MCP nativo) | `mem mcp` (`Tool.Description`) | **No** — cualquier scope/agente | ✅ Siempre visibles |
 | `get_context` embebido (MCP nativo) | `mem mcp` (tool + recurso `mem://context`) | **No** — cualquier scope/agente | ✅ Cada llamada |

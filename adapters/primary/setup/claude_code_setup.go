@@ -23,15 +23,28 @@ type AgentRef struct {
 	MCPArgs []string
 }
 
-// claudeHookEvents mapea cada evento de hook de Claude Code al subcomando
-// `mem hook <evento>` que lo implementa de forma portable (sin scripts .sh).
-var claudeHookEvents = map[string]string{
-	"SessionStart":     "session-start",
-	"PreCompact":       "pre-compact",
-	"UserPromptSubmit": "user-prompt-submit",
-	"SessionEnd":       "session-end",
-	"Stop":             "turn-end",
-	"SubagentStop":     "subagent-stop",
+// hookReg es una entrada de hook a registrar para un evento de Claude Code: el
+// subcomando `mem hook <sub>` que lo implementa (portable, sin scripts .sh) y el
+// matcher que lo dispara ("" = todos los orígenes del evento).
+type hookReg struct {
+	matcher string
+	sub     string
+}
+
+// claudeHookEvents mapea cada evento de hook de Claude Code a las entradas
+// `mem hook <sub>` que lo implementan. SessionStart se divide por matcher:
+// startup/resume/clear cargan la sesión y su contexto; compact re-inyecta la
+// recuperación DESPUÉS de compactar (sobrevive a la compactación, a diferencia
+// del antiguo PreCompact, ya retirado del registro).
+var claudeHookEvents = map[string][]hookReg{
+	"SessionStart": {
+		{matcher: "startup|resume|clear", sub: "session-start"},
+		{matcher: "compact", sub: "post-compact"},
+	},
+	"UserPromptSubmit": {{matcher: "", sub: "user-prompt-submit"}},
+	"SessionEnd":       {{matcher: "", sub: "session-end"}},
+	"Stop":             {{matcher: "", sub: "turn-end"}},
+	"SubagentStop":     {{matcher: "", sub: "subagent-stop"}},
 }
 
 func InstallClaudeCode(root string, ref AgentRef) error {
@@ -296,15 +309,17 @@ func writeClaudeHooks(root string, ref AgentRef) error {
 		hooks = map[string]interface{}{}
 	}
 
-	for event, sub := range claudeHookEvents {
-		command := ref.HookCommand + " hook " + sub
+	for event, regs := range claudeHookEvents {
 		kept := filterOutGomemoryHooks(hooks[event])
-		kept = append(kept, map[string]interface{}{
-			"matcher": "",
-			"hooks": []interface{}{
-				map[string]interface{}{"type": "command", "command": command},
-			},
-		})
+		for _, r := range regs {
+			command := ref.HookCommand + " hook " + r.sub
+			kept = append(kept, map[string]interface{}{
+				"matcher": r.matcher,
+				"hooks": []interface{}{
+					map[string]interface{}{"type": "command", "command": command},
+				},
+			})
+		}
 		hooks[event] = kept
 	}
 	settings["hooks"] = hooks
@@ -357,8 +372,10 @@ func hookCommandIsGomemory(cmd string) bool {
 	return strings.Contains(cmd, "hook session-start") ||
 		strings.Contains(cmd, "hook session-end") ||
 		strings.Contains(cmd, "hook pre-compact") ||
+		strings.Contains(cmd, "hook post-compact") ||
 		strings.Contains(cmd, "hook user-prompt-submit") ||
 		strings.Contains(cmd, "hook turn-end") ||
+		strings.Contains(cmd, "hook subagent-stop") ||
 		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
 		strings.Contains(cmd, "plugins/gomemory")
 }

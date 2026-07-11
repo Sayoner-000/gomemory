@@ -34,6 +34,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookSessionEnd(deps)
 	case "pre-compact":
 		hookPreCompact(deps)
+	case "post-compact":
+		hookPostCompact(deps)
 	case "user-prompt-submit":
 		hookUserPromptSubmit(deps)
 	case "nudge":
@@ -110,9 +112,33 @@ func hookSessionEnd(deps *Deps) {
 	os.Exit(0)
 }
 
-// hookPreCompact se ejecuta antes de la compactación del contexto. Inyecta
-// instrucciones de recuperación + el contexto previo para que nada se pierda.
+// hookPreCompact se ejecuta ANTES de la compactación del contexto. Es el
+// registro legado: su salida es justo lo que la compactación resume/descarta,
+// por eso el mecanismo vigente es hookPostCompact (SessionStart matcher=compact),
+// cuya salida sobrevive a la compactación. Se conserva el handler para
+// instalaciones anteriores que aún lo tengan registrado.
 func hookPreCompact(deps *Deps) {
+	printRecoveryAndContext(deps)
+	os.Exit(0)
+}
+
+// hookPostCompact corre DESPUÉS de la compactación (SessionStart matcher=compact).
+// A diferencia de PreCompact, su salida sobrevive a la compactación: re-inyecta
+// las instrucciones de recuperación + el contexto previo, y borra el marcador de
+// sesión para que el siguiente user-prompt-submit re-materialice las tools MCP
+// diferidas (que la compactación descarta) vía el bootstrap de ToolSearch.
+func hookPostCompact(deps *Deps) {
+	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
+		os.Remove(sessionMarkerPath(deps, root))
+	}
+	printRecoveryAndContext(deps)
+	os.Exit(0)
+}
+
+// printRecoveryAndContext imprime las instrucciones de recuperación de memoria
+// seguidas del contexto de la sesión previa (si hay). Compartido por los hooks
+// de pre y post compactación.
+func printRecoveryAndContext(deps *Deps) {
 	fmt.Print(compactionRecoveryInstructions)
 
 	if _, err := deps.ProjectRepo.FindRoot(); err == nil {
@@ -121,7 +147,6 @@ func hookPreCompact(deps *Deps) {
 			fmt.Print(ctx)
 		}
 	}
-	os.Exit(0)
 }
 
 // hookUserPromptSubmit corre en cada prompt del usuario. En el primer prompt
