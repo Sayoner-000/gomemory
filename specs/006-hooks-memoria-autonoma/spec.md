@@ -35,7 +35,7 @@ Como usuario que abre una sesión en un proyecto con gomemory, quiero que el age
 
 Como usuario en una sesión larga, quiero que, si el agente lleva rato trabajando sin registrar decisiones ni hallazgos, algo le recuerde guardar en memoria, para no perder contexto por olvido del agente.
 
-**Why this priority**: Sin recordatorios periódicos, la única señal de "guardá" ocurría al inicio de la sesión; en sesiones largas el agente se "olvidaba" y la memoria quedaba incompleta.
+**Why this priority**: Sin recordatorios periódicos, la única señal para guardar ocurría al inicio de la sesión; en sesiones largas el agente se "olvidaba" y la memoria quedaba incompleta.
 
 **Independent Test**: Simular una sesión de más de 15 minutos sin guardados reales y verificar que el siguiente turno recibe un recordatorio; verificar que un guardado reciente lo silencia; verificar que no se repite antes del período de enfriamiento.
 
@@ -79,12 +79,12 @@ Como usuario que puede usar gomemory desde distintos agentes, quiero que el comp
 
 ## Alcance
 
-**Incluido en esta iteración (implementado):**
-- Fix de carga de tools diferidas (FR-001).
-- Recordatorio periódico de guardado, transversal Claude Code + OpenCode (FR-002 a FR-005).
+**Implementado:**
+- Fix de carga de tools diferidas (FR-001). — v1.13.0
+- Recordatorio periódico de guardado, transversal Claude Code + OpenCode (FR-002 a FR-005). — v1.13.0
+- Captura pasiva de subagentes (hook `SubagentStop` → checkpoint de subagente); en OpenCode ya la cubre el camino de `turn-end` sobre la sub-sesión. — v1.14.0
 
-**Fuera de alcance de esta iteración (pendiente, ver plan.md):**
-- Captura pasiva de subagentes (hook `SubagentStop`).
+**Pendiente (ver plan.md y tasks.md):**
 - Re-inyección de protocolo/contexto post-compactación (`SessionStart` matcher `compact`), hoy cubierto parcialmente por `PreCompact`.
 - Persistencia del prompt originante junto al guardado.
 

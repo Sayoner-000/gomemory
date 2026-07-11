@@ -94,6 +94,11 @@ El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
   Claude Code. Lo consumen integraciones que no leen el JSON de Claude Code, como
   el plugin de OpenCode (que lo invoca por turno). Así el umbral y el debounce
   son idénticos en todos los agentes.
+- `mem hook subagent-stop` — cuando un subagente (tool `Task`) termina, guarda
+  un **checkpoint de subagente** con los archivos y comandos que tocó. Captura
+  actividad que de otro modo se perdería: vive en el transcript propio del
+  subagente, no en el del agente principal. En OpenCode ya la cubre el camino de
+  `turn-end` sobre la sub-sesión.
 - `mem hook pre-compact` — antes de compactar, inyecta instrucciones de
   recuperación + el contexto previo.
 - `mem hook session-end` — cierra la sesión como **red de seguridad**, aunque el
