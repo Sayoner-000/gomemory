@@ -128,19 +128,16 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       }
     },
 
-    // Antes de compactar, persiste el contexto y deja una instrucción explícita
-    // para recuperar el estado después de la compactación.
+    // Antes de compactar, empuja al `output.context` retenido (sobrevive a la
+    // compactación) las instrucciones de recuperación + el contexto histórico.
+    // Reusa `mem hook post-compact` para que el texto de recuperación tenga una
+    // sola fuente en Go, compartida con el hook SessionStart(compact) de Claude
+    // Code — misma lógica transversal que `mem hook nudge`.
     "experimental.session.compacting": async (_input, output) => {
-      const ctx = await mem(["context"]);
-      if (ctx) {
-        output.context.push(
-          "## gomemory — persist across compaction\n\n" + ctx,
-        );
+      const recovery = await mem(["hook", "post-compact"]);
+      if (recovery) {
+        output.context.push(recovery);
       }
-      output.context.push(
-        "AFTER COMPACTION — FIRST ACTIONS: call end_session(summary) to persist what was done, " +
-          "then get_context() (or run `mem context`) to recover prior memory before continuing.",
-      );
     },
   };
 };
