@@ -10,7 +10,7 @@ usuario tenga que invocar herramientas MCP manualmente.
 
 | Agente | Tipo | Archivos |
 |--------|------|----------|
-| OpenCode | Plugin TypeScript | `infrastructure/plugin/opencode/plugin.ts` |
+| OpenCode | Plugin TypeScript | `infrastructure/plugin/opencode/gomemory.ts` |
 | Claude Code | Hooks + Skill | `infrastructure/plugin/claude-code/` |
 
 ## Arquitectura
@@ -18,13 +18,15 @@ usuario tenga que invocar herramientas MCP manualmente.
 Cada agente integra la memoria por dos vías comunes (MCP stdio para las tools, y
 el bloque del Memory Protocol en sus instrucciones) pero el **ciclo de vida**
 —abrir/cerrar sesión, inyectar contexto, recuperar tras compactación— se conecta
-distinto según el agente:
+distinto según el agente. En ambos casos se habla **directo al binario `mem`**
+(sin servidor HTTP): Claude Code vía hooks `mem hook <evento>`, OpenCode vía un
+plugin que ejecuta `mem <cmd>` como subproceso.
 
 ```
                  ┌──────────────────────────── OpenCode ───────────────────────┐
-                 │  plugin.ts  ──HTTP──▶  mem serve (127.0.0.1:9735)            │
+                 │  gomemory.ts  ──subproceso──▶  mem <cmd> / mem hook <evento> │
                  │                                  │                           │
- Agente ─────────┤                                  ├──▶ SQLite (.memory/mem.db)│
+ Agente ─────────┤                                  ├──▶ SQLite (store global)  │
                  │                                  │                           │
                  │  ┌────────────────────────── Claude Code ────────────────┐  │
                  │  │  hooks  ──▶  mem hook <evento>  ──directo──▶ repos ─────┘  │
@@ -33,8 +35,9 @@ distinto según el agente:
         + común a ambos:  MCP stdio (mem mcp → tools)  ·  Memory Protocol en instrucciones
 ```
 
-- **OpenCode** (`plugin.ts`): gestiona el ciclo de vida vía el **servidor HTTP**
-  (`mem serve`), que auto-inicia.
+- **OpenCode** (`gomemory.ts`): gestiona el ciclo de vida ejecutando el binario
+  `mem` como subproceso (`mem session start/end`, `mem context`, `mem hook nudge`,
+  `mem hook post-compact`, `mem hook prompt`, `mem hook turn-end`). No usa HTTP.
 - **Claude Code** (hooks): gestiona el ciclo de vida con **hooks portables**
   (`mem hook <evento>`) que hablan **directo a los repositorios** — sin HTTP, sin
   `bash`/`curl`. Funcionan igual en Windows.
@@ -42,13 +45,17 @@ distinto según el agente:
 ### Componentes
 
 1. **Plugin / hooks del agente**: integra la memoria en su ciclo de vida —
-   gestiona sesiones, inyecta contexto y recupera tras compactación.
+   gestiona sesiones, inyecta contexto y recupera tras compactación. Ambos
+   invocan el binario `mem` directamente (subproceso en OpenCode, hooks en
+   Claude Code).
 
-2. **Servidor HTTP** (`mem serve`): background para **OpenCode**. Maneja sesiones
-   y genera contexto. Escucha en `127.0.0.1:9735` por defecto. Claude Code no lo usa.
-
-3. **Memory Protocol**: conjunto de reglas inyectadas en las instrucciones del
+2. **Memory Protocol**: conjunto de reglas inyectadas en las instrucciones del
    agente que definen cuándo guardar, buscar y cerrar memoria.
+
+> **Nota (legado)**: existe un comando `mem serve` (servidor HTTP en
+> `127.0.0.1:9735`), remanente de una arquitectura anterior. Los plugins
+> actuales **no lo usan** — hablan directo al binario. Se conserva como utilidad
+> independiente, no es parte del flujo de ningún agente.
 
 ### Hooks de Claude Code — para qué sirve cada uno
 
@@ -59,6 +66,20 @@ distinto según el agente:
 | `SessionEnd` | `session-end` | Cierra la sesión activa como red de seguridad (acepta `summary` por stdin) |
 | `SubagentStop` | `subagent-stop` | Al terminar un subagente (`Task`), registra un checkpoint con su actividad |
 | `UserPromptSubmit` | `user-prompt-submit` | Primer prompt: activa tools MCP + recordatorio del protocolo; luego pasivo. Además persiste el prompt del turno como provenance (equivale a `mem hook prompt`) |
+
+### Eventos de OpenCode — para qué sirve cada uno
+
+El plugin `gomemory.ts` mapea los eventos de OpenCode al binario `mem`, en
+paralelo a los hooks de Claude Code (misma lógica, resuelta en Go):
+
+| Evento OpenCode | Invoca | Función |
+|-----------------|--------|---------|
+| `session.created` | `mem session start` | Abre la sesión de gomemory |
+| `session.idle` | `mem hook turn-end` (stdin) | Checkpoint de actividad del turno (archivos/comandos) |
+| `chat.message` | `mem hook prompt` (stdin) | Persiste el prompt del turno como provenance (`origin_prompt`) |
+| `experimental.chat.system.transform` | `mem context` + `mem hook nudge` | Inyecta protocolo + contexto histórico + recordatorio de guardado por turno |
+| `experimental.session.compacting` | `mem hook post-compact` | Empuja recuperación + contexto al contexto retenido (sobrevive a la compactación) |
+| `dispose` | `mem session end` | Cierra la sesión al descargarse el plugin |
 
 ### Capas de Resiliencia
 
@@ -81,24 +102,17 @@ mem setup claude-code
 mem setup --port 9735 opencode
 ```
 
-## Servidor HTTP
+## Servidor HTTP (legado)
 
-El servidor HTTP de background es auto-iniciado por los plugins. También puede
-iniciarse manualmente:
+`mem serve` levanta un servidor HTTP en `127.0.0.1:9735`. **Los plugins actuales
+no lo usan** (hablan directo al binario `mem`); se conserva como utilidad
+independiente de una arquitectura previa. No hace falta iniciarlo para que
+OpenCode o Claude Code funcionen.
 
 ```bash
 mem serve              # Puerto por defecto 9735
 mem serve --port 9735  # Puerto personalizado
 ```
-
-### API HTTP
-
-| Endpoint | Método | Descripción |
-|----------|--------|-------------|
-| `POST /session/start` | Crear sesión (o reusar activa) | |
-| `POST /session/end` | Cerrar sesión con resumen | |
-| `GET /context` | Obtener contexto de sesiones previas | |
-| `GET /health` | Healthcheck | |
 
 ## Memory Protocol
 
