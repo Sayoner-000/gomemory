@@ -36,6 +36,11 @@ type Memory struct {
 	Title     string     `json:"title"`
 	Content   string     `json:"content"`
 	Filepath  string     `json:"filepath,omitempty"`
-	CreatedAt string     `json:"created_at"`
-	UpdatedAt string     `json:"updated_at"`
+	// OriginPrompt es el prompt del usuario que originó este guardado, adjuntado
+	// automáticamente en el momento del Insert desde el último prompt de la sesión
+	// activa (ver SetSessionLastPrompt). Da trazabilidad: por qué se guardó esto.
+	// Vacío cuando el agente no expone el prompt (p. ej. clientes MCP sin hooks).
+	OriginPrompt string `json:"origin_prompt,omitempty"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }

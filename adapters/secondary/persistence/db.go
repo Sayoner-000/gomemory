@@ -169,6 +169,12 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
+	// Columnas aditivas sobre tablas ya existentes. El esquema usa
+	// `CREATE TABLE IF NOT EXISTS`, así que en bases previas estas columnas no se
+	// crean solas: se agregan con ALTER idempotente (ignora "duplicate column").
+	addColumnIfMissing(db, "memories", "origin_prompt", "TEXT")
+	addColumnIfMissing(db, "sessions", "last_prompt", "TEXT")
+
 	// FTS5 es best-effort y separado del schema principal: si la build de
 	// sqlite en uso no lo soporta, code_search simplemente no existe y
 	// SearchNodes cae a LIKE — no debe romper la migración del resto de
@@ -178,4 +184,12 @@ func migrate(db *sql.DB) error {
 	)`)
 
 	return nil
+}
+
+// addColumnIfMissing agrega una columna a una tabla si aún no existe. Es
+// idempotente: SQLite no soporta `ADD COLUMN IF NOT EXISTS`, así que el error de
+// columna duplicada (base ya migrada) se ignora en silencio. Best-effort: no
+// debe romper la migración del resto del esquema.
+func addColumnIfMissing(db *sql.DB, table, column, typ string) {
+	db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, typ))
 }

@@ -107,6 +107,14 @@ El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
   sobrevive. En OpenCode lo cubre `experimental.session.compacting`, que empuja el
   mismo texto (vía `mem hook post-compact`) al contexto retenido. `pre-compact`
   se conserva solo como handler legado para instalaciones anteriores.
+- `mem hook prompt` — punto de entrada **transversal** de la captura del prompt
+  originante: recibe `{"prompt": …}` por stdin y lo persiste en la sesión activa
+  (`sessions.last_prompt`). Al guardar cualquier memoria, `InsertMemory` adjunta
+  ese prompt como `origin_prompt` (provenance: por qué se guardó esto). En Claude
+  Code la captura va **inline** dentro de `user-prompt-submit`; el plugin de
+  OpenCode lo invoca desde su evento `chat.message`. Agentes sin hook de mensaje
+  (Cursor/Windsurf/Cline/Codex) simplemente no aportan prompt: `origin_prompt`
+  queda vacío (degradación limpia).
 - `mem hook session-end` — cierra la sesión como **red de seguridad**, aunque el
   modelo no haya llamado `end_session`. El resumen rico lo aporta el modelo.
 

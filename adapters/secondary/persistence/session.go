@@ -30,6 +30,32 @@ func StartSession(db *sql.DB, project string) (*domain.Session, error) {
 	}, nil
 }
 
+// SetSessionLastPrompt guarda el último prompt del usuario en la sesión activa
+// del proyecto, para que InsertMemory lo adjunte como provenance a lo que se
+// guarde en el turno. Redacta `<private>` y trunca a un tamaño razonable. Si no
+// hay sesión activa no hace nada (best-effort): el prompt no se pierde de forma
+// crítica, solo no habrá provenance para ese turno.
+func SetSessionLastPrompt(db *sql.DB, project, prompt string) error {
+	prompt = domain.RedactPrivate(prompt)
+	if len(prompt) > maxOriginPromptLen {
+		prompt = prompt[:maxOriginPromptLen]
+	}
+	_, err := db.Exec(
+		`UPDATE sessions SET last_prompt = ?
+		 WHERE id = (SELECT id FROM sessions WHERE project = ? AND ended_at IS NULL
+		             ORDER BY created_at DESC LIMIT 1)`,
+		prompt, project,
+	)
+	if err != nil {
+		return fmt.Errorf("set session last prompt: %w", err)
+	}
+	return nil
+}
+
+// maxOriginPromptLen acota el prompt persistido para no inflar la BD ni el
+// contexto con mensajes largos; alcanza para dar trazabilidad del pedido.
+const maxOriginPromptLen = 2000
+
 func EndSession(db *sql.DB, id, summary string) error {
 	res, err := db.Exec(
 		`UPDATE sessions SET ended_at = `+Now+`, summary = ? WHERE id = ? AND ended_at IS NULL`,

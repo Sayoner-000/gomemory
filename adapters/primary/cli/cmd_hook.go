@@ -44,6 +44,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookTurnEnd(deps)
 	case "subagent-stop":
 		hookSubagentStop(deps)
+	case "prompt":
+		hookPrompt(deps)
 	default:
 		// Evento desconocido: salida vacía, sin error.
 		os.Exit(0)
@@ -158,13 +160,20 @@ func hookUserPromptSubmit(deps *Deps) {
 		fmt.Print("{}")
 		os.Exit(0)
 	}
+	project := deps.ProjectRepo.Key(root)
+
+	// Provenance: persistir el prompt de este turno en la sesión activa para que
+	// InsertMemory lo adjunte a lo que se guarde. Transversal con OpenCode, que
+	// hace lo mismo vía `mem hook prompt` desde su evento chat.message.
+	if prompt := promptFromStdin(); strings.TrimSpace(prompt) != "" {
+		deps.SessionRepo.SetLastPrompt(project, prompt)
+	}
 
 	marker := sessionMarkerPath(deps, root)
 	if _, err := os.Stat(marker); err == nil {
 		// Prompts subsiguientes: ya no son mudos. Si el agente lleva rato sin
 		// guardar nada real, se le recuerda (con debounce) que llame a
 		// save_memory; si no toca, salida pasiva.
-		project := deps.ProjectRepo.Key(root)
 		if msg, ok := computeSaveNudge(deps, root, project); ok {
 			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
 			fmt.Print(string(data))
@@ -230,6 +239,36 @@ func hookTurnEnd(deps *Deps) {
 // sub-sesiones que emiten session.idle y ya los captura handleTurnEnd.
 func hookSubagentStop(deps *Deps) {
 	recordActivityCheckpoint(deps, "Checkpoint de subagente")
+}
+
+// hookPrompt persiste el prompt del usuario del turno en curso (recibido por
+// stdin como {"prompt": "..."}) en la sesión activa, para que InsertMemory lo
+// adjunte como provenance a lo que se guarde. Es el punto de entrada transversal
+// del guardado de prompt para integraciones que no comparten el flujo inline de
+// `user-prompt-submit` de Claude Code —p. ej. el plugin de OpenCode, que lo
+// invoca con `mem hook prompt` desde su evento chat.message—. Best-effort.
+func hookPrompt(deps *Deps) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		os.Exit(0)
+	}
+	if prompt := promptFromStdin(); strings.TrimSpace(prompt) != "" {
+		deps.SessionRepo.SetLastPrompt(deps.ProjectRepo.Key(root), prompt)
+	}
+	os.Exit(0)
+}
+
+// promptFromStdin extrae el texto del prompt del payload JSON en stdin (campo
+// "prompt"). Devuelve "" si no hay pipe, el parseo falla o el campo no está.
+func promptFromStdin() string {
+	payload := readHookStdin()
+	if payload == nil {
+		return ""
+	}
+	if s, ok := payload["prompt"].(string); ok {
+		return s
+	}
+	return ""
 }
 
 // recordActivityCheckpoint es el cuerpo compartido de los hooks que registran un
