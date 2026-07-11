@@ -36,6 +36,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookPreCompact(deps)
 	case "user-prompt-submit":
 		hookUserPromptSubmit(deps)
+	case "nudge":
+		hookNudge(deps)
 	case "turn-end":
 		hookTurnEnd(deps)
 	default:
@@ -132,19 +134,53 @@ func hookUserPromptSubmit(deps *Deps) {
 
 	marker := sessionMarkerPath(deps, root)
 	if _, err := os.Stat(marker); err == nil {
-		// Prompts subsiguientes: pasivo.
-		fmt.Print("{}")
+		// Prompts subsiguientes: ya no son mudos. Si el agente lleva rato sin
+		// guardar nada real, se le recuerda (con debounce) que llame a
+		// save_memory; si no toca, salida pasiva.
+		project := deps.ProjectRepo.Key(root)
+		if msg, ok := computeSaveNudge(deps, root, project); ok {
+			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
+			fmt.Print(string(data))
+		} else {
+			fmt.Print("{}")
+		}
 		os.Exit(0)
 	}
 
-	// Primer prompt de la sesión: cargar tools MCP + recordatorio de memoria.
+	// Primer prompt de la sesión: forzar la carga de las tools MCP diferidas
+	// (systemMessage con ToolSearch explícito) e inyectar el recordatorio del
+	// protocolo como additionalContext. El campo "tools": true que se usaba
+	// antes NO es un campo soportado por Claude Code en UserPromptSubmit: era un
+	// no-op silencioso, por eso las tools de gomemory seguían llegando diferidas
+	// y la memoria se sentía "manual" hasta que el usuario la mencionaba.
 	os.WriteFile(marker, []byte("1"), 0644)
 	out := map[string]any{
-		"tools":             true,
-		"additionalContext": memoryProtocolReminder,
+		"systemMessage": memoryToolBootstrap,
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "UserPromptSubmit",
+			"additionalContext": memoryProtocolReminder,
+		},
 	}
 	data, _ := json.Marshal(out)
 	fmt.Print(string(data))
+	os.Exit(0)
+}
+
+// hookNudge imprime, en texto plano, el recordatorio de guardado si corresponde
+// (o nada). Es el punto de entrada transversal del nudge para integraciones que
+// inyectan contexto por turno pero no consumen el JSON del hook de Claude Code
+// —p. ej. el plugin de OpenCode, que lo invoca con `mem hook nudge`—. Comparte
+// la decisión con hookUserPromptSubmit vía computeSaveNudge, así el umbral y el
+// debounce son idénticos en todos los agentes.
+func hookNudge(deps *Deps) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		os.Exit(0)
+	}
+	project := deps.ProjectRepo.Key(root)
+	if msg, ok := computeSaveNudge(deps, root, project); ok {
+		fmt.Print(msg)
+	}
 	os.Exit(0)
 }
 
@@ -289,6 +325,21 @@ const compactionRecoveryInstructions = `**TRAS LA COMPACTACIÓN — PRIMERA ACCI
 
 No omitas el paso 1. Sin él, todo lo hecho antes de la compactación
 se pierde de la memoria.`
+
+// memoryToolBootstrap fuerza la carga de las tools MCP de gomemory. En Claude
+// Code las tools de un MCP server llegan DIFERIDAS: existen por nombre pero su
+// esquema no está cargado, así que no pueden invocarse hasta ejecutar un
+// ToolSearch que las materialice. Sin este empujón, el agente "sabe" que hay
+// memoria (por el recordatorio de protocolo) pero no puede llamarla hasta que
+// el usuario la menciona — exactamente lo que hacía sentir la memoria pasiva.
+// El único mecanismo que Claude Code respeta para esto es un systemMessage con
+// el select explícito. Se emite SOLO aquí porque este hook lo registra
+// únicamente Claude Code; OpenCode carga las tools por su plugin y el resto de
+// agentes por las instrucciones MCP nativas, así que no necesitan este bootstrap.
+const memoryToolBootstrap = `PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA, antes de responder al usuario, ` +
+	`para cargar las tools de memoria del proyecto:
+select:mcp__gomemory__get_context,mcp__gomemory__save_memory,mcp__gomemory__search_memories,mcp__gomemory__list_memories,mcp__gomemory__get_memory,mcp__gomemory__forget_memory,mcp__gomemory__judge_memories,mcp__gomemory__start_session,mcp__gomemory__end_session
+Luego llama a get_context() para cargar la memoria previa del proyecto antes de continuar.`
 
 const memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
 	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +
