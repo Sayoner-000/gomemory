@@ -40,6 +40,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookNudge(deps)
 	case "turn-end":
 		hookTurnEnd(deps)
+	case "subagent-stop":
+		hookSubagentStop(deps)
 	default:
 		// Evento desconocido: salida vacía, sin error.
 		os.Exit(0)
@@ -191,6 +193,25 @@ func hookNudge(deps *Deps) {
 // actividad que el agente no llegó a resumir con save_memory. Turnos de puro
 // chat (sin ediciones ni comandos) no generan checkpoint.
 func hookTurnEnd(deps *Deps) {
+	recordActivityCheckpoint(deps, "Checkpoint automático")
+}
+
+// hookSubagentStop corre cuando un subagente (tool Task) termina en Claude Code.
+// Captura la actividad del subagente que el hook Stop del agente principal NO
+// ve: sus ediciones y comandos viven en el transcript propio del subagente —que
+// este hook recibe vía transcript_path—, mientras que en el transcript principal
+// el subagente aparece solo como un tool_use "Task" (que el parser de actividad
+// ignora). En OpenCode no hace falta un equivalente: los subagentes son
+// sub-sesiones que emiten session.idle y ya los captura handleTurnEnd.
+func hookSubagentStop(deps *Deps) {
+	recordActivityCheckpoint(deps, "Checkpoint de subagente")
+}
+
+// recordActivityCheckpoint es el cuerpo compartido de los hooks que registran un
+// checkpoint de actividad (turn-end y subagent-stop). Extrae la actividad del
+// transcript o del payload y, si no está vacía, la guarda como checkpoint y
+// reindexa los .go tocados. Best-effort: ante cualquier error sale con código 0.
+func recordActivityCheckpoint(deps *Deps, title string) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
 		os.Exit(0)
@@ -230,7 +251,7 @@ func hookTurnEnd(deps *Deps) {
 		Project:   project,
 		SessionID: sessionID,
 		Type:      domain.Checkpoint,
-		Title:     "Checkpoint automático",
+		Title:     title,
 		Content:   formatCheckpoint(activity),
 		Filepath:  filePath,
 	}

@@ -31,6 +31,7 @@ var claudeHookEvents = map[string]string{
 	"UserPromptSubmit": "user-prompt-submit",
 	"SessionEnd":       "session-end",
 	"Stop":             "turn-end",
+	"SubagentStop":     "subagent-stop",
 }
 
 func InstallClaudeCode(root string, ref AgentRef) error {
