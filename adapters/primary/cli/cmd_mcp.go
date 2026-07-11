@@ -168,8 +168,12 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 				if m.Filepath != "" {
 					fileInfo = fmt.Sprintf("\nArchivo: %s", m.Filepath)
 				}
-				text := fmt.Sprintf("ID: %d\nTipo: %s\nTítulo: %s\nFecha: %s%s%s\n\n%s",
-					m.ID, m.Type, m.Title, m.CreatedAt, sessionInfo, fileInfo, m.Content)
+				promptInfo := ""
+				if m.OriginPrompt != "" {
+					promptInfo = fmt.Sprintf("\nPrompt originante: %s", m.OriginPrompt)
+				}
+				text := fmt.Sprintf("ID: %d\nTipo: %s\nTítulo: %s\nFecha: %s%s%s%s\n\n%s",
+					m.ID, m.Type, m.Title, m.CreatedAt, sessionInfo, fileInfo, promptInfo, m.Content)
 				return &mcp.CallToolResult{
 					Content: []mcp.Content{&mcp.TextContent{Text: text}},
 				}, nil, nil

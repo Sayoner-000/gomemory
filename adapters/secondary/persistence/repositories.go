@@ -61,6 +61,10 @@ func (r *SessionRepository) Recent(project string, limit int) ([]domain.Session,
 	return RecentSessions(r.db, project, limit)
 }
 
+func (r *SessionRepository) SetLastPrompt(project, prompt string) error {
+	return SetSessionLastPrompt(r.db, project, prompt)
+}
+
 var _ ports.SessionRepository = (*SessionRepository)(nil)
 
 type RelationRepository struct {
