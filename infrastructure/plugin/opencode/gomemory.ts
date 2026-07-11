@@ -118,6 +118,14 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       if (ctx) {
         output.system.push("## Project Memory (gomemory)\n\n" + ctx);
       }
+      // Recordatorio de guardado transversal: misma decisión (umbral + debounce)
+      // que el hook de Claude Code, resuelta en Go. `mem hook nudge` devuelve el
+      // texto solo cuando el agente lleva rato sin guardar nada real; si no toca,
+      // devuelve "" y no se inyecta nada.
+      const nudge = await mem(["hook", "nudge"]);
+      if (nudge) {
+        output.system.push(nudge);
+      }
     },
 
     // Antes de compactar, persiste el contexto y deja una instrucción explícita

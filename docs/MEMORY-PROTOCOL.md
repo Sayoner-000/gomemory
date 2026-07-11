@@ -80,15 +80,29 @@ seguridad si un cliente ignora `instructions`), no como requisito.
 
 El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
 
-- `mem hook user-prompt-submit` — en el primer prompt de la sesión inyecta el
-  bootstrap de tools MCP + un recordatorio corto del protocolo ("¿decisión / bug
-  / patrón / hallazgo? → `save_memory` ahora"). Los prompts siguientes son
-  pasivos (sin overhead). El marcador `.memory/.session-tools-injected` controla
+- `mem hook user-prompt-submit` — en el **primer prompt** de la sesión fuerza la
+  carga de las tools MCP (que en Claude Code llegan diferidas) con un
+  `systemMessage` que incluye un `ToolSearch select:` con los nombres reales de
+  gomemory, e inyecta el recordatorio del protocolo como `additionalContext`. En
+  los prompts **siguientes** ya no es mudo: si el agente lleva más de 15 minutos
+  sin un guardado real (y la sesión tiene más de 5 minutos), inyecta un
+  recordatorio de guardado con enfriamiento de 15 minutos (marcador
+  `.memory/.last-nudge`). El marcador `.memory/.session-tools-injected` controla
   el "primer prompt".
+- `mem hook nudge` — punto de entrada **transversal** del recordatorio de
+  guardado: imprime el texto (o nada) según la misma decisión que usa el hook de
+  Claude Code. Lo consumen integraciones que no leen el JSON de Claude Code, como
+  el plugin de OpenCode (que lo invoca por turno). Así el umbral y el debounce
+  son idénticos en todos los agentes.
 - `mem hook pre-compact` — antes de compactar, inyecta instrucciones de
   recuperación + el contexto previo.
 - `mem hook session-end` — cierra la sesión como **red de seguridad**, aunque el
   modelo no haya llamado `end_session`. El resumen rico lo aporta el modelo.
+
+> **Guardado real vs checkpoint**: el recordatorio mide el tiempo desde la última
+> memoria cuyo tipo NO es `checkpoint`. Los checkpoints automáticos (actividad de
+> turno) no cuentan, para que el agente sea recordado justamente cuando trabaja
+> sin registrar decisiones ni hallazgos.
 
 Decisión de diseño: el agente decide qué guardar (con el empujón del
 recordatorio); no se hace extracción autónoma con LLM ni se requieren API keys.
@@ -169,7 +183,8 @@ After compaction, IMMEDIATELY:
 | Capa | Dónde se inyecta | Requiere `mem install`/archivo en el repo? | Sobrevive compactación? |
 |------|------------------|---------------------------------------------|------------------------|
 | System Prompt (OpenCode) | Via plugin transform | Sí (o `mem setup opencode`) | ✅ Siempre |
-| Per-prompt reminder (Claude Code) | `mem hook user-prompt-submit` | Sí (o `mem setup claude-code`) | ✅ Se reinyecta por sesión |
+| Bootstrap de tools + reminder (Claude Code) | `mem hook user-prompt-submit` (1er prompt) | Sí (o `mem setup claude-code`) | ✅ Se reinyecta por sesión |
+| Recordatorio de guardado (transversal) | `mem hook user-prompt-submit` (siguientes) / `mem hook nudge` (OpenCode y otros) | Sí (o `mem setup <agente>`) | ✅ Por turno, con debounce |
 | Compaction Hook (Claude Code) | `mem hook pre-compact` | Sí (o `mem setup claude-code`) | ✅ Se ejecuta pre-compactación |
 | `initialize.instructions` (MCP nativo) | `mem mcp` (`ServerOptions.Instructions`) | **No** — cualquier scope/agente | ✅ Una vez por conexión |
 | Descripciones de tools (MCP nativo) | `mem mcp` (`Tool.Description`) | **No** — cualquier scope/agente | ✅ Siempre visibles |
