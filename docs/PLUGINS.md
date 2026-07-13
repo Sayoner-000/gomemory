@@ -52,10 +52,9 @@ plugin que ejecuta `mem <cmd>` como subproceso.
 2. **Memory Protocol**: conjunto de reglas inyectadas en las instrucciones del
    agente que definen cuándo guardar, buscar y cerrar memoria.
 
-> **Nota (legado)**: existe un comando `mem serve` (servidor HTTP en
-> `127.0.0.1:9735`), remanente de una arquitectura anterior. Los plugins
-> actuales **no lo usan** — hablan directo al binario. Se conserva como utilidad
-> independiente, no es parte del flujo de ningún agente.
+> **Nota**: el servidor HTTP legado (`mem serve` en `127.0.0.1:9735`) fue
+> **retirado en v1.18.0**. Los plugins hablan directo al binario `mem`
+> (subproceso/hooks); el MCP va por `stdio`, sin abrir ningún puerto.
 
 ### Hooks de Claude Code — para qué sirve cada uno
 
@@ -97,22 +96,13 @@ mem setup opencode
 
 # Plugin para Claude Code
 mem setup claude-code
-
-# Con puerto personalizado (los flags van ANTES del agente)
-mem setup --port 9735 opencode
 ```
 
-## Servidor HTTP (legado)
+## Servidor HTTP (retirado en v1.18.0)
 
-`mem serve` levanta un servidor HTTP en `127.0.0.1:9735`. **Los plugins actuales
-no lo usan** (hablan directo al binario `mem`); se conserva como utilidad
-independiente de una arquitectura previa. No hace falta iniciarlo para que
-OpenCode o Claude Code funcionen.
-
-```bash
-mem serve              # Puerto por defecto 9735
-mem serve --port 9735  # Puerto personalizado
-```
+El servidor HTTP legado (`mem serve` en `127.0.0.1:9735`) fue **retirado**. Ni
+OpenCode ni Claude Code lo necesitan: hablan directo al binario `mem` vía
+subproceso/hooks, y el MCP va por `stdio` sin puerto.
 
 ## Memory Protocol
 
