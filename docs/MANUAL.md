@@ -100,7 +100,7 @@ cat opencode.json   # o ~/.config/opencode/opencode.json si usaste --scope globa
 
 ### Qué Hace el Plugin
 
-- **Auto-server**: Inicia `mem serve` en background si no está corriendo
+- **Hooks directos**: invoca `mem hook <evento>` (sin servidor HTTP ni puerto)
 - **Session lifecycle**: Crea sesión al iniciar, cierra al terminar
 - **Memory Protocol**: Inyecta reglas de memoria en el system prompt
 - **Context injection**: Provee contexto de sesiones previas al arrancar
@@ -158,33 +158,13 @@ cat .mcp.json
 
 ---
 
-## 4. Servidor HTTP (plugin de OpenCode)
+## 4. Servidor HTTP (retirado en v1.18.0)
 
-El servidor HTTP corre en `127.0.0.1:9735` y lo auto-inicia el **plugin de
-OpenCode** para gestionar sesiones y contexto. Los hooks de Claude Code **no** lo
-usan: hablan directo a los repositorios vía `mem hook`. También puede iniciarse
-manualmente:
-
-```bash
-./mem serve                # Puerto default 9735
-./mem serve --port 19735   # Puerto personalizado
-```
-
-### Endpoints
-
-| Endpoint | Método | Body | Respuesta |
-|----------|--------|------|-----------|
-| `POST /session/start` | — | `{"session_id": "...", "created_at": "..."}` |
-| `POST /session/end` | `{"summary": "..."}` | `{"session_id": "...", "ended_at": "..."}` |
-| `GET /context` | — | Contexto en markdown de sesiones recientes |
-| `GET /health` | — | `{"status": "ok", "project": "..."}` |
-
-### Healthcheck
-
-```bash
-curl http://127.0.0.1:9735/health
-# {"status":"ok","project":"/ruta/al/proyecto"}
-```
+El servidor HTTP legado (`mem serve` en `127.0.0.1:9735`) fue **retirado**. Tanto
+el plugin de OpenCode como los hooks de Claude Code hablan directo a los
+repositorios vía `mem hook <evento>` — sin shell, sin `curl`, sin puerto TCP,
+idéntico en Linux, macOS y Windows. El MCP va por `stdio` (`mem mcp`), sin abrir
+ningún puerto.
 
 ---
 
@@ -193,24 +173,18 @@ curl http://127.0.0.1:9735/health
 ### Test Rápido
 
 ```bash
-# 1. Verificar que el servidor HTTP funciona
-./mem serve &
-sleep 1
-curl http://127.0.0.1:9735/health
+# 1. Crear/gestionar sesión por CLI
+./mem session start
 
-# 2. Crear una sesión
-curl -X POST http://127.0.0.1:9735/session/start
+# 2. Guardar y buscar una memoria
+./mem save -t "Prueba" -y learning "Verificación manual del manual"
+./mem search "Prueba"
 
-# 3. Obtener contexto
-curl http://127.0.0.1:9735/context
+# 3. Obtener el contexto del proyecto (markdown)
+./mem context
 
-# 4. Cerrar sesión
-curl -X POST http://127.0.0.1:9735/session/end \
-  -H "Content-Type: application/json" \
-  -d '{"summary":"Prueba manual completada"}'
-
-# 5. Detener servidor
-kill %1
+# 4. Cerrar sesión con resumen
+./mem session end -s "Prueba manual completada"
 ```
 
 ### Tests Automatizados
@@ -238,23 +212,13 @@ ls infrastructure/plugin/opencode/plugin.ts   # debe existir
 ls infrastructure/plugin/claude-code/         # debe existir
 ```
 
-### Error: "address already in use"
-
-```bash
-# Puerto 9735 ocupado — usa otro puerto
-./mem setup --port 19735 opencode
-
-# O mata el proceso anterior
-lsof -i :9735
-kill <PID>
-```
-
 ### Error: "MCP connection refused"
 
 ```bash
-# El servidor HTTP debe estar corriendo
-./mem serve &
-curl http://127.0.0.1:9735/health
+# El MCP va por stdio (sin puerto). Verifica que `mem` esté en el PATH
+# y que la config del agente apunte a `mem mcp`.
+which mem
+mem mcp --help
 ```
 
 ### El Plugin OpenCode No se Activa
@@ -407,9 +371,9 @@ para el detalle completo de flags y comportamiento.
 ./mem setup opencode              # Plugin para OpenCode
 ./mem setup claude-code           # Plugin para Claude Code
 
-# Servidor HTTP
-./mem serve                       # Iniciar servidor (auto por plugins)
-./mem serve --port 9735           # Puerto personalizado
+# Configuración
+./mem settings --show                 # Ver settings (auto-approve, grafo externo)
+./mem settings --code-graph=false     # Apagar el grafo de código externo
 
 # Mantenimiento de memoria
 ./mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
@@ -419,7 +383,7 @@ para el detalle completo de flags y comportamiento.
 
 # Verificación
 ./mem --help                      # Listar comandos
-curl http://127.0.0.1:9735/health # Healthcheck
+./mem context                     # Contexto del proyecto (markdown)
 go test ./...                     # Tests
 ```
 

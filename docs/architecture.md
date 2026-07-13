@@ -67,9 +67,9 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 9 tools de memoria + 5 de grafo de codigo y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
-| `serve` | `adapters/primary/cli/cmd_serve.go` | Servidor HTTP de plugins (`127.0.0.1:9735`). Lo usa el plugin de OpenCode |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `post-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `plan-approved`, `nudge`, `prompt`) |
-| `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) |
+| `code-refresh` | `infrastructure/main.go` | Fast-path interno (detached): refresca el snapshot del grafo de código externo fuera del hot path. No abre la BD |
+| `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) y el toggle del grafo externo (`--code-graph`, `--code-graph-command`) |
 | `purge` | `adapters/primary/cli/cmd_purge.go` | Borra memorias (proyecto actual por defecto; `--all`/`--type`/`--older-than-days`) |
 | `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` de `.memory/mem.db` (recupera espacio, no borra nada) |
 | `gc` | `adapters/primary/cli/cmd_gc.go` | Garbage collection por antigüedad a demanda (90 días por defecto) |
@@ -234,6 +234,19 @@ El archivo `.memory/context.md` es leído por los agentes AI al inicio de cada s
 
 **Consolidación sináptica ("siempre sinapsis").** Cada memoria que se guarda forma automáticamente una **sinapsis** (arista `related`) con el "ancla" de su sesión: la memoria sustantiva (no checkpoint) más reciente registrada antes en la misma sesión. Esto ocurre en `formSynapse()`, dentro del choke point `InsertMemory` — el mismo punto donde se hereda la provenance — así que es **determinista, sin tokens del agente y transversal** a todas las vías de guardado (MCP `save_memory`, hooks, CLI, TUI, OpenCode). El criterio teje el hilo de decisiones de una sesión y enlaza cada checkpoint con la decisión que lo gobierna, sin generar ruido checkpoint↔checkpoint; es idempotente (no duplica una arista existente, vía `GetRelationByPair`) y best-effort (una sinapsis fallida nunca hace fallar el guardado). El grafo resultante se re-inyecta en cada `get_context` bajo la sección **🔗 Sinapsis**, de modo que las decisiones enlazadas no se olvidan entre sesiones. Es la ETAPA 1 (consolidación sináptica, minutos–horas) del modelo neurocognitivo de memoria; la consolidación sistémica (reforzar engramas reactivados y podar sinapsis débiles en un barrido de `session-end`) queda como fase siguiente.
 
+#### Grafo de código externo (brazo extensor, opcional)
+
+`build_context.go` puede enriquecer el contexto con la fuerza de un grafo de código **externo** ya indexado (p.ej. [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp): tree-sitter + LSP, multi-lenguaje, clusters, hotspots), **sin acoplarse** a él. El grafo propio Fase-1 (`index_project`/`search_code`/…) se mantiene intacto; esta capa es aditiva y opcional.
+
+- **Puerto provider-agnóstico** `application/ports/code_graph_provider.go` (`CodeGraphProvider`): `Name()`, `Snapshot()` y `MaybeRefresh()`. El núcleo no menciona ningún proveedor concreto.
+- **Adaptador** `adapters/secondary/codegraph/codebasememory/`: habla por el **CLI** del proveedor (`codebase-memory-mcp cli <tool> <json>`, JSON por stdout), no por su SQLite — así queda desacoplado de su esquema interno. Casa el proyecto por `root_path` (vía `list_projects`).
+- **No-bloqueo (patrón engram):** el hot path (`Build`) solo **lee** un snapshot cacheado en `.memory/code_provider_snapshot.json` — instantáneo, nunca invoca al proveedor. Si el snapshot está viejo (TTL 60s), `MaybeRefresh()` lanza un proceso **detached** (`mem code-refresh`, fast-path en `main.go` sin abrir la BD; detach vía `setsid` en `proc_unix.go` / no-op en `proc_windows.go`) que sondea con timeout corto (~2s) y reescribe el snapshot para la **próxima** llamada. Enriquecimiento eventual.
+- **Nunca indexa:** gomemory jamás invoca `index_repository` (eso puede tardar minutos). Repo no indexado → `available=false` → flujo normal.
+- **Enchufable por settings:** `code_graph_disabled` / `code_graph_command` (`mem settings --code-graph=…`). Sin proveedor/binario/snapshot → se degrada en silencio.
+- **Agnóstico al agente:** vive en el binario `mem`; el bloque va en `get_context`, que todos los agentes consumen.
+
+El dominio del resumen compacto vive en `domain/code_provider.go` (`CodeProviderSnapshot`, `CodeArchitecture`: totales, lenguajes, clusters, hotspots).
+
 ### 5. Wrap (`adapters/primary/cli/cmd_wrap.go`)
 
 Wrapper interactivo que envuelve cualquier comando:
@@ -245,9 +258,9 @@ Wrapper interactivo que envuelve cualquier comando:
 5. Si acepta, recolecta título/tipo/contenido y persiste
 6. Exit code propagado: el wrap termina con el mismo código que el comando envuelto
 
-### 6. MCP Server (`adapters/primary/mcp/server.go`)
+### 6. MCP Server (`adapters/primary/cli/cmd_mcp.go` + `cmd_mcp_code_tools.go`)
 
-Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Ahora usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
+Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
 
 **Herramientas de memoria (9):**
 
@@ -403,16 +416,9 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 
 Los hooks son el mecanismo que hace que la memoria "tome todo bien" en Claude Code: sin ellos, las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto automáticamente. El campo `{"tools": true}` que se usaba antes en `user-prompt-submit` NO es soportado por Claude Code (era un no-op silencioso que dejaba las tools diferidas sin cargar); se reemplazó por el `systemMessage` con `ToolSearch`.
 
-### 12. Servidor HTTP de plugins (`adapters/primary/cli/cmd_serve.go`)
+### 12. Servidor HTTP de plugins (retirado en v1.18.0)
 
-`mem serve` levanta un servidor HTTP en `127.0.0.1:9735` (flag `--port`). Lo **auto-inicia el plugin de OpenCode** (`plugin.ts`) para gestionar sesiones y contexto vía HTTP. Los hooks de Claude Code **no** lo usan (van directo a los repos vía `mem hook`).
-
-| Endpoint | Método | Descripción |
-|---|---|---|
-| `/session/start` | POST | Crea (o reusa) la sesión activa |
-| `/session/end` | POST | Cierra la sesión con `{"summary": "..."}` |
-| `/context` | GET | Contexto markdown de sesiones previas |
-| `/health` | GET | Healthcheck (`{"status":"ok","project":"..."}`) |
+El servidor HTTP legado (`mem serve` en `127.0.0.1:9735`, paquete `adapters/primary/mcp`) fue **retirado**. El plugin de OpenCode y los hooks de Claude Code hablan directo a los repositorios vía `mem hook <evento>` — sin shell, sin `curl`, sin puerto TCP. Un futuro transporte HTTP-MCP, de necesitarse, iría por la SDK oficial sobre `cmd_mcp.go`, no por este servidor.
 
 ### 13. Plugin Setup (`adapters/primary/cli/cmd_setup.go` + `adapters/primary/setup/`)
 
@@ -790,7 +796,8 @@ gomemory/
 │   ├── memory.go                    #   tipos Memory, MemoryType, validación
 │   ├── session.go                   #   tipos Session
 │   ├── relation.go                  #   tipos Relation, RelationType, Confidence
-│   ├── code.go                      #   tipos CodeNode, CodeEdge, CodeNodeKind, GraphStatus
+│   ├── code.go                      #   tipos CodeNode, CodeEdge, CodeNodeKind, GraphStatus (grafo propio)
+│   ├── code_provider.go             #   tipos CodeProviderSnapshot, CodeArchitecture (grafo externo)
 │   ├── redact.go                    #   redacción de <private>...</private>
 │   └── errors.go                    #   errores de dominio (ErrNotFound, ErrValidation)
 │
@@ -802,7 +809,8 @@ gomemory/
 │   │   ├── settings_repository.go   #     SettingsRepository interface
 │   │   ├── project_repository.go    #     ProjectRepository interface
 │   │   ├── context_builder.go       #     ContextBuilder + MemoryLister + SessionQuerier
-│   │   ├── code_graph_repository.go #     CodeGraphRepository interface
+│   │   ├── code_graph_repository.go #     CodeGraphRepository interface (grafo propio)
+│   │   ├── code_graph_provider.go   #     CodeGraphProvider interface (grafo externo, opcional)
 │   │   └── maintenance_repository.go#     MaintenanceRepository (purge/compact/stats)
 │   └── usecases/                    #   Casos de uso
 │       ├── build_context.go         #     Genera .memory/context.md
@@ -836,7 +844,6 @@ gomemory/
 │   │   │   ├── cmd_mcp_code_tools.go #     tools MCP de grafo de código (index_project, search_code, etc.)
 │   │   │   ├── cmd_mcp_setup.go    #       mem setup-mcp --scope project|global
 │   │   │   ├── cmd_mcp_setup_test.go #     tests de detección de colisión (FR-008) y registro global de Codex
-│   │   │   ├── cmd_serve.go        #       mem serve — servidor HTTP (plugin OpenCode)
 │   │   │   ├── cmd_hook.go         #       mem hook <evento> — hooks portables Claude Code
 │   │   │   ├── cmd_setup.go        #       mem setup <agent> — plugin + hooks
 │   │   │   ├── cmd_settings.go     #       mem settings — auto-approve MCP
@@ -849,16 +856,12 @@ gomemory/
 │   │   │   └── transcript_test.go  #       tests del extractor de checkpoints
 │   │   ├── tui/                     #     TUI (Bubbletea)
 │   │   │   └── tui.go
-│   │   ├── mcp/                     #     Servidor MCP
-│   │   │   ├── server.go           #       HTTP server de plugins (session, context, health)
-│   │   │   ├── server_compat.go    #       Compatibilidad con tests legacy
-│   │   │   └── server_test.go      #       Tests del servidor HTTP
 │   │   └── setup/                   #     Setup de plugins (plugin + hooks)
 │   │       ├── setup.go
 │   │       ├── opencode_setup.go
 │   │       └── claude_code_setup.go #       writeClaudeHooks: hooks portables en settings.json
 │   └── secondary/                   #   Adaptadores secundarios (driven)
-│       └── persistence/             #     Persistencia SQLite
+│       ├── persistence/             #     Persistencia SQLite
 │           ├── db.go                #       Conexión, migraciones, FindRoot/Open/Init (delegan al store global)
 │           ├── globalstore.go       #       ProjectKey, DataHome, GlobalDbPath, migración legado→global
 │           ├── globalstore_test.go  #       Tests de ProjectKey/DataHome/FindProjectRoot
@@ -870,8 +873,14 @@ gomemory/
 │           ├── code_graph.go        #       CRUD del grafo de código (code_files, code_nodes, code_edges)
 │           ├── code_graph_test.go   #       Tests del grafo de código
 │           ├── maintenance.go       #       Purge/Compact/GC (no expuesto vía MCP)
-│           ├── settings.go          #       Config local
+│           ├── settings.go          #       Config local (auto-approve + toggle grafo externo)
 │           └── repositories.go     #       Wrappers ports.*Repository
+│       └── codegraph/               #     Grafo de código externo (opcional, provider-agnóstico)
+│           └── codebasememory/      #       Adaptador CLI de codebase-memory-mcp
+│               ├── provider.go      #         Snapshot() hot path + Refresh() background
+│               ├── proc_unix.go     #         detach (setsid) del refresco
+│               ├── proc_windows.go  #         detach no-op en Windows
+│               └── provider_test.go #         Tests con fixtures reales del CLI
 │
 ├── infrastructure/                  # Composition root
 │   ├── main.go                      #   Entry point, go:embed, dispatch

@@ -62,6 +62,7 @@ mem search "API"
 * **Auto-Checkpoints:** En Claude Code y OpenCode, los turnos con actividad real se registran automáticamente como `checkpoint` sin consumir tokens del agente.
 * **Captura de planes aprobados:** Al aprobar un plan (Claude Code `ExitPlanMode` / modo `plan` de OpenCode), sus decisiones se guardan automáticamente como `decision` — de forma determinista, sin depender de que el modelo lo recuerde. Cada aprobación (incluidos planes revisados) se acumula, así la evolución de las decisiones no se pierde.
 * **Consolidación sináptica ("siempre sinapsis"):** Cada memoria que se guarda se enlaza automáticamente con el engrama sustantivo más reciente de su sesión, tejiendo un grafo de decisiones que se re-inyecta en cada `get_context`. Determinista y transversal a todos los agentes (vive en el choke point de guardado, no en cada agente).
+* **Grafo de código externo (brazo extensor, opcional):** si detecta un grafo de código ya indexado por [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp), gomemory enriquece `get_context` con un resumen estructural (módulos de facto, hotspots, lenguajes) para que la memoria "entienda" el código. **No es una dependencia dura**: si el proveedor no está, todo funciona igual. Es **no-bloqueante** (el contexto lee un snapshot cacheado al instante; el refresco corre en segundo plano) y **agnóstico al agente**. Se enciende/apaga con `mem settings --code-graph=true|false`.
 * **Resolución de conflictos:** `judge_memories` resuelve colisiones entre memorias obsoletas y nuevas con veredictos semánticos obligatorios.
 
 ## Herramientas MCP Expuestas
@@ -80,8 +81,10 @@ mem search "API"
 | `mem://memory/{id}` | Recurso: Lectura directa de un ID. |
 
 > El servidor también expone 5 herramientas adicionales para indexar y consultar
-> el grafo de código fuente (`index_project`, `search_code`, `get_symbol`,
-> `list_dependencies`, `graph_status`) — ver [`docs/architecture.md`](docs/architecture.md).
+> el grafo de código fuente propio (`index_project`, `search_code`, `get_symbol`,
+> `list_dependencies`, `graph_status`). Además, de forma **opcional**, puede
+> apoyarse en un grafo de código externo ya indexado (codebase-memory-mcp) como
+> brazo extensor — ver [`docs/architecture.md`](docs/architecture.md).
 
 ## CLI
 
@@ -95,7 +98,7 @@ Comandos principales para la gestión manual:
 | `mem capture` | Formulario guiado (What/Why/Where/Learned). |
 | `mem update` | Actualiza el binario de forma idempotente. |
 | `mem gc` / `mem compact`| Limpieza de registros antiguos (>90 días) y optimización de BD. |
-| `mem settings` | Configuración general y auto-approve de MCP. |
+| `mem settings` | Configuración general: auto-approve de MCP y toggle del grafo de código externo (`--code-graph=true\|false`, `--code-graph-command`). |
 
 *Ejecuta `mem help` para ver los subcomandos disponibles.*
 
@@ -104,6 +107,7 @@ Comandos principales para la gestión manual:
 - **Base de datos:** SQLite embebido vía `modernc.org/sqlite` (sin CGO). Vive en un store global del usuario (`~/.local/share/gomemory/projects/<clave>/mem.db`), no dentro del repositorio.
 - **Transporte MCP:** `stdio` (JSON-RPC por stdin/stdout). El cliente lanza `mem mcp` como subproceso; **no se abre ningún puerto TCP**. El proceso vive lo que dura la sesión del agente.
 - **Hooks portables:** cada evento del agente invoca `mem hook <evento>`, un binario que habla directo a los repositorios — sin scripts de shell ni `curl`. Idéntico en Linux, macOS y Windows.
+- **Grafo de código externo enchufable:** el puerto `CodeGraphProvider` (arquitectura hexagonal) permite traer la fuerza de un grafo ya indexado por otra herramienta sin acoplarse. El hot path solo lee un snapshot cacheado; el refresco corre en un proceso detached (`mem code-refresh`) con timeout corto — nunca bloquea el guardado ni el contexto, y nunca dispara indexado. Ver [`docs/architecture.md`](docs/architecture.md).
 - **Portabilidad:** Cross-compile nativo. Los timestamps usan UTC-5 por defecto.
 
 ```text
