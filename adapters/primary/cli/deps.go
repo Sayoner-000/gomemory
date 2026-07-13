@@ -19,4 +19,8 @@ type Deps struct {
 	ContextBuilder  ports.ContextBuilder
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
+	// CodeProviders son los proveedores EXTERNOS de grafo (opcionales). Los
+	// hooks los usan para refrescar el snapshot por turno sin bloquear
+	// (MaybeRefresh es fire-and-forget). Vacío si están deshabilitados.
+	CodeProviders []ports.CodeGraphProvider
 }

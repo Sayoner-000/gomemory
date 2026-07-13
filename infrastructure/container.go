@@ -24,6 +24,7 @@ type Container struct {
 	ContextBuilder  ports.ContextBuilder
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
+	CodeProviders   []ports.CodeGraphProvider
 }
 
 func NewContainer(root string) (*Container, error) {
@@ -45,11 +46,13 @@ func NewContainer(root string) (*Container, error) {
 	// Enchufable por settings (code_graph_disabled / code_graph_command). Si está
 	// deshabilitado, el binario no está o el repo no está indexado: degrada en
 	// silencio y el contexto se arma igual con el grafo propio.
+	var codeProviders []ports.CodeGraphProvider
 	if s := persistence.ReadSettings(root); !s.CodeGraphDisabled {
-		contextBuilder.CodeProviders = []ports.CodeGraphProvider{
+		codeProviders = []ports.CodeGraphProvider{
 			codebasememory.New(root, filepath.Join(root, persistence.MemDir), s.CodeGraphCommand),
 		}
 	}
+	contextBuilder.CodeProviders = codeProviders
 
 	c := &Container{
 		Root:    root,
@@ -63,6 +66,7 @@ func NewContainer(root string) (*Container, error) {
 		ContextBuilder:  contextBuilder,
 		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 		CodeGraphRepo:   codeGraphRepo,
+		CodeProviders:   codeProviders,
 	}
 
 	return c, nil
@@ -83,6 +87,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		ContextBuilder:  c.ContextBuilder,
 		MaintenanceRepo: c.MaintenanceRepo,
 		CodeGraphRepo:   c.CodeGraphRepo,
+		CodeProviders:   c.CodeProviders,
 	}
 }
 
