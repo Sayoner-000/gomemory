@@ -57,7 +57,55 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("insert memory: %w", err)
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	// Consolidación sináptica ("siempre sinapsis"): en el mismo choke point que la
+	// provenance, la memoria recién codificada forma una sinapsis con el engrama
+	// sustantivo más reciente de su sesión. Determinista, sin tokens del agente y
+	// transversal a todas las vías de guardado. Best-effort: una sinapsis fallida
+	// NUNCA debe hacer fallar el guardado del engrama.
+	formSynapse(db, m.Project, m.SessionID, id)
+
+	return id, nil
+}
+
+// formSynapse crea la arista de consolidación sináptica de la memoria recién
+// insertada (newID) hacia el "ancla" de su sesión: el engrama sustantivo (no
+// checkpoint) más reciente registrado antes en la misma sesión. Así se teje el
+// hilo de decisiones de una sesión y cada checkpoint queda enlazado a la decisión
+// que lo gobierna, sin generar ruido checkpoint↔checkpoint. Idempotente (no
+// duplica una arista existente) y best-effort (traga cualquier error).
+func formSynapse(db *sql.DB, project, sessionID string, newID int64) {
+	if strings.TrimSpace(sessionID) == "" {
+		return // Sin sesión no hay co-activación que enlazar.
+	}
+
+	var anchorID int64
+	err := db.QueryRow(
+		`SELECT id FROM memories
+		 WHERE project = ? AND session_id = ? AND id <> ? AND type <> ?
+		 ORDER BY id DESC LIMIT 1`,
+		project, sessionID, newID, string(domain.Checkpoint),
+	).Scan(&anchorID)
+	if err != nil {
+		return // sql.ErrNoRows (aún no hay ancla) o cualquier error: no enlazar.
+	}
+
+	if existing, _ := GetRelationByPair(db, project, newID, anchorID); existing != nil {
+		return // Ya sinaptizadas: no duplicar.
+	}
+
+	InsertRelation(db, &domain.Relation{
+		Project:    project,
+		MemoryIDA:  newID,
+		MemoryIDB:  anchorID,
+		Relation:   domain.Related,
+		Confidence: 0.5,
+		Reasoning:  "sinapsis auto: co-activadas en la misma sesión de trabajo",
+	})
 }
 
 // activeSessionLastPrompt devuelve el último prompt registrado en la sesión

@@ -72,7 +72,21 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
 
       const files = new Set<string>();
       const commands: string[] = [];
+      const planTexts: string[] = [];
       for (const msg of newMessages) {
+        // Turno en modo plan: el asistente redacta un plan sin tocar archivos ni
+        // correr comandos, así que el checkpoint de turn-end lo descartaría por
+        // vacío. Capturamos su texto como decisión vía `mem hook plan-approved`
+        // (mismo contrato Go que usa Claude Code con ExitPlanMode), para que las
+        // decisiones del plan no se pierdan y se acumulen entre sesiones.
+        if (msg.info?.role === "assistant" && msg.info?.mode === "plan") {
+          const text = (msg.parts ?? [])
+            .filter((p: any) => p.type === "text")
+            .map((p: any) => p.text ?? "")
+            .join("\n")
+            .trim();
+          if (text) planTexts.push(text);
+        }
         for (const part of msg.parts ?? []) {
           if (part.type !== "tool" || part.state?.status !== "completed") continue;
           const input = part.state.input ?? {};
@@ -84,6 +98,11 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
           }
         }
       }
+
+      for (const plan of planTexts) {
+        await memWithStdin(["hook", "plan-approved"], JSON.stringify({ plan }));
+      }
+
       if (files.size === 0 && commands.length === 0) return;
 
       await memWithStdin(["hook", "turn-end"], JSON.stringify({ files: [...files], commands }));

@@ -45,6 +45,10 @@ var claudeHookEvents = map[string][]hookReg{
 	"SessionEnd":       {{matcher: "", sub: "session-end"}},
 	"Stop":             {{matcher: "", sub: "turn-end"}},
 	"SubagentStop":     {{matcher: "", sub: "subagent-stop"}},
+	// PostToolUse(ExitPlanMode): captura determinista de las decisiones al aprobar
+	// un plan. Un turno de plan mode no toca archivos ni corre comandos, así que el
+	// checkpoint de Stop/turn-end lo descarta por vacío; este hook lo cubre.
+	"PostToolUse": {{matcher: "ExitPlanMode", sub: "plan-approved"}},
 }
 
 func InstallClaudeCode(root string, ref AgentRef) error {
@@ -392,6 +396,7 @@ func hookCommandIsGomemory(cmd string) bool {
 		strings.Contains(cmd, "hook user-prompt-submit") ||
 		strings.Contains(cmd, "hook turn-end") ||
 		strings.Contains(cmd, "hook subagent-stop") ||
+		strings.Contains(cmd, "hook plan-approved") ||
 		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
 		strings.Contains(cmd, "plugins/gomemory")
 }
