@@ -12,6 +12,15 @@ import (
 
 const memDir = ".memory"
 
+// relTitle formatea el extremo de una sinapsis: el título de la memoria si está
+// entre las cargadas, o un marcador con su id si quedó fuera de la ventana.
+func relTitle(titleByID map[int64]string, id int64) string {
+	if t := titleByID[id]; t != "" {
+		return fmt.Sprintf("%q", t)
+	}
+	return "(memoria previa)"
+}
+
 func displayTitle(m domain.Memory) string {
 	if m.Title != "" {
 		return m.Title
@@ -57,10 +66,13 @@ func (b *Builder) Build() (string, error) {
 
 	if b.Relations != nil {
 		if rels, err := b.Relations.List(b.Project, 200); err == nil {
-			var conflicts []domain.Relation
+			var conflicts, synapses []domain.Relation
 			for _, r := range rels {
-				if r.Relation == domain.ConflictsWith {
+				switch r.Relation {
+				case domain.ConflictsWith:
 					conflicts = append(conflicts, r)
+				case domain.Related, domain.Supersedes:
+					synapses = append(synapses, r)
 				}
 			}
 			if len(conflicts) > 0 {
@@ -70,6 +82,21 @@ func (b *Builder) Build() (string, error) {
 					titleB := titleByID[r.MemoryIDB]
 					sb.WriteString(fmt.Sprintf("- [%d] %q ↔ [%d] %q — relee el código actual y llama a judge_memories para resolverlo\n",
 						r.MemoryIDA, titleA, r.MemoryIDB, titleB))
+				}
+				sb.WriteString("\n")
+			}
+			if len(synapses) > 0 {
+				sb.WriteString("## 🔗 Sinapsis (memorias enlazadas)\n\n")
+				for i, r := range synapses {
+					if i >= 12 {
+						break
+					}
+					link := "↔"
+					if r.Relation == domain.Supersedes {
+						link = "⇒ supera a"
+					}
+					sb.WriteString(fmt.Sprintf("- [%d] %s %s [%d] %s\n",
+						r.MemoryIDA, relTitle(titleByID, r.MemoryIDA), link, r.MemoryIDB, relTitle(titleByID, r.MemoryIDB)))
 				}
 				sb.WriteString("\n")
 			}

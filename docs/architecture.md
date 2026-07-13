@@ -68,7 +68,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `serve` | `adapters/primary/cli/cmd_serve.go` | Servidor HTTP de plugins (`127.0.0.1:9735`). Lo usa el plugin de OpenCode |
-| `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `post-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `nudge`, `prompt`) |
+| `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `post-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `plan-approved`, `nudge`, `prompt`) |
 | `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) |
 | `purge` | `adapters/primary/cli/cmd_purge.go` | Borra memorias (proyecto actual por defecto; `--all`/`--type`/`--older-than-days`) |
 | `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` de `.memory/mem.db` (recupera espacio, no borra nada) |
@@ -160,7 +160,8 @@ adapters/secondary/persistence/
 │   └── MigrateLegacy(root, force)         ← ruta explícita de `mem migrate`, reporta si migró y soporta --force
 │
 ├── memory.go
-│   ├── InsertMemory()     ← INSERT con timestamps UTC-5
+│   ├── InsertMemory()     ← INSERT con timestamps UTC-5; choke point único (provenance + sinapsis)
+│   ├── formSynapse()      ← consolidación sináptica: enlaza la memoria nueva con el ancla de su sesión
 │   ├── ListMemories()     ← SELECT by project, ordenado DESC, limitable (máx 200)
 │   └── SearchMemories()   ← SELECT con LIKE en title/content, ranking: title match primero
 │
@@ -171,7 +172,7 @@ adapters/secondary/persistence/
 │   └── RecentSessions()   ← últimas N sesiones
 │
 ├── relation.go
-│   ├── InsertRelation()   ← INSERT de veredicto entre dos memorias
+│   ├── InsertRelation()   ← INSERT de relación entre dos memorias (veredicto de juez o sinapsis auto)
 │   ├── UpdateRelation()   ← UPDATE de veredicto existente (idempotente)
 │   ├── GetRelation()      ← SELECT por ID
 │   ├── GetRelationByPair()← SELECT por par (memory_id_a, memory_id_b) en cualquier orden
@@ -200,6 +201,12 @@ mem context --write → escribe .memory/context.md
 ```
 # Memoria del Proyecto
 
+## ⚠ Conflictos sin resolver
+- [idA] "título" ↔ [idB] "título" — relee el código y llama a judge_memories
+
+## 🔗 Sinapsis (memorias enlazadas)
+- [idA] "título" ↔ [idB] "título"
+
 ## Decisiones de Arquitectura
 - **título**: contenido (→ archivo relacionado)
 
@@ -224,6 +231,8 @@ mem context --write → escribe .memory/context.md
 ```
 
 El archivo `.memory/context.md` es leído por los agentes AI al inicio de cada sesión.
+
+**Consolidación sináptica ("siempre sinapsis").** Cada memoria que se guarda forma automáticamente una **sinapsis** (arista `related`) con el "ancla" de su sesión: la memoria sustantiva (no checkpoint) más reciente registrada antes en la misma sesión. Esto ocurre en `formSynapse()`, dentro del choke point `InsertMemory` — el mismo punto donde se hereda la provenance — así que es **determinista, sin tokens del agente y transversal** a todas las vías de guardado (MCP `save_memory`, hooks, CLI, TUI, OpenCode). El criterio teje el hilo de decisiones de una sesión y enlaza cada checkpoint con la decisión que lo gobierna, sin generar ruido checkpoint↔checkpoint; es idempotente (no duplica una arista existente, vía `GetRelationByPair`) y best-effort (una sinapsis fallida nunca hace fallar el guardado). El grafo resultante se re-inyecta en cada `get_context` bajo la sección **🔗 Sinapsis**, de modo que las decisiones enlazadas no se olvidan entre sesiones. Es la ETAPA 1 (consolidación sináptica, minutos–horas) del modelo neurocognitivo de memoria; la consolidación sistémica (reforzar engramas reactivados y podar sinapsis débiles en un barrido de `session-end`) queda como fase siguiente.
 
 ### 5. Wrap (`adapters/primary/cli/cmd_wrap.go`)
 
@@ -389,6 +398,7 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt fuerza la carga de las tools MCP diferidas con un `systemMessage` (`ToolSearch select:` + nombres reales) e inyecta el recordatorio del protocolo como `additionalContext`; en los prompts siguientes recuerda guardar si el agente lleva >15 min sin un guardado real (con debounce de 15 min). El marcador `.session-tools-injected` distingue el primer prompt. Además, en **cada** prompt persiste el texto del turno en la sesión activa (`SetLastPrompt`) para adjuntarlo como provenance a lo que se guarde |
 | _(interno, transversal)_ | `prompt` | Persiste el prompt del usuario (recibido por stdin `{"prompt": …}`) en la sesión activa. Lo invoca el plugin de OpenCode desde su evento `chat.message` (equivalente a `UserPromptSubmit`); en Claude Code la captura va inline dentro de `user-prompt-submit`. `InsertMemory` adjunta ese prompt como `origin_prompt` a toda memoria guardada en el turno |
 | `SubagentStop` | `subagent-stop` | Cuando un subagente (tool `Task`) termina, registra un **checkpoint de subagente** con los archivos y comandos que tocó. Llena un hueco real: esa actividad vive en el transcript propio del subagente y el hook `Stop` del agente principal no la ve (allí el subagente aparece solo como un `tool_use` `Task`). En OpenCode no hace falta: los subagentes son sub-sesiones que emiten `session.idle` y ya los captura el mismo camino de `turn-end` |
+| `PostToolUse` (matcher `ExitPlanMode`) | `plan-approved` | Cuando el usuario **aprueba un plan**, guarda el plan como memoria `decision` de forma determinista (sin gastar tokens ni depender de que el modelo llame `save_memory`). Cubre un hueco: un turno de plan mode es puro chat (sin ediciones ni comandos), así que `turn-end` lo descarta por vacío y las decisiones del plan se perdían. `PostToolUse` solo dispara si el usuario aprobó (un plan rechazado no ejecuta la tool). Transversal: acepta el plan en `tool_input.plan` (Claude Code) o en `plan` de nivel superior (OpenCode/otros); el plugin de OpenCode lo invoca al detectar un turno con `info.mode==="plan"`. Append-only: cada aprobación (incluidos planes revisados) genera una nueva `decision`, así la evolución no se pierde |
 | _(interno, transversal)_ | `nudge` | Imprime en texto plano el recordatorio de guardado (o nada) según la misma decisión que `user-prompt-submit`. Lo consumen integraciones sin acceso al JSON de Claude Code, como el plugin de OpenCode, para que el comportamiento sea idéntico entre agentes |
 
 Los hooks son el mecanismo que hace que la memoria "tome todo bien" en Claude Code: sin ellos, las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto automáticamente. El campo `{"tools": true}` que se usaba antes en `user-prompt-submit` NO es soportado por Claude Code (era un no-op silencioso que dejaba las tools diferidas sin cargar); se reemplazó por el `systemMessage` con `ToolSearch`.

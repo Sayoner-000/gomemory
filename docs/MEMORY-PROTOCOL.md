@@ -99,6 +99,15 @@ El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
   actividad que de otro modo se perdería: vive en el transcript propio del
   subagente, no en el del agente principal. En OpenCode ya la cubre el camino de
   `turn-end` sobre la sub-sesión.
+- `mem hook plan-approved` — captura **determinista de las decisiones al aprobar
+  un plan**. Un turno de plan mode es puro chat (sin ediciones ni comandos), así
+  que `turn-end` lo descartaría y las decisiones del plan se perderían. Guarda el
+  plan como memoria `decision`, sin gastar tokens ni depender de que el modelo
+  llame `save_memory`. Es **transversal**: acepta el plan en `tool_input.plan`
+  (Claude Code lo registra como `PostToolUse` matcher `ExitPlanMode`, que solo
+  dispara si el usuario aprobó) o en `plan` de nivel superior (el plugin de
+  OpenCode lo invoca al detectar un turno con `info.mode==="plan"`). Append-only:
+  cada aprobación acumula, para no perder la evolución de las decisiones.
 - `mem hook post-compact` — **después** de compactar (Claude Code lo dispara vía
   `SessionStart` matcher `compact`), re-inyecta las instrucciones de recuperación
   + el contexto previo y borra el marcador de sesión para que el siguiente prompt
