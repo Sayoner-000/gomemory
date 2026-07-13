@@ -23,6 +23,14 @@ func (r *MemoryRepository) List(project string, limit int) ([]domain.Memory, err
 	return ListMemories(r.db, project, limit)
 }
 
+func (r *MemoryRepository) ListAll(project string) ([]domain.Memory, error) {
+	return ListAllMemories(r.db, project)
+}
+
+func (r *MemoryRepository) ImportMemory(m *domain.Memory) (int64, error) {
+	return ImportMemory(r.db, m)
+}
+
 func (r *MemoryRepository) Search(project, query string, limit int) ([]domain.Memory, error) {
 	return SearchMemories(r.db, project, query, limit)
 }
@@ -93,6 +101,14 @@ func (r *RelationRepository) GetByPair(project string, memIDA, memIDB int64) (*d
 
 func (r *RelationRepository) List(project string, limit int) ([]domain.Relation, error) {
 	return ListRelations(r.db, project, limit)
+}
+
+func (r *RelationRepository) ListAll(project string) ([]domain.Relation, error) {
+	return ListAllRelations(r.db, project)
+}
+
+func (r *RelationRepository) ImportRelation(rel *domain.Relation) (int64, error) {
+	return ImportRelation(r.db, rel)
 }
 
 var _ ports.RelationRepository = (*RelationRepository)(nil)

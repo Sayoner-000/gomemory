@@ -2,7 +2,10 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,6 +13,7 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"mem/application/ports"
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -21,6 +25,8 @@ const (
 	screenSave
 	screenMaintenance
 	screenMaintenanceConfirm
+	screenConfig
+	screenImport
 )
 
 const gcDefaultOlderThanDays = 90
@@ -107,16 +113,16 @@ func typeLabel(t string) string {
 
 var (
 	appStyle = lipgloss.NewStyle().
-		Padding(1, 2)
+			Padding(1, 2)
 
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(highlight).
-		MarginBottom(1)
+			Bold(true).
+			Foreground(highlight).
+			MarginBottom(1)
 
 	subtitleStyle = lipgloss.NewStyle().
-		Foreground(faint).
-		Italic(true)
+			Foreground(faint).
+			Italic(true)
 
 	groupHeaderStyle = lipgloss.NewStyle().
 				Foreground(faint).
@@ -152,10 +158,10 @@ var (
 			Padding(1, 2)
 
 	helpStyle = lipgloss.NewStyle().
-		Foreground(faint).
-		PaddingTop(1).
-		BorderTop(true).
-		BorderStyle(lipgloss.NormalBorder())
+			Foreground(faint).
+			PaddingTop(1).
+			BorderTop(true).
+			BorderStyle(lipgloss.NormalBorder())
 
 	formStyle = lipgloss.NewStyle().
 			MarginTop(1)
@@ -177,8 +183,10 @@ var (
 
 type model struct {
 	memRepo         ports.MemoryRepository
+	relRepo         ports.RelationRepository
 	settingsRepo    ports.SettingsRepository
 	maintenanceRepo ports.MaintenanceRepository
+	codeProvider    ports.CodeGraphProvider
 	root            string
 	project         string
 
@@ -187,12 +195,12 @@ type model struct {
 	cursor   int
 	err      error
 
-	selected     domain.Memory
-	searching    bool
-	search       string
-	autoApprove  bool
-	statusMsg    string
-	statusTimer  int
+	selected    domain.Memory
+	searching   bool
+	search      string
+	autoApprove bool
+	statusMsg   string
+	statusTimer int
 
 	saveTitle    textinput.Model
 	saveType     textinput.Model
@@ -208,18 +216,22 @@ type model struct {
 	maintConfirm textinput.Model
 	maintErr     string
 
+	configCursor int
+	importPath   textinput.Model
+	importErr    string
+
 	width  int
 	height int
 	ready  bool
 }
 
-func Run(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, root, project string) error {
-	p := tea.NewProgram(initialModel(memRepo, settingsRepo, maintenanceRepo, root, project), tea.WithAltScreen())
+func Run(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string) error {
+	p := tea.NewProgram(initialModel(memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
 
-func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, root, project string) model {
+func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string) model {
 	mems, _ := memRepo.List(project, 200)
 
 	ti := textinput.New()
@@ -249,6 +261,11 @@ func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRep
 	mc.CharLimit = 200
 	mc.Width = 50
 
+	ip := textinput.New()
+	ip.Placeholder = "ruta al archivo .json a importar"
+	ip.CharLimit = 400
+	ip.Width = 50
+
 	settings := settingsRepo.Read(root)
 
 	var stats ports.StorageStats
@@ -258,8 +275,10 @@ func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRep
 
 	return model{
 		memRepo:         memRepo,
+		relRepo:         relRepo,
 		settingsRepo:    settingsRepo,
 		maintenanceRepo: maintenanceRepo,
+		codeProvider:    codeProvider,
 		root:            root,
 		project:         project,
 		screen:          screenList,
@@ -271,6 +290,7 @@ func initialModel(memRepo ports.MemoryRepository, settingsRepo ports.SettingsRep
 		saveFilepath:    tf,
 		stats:           stats,
 		maintConfirm:    mc,
+		importPath:      ip,
 	}
 }
 
@@ -305,6 +325,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenMaintenanceConfirm {
 			return m.updateMaintenanceConfirm(msg)
+		}
+		if m.screen == screenConfig {
+			return m.updateConfig(msg)
+		}
+		if m.screen == screenImport {
+			return m.updateImport(msg)
 		}
 		return m.updateList(msg)
 	}
@@ -361,6 +387,13 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.maintCursor = 0
 			m.maintErr = ""
 			m.stats, _ = m.maintenanceRepo.Stats(m.project)
+		}
+
+	case "c":
+		if m.ready {
+			m.screen = screenConfig
+			m.configCursor = 0
+			m.statusMsg = ""
 		}
 
 	case "/":
@@ -507,6 +540,143 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// ─── Config screen ──────────────────────────────────────────────────
+
+// configOptions es el número de filas del menú de configuración.
+const configOptions = 4
+
+func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.screen = screenList
+
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "j", "down":
+		if m.configCursor < configOptions-1 {
+			m.configCursor++
+		}
+
+	case "k", "up":
+		if m.configCursor > 0 {
+			m.configCursor--
+		}
+
+	case "enter", " ":
+		switch m.configCursor {
+		case 0: // Toggle grafo de código externo
+			s := m.settingsRepo.Read(m.root)
+			s.CodeGraphDisabled = !s.CodeGraphDisabled
+			m.settingsRepo.Write(m.root, s)
+			if s.CodeGraphDisabled {
+				m.statusMsg = "Grafo externo desactivado (aplica en próximas sesiones)"
+			} else {
+				m.statusMsg = "Grafo externo activado (aplica en próximas sesiones)"
+			}
+			m.statusTimer = 40
+
+		case 1: // Toggle auto-approve
+			m.autoApprove = !m.autoApprove
+			s := m.settingsRepo.Read(m.root)
+			s.AutoApprove = m.autoApprove
+			m.settingsRepo.Write(m.root, s)
+			m.settingsRepo.ApplyAutoApprove(m.root, s)
+			if m.autoApprove {
+				m.statusMsg = "Auto-approve activado ✓"
+			} else {
+				m.statusMsg = "Auto-approve desactivado"
+			}
+			m.statusTimer = 30
+
+		case 2: // Exportar memorias
+			path, nMem, nRel, err := m.exportMemories()
+			if err != nil {
+				m.statusMsg = "Error al exportar: " + err.Error()
+			} else {
+				m.statusMsg = fmt.Sprintf("Exportadas %d memorias y %d relaciones → %s", nMem, nRel, path)
+			}
+			m.statusTimer = 80
+
+		case 3: // Importar memorias
+			m.screen = screenImport
+			m.importPath.SetValue("")
+			m.importPath.Focus()
+			m.importErr = ""
+		}
+	}
+	return m, nil
+}
+
+// exportMemories vuelca las memorias + relaciones del proyecto a un JSON en la
+// raíz del proyecto y devuelve la ruta y los conteos.
+func (m model) exportMemories() (string, int, int, error) {
+	bundle, err := usecases.ExportProject(m.memRepo, m.relRepo, m.project)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	path := filepath.Join(m.root, fmt.Sprintf("gomemory-export-%s-%s.json", m.project, time.Now().Format("20060102")))
+	f, err := os.Create(path)
+	if err != nil {
+		return "", 0, 0, err
+	}
+	defer f.Close()
+	if err := usecases.EncodeBundle(f, bundle); err != nil {
+		return "", 0, 0, err
+	}
+	return path, len(bundle.Memories), len(bundle.Relations), nil
+}
+
+// ─── Import screen ──────────────────────────────────────────────────
+
+func (m model) updateImport(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.screen = screenConfig
+		m.importErr = ""
+		return m, nil
+
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "enter":
+		path := strings.TrimSpace(m.importPath.Value())
+		if path == "" {
+			m.importErr = "Indica una ruta de archivo"
+			return m, nil
+		}
+		rep, err := m.importMemories(path)
+		if err != nil {
+			m.importErr = err.Error()
+			return m, nil
+		}
+		m.memories, _ = m.memRepo.List(m.project, 200)
+		m.statusMsg = fmt.Sprintf("Import: %d memorias nuevas (%d omitidas), %d relaciones nuevas (%d omitidas)",
+			rep.MemoriesImported, rep.MemoriesSkipped, rep.RelationsImported, rep.RelationsSkipped)
+		m.statusTimer = 80
+		m.importErr = ""
+		m.screen = screenConfig
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.importPath, cmd = m.importPath.Update(msg)
+	return m, cmd
+}
+
+func (m model) importMemories(path string) (domain.ImportReport, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return domain.ImportReport{}, err
+	}
+	defer f.Close()
+	bundle, err := usecases.DecodeBundle(f)
+	if err != nil {
+		return domain.ImportReport{}, err
+	}
+	return usecases.ImportBundle(m.memRepo, m.relRepo, m.project, bundle)
+}
+
 // ─── Save screen ───────────────────────────────────────────────────
 
 func (m model) updateSave(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -575,11 +745,11 @@ func (m model) saveAndReturn() (tea.Model, tea.Cmd) {
 
 	mtype := domain.ValidMemoryType(strings.TrimSpace(m.saveType.Value()))
 	mem := domain.Memory{
-		Project:   m.project,
-		Type:      mtype,
-		Title:     strings.TrimSpace(m.saveTitle.Value()),
-		Content:   content,
-		Filepath:  strings.TrimSpace(m.saveFilepath.Value()),
+		Project:  m.project,
+		Type:     mtype,
+		Title:    strings.TrimSpace(m.saveTitle.Value()),
+		Content:  content,
+		Filepath: strings.TrimSpace(m.saveFilepath.Value()),
 	}
 
 	_, err := m.memRepo.Insert(&mem)
@@ -619,6 +789,10 @@ func (m model) View() string {
 		return m.maintenanceView()
 	case screenMaintenanceConfirm:
 		return m.maintenanceConfirmView()
+	case screenConfig:
+		return m.configView()
+	case screenImport:
+		return m.importView()
 	}
 	return ""
 }
@@ -772,6 +946,94 @@ func (m model) maintenanceConfirmView() string {
 	return appStyle.Render(b.String())
 }
 
+func onOff(v bool) string {
+	if v {
+		return lipgloss.NewStyle().Foreground(green).Render("ON")
+	}
+	return lipgloss.NewStyle().Foreground(faint).Render("OFF")
+}
+
+func (m model) configView() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Configuración"))
+	b.WriteString("\n")
+	b.WriteString(subtitleStyle.Render(m.project))
+	b.WriteString("\n\n")
+
+	s := m.settingsRepo.Read(m.root)
+
+	// Estado del grafo de código externo (solo lectura, desde el snapshot).
+	b.WriteString(lipgloss.NewStyle().Bold(true).Render("  Grafo de código externo"))
+	b.WriteString("\n")
+	var snap domain.CodeProviderSnapshot
+	if m.codeProvider != nil {
+		snap = m.codeProvider.Snapshot()
+	}
+	provState := lipgloss.NewStyle().Foreground(faint).Render("no disponible")
+	if snap.Available {
+		det := ""
+		if snap.Architecture != nil {
+			det = fmt.Sprintf(" · %d nodos, %d relaciones", snap.Architecture.TotalNodes, snap.Architecture.TotalEdges)
+		}
+		provState = lipgloss.NewStyle().Foreground(green).Render("disponible" + det)
+	}
+	b.WriteString("    Proveedor: " + provState + "\n")
+	if !snap.CheckedAt.IsZero() {
+		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Última actualización: "+snap.CheckedAt.Format("2006-01-02 15:04:05")) + "\n")
+	}
+	bin := s.CodeGraphCommand
+	if bin == "" {
+		bin = "codebase-memory-mcp (PATH)"
+	}
+	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Binario: "+bin) + "\n\n")
+
+	// Menú de acciones.
+	rows := []string{
+		"Grafo de código externo: " + onOff(!s.CodeGraphDisabled),
+		"Auto-approve MCP: " + onOff(s.AutoApprove),
+		"Exportar memorias",
+		"Importar memorias",
+	}
+	for i, label := range rows {
+		if i == m.configCursor {
+			b.WriteString(itemSelected.Render("▸ " + label))
+		} else {
+			b.WriteString(itemNormal.Render("  " + label))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	if m.statusTimer > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+		b.WriteString("\n")
+	}
+	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter activar/ejecutar  ·  esc volver"))
+	return appStyle.Render(b.String())
+}
+
+func (m model) importView() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Importar memorias"))
+	b.WriteString("\n")
+	b.WriteString(subtitleStyle.Render("Append con dedup por contenido · preserva timestamps · remapea al proyecto"))
+	b.WriteString("\n\n")
+	b.WriteString(formLabel.Render("Ruta del archivo .json a importar:"))
+	b.WriteString("\n")
+	b.WriteString(m.importPath.View())
+	b.WriteString("\n\n")
+
+	if m.importErr != "" {
+		b.WriteString(errorStyle.Render("✕ " + m.importErr))
+		b.WriteString("\n")
+	}
+
+	b.WriteString(helpStyle.Render("  enter importar  ·  esc volver"))
+	return appStyle.Render(b.String())
+}
+
 func (m model) detailView() string {
 	mem := m.selected
 	var b strings.Builder
@@ -848,7 +1110,7 @@ func (m model) helpView() string {
 		"↑↓ navegar",
 		"enter detalle",
 		"s guardar",
-		"a autoApprove",
+		"c config",
 		"m mantenimiento",
 		"/ buscar",
 		"q salir",
