@@ -3,10 +3,14 @@ package main
 import (
 	"testing"
 
-	"mem/adapters/primary/mcp"
 	"mem/adapters/secondary/persistence"
 )
 
+// TestPluginIntegration verifica el flujo de sesión de extremo a extremo
+// (crear proyecto, abrir y cerrar sesión, recuperarla) sobre la base real.
+// Antes también instanciaba el servidor HTTP legacy; ese servidor se retiró
+// (el MCP vive en `mem mcp` por stdio), así que la prueba queda enfocada en
+// la persistencia de sesiones, que es lo sustantivo que cubría.
 func TestPluginIntegration(t *testing.T) {
 	root := t.TempDir()
 	_ = persistence.EnsureDir(root)
@@ -18,12 +22,6 @@ func TestPluginIntegration(t *testing.T) {
 	defer db.Close()
 
 	project := "test-project"
-
-	srv := mcp.New(db, project, 19735)
-
-	if srv == nil {
-		t.Fatal("expected non-nil server")
-	}
 
 	session, err := persistence.StartSession(db, project)
 	if err != nil {
