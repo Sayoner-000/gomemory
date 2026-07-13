@@ -375,6 +375,10 @@ para el detalle completo de flags y comportamiento.
 ./mem settings --show                 # Ver settings (auto-approve, grafo externo)
 ./mem settings --code-graph=false     # Apagar el grafo de código externo
 
+# Portabilidad de memorias
+./mem export                          # Volcar memorias + relaciones a un JSON portable
+./mem import backup.json              # Importarlas en otro proyecto/máquina (dedup)
+
 # Mantenimiento de memoria
 ./mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
 ./mem compact                     # Recuperar espacio en disco
@@ -497,3 +501,30 @@ GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe ./infrastructure/
 - Timestamps UTC-5 independientes de la zona horaria local
 - Las configuraciones MCP usan rutas absolutas — regenera con `setup-mcp`
   después de mover el proyecto
+
+### Export / Import de memorias (portable, cross-OS)
+
+Cuando no quieres copiar la base entera sino **mover el conocimiento de un
+proyecto a otro** (o entre máquinas con distinto S.O.), usa el bundle JSON:
+
+```bash
+# En el proyecto origen: vuelca memorias + relaciones a un JSON autocontenido
+./mem export                                   # gomemory-export-<proyecto>-<YYYYMMDD>.json
+./mem export --out backup.json                 # ruta explícita
+
+# En el proyecto destino: impórtalo (append con dedup, no duplica)
+./mem import backup.json
+```
+
+- **Contenido:** todas las memorias **+ sus relaciones** (sinapsis y veredictos
+  del juez), preservando el grafo. El formato es JSON UTF-8, sin ids acoplados a
+  la base (se remapean por `ref_id`) ni rutas absolutas de máquina.
+- **Import idempotente:** dedup por hash de `tipo+título+contenido` — reimportar
+  el mismo archivo no crea duplicados. Preserva los `created_at/updated_at`
+  originales, remapea el proyecto y los ids de relación, y **no** genera
+  sinapsis automáticas espurias.
+- **Privacidad:** el import mantiene la redacción de `<private>` (el export solo
+  vuelca lo ya persistido, que en origen ya viene redactado).
+- **También desde la TUI:** tecla `c` → *Configuración* → *Exportar memorias* /
+  *Importar memorias*. Esa misma pantalla muestra el estado del grafo de código
+  externo y permite alternar el toggle sin salir a la línea de comandos.

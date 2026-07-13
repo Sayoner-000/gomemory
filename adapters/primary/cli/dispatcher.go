@@ -57,6 +57,10 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdCompact(deps, args)
 	case "gc":
 		CmdGC(deps, args)
+	case "export":
+		CmdExport(deps, args)
+	case "import":
+		CmdImport(deps, args)
 	case "uninstall":
 		CmdUninstall(deps, args)
 	case "tui":

@@ -17,7 +17,7 @@ func LaunchTUI(deps *Deps) {
 
 	project := deps.ProjectRepo.Key(root)
 
-	if err := tui.Run(deps.MemoryRepo, deps.SettingsRepo, deps.MaintenanceRepo, root, project); err != nil {
+	if err := tui.Run(deps.MemoryRepo, deps.RelationRepo, deps.SettingsRepo, deps.MaintenanceRepo, deps.TUIProvider, root, project); err != nil {
 		fmt.Fprintf(os.Stderr, "Error en TUI: %v\n", err)
 		os.Exit(1)
 	}
@@ -69,6 +69,10 @@ Uso:
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]
                                     Ver o cambiar auto-approve de las tools MCP
+  mem export [--out <archivo>]     Exportar memorias + relaciones a un JSON portable (cross-OS)
+                                    (default gomemory-export-<proyecto>-<YYYYMMDD>.json)
+  mem import <archivo>             Importar un bundle al proyecto actual (append con dedup por
+                                    contenido, preserva timestamps, remapea proyecto y relaciones)
   mem purge [flags]                Vaciar memorias (proyecto actual por defecto)
     --project <nombre>  Proyecto objetivo (default: actual)
     --all                Purgar TODOS los proyectos del archivo
@@ -103,5 +107,7 @@ Ejemplos:
   mem settings --show
   mem session start
   mem session end -s "Implementado módulo de búsqueda"
+  mem export                       # Volcar la memoria del proyecto a un JSON portable
+  mem import gomemory-export-app-20260713.json  # Traerla a otro proyecto/máquina
 `)
 }

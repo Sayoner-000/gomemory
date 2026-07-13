@@ -158,6 +158,62 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 	return mems, rows.Err()
 }
 
+// ListAllMemories devuelve TODAS las memorias del proyecto, en orden estable por
+// id (sin tope), para el export. Orden por id ASC para que los RefID crezcan de
+// forma reproducible entre exports.
+func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
+	rows, err := db.Query(
+		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), created_at, updated_at
+		 FROM memories WHERE project = ? ORDER BY id ASC`,
+		project,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list all memories: %w", err)
+	}
+	defer rows.Close()
+
+	var mems []domain.Memory
+	for rows.Next() {
+		var m domain.Memory
+		var memType string
+		if err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan memory: %w", err)
+		}
+		m.Type = domain.MemoryType(memType)
+		mems = append(mems, m)
+	}
+	if mems == nil {
+		mems = []domain.Memory{}
+	}
+	return mems, rows.Err()
+}
+
+// ImportMemory inserta una memoria PRESERVANDO sus timestamps de origen y SIN
+// formar la sinapsis automática (formSynapse) — las relaciones del bundle se
+// importan explícitamente aparte. Redacta <private> como InsertMemory (seguro e
+// idempotente sobre datos ya redactados). Si created_at/updated_at vienen vacíos
+// se usa el reloj local.
+func ImportMemory(db *sql.DB, m *domain.Memory) (int64, error) {
+	title := domain.RedactPrivate(m.Title)
+	content := domain.RedactPrivate(m.Content)
+	if strings.TrimSpace(content) == "" {
+		return 0, fmt.Errorf("import memory: contenido vacío tras redactar <private>")
+	}
+	origin := domain.RedactPrivate(m.OriginPrompt)
+
+	res, err := db.Exec(
+		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?,''), `+Now+`), COALESCE(NULLIF(?,''), `+Now+`))`,
+		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin, m.CreatedAt, m.UpdatedAt,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("import memory: %w", err)
+	}
+	return res.LastInsertId()
+}
+
 func DeleteMemory(db *sql.DB, project string, id int64) (bool, error) {
 	res, err := db.Exec(`DELETE FROM memories WHERE id = ? AND project = ?`, id, project)
 	if err != nil {

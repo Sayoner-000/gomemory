@@ -23,4 +23,8 @@ type Deps struct {
 	// hooks los usan para refrescar el snapshot por turno sin bloquear
 	// (MaybeRefresh es fire-and-forget). Vacío si están deshabilitados.
 	CodeProviders []ports.CodeGraphProvider
+	// TUIProvider es el proveedor de grafo externo para la TUI. Se construye
+	// SIEMPRE (independiente del toggle) para poder mostrar el estado del grafo
+	// aunque esté desactivado; Snapshot() solo lee el cache y nunca bloquea.
+	TUIProvider ports.CodeGraphProvider
 }
