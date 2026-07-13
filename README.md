@@ -60,6 +60,8 @@ mem search "API"
 * **8 Tipos de memoria:** `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint`.
 * **Privacidad por diseño:** El contenido envuelto en `<private>...</private>` se redacta y no llega a la base de datos.
 * **Auto-Checkpoints:** En Claude Code y OpenCode, los turnos con actividad real se registran automáticamente como `checkpoint` sin consumir tokens del agente.
+* **Captura de planes aprobados:** Al aprobar un plan (Claude Code `ExitPlanMode` / modo `plan` de OpenCode), sus decisiones se guardan automáticamente como `decision` — de forma determinista, sin depender de que el modelo lo recuerde. Cada aprobación (incluidos planes revisados) se acumula, así la evolución de las decisiones no se pierde.
+* **Consolidación sináptica ("siempre sinapsis"):** Cada memoria que se guarda se enlaza automáticamente con el engrama sustantivo más reciente de su sesión, tejiendo un grafo de decisiones que se re-inyecta en cada `get_context`. Determinista y transversal a todos los agentes (vive en el choke point de guardado, no en cada agente).
 * **Resolución de conflictos:** `judge_memories` resuelve colisiones entre memorias obsoletas y nuevas con veredictos semánticos obligatorios.
 
 ## Herramientas MCP Expuestas

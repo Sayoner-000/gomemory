@@ -44,6 +44,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookTurnEnd(deps)
 	case "subagent-stop":
 		hookSubagentStop(deps)
+	case "plan-approved":
+		hookPlanApproved(deps)
 	case "prompt":
 		hookPrompt(deps)
 	default:
@@ -239,6 +241,96 @@ func hookTurnEnd(deps *Deps) {
 // sub-sesiones que emiten session.idle y ya los captura handleTurnEnd.
 func hookSubagentStop(deps *Deps) {
 	recordActivityCheckpoint(deps, "Checkpoint de subagente")
+}
+
+// hookPlanApproved corre cuando el usuario APRUEBA un plan. Es la captura
+// determinista del hueco que dejaban los demás hooks: un turno de plan mode es
+// puro chat —el modelo escribe el plan y no hay ediciones ni comandos— así que el
+// checkpoint de turn-end lo descarta por vacío (activity.empty()) y el nudge rara
+// vez llega a tiempo. Aquí, sin gastar tokens del agente y sin depender de que
+// decida guardar, se persiste el plan aprobado como memoria type=decision. El
+// prompt originante (el `/plan ...`) lo adjunta InsertMemory automáticamente desde
+// la sesión activa. Best-effort.
+//
+// Es transversal a todos los agentes (misma filosofía que turn-end/nudge/prompt):
+// la lógica vive aquí en Go y cada agente la invoca con su propia señal —
+//   - Claude Code: hook PostToolUse con matcher ExitPlanMode; el plan llega en
+//     `tool_input.plan`. PostToolUse solo dispara si el usuario aprobó (un plan
+//     rechazado no ejecuta la tool), así que solo se capturan planes aceptados.
+//   - OpenCode y otros: invocan `mem hook plan-approved` con `{"plan":"..."}` en
+//     stdin (campo `plan` de nivel superior), igual que `mem hook prompt`.
+// Por eso extractPlanFromPayload acepta ambas formas del payload.
+func hookPlanApproved(deps *Deps) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		os.Exit(0)
+	}
+	project := deps.ProjectRepo.Key(root)
+
+	payload := readHookStdin()
+	if payload == nil {
+		os.Exit(0)
+	}
+
+	plan := extractPlanFromPayload(payload)
+	if plan == "" {
+		os.Exit(0) // Sin texto de plan: nada que guardar.
+	}
+
+	sessionID := ""
+	if sess, _ := deps.SessionRepo.Active(project); sess != nil {
+		sessionID = sess.ID
+	}
+
+	mem := domain.Memory{
+		Project:   project,
+		SessionID: sessionID,
+		Type:      domain.Decision,
+		Title:     planTitle(plan),
+		Content:   plan,
+	}
+	deps.MemoryRepo.Insert(&mem)
+	os.Exit(0)
+}
+
+// extractPlanFromPayload obtiene el texto del plan del payload del hook, aceptando
+// las dos formas transversales: la de Claude Code (PostToolUse anida el input de
+// la tool en `tool_input`, y ExitPlanMode expone el plan en `tool_input.plan`) y
+// la genérica (`plan` de nivel superior) que usan OpenCode y cualquier otro agente
+// al invocar `mem hook plan-approved` con `{"plan":"..."}`. Devuelve "" si ninguna
+// está presente.
+func extractPlanFromPayload(payload map[string]any) string {
+	if p, ok := payload["plan"].(string); ok {
+		if s := strings.TrimSpace(p); s != "" {
+			return s
+		}
+	}
+	if ti, ok := payload["tool_input"].(map[string]any); ok {
+		if p, ok := ti["plan"].(string); ok {
+			return strings.TrimSpace(p)
+		}
+	}
+	return ""
+}
+
+// planTitle deriva un título breve del plan: la primera línea con contenido, sin
+// marcadores de encabezado markdown, acotada para no inflar el título.
+func planTitle(plan string) string {
+	line := ""
+	for _, l := range strings.Split(plan, "\n") {
+		if s := strings.TrimSpace(l); s != "" {
+			line = strings.TrimSpace(strings.TrimLeft(s, "#*-> "))
+			break
+		}
+	}
+	if line == "" {
+		line = "plan aprobado"
+	}
+	const maxLen = 80
+	if len(line) > maxLen {
+		line = strings.TrimSpace(line[:maxLen]) + "…"
+	}
+	return "Plan aprobado: " + line
 }
 
 // hookPrompt persiste el prompt del usuario del turno en curso (recibido por
