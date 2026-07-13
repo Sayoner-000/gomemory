@@ -229,6 +229,18 @@ func hookNudge(deps *Deps) {
 // actividad que el agente no llegó a resumir con save_memory. Turnos de puro
 // chat (sin ediciones ni comandos) no generan checkpoint.
 func hookTurnEnd(deps *Deps) {
+	// Mantiene tibio el snapshot del grafo externo por turno, sin depender de
+	// get_context. MaybeRefresh es fire-and-forget (proceso detached, respeta el
+	// TTL de 60s + debounce): nunca bloquea el cierre del turno. Cubre Claude
+	// Code (Stop) y OpenCode (session.idle), que enrutan ambos a turn-end.
+	// DEBE ir ANTES de recordActivityCheckpoint: ese helper termina con
+	// os.Exit(0), así que nada después de él se ejecuta. El hijo detached
+	// sobrevive al os.Exit del padre (setsid).
+	for _, cp := range deps.CodeProviders {
+		if cp != nil {
+			cp.MaybeRefresh()
+		}
+	}
 	recordActivityCheckpoint(deps, "Checkpoint automático")
 }
 
@@ -259,6 +271,7 @@ func hookSubagentStop(deps *Deps) {
 //     rechazado no ejecuta la tool), así que solo se capturan planes aceptados.
 //   - OpenCode y otros: invocan `mem hook plan-approved` con `{"plan":"..."}` en
 //     stdin (campo `plan` de nivel superior), igual que `mem hook prompt`.
+//
 // Por eso extractPlanFromPayload acepta ambas formas del payload.
 func hookPlanApproved(deps *Deps) {
 	root, err := deps.ProjectRepo.FindRoot()
