@@ -88,11 +88,21 @@ func (c *Container) ToDeps() *cli.Deps {
 		MaintenanceRepo: c.MaintenanceRepo,
 		CodeGraphRepo:   c.CodeGraphRepo,
 		CodeProviders:   c.CodeProviders,
+		TUIProvider:     c.tuiProvider(),
 	}
 }
 
+// tuiProvider construye el proveedor de grafo externo para la TUI. Se construye
+// SIEMPRE (independiente del toggle), para poder mostrar el estado del grafo
+// externo aunque esté desactivado. Snapshot() solo lee el archivo cacheado:
+// nunca bloquea.
+func (c *Container) tuiProvider() ports.CodeGraphProvider {
+	s := persistence.ReadSettings(c.Root)
+	return codebasememory.New(c.Root, filepath.Join(c.Root, persistence.MemDir), s.CodeGraphCommand)
+}
+
 func (c *Container) RunTUI() error {
-	return tui.Run(c.MemoryRepo, c.SettingsRepo, c.MaintenanceRepo, c.Root, c.Project)
+	return tui.Run(c.MemoryRepo, c.RelationRepo, c.SettingsRepo, c.MaintenanceRepo, c.tuiProvider(), c.Root, c.Project)
 }
 
 func isMockMode() bool {

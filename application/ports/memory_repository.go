@@ -5,6 +5,13 @@ import "mem/domain"
 type MemoryRepository interface {
 	Insert(m *domain.Memory) (int64, error)
 	List(project string, limit int) ([]domain.Memory, error)
+	// ListAll devuelve TODAS las memorias del proyecto (sin tope), en orden
+	// estable por id. Usado por el export; List está acotado a 200.
+	ListAll(project string) ([]domain.Memory, error)
+	// ImportMemory inserta una memoria preservando sus timestamps de origen y
+	// SIN formar la sinapsis automática (las relaciones se importan aparte).
+	// Redacta <private> igual que Insert (idempotente). Usado por el import.
+	ImportMemory(m *domain.Memory) (int64, error)
 	Search(project, query string, limit int) ([]domain.Memory, error)
 	Delete(project string, id int64) (bool, error)
 	// SecondsSinceLastSave indica cuántos segundos pasaron desde la última
