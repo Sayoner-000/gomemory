@@ -106,15 +106,19 @@ func NewSettingsRepository() ports.SettingsRepository {
 func (r *SettingsRepository) Read(root string) ports.SettingsData {
 	s := ReadSettings(root)
 	return ports.SettingsData{
-		AutoApprove:      s.AutoApprove,
-		AutoApproveTools: s.AutoApproveTools,
+		AutoApprove:       s.AutoApprove,
+		AutoApproveTools:  s.AutoApproveTools,
+		CodeGraphDisabled: s.CodeGraphDisabled,
+		CodeGraphCommand:  s.CodeGraphCommand,
 	}
 }
 
 func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 	return WriteSettings(root, Settings{
-		AutoApprove:      s.AutoApprove,
-		AutoApproveTools: s.AutoApproveTools,
+		AutoApprove:       s.AutoApprove,
+		AutoApproveTools:  s.AutoApproveTools,
+		CodeGraphDisabled: s.CodeGraphDisabled,
+		CodeGraphCommand:  s.CodeGraphCommand,
 	})
 }
 

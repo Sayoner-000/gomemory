@@ -41,8 +41,6 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdWrap(deps, args)
 	case "mcp":
 		CmdMCP(deps, args)
-	case "serve":
-		CmdServe(deps, args)
 	case "hook":
 		CmdHook(deps, args)
 	case "setup":

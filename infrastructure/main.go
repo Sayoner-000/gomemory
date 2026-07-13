@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/setup"
+	"mem/adapters/secondary/codegraph/codebasememory"
 	"mem/adapters/secondary/persistence"
 )
 
@@ -52,6 +54,18 @@ var rootIndependentCommands = map[string]bool{
 }
 
 func main() {
+	// code-refresh: proceso de fondo (detached) que refresca el snapshot del
+	// grafo externo FUERA del hot path. No abre la DB; resuelve el root y sondea
+	// al proveedor con su propio timeout. Best-effort: cualquier fallo → exit 0.
+	if len(os.Args) >= 2 && os.Args[1] == "code-refresh" {
+		if root, err := persistence.FindRoot(); err == nil {
+			if s := persistence.ReadSettings(root); !s.CodeGraphDisabled {
+				codebasememory.New(root, filepath.Join(root, persistence.MemDir), s.CodeGraphCommand).Refresh(context.Background())
+			}
+		}
+		os.Exit(0)
+	}
+
 	if len(os.Args) >= 2 && rootIndependentCommands[os.Args[1]] {
 		cli.Run(os.Args[1], os.Args[2:], bootstrapDeps())
 		return

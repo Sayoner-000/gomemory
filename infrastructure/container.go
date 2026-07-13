@@ -2,10 +2,11 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
 	"mem/adapters/primary/cli"
-	"mem/adapters/primary/mcp"
 	"mem/adapters/primary/tui"
+	"mem/adapters/secondary/codegraph/codebasememory"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
 	"mem/application/usecases"
@@ -23,8 +24,6 @@ type Container struct {
 	ContextBuilder  ports.ContextBuilder
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
-
-	MCPServer *mcp.Server
 }
 
 func NewContainer(root string) (*Container, error) {
@@ -42,6 +41,15 @@ func NewContainer(root string) (*Container, error) {
 
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
 	contextBuilder.Graph = codeGraphRepo
+	// Proveedor(es) EXTERNO(s) de grafo, opcionales y agnósticos al agente.
+	// Enchufable por settings (code_graph_disabled / code_graph_command). Si está
+	// deshabilitado, el binario no está o el repo no está indexado: degrada en
+	// silencio y el contexto se arma igual con el grafo propio.
+	if s := persistence.ReadSettings(root); !s.CodeGraphDisabled {
+		contextBuilder.CodeProviders = []ports.CodeGraphProvider{
+			codebasememory.New(root, filepath.Join(root, persistence.MemDir), s.CodeGraphCommand),
+		}
+	}
 
 	c := &Container{
 		Root:    root,
@@ -55,8 +63,6 @@ func NewContainer(root string) (*Container, error) {
 		ContextBuilder:  contextBuilder,
 		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 		CodeGraphRepo:   codeGraphRepo,
-
-		MCPServer: mcp.NewWithRepos(memRepo, sessRepo, project, 0),
 	}
 
 	return c, nil

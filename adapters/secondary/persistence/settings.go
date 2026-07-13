@@ -9,6 +9,12 @@ import (
 type Settings struct {
 	AutoApprove      bool     `json:"auto_approve"`
 	AutoApproveTools []string `json:"auto_approve_tools"`
+	// CodeGraphDisabled apaga el proveedor de grafo de código EXTERNO
+	// (codebase-memory-mcp). Ausente/false = auto-detección activada.
+	CodeGraphDisabled bool `json:"code_graph_disabled,omitempty"`
+	// CodeGraphCommand permite apuntar a otro binario del proveedor. Vacío =
+	// se busca "codebase-memory-mcp" en el PATH.
+	CodeGraphCommand string `json:"code_graph_command,omitempty"`
 }
 
 func DefaultSettings() Settings {
