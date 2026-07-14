@@ -134,6 +134,7 @@ func hookPreCompact(deps *Deps) {
 func hookPostCompact(deps *Deps) {
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		os.Remove(sessionMarkerPath(deps, root))
+		footprintReset(root) // tras compactar, la huella cuenta desde cero
 	}
 	printRecoveryAndContext(deps)
 	os.Exit(0)
@@ -241,6 +242,20 @@ func hookTurnEnd(deps *Deps) {
 			cp.MaybeRefresh()
 		}
 	}
+
+	// Recordatorio de compactación (feature 008): si la huella emitida por
+	// gomemory en la sesión superó el umbral, sugiere compactar de forma NEUTRAL
+	// (sin nombrar comandos de cliente) y no bloqueante. Va ANTES de
+	// recordActivityCheckpoint (que consume stdin y hace os.Exit); computeCompactNudge
+	// NO consume stdin, así el checkpoint sigue viendo el payload intacto.
+	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
+		threshold := deps.SettingsRepo.Read(root).CompactThreshold
+		if msg, ok := computeCompactNudge(root, threshold); ok {
+			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
+			fmt.Print(string(data))
+		}
+	}
+
 	recordActivityCheckpoint(deps, "Checkpoint automático")
 }
 

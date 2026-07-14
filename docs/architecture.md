@@ -234,6 +234,17 @@ El archivo `.memory/context.md` es leído por los agentes AI al inicio de cada s
 
 **Consolidación sináptica ("siempre sinapsis").** Cada memoria que se guarda forma automáticamente una **sinapsis** (arista `related`) con el "ancla" de su sesión: la memoria sustantiva (no checkpoint) más reciente registrada antes en la misma sesión. Esto ocurre en `formSynapse()`, dentro del choke point `InsertMemory` — el mismo punto donde se hereda la provenance — así que es **determinista, sin tokens del agente y transversal** a todas las vías de guardado (MCP `save_memory`, hooks, CLI, TUI, OpenCode). El criterio teje el hilo de decisiones de una sesión y enlaza cada checkpoint con la decisión que lo gobierna, sin generar ruido checkpoint↔checkpoint; es idempotente (no duplica una arista existente, vía `GetRelationByPair`) y best-effort (una sinapsis fallida nunca hace fallar el guardado). El grafo resultante se re-inyecta en cada `get_context` bajo la sección **🔗 Sinapsis**, de modo que las decisiones enlazadas no se olvidan entre sesiones. Es la ETAPA 1 (consolidación sináptica, minutos–horas) del modelo neurocognitivo de memoria; la consolidación sistémica (reforzar engramas reactivados y podar sinapsis débiles en un barrido de `session-end`) queda como fase siguiente.
 
+#### Huella de contexto acotada (presupuesto + progressive disclosure)
+
+Los resultados de las tools MCP **persisten en la ventana del agente** toda la sesión, así que un `get_context` grande se paga en cada turno. gomemory reduce su huella operando **solo sobre el texto emitido** (agnóstico al agente) y sin borrar datos:
+
+- **Presupuesto en `Build()`.** El campo `Builder.Budget` (en **caracteres**, cableado desde `settings.Budget`) impone un techo blando: cada entrada larga se acota con `domain.Extract` (helper puro: primera oración o truncado sin cortar palabra) y se le adjunta un puntero `→ get_memory <id>` para el detalle bajo demanda. Las secciones de lista dejan de crecer al acercarse al techo (`fits()`), cerrando con «(+N memorias; usa search_memories/get_memory)». **Protocolo y conflictos nunca se recortan.** `Budget < 0` = sin límite (opt-out); `0`/ausente = default (24000).
+- **Progressive disclosure en las tools.** `search_memories`/`list_memories` devuelven extractos compactos (`domain.Extract`, ~160 chars) en vez del contenido íntegro; `get_memory` sigue devolviendo el detalle completo (capa 3). Render unificado en `adapters/primary/cli/cmd_mcp_render.go`.
+- **Recordatorio de compactación (proxy honesto).** El servidor no puede leer la ventana del cliente, pero sí cuenta **los bytes que él mismo emite** por sesión: un middleware `AddReceivingMiddleware` acumula `len` de cada `CallToolResult` en `.memory/.footprint` (se resetea al iniciar sesión y en `post-compact`). Al cerrar el turno, `hookTurnEnd` compara contra `settings.CompactThreshold` y, con debounce, emite un recordatorio **neutral** (nunca nombra `/compact` ni comando de cliente) sugiriendo compactar. El servidor **señala**, no compacta; la evicción es del cliente.
+- **Deduplicación en la fuente.** En el choke point `InsertMemory`, guardar una memoria equivalente (mismo `project`+`type`+`title` dentro de `dedup_window_days`, o el mismo `topic_key`) **actualiza** la existente en vez de crear otra fila. Los `checkpoint` y las memorias sin título quedan excluidos del dedup por identidad.
+
+Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `dedup_window_days` (defaults 24000 / 48000 / 7; `< 0` o `<= 0` desactiva según el campo). Visibles en la pantalla de configuración de la TUI.
+
 #### Grafo de código externo (brazo extensor, opcional)
 
 `build_context.go` puede enriquecer el contexto con la fuerza de un grafo de código **externo** ya indexado (p.ej. [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp): tree-sitter + LSP, multi-lenguaje, clusters, hotspots), **sin acoplarse** a él. El grafo propio Fase-1 (`index_project`/`search_code`/…) se mantiene intacto; esta capa es aditiva y opcional.
@@ -520,10 +531,11 @@ El contenido inyectado se versiona con marcadores HTML para upgrades idempotente
 | `title` | TEXT | Título descriptivo |
 | `content` | TEXT | Cuerpo del aprendizaje |
 | `filepath` | TEXT? | Archivo relacionado |
+| `topic_key` | TEXT? | Clave de tópico para el upsert de deduplicación (mismo `topic_key` ⇒ actualiza en vez de crear) |
 | `created_at` | TEXT | Timestamp UTC-5 (Colombia) |
 | `updated_at` | TEXT | Timestamp UTC-5 (Colombia) |
 
-Índices: `project`, `type`, `created_at DESC`.
+Índices: `project`, `type`, `created_at DESC`, y el parcial `idx_memories_topic (project, topic_key) WHERE topic_key IS NOT NULL`.
 
 ### `code_files`
 

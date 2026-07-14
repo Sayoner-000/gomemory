@@ -126,6 +126,9 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		AutoApproveTools:  s.AutoApproveTools,
 		CodeGraphDisabled: s.CodeGraphDisabled,
 		CodeGraphCommand:  s.CodeGraphCommand,
+		Budget:            s.Budget,
+		CompactThreshold:  s.CompactThreshold,
+		DedupWindowDays:   s.DedupWindowDays,
 	}
 }
 
@@ -135,6 +138,9 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		AutoApproveTools:  s.AutoApproveTools,
 		CodeGraphDisabled: s.CodeGraphDisabled,
 		CodeGraphCommand:  s.CodeGraphCommand,
+		Budget:            s.Budget,
+		CompactThreshold:  s.CompactThreshold,
+		DedupWindowDays:   s.DedupWindowDays,
 	})
 }
 

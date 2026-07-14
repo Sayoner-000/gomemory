@@ -41,6 +41,10 @@ type Memory struct {
 	// activa (ver SetSessionLastPrompt). Da trazabilidad: por qué se guardó esto.
 	// Vacío cuando el agente no expone el prompt (p. ej. clientes MCP sin hooks).
 	OriginPrompt string `json:"origin_prompt,omitempty"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	// TopicKey agrupa memorias del mismo tópico para el upsert de deduplicación
+	// (feature 008): guardar con un TopicKey ya existente en el proyecto actualiza
+	// la memoria previa en vez de crear una fila nueva. Vacío = sin agrupación.
+	TopicKey  string `json:"topic_key,omitempty"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }

@@ -40,16 +40,23 @@ func NewContainer(root string) (*Container, error) {
 	relRepo := persistence.NewRelationRepository(db)
 	codeGraphRepo := persistence.NewCodeGraphRepository(db)
 
+	settings := persistence.ReadSettings(root)
+	// Dedup en la fuente (feature 008): la ventana de identidad se toma de settings
+	// (singleton de proceso). <=0 desactiva el dedup por identidad.
+	persistence.SetDedupWindowDays(settings.DedupWindowDays)
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
 	contextBuilder.Graph = codeGraphRepo
+	// Presupuesto de contexto (feature 008): techo blando de get_context para no
+	// inflar la ventana del agente. Normalizado en ReadSettings (default si 0).
+	contextBuilder.Budget = settings.Budget
 	// Proveedor(es) EXTERNO(s) de grafo, opcionales y agnósticos al agente.
 	// Enchufable por settings (code_graph_disabled / code_graph_command). Si está
 	// deshabilitado, el binario no está o el repo no está indexado: degrada en
 	// silencio y el contexto se arma igual con el grafo propio.
 	var codeProviders []ports.CodeGraphProvider
-	if s := persistence.ReadSettings(root); !s.CodeGraphDisabled {
+	if !settings.CodeGraphDisabled {
 		codeProviders = []ports.CodeGraphProvider{
-			codebasememory.New(root, filepath.Join(root, persistence.MemDir), s.CodeGraphCommand),
+			codebasememory.New(root, filepath.Join(root, persistence.MemDir), settings.CodeGraphCommand),
 		}
 	}
 	contextBuilder.CodeProviders = codeProviders
