@@ -70,11 +70,11 @@ mem search "API"
 
 | Tool / Resource | Descripción |
 | :--- | :--- |
-| `save_memory` | Registra una nueva memoria estructurada. |
-| `search_memories` | Búsqueda por ranking (título y contenido). |
-| `list_memories` | Devuelve las memorias recientes del proyecto. |
-| `get_memory` | Retorna el contenido de un ID específico. |
-| `get_context` | Contexto completo del proyecto en markdown, para arrancar sesión. |
+| `save_memory` | Registra una nueva memoria estructurada. Con `topic_key` opcional: si el tópico ya existe, actualiza esa memoria en vez de duplicar. |
+| `search_memories` | Búsqueda por ranking (título y contenido); devuelve extractos compactos. |
+| `list_memories` | Devuelve las memorias recientes del proyecto (extractos compactos). |
+| `get_memory` | Retorna el contenido íntegro de un ID específico (detalle bajo demanda). |
+| `get_context` | Contexto del proyecto en markdown, acotado por presupuesto, para arrancar sesión. |
 | `start_session` / `end_session` | Abre y cierra una sesión de trabajo con resumen. |
 | `forget_memory` | Elimina un registro por ID (requiere aprobación manual). |
 | `judge_memories` | Resuelve conflictos semánticos entre dos registros. |
@@ -111,6 +111,23 @@ Comandos principales para la gestión manual:
 - **Hooks portables:** cada evento del agente invoca `mem hook <evento>`, un binario que habla directo a los repositorios — sin scripts de shell ni `curl`. Idéntico en Linux, macOS y Windows.
 - **Grafo de código externo enchufable:** el puerto `CodeGraphProvider` (arquitectura hexagonal) permite traer la fuerza de un grafo ya indexado por otra herramienta sin acoplarse. El hot path solo lee un snapshot cacheado; el refresco corre en un proceso detached (`mem code-refresh`) con timeout corto — nunca bloquea el guardado ni el contexto, y nunca dispara indexado. Ver [`docs/architecture.md`](docs/architecture.md).
 - **Portabilidad:** Cross-compile nativo. Los timestamps usan UTC-5 por defecto.
+
+### Huella de contexto (bajo costo de tokens)
+
+gomemory está diseñado para **no inflar la ventana del agente**. Como los resultados de las tools MCP persisten en el contexto toda la sesión, gomemory **emite lo mínimo** desde el inicio y **señala** (nunca ejecuta) cuándo conviene compactar — de forma agnóstica al agente (Claude Code, Cursor, otros clientes MCP o el CLI):
+
+- **`get_context` acotado por presupuesto:** el contexto de arranque se limita a un techo de caracteres, truncando lo largo con un puntero `get_memory <id>` para el detalle bajo demanda. Protocolo y conflictos nunca se recortan.
+- **Revelación progresiva:** `search_memories`/`list_memories` devuelven extractos compactos; el contenido íntegro queda en `get_memory`.
+- **Dedup en la fuente:** guardar una memoria equivalente (mismo tipo+título, o el mismo `topic_key`) **actualiza** la existente en vez de crear otra.
+- **Recordatorio de compactación:** al cerrar el turno, si la huella emitida por gomemory supera un umbral, sugiere de forma neutral compactar el contexto.
+
+Ajustable en `.memory/settings.json` (valores por defecto entre paréntesis):
+
+| Clave | Efecto | Default |
+|-------|--------|---------|
+| `budget` | Techo de `get_context` en caracteres (`<0` = sin límite) | `24000` (~6k tokens) |
+| `compact_threshold` | Huella emitida/sesión que dispara el recordatorio (`<=0` = off) | `48000` |
+| `dedup_window_days` | Ventana del dedup por identidad (`<=0` = off; el `topic_key` sigue) | `7` |
 
 ```text
 gomemory/

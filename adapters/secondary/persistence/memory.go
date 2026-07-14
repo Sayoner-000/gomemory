@@ -49,10 +49,24 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 		origin = activeSessionLastPrompt(db, m.Project)
 	}
 
+	// Dedup/upsert en la fuente (feature 008): consolida una memoria equivalente
+	// ya existente en vez de crear una fila nueva, para que el contexto no se
+	// infle con repeticiones. Best-effort: si no hay match, sigue el INSERT normal.
+	if existingID, ok := findDuplicate(db, m, title); ok {
+		if _, err := db.Exec(
+			`UPDATE memories SET content = ?, title = ?, type = ?, filepath = ?, topic_key = ?, updated_at = `+Now+`
+			 WHERE id = ?`,
+			content, title, string(m.Type), m.Filepath, nullableTopic(m.TopicKey), existingID,
+		); err != nil {
+			return 0, fmt.Errorf("update memory (dedup): %w", err)
+		}
+		return existingID, nil
+	}
+
 	res, err := db.Exec(
-		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
-		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin,
+		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, topic_key, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
+		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin, nullableTopic(m.TopicKey),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert memory: %w", err)
@@ -70,6 +84,60 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	formSynapse(db, m.Project, m.SessionID, id)
 
 	return id, nil
+}
+
+// dedupWindowDays es la ventana (días) del dedup por identidad. Singleton de
+// proceso: el composition root lo fija desde settings (SetDedupWindowDays);
+// default seguro. <=0 desactiva el dedup por identidad (el upsert por topic_key
+// sigue vigente, es explícito).
+var dedupWindowDays = DefaultDedupWindowDays
+
+// SetDedupWindowDays ajusta la ventana de dedup por identidad (feature 008).
+func SetDedupWindowDays(n int) { dedupWindowDays = n }
+
+// findDuplicate localiza una memoria existente que la nueva debe consolidar en
+// lugar de duplicar:
+//   - por topic_key (explícito, cualquier tipo): agrupa revisiones del mismo tópico;
+//   - por identidad (mismo project+type+title dentro de la ventana): NUNCA aplica
+//     a checkpoints (su contenido varía por turno) ni a memorias sin título (un
+//     título vacío no es una clave de dedup fiable).
+//
+// Best-effort: ante cualquier error o ausencia de match, (0,false) ⇒ INSERT normal.
+func findDuplicate(db *sql.DB, m *domain.Memory, title string) (int64, bool) {
+	if tk := strings.TrimSpace(m.TopicKey); tk != "" {
+		var id int64
+		if err := db.QueryRow(
+			`SELECT id FROM memories WHERE project = ? AND topic_key = ? ORDER BY id DESC LIMIT 1`,
+			m.Project, tk,
+		).Scan(&id); err == nil {
+			return id, true
+		}
+		return 0, false // topic explícito sin match: no cae a identidad, el tópico manda.
+	}
+
+	if dedupWindowDays <= 0 || m.Type == domain.Checkpoint || strings.TrimSpace(title) == "" {
+		return 0, false
+	}
+	var id int64
+	if err := db.QueryRow(
+		`SELECT id FROM memories
+		 WHERE project = ? AND type = ? AND title = ? AND type != 'checkpoint'
+		   AND julianday(`+Now+`) - julianday(created_at) <= ?
+		 ORDER BY id DESC LIMIT 1`,
+		m.Project, string(m.Type), title, dedupWindowDays,
+	).Scan(&id); err == nil {
+		return id, true
+	}
+	return 0, false
+}
+
+// nullableTopic devuelve nil para un topic_key vacío (así el índice parcial solo
+// indexa filas con tópico y las memorias sin tópico no colisionan entre sí).
+func nullableTopic(tk string) any {
+	if strings.TrimSpace(tk) == "" {
+		return nil
+	}
+	return tk
 }
 
 // formSynapse crea la arista de consolidación sináptica de la memoria recién

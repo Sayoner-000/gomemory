@@ -988,6 +988,27 @@ func (m model) configView() string {
 	}
 	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Binario: "+bin) + "\n\n")
 
+	// Huella de contexto (feature 008): tunables de solo lectura. Se editan en
+	// .memory/settings.json (budget / compact_threshold / dedup_window_days).
+	b.WriteString(lipgloss.NewStyle().Bold(true).Render("  Huella de contexto"))
+	b.WriteString("\n")
+	budgetLabel := fmt.Sprintf("%d caracteres", s.Budget)
+	if s.Budget < 0 {
+		budgetLabel = "sin límite"
+	}
+	threshLabel := fmt.Sprintf("%d caracteres", s.CompactThreshold)
+	if s.CompactThreshold <= 0 {
+		threshLabel = "desactivado"
+	}
+	dedupLabel := fmt.Sprintf("%d días", s.DedupWindowDays)
+	if s.DedupWindowDays <= 0 {
+		dedupLabel = "desactivado"
+	}
+	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Presupuesto get_context: "+budgetLabel) + "\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Umbral recordatorio compactación: "+threshLabel) + "\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Ventana dedup por identidad: "+dedupLabel) + "\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    (editar en .memory/settings.json)") + "\n\n")
+
 	// Menú de acciones.
 	rows := []string{
 		"Grafo de código externo: " + onOff(!s.CodeGraphDisabled),

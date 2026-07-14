@@ -89,6 +89,43 @@ type Builder struct {
 	CodeProviders []ports.CodeGraphProvider
 	Project       string
 	Root          string
+	// Budget es el techo blando (en CARACTERES) de la salida de Build(). <=0 =
+	// sin límite (comportamiento histórico). Con techo, cada entrada larga se
+	// acota a un extracto con puntero `get_memory <id>` y las secciones de lista
+	// dejan de crecer al acercarse al techo; protocolo (lo añade el llamador) y
+	// conflictos NUNCA se recortan. La contabilidad es en bytes emitidos.
+	Budget int
+}
+
+const (
+	// entryExtractChars es el largo del extracto por entrada bajo presupuesto.
+	entryExtractChars = 200
+	// budgetReserve deja margen para notas de cierre y secciones finales, de modo
+	// que la salida total no supere Budget.
+	budgetReserve = 300
+)
+
+// acota devuelve el contenido de la memoria acotado al presupuesto: si hay techo
+// y el contenido excede el extracto, lo trunca y adjunta el puntero al detalle.
+// Sin techo (Budget<=0) devuelve el contenido íntegro.
+func (b *Builder) acota(m domain.Memory) string {
+	if b.Budget <= 0 {
+		return m.Content
+	}
+	ex := domain.Extract(m.Content, entryExtractChars)
+	if ex != strings.TrimSpace(m.Content) {
+		return fmt.Sprintf("%s → `get_memory %d`", ex, m.ID)
+	}
+	return ex
+}
+
+// fits indica si aún cabe una línea de n bytes bajo el techo (con reserva).
+// Sin techo siempre cabe.
+func (b *Builder) fits(sb *strings.Builder, n int) bool {
+	if b.Budget <= 0 {
+		return true
+	}
+	return sb.Len()+n <= b.Budget-budgetReserve
 }
 
 func New(lister ports.MemoryLister, session ports.SessionQuerier, relations ports.RelationLister, root, project string) *Builder {
@@ -150,75 +187,105 @@ func (b *Builder) Build() (string, error) {
 		}
 	}
 
-	if prefs, ok := byType[domain.Preference]; ok {
+	if prefs, ok := byType[domain.Preference]; ok && b.fits(&sb, 40) {
 		sb.WriteString("## Preferencias del Usuario\n\n")
-		for _, m := range prefs {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", displayTitle(m), m.Content))
+		for i, m := range prefs {
+			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
+			if !b.fits(&sb, len(line)) {
+				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(prefs)-i))
+				break
+			}
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
 	}
 
-	if arch, ok := byType[domain.Architecture]; ok {
+	if arch, ok := byType[domain.Architecture]; ok && b.fits(&sb, 40) {
 		sb.WriteString("## Decisiones de Arquitectura\n\n")
-		for _, m := range arch {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", displayTitle(m), m.Content))
+		for i, m := range arch {
+			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
 			if m.Filepath != "" {
-				sb.WriteString(fmt.Sprintf("  → `%s`\n", m.Filepath))
+				line += fmt.Sprintf("  → `%s`\n", m.Filepath)
 			}
+			if !b.fits(&sb, len(line)) {
+				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(arch)-i))
+				break
+			}
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
 	}
 
-	if dec, ok := byType[domain.Decision]; ok {
+	if dec, ok := byType[domain.Decision]; ok && b.fits(&sb, 40) {
 		sb.WriteString("## Decisiones Técnicas\n\n")
-		for _, m := range dec {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", displayTitle(m), m.Content))
-		}
-		sb.WriteString("\n")
-	}
-
-	if pat, ok := byType[domain.Pattern]; ok {
-		sb.WriteString("## Patrones y Convenciones\n\n")
-		for _, m := range pat {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", displayTitle(m), m.Content))
-		}
-		sb.WriteString("\n")
-	}
-
-	if bugs, ok := byType[domain.Bugfix]; ok {
-		sb.WriteString("## Bugfixes\n\n")
-		for _, m := range bugs {
-			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", displayTitle(m), m.Content))
-			if m.Filepath != "" {
-				sb.WriteString(fmt.Sprintf("  → `%s`\n", m.Filepath))
+		for i, m := range dec {
+			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
+			if !b.fits(&sb, len(line)) {
+				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(dec)-i))
+				break
 			}
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
 	}
 
-	sb.WriteString("## Aprendizajes Recientes\n\n")
-	count := 0
-	for _, m := range mems {
-		if m.Type == domain.Architecture || m.Type == domain.Decision || m.Type == domain.Pattern || m.Type == domain.Bugfix || m.Type == domain.Preference || m.Type == domain.Checkpoint {
-			continue
-		}
-		if count >= 15 {
-			break
-		}
-		line := fmt.Sprintf("- %s", m.Content)
-		if m.Title != "" {
-			line = fmt.Sprintf("- **%s**: %s", m.Title, m.Content)
-		}
-		sb.WriteString(line)
-		if m.Filepath != "" {
-			sb.WriteString(fmt.Sprintf(" (`%s`)", m.Filepath))
+	if pat, ok := byType[domain.Pattern]; ok && b.fits(&sb, 40) {
+		sb.WriteString("## Patrones y Convenciones\n\n")
+		for i, m := range pat {
+			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
+			if !b.fits(&sb, len(line)) {
+				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(pat)-i))
+				break
+			}
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
-		count++
 	}
-	sb.WriteString("\n")
 
-	if checkpoints, ok := byType[domain.Checkpoint]; ok {
+	if bugs, ok := byType[domain.Bugfix]; ok && b.fits(&sb, 40) {
+		sb.WriteString("## Bugfixes\n\n")
+		for i, m := range bugs {
+			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
+			if m.Filepath != "" {
+				line += fmt.Sprintf("  → `%s`\n", m.Filepath)
+			}
+			if !b.fits(&sb, len(line)) {
+				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(bugs)-i))
+				break
+			}
+			sb.WriteString(line)
+		}
+		sb.WriteString("\n")
+	}
+
+	if b.fits(&sb, 60) {
+		sb.WriteString("## Aprendizajes Recientes\n\n")
+		count := 0
+		for _, m := range mems {
+			if m.Type == domain.Architecture || m.Type == domain.Decision || m.Type == domain.Pattern || m.Type == domain.Bugfix || m.Type == domain.Preference || m.Type == domain.Checkpoint {
+				continue
+			}
+			if count >= 15 {
+				break
+			}
+			line := fmt.Sprintf("- %s", b.acota(m))
+			if m.Title != "" {
+				line = fmt.Sprintf("- **%s**: %s", m.Title, b.acota(m))
+			}
+			if m.Filepath != "" {
+				line += fmt.Sprintf(" (`%s`)", m.Filepath)
+			}
+			line += "\n"
+			if !b.fits(&sb, len(line)) {
+				break
+			}
+			sb.WriteString(line)
+			count++
+		}
+		sb.WriteString("\n")
+	}
+
+	if checkpoints, ok := byType[domain.Checkpoint]; ok && b.fits(&sb, 60) {
 		sb.WriteString("## Actividad Reciente (auto)\n\n")
 		for i, m := range checkpoints {
 			if i >= 5 {
@@ -229,7 +296,7 @@ func (b *Builder) Build() (string, error) {
 		sb.WriteString("\n")
 	}
 
-	if b.Graph != nil {
+	if b.Graph != nil && b.fits(&sb, 120) {
 		if status, err := b.Graph.Status(b.Project); err == nil && status.Nodes > 0 {
 			sb.WriteString("## Código indexado\n\n")
 			sb.WriteString(fmt.Sprintf("%d archivos, %d símbolos, %d relaciones.", status.Files, status.Nodes, status.Edges))
@@ -251,7 +318,7 @@ func (b *Builder) Build() (string, error) {
 		if cp == nil {
 			continue
 		}
-		if snap := cp.Snapshot(); snap.Available && snap.Architecture != nil {
+		if snap := cp.Snapshot(); snap.Available && snap.Architecture != nil && b.fits(&sb, 200) {
 			writeCodeProviderSection(&sb, snap)
 		}
 		cp.MaybeRefresh()
@@ -264,7 +331,7 @@ func (b *Builder) Build() (string, error) {
 	}
 
 	sessions, _ := b.Session.Recent(b.Project, 5)
-	if len(sessions) > 0 {
+	if len(sessions) > 0 && b.fits(&sb, 80) {
 		sb.WriteString("## Sesiones Recientes\n\n")
 		for _, s := range sessions {
 			if s.EndedAt == nil {
@@ -274,7 +341,14 @@ func (b *Builder) Build() (string, error) {
 			if summary == "" {
 				summary = "(sin resumen)"
 			}
-			sb.WriteString(fmt.Sprintf("- %s → %s: %s\n", s.CreatedAt, *s.EndedAt, summary))
+			if b.Budget > 0 {
+				summary = domain.Extract(summary, entryExtractChars)
+			}
+			line := fmt.Sprintf("- %s → %s: %s\n", s.CreatedAt, *s.EndedAt, summary)
+			if !b.fits(&sb, len(line)) {
+				break
+			}
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
 	}

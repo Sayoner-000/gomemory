@@ -293,19 +293,40 @@ El agente busca memoria:
 
 ### Progressive Disclosure (3 Capas)
 
-1. `search_memories()` — resúmenes compactos (~100 tokens)
-2. `get_memory()` — contenido completo solo cuando es necesario
-3. Nunca volcar toda la memoria
+Aplicado por el propio servidor sobre el texto emitido (no depende del agente):
+
+1. `search_memories()` / `list_memories()` — extractos compactos (~160 chars) con id
+2. `get_memory(id)` — contenido completo solo cuando es necesario (capa 3)
+3. `get_context()` acotado por presupuesto: entradas largas truncadas con puntero
+   `get_memory <id>`; protocolo y conflictos nunca se recortan
 
 ### Session Close
 
-Al terminar, el agente registra: Goal, Discoveries, Accomplished, Next Steps,
-Relevant Files.
+Al terminar, el agente registra un resumen estructurado: Objetivo, Hallazgos,
+Logrado, Próximos pasos, Archivos.
 
 ### Compaction Recovery
 
 Después de compactación, el agente persiste resumen y recupera estado antes
-de continuar.
+de continuar. Además, al cerrar cada turno, si la huella emitida por gomemory
+supera el umbral, el hook sugiere de forma **neutral** compactar el contexto
+(nunca ejecuta comandos: solo señala).
+
+### Huella de contexto (tunables)
+
+Para bajar el costo de tokens de la sesión, gomemory emite lo mínimo desde el
+inicio. Ajustable en `.memory/settings.json` (también visible en la TUI, tecla de
+configuración):
+
+| Clave | Efecto | Default |
+|-------|--------|---------|
+| `budget` | Techo de `get_context` en caracteres (`< 0` = sin límite) | `24000` (~6k tokens) |
+| `compact_threshold` | Huella emitida/sesión que dispara el recordatorio (`<= 0` = off) | `48000` |
+| `dedup_window_days` | Ventana del dedup por identidad (`<= 0` = off; `topic_key` sigue activo) | `7` |
+
+La deduplicación en la fuente evita filas casi idénticas: guardar una memoria con
+un `topic_key` ya usado (o el mismo tipo+título dentro de la ventana) **actualiza**
+la existente en vez de crear otra.
 
 ---
 
