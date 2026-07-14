@@ -38,9 +38,24 @@ func CmdMCP(deps *Deps, args []string) {
 	registerCodeTools(server, deps, root, project)
 	registerResources(server, deps, project)
 
+	// Huella de contexto (feature 008): choke point único que suma los bytes
+	// emitidos en cada CallToolResult. Es el proxy honesto de cuánto contexto
+	// aporta gomemory a la sesión (no podemos leer la ventana del cliente). El
+	// hook de fin de turno lo consulta para sugerir compactar. Fire-and-forget.
+	server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			res, err := next(ctx, method, req)
+			if err == nil {
+				footprintAdd(root, callToolResultTextLen(res))
+			}
+			return res, err
+		}
+	})
+
 	// Auto-start session on MCP server start (best-effort, no debe romper el server)
 	if active, _ := deps.SessionRepo.Active(project); active == nil {
 		if sess, err := deps.SessionRepo.Start(project); err == nil {
+			footprintReset(root) // sesión nueva ⇒ huella desde cero
 			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
 		}
 	}
@@ -63,6 +78,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		Type     string `json:"type" jsonschema:"Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference"`
 		Content  string `json:"content" jsonschema:"Contenido del aprendizaje"`
 		Filepath string `json:"filepath,omitempty" jsonschema:"Archivo relacionado (opcional)"`
+		TopicKey string `json:"topic_key,omitempty" jsonschema:"Clave de tópico opcional: si repites un topic_key ya guardado, se ACTUALIZA esa memoria en vez de crear otra (evita duplicados)"`
 	}) (*mcp.CallToolResult, any, error) {
 		memType := domain.ValidMemoryType(in.Type)
 		var sessionID string
@@ -77,6 +93,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			Title:     in.Title,
 			Content:   in.Content,
 			Filepath:  in.Filepath,
+			TopicKey:  in.TopicKey,
 		}
 		id, err := deps.MemoryRepo.Insert(&mem)
 		if err != nil {
@@ -107,12 +124,8 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 				Content: []mcp.Content{&mcp.TextContent{Text: "Sin resultados para: " + in.Query}},
 			}, nil, nil
 		}
-		var sb strings.Builder
-		for _, m := range mems {
-			sb.WriteString(fmt.Sprintf("[%d] %s | %s\n  %s\n\n", m.ID, m.Type, m.Title, m.Content))
-		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}},
+			Content: []mcp.Content{&mcp.TextContent{Text: renderSearchResults(mems)}},
 		}, nil, nil
 	})
 
@@ -135,16 +148,8 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 				Content: []mcp.Content{&mcp.TextContent{Text: "No hay memorias guardadas."}},
 			}, nil, nil
 		}
-		var sb strings.Builder
-		for _, m := range mems {
-			content := m.Content
-			if len(content) > 77 {
-				content = content[:77] + "..."
-			}
-			sb.WriteString(fmt.Sprintf("[%d] %s | %s\n  %s\n\n", m.ID, m.Type, m.Title, content))
-		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}},
+			Content: []mcp.Content{&mcp.TextContent{Text: renderMemoryList(mems)}},
 		}, nil, nil
 	})
 
@@ -160,22 +165,8 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}
 		for _, m := range mems {
 			if m.ID == int64(in.ID) {
-				sessionInfo := ""
-				if m.SessionID != "" {
-					sessionInfo = fmt.Sprintf("\nSesión: %s", m.SessionID[:8])
-				}
-				fileInfo := ""
-				if m.Filepath != "" {
-					fileInfo = fmt.Sprintf("\nArchivo: %s", m.Filepath)
-				}
-				promptInfo := ""
-				if m.OriginPrompt != "" {
-					promptInfo = fmt.Sprintf("\nPrompt originante: %s", m.OriginPrompt)
-				}
-				text := fmt.Sprintf("ID: %d\nTipo: %s\nTítulo: %s\nFecha: %s%s%s%s\n\n%s",
-					m.ID, m.Type, m.Title, m.CreatedAt, sessionInfo, fileInfo, promptInfo, m.Content)
 				return &mcp.CallToolResult{
-					Content: []mcp.Content{&mcp.TextContent{Text: text}},
+					Content: []mcp.Content{&mcp.TextContent{Text: renderMemoryDetail(m)}},
 				}, nil, nil
 			}
 		}
@@ -208,9 +199,11 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "end_session",
 		Description: "Finaliza la sesión de trabajo activa con un resumen. Llámala antes de dar la tarea " +
-			"por terminada, no solo cuando el usuario lo pida explícitamente.",
+			"por terminada, no solo cuando el usuario lo pida explícitamente. Estructura el resumen en " +
+			"secciones breves — Objetivo, Hallazgos, Logrado, Próximos pasos, Archivos — para que la " +
+			"próxima sesión lo recupere compacto y accionable.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
-		Summary string `json:"summary,omitempty" jsonschema:"Resumen de lo realizado en la sesión"`
+		Summary string `json:"summary,omitempty" jsonschema:"Resumen estructurado: Objetivo / Hallazgos / Logrado / Próximos pasos / Archivos"`
 	}) (*mcp.CallToolResult, any, error) {
 		sess, err := deps.SessionRepo.Active(project)
 		if err != nil {

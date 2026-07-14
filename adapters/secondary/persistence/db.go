@@ -175,6 +175,12 @@ func migrate(db *sql.DB) error {
 	addColumnIfMissing(db, "memories", "origin_prompt", "TEXT")
 	addColumnIfMissing(db, "sessions", "last_prompt", "TEXT")
 
+	// topic_key (feature 008): agrupa memorias por tópico para el upsert de dedup.
+	// El índice va DESPUÉS del ALTER (referencia la columna recién creada) y es
+	// parcial: solo indexa filas con tópico. Idempotente (IF NOT EXISTS).
+	addColumnIfMissing(db, "memories", "topic_key", "TEXT")
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
+
 	// FTS5 es best-effort y separado del schema principal: si la build de
 	// sqlite en uso no lo soporta, code_search simplemente no existe y
 	// SearchNodes cae a LIKE — no debe romper la migración del resto de
