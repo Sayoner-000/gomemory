@@ -36,7 +36,7 @@ func StartSession(db *sql.DB, project string) (*domain.Session, error) {
 // hay sesión activa no hace nada (best-effort): el prompt no se pierde de forma
 // crítica, solo no habrá provenance para ese turno.
 func SetSessionLastPrompt(db *sql.DB, project, prompt string) error {
-	prompt = domain.RedactPrivate(prompt)
+	prompt = domain.RedactSecrets(domain.RedactPrivate(prompt))
 	if len(prompt) > maxOriginPromptLen {
 		prompt = prompt[:maxOriginPromptLen]
 	}

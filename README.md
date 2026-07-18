@@ -58,13 +58,14 @@ mem search "API"
 ```
 
 * **8 Tipos de memoria:** `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint`.
-* **Privacidad por diseño:** El contenido envuelto en `<private>...</private>` se redacta y no llega a la base de datos.
+* **Privacidad por diseño:** El contenido envuelto en `<private>...</private>` se redacta y no llega a la base de datos. Como segunda capa, patrones de secretos conocidos (claves de AWS, tokens de GitHub, claves de proveedores de IA, tokens de Slack, JWT, bloques de clave privada PEM) se redactan igual aunque el usuario olvide envolverlos. El archivo `mem.db` y sus directorios se crean con permisos restringidos al propietario (`0600`/`0700`).
 * **Auto-Checkpoints:** En Claude Code y OpenCode, los turnos con actividad real se registran automáticamente como `checkpoint` sin consumir tokens del agente.
 * **Captura de planes aprobados:** Al aprobar un plan (Claude Code `ExitPlanMode` / modo `plan` de OpenCode), sus decisiones se guardan automáticamente como `decision` — de forma determinista, sin depender de que el modelo lo recuerde. Cada aprobación (incluidos planes revisados) se acumula, así la evolución de las decisiones no se pierde.
 * **Consolidación sináptica ("siempre sinapsis"):** Cada memoria que se guarda se enlaza automáticamente con el engrama sustantivo más reciente de su sesión, tejiendo un grafo de decisiones que se re-inyecta en cada `get_context`. Determinista y transversal a todos los agentes (vive en el choke point de guardado, no en cada agente).
 * **Grafo de código externo (brazo extensor, opcional):** si detecta un grafo de código ya indexado por [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp), gomemory enriquece `get_context` con un resumen estructural (módulos de facto, hotspots, lenguajes) para que la memoria "entienda" el código. **No es una dependencia dura**: si el proveedor no está, todo funciona igual. Es **no-bloqueante** (el contexto lee un snapshot cacheado al instante; el refresco corre en segundo plano) y **agnóstico al agente**. Se enciende/apaga con `mem settings --code-graph=true|false`.
 * **Resolución de conflictos:** `judge_memories` resuelve colisiones entre memorias obsoletas y nuevas con veredictos semánticos obligatorios.
 * **Memoria portable (export/import):** `mem export` vuelca las memorias **+ sus relaciones** (sinapsis y veredictos) a un JSON UTF-8 autocontenido, apto para moverlas entre proyectos y máquinas con distinto S.O. `mem import` las trae al proyecto actual con **append + dedup por contenido** (no duplica), **preservando los timestamps** originales, remapeando el proyecto y los ids de relación, y **sin generar sinapsis espurias**. Disponible también desde la TUI (tecla `c` → Configuración).
+* **Backup automático local:** cada cierre de sesión genera, en modo best-effort, un snapshot con el mismo formato que `mem export` en `<directorio de datos>/backups/<proyecto>/`, conservando por defecto los últimos 10 (ajustable con `GOMEMORY_BACKUP_KEEP`). Para llevarlo entre máquinas, apunta esa carpeta de backups a tu propia herramienta de sincronización (Dropbox, iCloud, Syncthing, un repo git privado). **No sincronices el `mem.db` crudo directamente**: es una base SQLite en modo WAL y una sincronización parcial o fuera de orden puede corromperla; el bundle JSON del backup sí es un snapshot atómico y seguro para mover.
 
 ## Herramientas MCP Expuestas
 
@@ -146,6 +147,15 @@ cd gomemory
 go build -o mem ./infrastructure/
 ./mem install .
 ```
+
+## Mitigación de Riesgos Operativos
+
+Como proyecto de un mes/un autor con la memoria aún en evolución, se atendieron cuatro riesgos operativos concretos (detalle de diseño en [`specs/009-mitigacion-riesgos/`](specs/009-mitigacion-riesgos/)):
+
+1. **Búsqueda por relevancia real** (FTS5 + `bm25()`, con fallback automático a `LIKE` si el build no soporta FTS5) en vez de solo balde título/contenido + recencia.
+2. **Backup automático local** al cerrar sesión (ver "Backup automático local" arriba), para no depender de que el usuario recuerde exportar antes de perder datos.
+3. **Redacción de secretos en dos capas** + permisos de archivo restringidos (ver "Privacidad por diseño" arriba).
+4. **Convención de compatibilidad documentada en el código**: migraciones de esquema solo-aditivas y versionado explícito del bundle de export (`domain.ExportVersion`), para que cambios futuros no rompan datos ya persistidos.
 
 ## Más Documentación
 

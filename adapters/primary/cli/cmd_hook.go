@@ -6,11 +6,20 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"mem/adapters/secondary/persistence"
 	"mem/application/usecases"
 	"mem/domain"
 )
+
+// backupKeepEnvOverride permite ajustar cuántos snapshots automáticos de
+// backup se retienen por proyecto (specs/009-mitigacion-riesgos, Historia de
+// Usuario 1). Mismo patrón que dataHomeEnvOverride en globalstore.go: una
+// constante + os.Getenv leída en el punto de uso, sin struct de config nueva.
+const backupKeepEnvOverride = "GOMEMORY_BACKUP_KEEP"
+const defaultBackupKeep = 10
 
 // CmdHook es el entrypoint portable de los hooks de agentes.
 //
@@ -113,7 +122,29 @@ func hookSessionEnd(deps *Deps) {
 	}
 
 	deps.SessionRepo.End(active.ID, summary)
+	backupSessionSnapshot(deps, project)
 	os.Exit(0)
+}
+
+// backupSessionSnapshot genera, en modo best-effort, un snapshot automático de
+// memorias+relaciones al cerrar sesión (specs/009-mitigacion-riesgos, Historia
+// de Usuario 1: mitigar la ausencia de backup entre máquinas). Cualquier error
+// se descarta en silencio — regla de oro de este archivo: un hook nunca debe
+// abortar ni retrasar el cierre de sesión.
+func backupSessionSnapshot(deps *Deps, project string) {
+	dir, err := persistence.BackupDir(project)
+	if err != nil {
+		return
+	}
+
+	keep := defaultBackupKeep
+	if v := os.Getenv(backupKeepEnvOverride); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			keep = n
+		}
+	}
+
+	usecases.CreateSnapshot(deps.MemoryRepo, deps.RelationRepo, project, dir, keep)
 }
 
 // hookPreCompact se ejecuta ANTES de la compactación del contexto. Es el
