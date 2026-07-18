@@ -33,8 +33,8 @@ func SecondsSinceLastSave(db *sql.DB, project string) (int64, bool, error) {
 }
 
 func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
-	title := domain.RedactPrivate(m.Title)
-	content := domain.RedactPrivate(m.Content)
+	title := domain.RedactSecrets(domain.RedactPrivate(m.Title))
+	content := domain.RedactSecrets(domain.RedactPrivate(m.Content))
 	if strings.TrimSpace(content) == "" {
 		return 0, fmt.Errorf("insert memory: contenido vacío tras redactar <private>")
 	}
@@ -44,7 +44,7 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	// Choke point único: así TODAS las vías de guardado (MCP, checkpoint, CLI,
 	// TUI) adjuntan la provenance sin tocar cada call site. Vacío si el agente
 	// no expone el prompt (clientes MCP sin hooks) — degradación limpia.
-	origin := domain.RedactPrivate(m.OriginPrompt)
+	origin := domain.RedactSecrets(domain.RedactPrivate(m.OriginPrompt))
 	if strings.TrimSpace(origin) == "" {
 		origin = activeSessionLastPrompt(db, m.Project)
 	}
@@ -60,6 +60,7 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 		); err != nil {
 			return 0, fmt.Errorf("update memory (dedup): %w", err)
 		}
+		upsertMemorySearch(db, existingID, title, content)
 		return existingID, nil
 	}
 
@@ -75,6 +76,7 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	upsertMemorySearch(db, id, title, content)
 
 	// Consolidación sináptica ("siempre sinapsis"): en el mismo choke point que la
 	// provenance, la memoria recién codificada forma una sinapsis con el engrama
@@ -84,6 +86,29 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	formSynapse(db, m.Project, m.SessionID, id)
 
 	return id, nil
+}
+
+// upsertMemorySearch mantiene memory_search (FTS5, specs/009-mitigacion-riesgos
+// Historia de Usuario 3) sincronizada 1:1 con memories: actualiza la fila de
+// índice si ya existía (consolidación por dedup) o la crea si es nueva.
+// Best-effort y silencioso: si memory_search no existe (build sin soporte
+// FTS5, ver migrate() en db.go), ambos Exec fallan sin afectar el guardado de
+// la memoria — SearchMemories cae a LIKE en ese caso.
+func upsertMemorySearch(db *sql.DB, id int64, title, content string) {
+	res, err := db.Exec(`UPDATE memory_search SET title = ?, content = ? WHERE memory_id = ?`, title, content, id)
+	if err != nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return
+	}
+	db.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
+}
+
+// deleteMemorySearch borra la fila de índice asociada a una memoria borrada.
+// Best-effort: ver upsertMemorySearch.
+func deleteMemorySearch(db *sql.DB, id int64) {
+	db.Exec(`DELETE FROM memory_search WHERE memory_id = ?`, id)
 }
 
 // dedupWindowDays es la ventana (días) del dedup por identidad. Singleton de
@@ -264,12 +289,12 @@ func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 // idempotente sobre datos ya redactados). Si created_at/updated_at vienen vacíos
 // se usa el reloj local.
 func ImportMemory(db *sql.DB, m *domain.Memory) (int64, error) {
-	title := domain.RedactPrivate(m.Title)
-	content := domain.RedactPrivate(m.Content)
+	title := domain.RedactSecrets(domain.RedactPrivate(m.Title))
+	content := domain.RedactSecrets(domain.RedactPrivate(m.Content))
 	if strings.TrimSpace(content) == "" {
 		return 0, fmt.Errorf("import memory: contenido vacío tras redactar <private>")
 	}
-	origin := domain.RedactPrivate(m.OriginPrompt)
+	origin := domain.RedactSecrets(domain.RedactPrivate(m.OriginPrompt))
 
 	res, err := db.Exec(
 		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, created_at, updated_at)
@@ -279,7 +304,12 @@ func ImportMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("import memory: %w", err)
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	upsertMemorySearch(db, id, title, content)
+	return id, nil
 }
 
 func DeleteMemory(db *sql.DB, project string, id int64) (bool, error) {
@@ -291,13 +321,49 @@ func DeleteMemory(db *sql.DB, project string, id int64) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("delete memory: %w", err)
 	}
+	if affected > 0 {
+		deleteMemorySearch(db, id)
+	}
 	return affected > 0, nil
 }
 
+// SearchMemories busca memorias por relevancia (specs/009-mitigacion-riesgos,
+// Historia de Usuario 3): intenta primero FTS5+bm25 (searchMemoriesFTS) y cae a
+// LIKE (searchMemoriesLike) si memory_search no existe (build sin soporte FTS5)
+// o cualquier otro error de la ruta FTS — mismo patrón que SearchCodeNodes.
 func SearchMemories(db *sql.DB, project, query string, limit int) ([]domain.Memory, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 20
 	}
+	if mems, err := searchMemoriesFTS(db, project, query, limit); err == nil {
+		return mems, nil
+	}
+	return searchMemoriesLike(db, project, query, limit)
+}
+
+func searchMemoriesFTS(db *sql.DB, project, query string, limit int) ([]domain.Memory, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, fmt.Errorf("search memories fts: query vacía")
+	}
+	ftsQuery := `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
+	rows, err := db.Query(
+		`SELECT m.id, m.project, COALESCE(m.session_id,''), m.type, COALESCE(m.title,''), m.content,
+		        COALESCE(m.filepath,''), COALESCE(m.origin_prompt,''), m.created_at, m.updated_at
+		 FROM memory_search s
+		 JOIN memories m ON m.id = s.memory_id
+		 WHERE s.memory_search MATCH ? AND m.project = ?
+		 ORDER BY rank
+		 LIMIT ?`,
+		ftsQuery, project, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanMemories(rows)
+}
+
+func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.Memory, error) {
 	like := "%" + query + "%"
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
@@ -317,7 +383,13 @@ func SearchMemories(db *sql.DB, project, query string, limit int) ([]domain.Memo
 		return nil, fmt.Errorf("search memories: %w", err)
 	}
 	defer rows.Close()
+	return scanMemories(rows)
+}
 
+// scanMemories escanea filas con el orden de columnas común a
+// searchMemoriesFTS y searchMemoriesLike (id, project, session_id, type,
+// title, content, filepath, origin_prompt, created_at, updated_at).
+func scanMemories(rows *sql.Rows) ([]domain.Memory, error) {
 	var mems []domain.Memory
 	for rows.Next() {
 		var m domain.Memory

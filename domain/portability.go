@@ -2,6 +2,16 @@ package domain
 
 // ExportVersion es la versión del formato de bundle portable. Se incrementa si
 // el esquema cambia de forma incompatible.
+//
+// Regla de compatibilidad (specs/009-mitigacion-riesgos, Historia de Usuario 4):
+// cualquier cambio de campo en ExportBundle/ExportMemory/ExportRelation
+// (agregar, quitar, cambiar de tipo o de significado un campo) DEBE subir este
+// número y agregar una función de migración explícita (p. ej.
+// migrateBundleV1ToV2) que DecodeBundle/ImportBundle invoquen para leer
+// bundles de versiones anteriores — nunca cambiar los structs en silencio
+// dejando el número de versión intacto, porque un bundle exportado por una
+// versión vieja de gomemory (incluidos los snapshots automáticos de backup)
+// dejaría de poder importarse.
 const ExportVersion = 1
 
 // ExportBundle es el formato portable (cross-OS) de un conjunto de memorias y

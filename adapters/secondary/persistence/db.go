@@ -39,11 +39,14 @@ func EnsureDir(root string) error {
 	if err := migrateLegacyIfPresent(root, key); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(globalDir, 0755); err != nil {
+	// 0700: solo el usuario propietario debe poder leer/escribir el store
+	// global (specs/009-mitigacion-riesgos, Historia de Usuario 2 — hardening
+	// de permisos, segunda mitigación junto a RedactSecrets).
+	if err := os.MkdirAll(globalDir, 0o700); err != nil {
 		return err
 	}
 
-	return os.MkdirAll(filepath.Join(root, MemDir), 0755)
+	return os.MkdirAll(filepath.Join(root, MemDir), 0o700)
 }
 
 // DbPath devuelve la ruta del mem.db de un proyecto en el store global. Solo
@@ -77,6 +80,9 @@ func Open(root string) (*sql.DB, error) {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
+	// El driver sqlite no expone un modo de creación de archivo: se endurece
+	// explícitamente a 0600 tras abrir (idempotente sobre una BD ya existente).
+	os.Chmod(path, 0o600)
 	return db, nil
 }
 
@@ -87,6 +93,15 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
+// migrate aplica el esquema de forma SOLO ADITIVA (specs/009-mitigacion-riesgos,
+// Historia de Usuario 4): nuevas tablas vía CREATE TABLE/VIRTUAL TABLE IF NOT
+// EXISTS, nuevas columnas vía addColumnIfMissing. NUNCA se hace DROP, ni
+// RENAME, ni cambio de tipo sobre una columna/tabla ya existente — cualquier
+// base de un proyecto de un mes en producción activa debe poder abrirse con
+// cualquier versión posterior de gomemory sin migración manual. Si algún día
+// hiciera falta un cambio incompatible, la mitigación proporcionada es
+// versionar el bundle de export (ver domain.ExportVersion), no reescribir el
+// esquema de mem.db en el lugar.
 func migrate(db *sql.DB) error {
 	schema := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS memories (
@@ -187,6 +202,13 @@ func migrate(db *sql.DB) error {
 	// gomemory (memorias, sesiones, relaciones).
 	db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(
 		name, signature, package, node_id UNINDEXED
+	)`)
+
+	// FTS5 para memorias (specs/009-mitigacion-riesgos, Historia de Usuario 3):
+	// mismo trato best-effort que code_search — si el build no soporta FTS5,
+	// memory_search simplemente no existe y SearchMemories cae a LIKE.
+	db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_search USING fts5(
+		title, content, memory_id UNINDEXED
 	)`)
 
 	return nil

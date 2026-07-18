@@ -132,6 +132,18 @@ func GlobalDbPath(key string) (string, error) {
 	return filepath.Join(dir, DbName), nil
 }
 
+// BackupDir devuelve el directorio de snapshots automáticos (specs/009-mitigacion-riesgos,
+// Historia de Usuario 1) para el proyecto identificado por key, separado del
+// directorio de datos activo (GlobalProjectDir) para que un snapshot nunca se
+// confunda con el mem.db en uso.
+func BackupDir(key string) (string, error) {
+	home, err := DataHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "backups", key), nil
+}
+
 // legacyProjectTables enumera las tablas con columna `project` que deben
 // normalizarse al migrar un mem.db legado: son literales fijos (no entrada
 // de usuario), nunca se concatenan con datos externos.
@@ -213,7 +225,7 @@ func doMigrateLegacy(root, key string) error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(globalPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(globalPath), 0o700); err != nil {
 		return fmt.Errorf("crear directorio del store global: %w", err)
 	}
 
@@ -225,6 +237,7 @@ func doMigrateLegacy(root, key string) error {
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = moveFile(legacyPath+suffix, globalPath+suffix)
 	}
+	os.Chmod(globalPath, 0o600) // hardening: el legado migrado hereda los permisos del mem.db nuevo
 
 	db, err := sql.Open("sqlite", globalPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
