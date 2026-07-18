@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gomemory · Blueprint — Cómo funciona</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#131a24; --card:#161f2b; --card2:#1c2836;
+    --line:#26313f; --line2:#324152;
+    --tx:#e7edf5; --tx2:#9fb0c3; --tx3:#6f8298;
+    --accent:#4f9dff; --accent2:#7c5cff;
+    --green:#3fb950; --amber:#e3a008; --pink:#f778ba; --cyan:#39c5cf;
+    --radius:14px;
+    --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --bg:#f4f7fb; --bg2:#eef2f8; --card:#ffffff; --card2:#f7f9fc;
+      --line:#dde5ee; --line2:#c9d5e3;
+      --tx:#16202c; --tx2:#425163; --tx3:#6f8298;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--tx); font-family:var(--sans);
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1200px 600px at 80% -10%, rgba(79,157,255,.10), transparent),
+                     radial-gradient(900px 500px at -10% 10%, rgba(124,92,255,.08), transparent);
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+  section{padding:56px 0;border-top:1px solid var(--line)}
+  section:first-of-type{border-top:none}
+
+  /* HERO */
+  .hero{padding:70px 0 46px;text-align:center}
+  .logo{display:inline-flex;align-items:center;gap:12px;font-weight:800;font-size:15px;
+    letter-spacing:.5px;color:var(--tx2);text-transform:uppercase}
+  .logo .dot{width:11px;height:11px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 14px var(--accent)}
+  h1{font-size:clamp(34px,6vw,56px);line-height:1.08;font-weight:800;margin:22px 0 14px;
+    letter-spacing:-1.2px}
+  h1 .grad{background:linear-gradient(120deg,var(--accent),var(--accent2) 60%,var(--pink));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .lede{font-size:clamp(16px,2.4vw,20px);color:var(--tx2);max-width:660px;margin:0 auto 26px}
+  .badges{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
+  .badge{font-family:var(--mono);font-size:12.5px;padding:6px 12px;border-radius:999px;
+    background:var(--card);border:1px solid var(--line2);color:var(--tx2)}
+  .badge b{color:var(--tx)}
+
+  h2{font-size:clamp(24px,4vw,32px);font-weight:800;letter-spacing:-.6px;margin-bottom:8px}
+  .sub{color:var(--tx2);font-size:16px;margin-bottom:30px;max-width:720px}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:2px;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin-bottom:12px;display:block}
+
+  /* generic card */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+
+  /* problem/solution */
+  .ps{display:grid;grid-template-columns:1fr auto 1fr;gap:18px;align-items:center}
+  @media(max-width:760px){.ps{grid-template-columns:1fr}.ps .arrow{transform:rotate(90deg)}}
+  .ps .arrow{font-size:30px;color:var(--accent);font-weight:800}
+  .ps .bad{border-left:3px solid var(--pink)}
+  .ps .good{border-left:3px solid var(--green)}
+  .ps h3{font-size:17px;margin-bottom:8px}
+  .ps p{color:var(--tx2);font-size:14.5px}
+
+  /* ARCH diagram */
+  .arch{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:28px 22px}
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;justify-content:center}
+  .node{flex:1;min-width:170px;background:var(--card);border:1px solid var(--line2);
+    border-radius:12px;padding:16px;text-align:center;position:relative}
+  .node .ico{font-size:24px;margin-bottom:6px}
+  .node .t{font-weight:700;font-size:15px}
+  .node .d{color:var(--tx3);font-size:12.5px;font-family:var(--mono);margin-top:4px}
+  .link{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:96px;color:var(--tx3);padding:0 4px}
+  .link .rail{font-size:22px;color:var(--accent)}
+  .link .lbl{font-family:var(--mono);font-size:10.5px;text-align:center;line-height:1.3;margin-top:3px}
+  @media(max-width:760px){
+    .flow{flex-direction:column}
+    .link{min-width:0;padding:8px 0}.link .rail{transform:rotate(90deg)}
+  }
+  .callout{margin-top:18px;background:var(--card2);border:1px dashed var(--line2);
+    border-radius:10px;padding:14px 16px;font-size:14px;color:var(--tx2)}
+  .callout b{color:var(--tx)}
+  .kbd{font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--line2);
+    border-radius:6px;padding:2px 7px;color:var(--tx)}
+
+  /* two paths */
+  .path{border-radius:var(--radius);padding:22px;border:1px solid var(--line)}
+  .path.active{background:linear-gradient(180deg,rgba(79,157,255,.09),transparent);border-color:rgba(79,157,255,.4)}
+  .path.passive{background:linear-gradient(180deg,rgba(63,185,80,.09),transparent);border-color:rgba(63,185,80,.4)}
+  .path .tag{font-family:var(--mono);font-size:11.5px;font-weight:700;text-transform:uppercase;
+    letter-spacing:1px;padding:4px 10px;border-radius:6px;display:inline-block;margin-bottom:12px}
+  .path.active .tag{background:rgba(79,157,255,.15);color:var(--accent)}
+  .path.passive .tag{background:rgba(63,185,80,.15);color:var(--green)}
+  .path h3{font-size:19px;margin-bottom:6px}
+  .path p{color:var(--tx2);font-size:14.5px;margin-bottom:12px}
+  .path ul{list-style:none;font-size:14px}
+  .path li{padding:5px 0 5px 22px;position:relative;color:var(--tx2)}
+  .path li::before{content:'▸';position:absolute;left:2px;color:var(--accent)}
+  .path.passive li::before{color:var(--green)}
+
+  /* timeline of hooks */
+  .tl{position:relative;margin-top:10px;padding-left:26px}
+  .tl::before{content:'';position:absolute;left:7px;top:6px;bottom:6px;width:2px;
+    background:linear-gradient(var(--accent),var(--accent2))}
+  .step{position:relative;margin-bottom:16px}
+  .step::before{content:'';position:absolute;left:-26px;top:20px;width:14px;height:14px;
+    border-radius:50%;background:var(--bg);border:3px solid var(--accent)}
+  .step .hd{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px}
+  .ev{font-family:var(--mono);font-size:12px;background:var(--card2);border:1px solid var(--line2);
+    padding:2px 8px;border-radius:6px;color:var(--tx)}
+  .arrow-s{color:var(--tx3)}
+  .sub-cmd{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:700}
+
+  /* hook decision table */
+  .htable{width:100%;border-collapse:collapse;font-size:13.5px;overflow:hidden;border-radius:var(--radius)}
+  .tscroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius)}
+  .htable th,.htable td{text-align:left;padding:13px 15px;border-bottom:1px solid var(--line);vertical-align:top}
+  .htable thead th{background:var(--bg2);font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx3)}
+  .htable tr:last-child td{border-bottom:none}
+  .htable td:first-child{white-space:nowrap}
+  .htable code{font-family:var(--mono);font-size:12px;color:var(--accent)}
+  .chip{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;white-space:nowrap;
+    background:var(--card2);border:1px solid var(--line2)}
+  .chip.det{color:var(--green);border-color:rgba(63,185,80,.4)}
+  .chip.inj{color:var(--accent);border-color:rgba(79,157,255,.4)}
+
+  /* tools */
+  .tool{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+  .tool code{font-family:var(--mono);font-size:13.5px;color:var(--accent);font-weight:600}
+  .tool span{display:block;color:var(--tx2);font-size:13px;margin-top:3px}
+  .toolgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+  @media(max-width:760px){.toolgrid{grid-template-columns:1fr}}
+
+  .goldbox{background:linear-gradient(135deg,rgba(227,160,8,.10),rgba(247,120,186,.06));
+    border:1px solid rgba(227,160,8,.4);border-radius:var(--radius);padding:20px 22px;margin-top:8px}
+  .goldbox h3{font-size:17px;margin-bottom:6px;color:var(--amber)}
+  .goldbox p{color:var(--tx2);font-size:14.5px}
+
+  footer{border-top:1px solid var(--line);padding:34px 0 60px;text-align:center;color:var(--tx3);font-size:13px}
+  footer .kbd{margin:0 2px}
+  .num{font-family:var(--mono);color:var(--accent2);font-weight:700}
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <div class="logo"><span class="dot"></span> gomemory</div>
+  <h1>Memoria persistente para<br><span class="grad">agentes de código</span></h1>
+  <p class="lede">Un servidor MCP y CLI escrito en Go que le da a tu agente (Claude Code, Cursor, OpenCode, Cline) una memoria que sobrevive entre sesiones — decisiones, bugs resueltos y contexto, guardados en una base de datos local.</p>
+  <div class="badges">
+    <span class="badge"><b>Go</b> 1.25+</span>
+    <span class="badge">MCP · <b>stdio</b></span>
+    <span class="badge"><b>14</b> tools</span>
+    <span class="badge"><b>7</b> hooks</span>
+    <span class="badge">SQLite <b>embebido</b></span>
+    <span class="badge">grafo externo · <b>enchufable</b></span>
+    <span class="badge">v<b>1.20.0</b></span>
+  </div>
+</header>
+
+<!-- PROBLEMA -->
+<section class="wrap">
+  <span class="eyebrow">El problema</span>
+  <h2>El agente olvida todo al cerrar la sesión</h2>
+  <p class="sub">Cada vez que abres una sesión nueva, el modelo arranca en blanco: no recuerda las decisiones de arquitectura, ni por qué se resolvió aquel bug, ni las convenciones del proyecto. gomemory cierra esa brecha.</p>
+  <div class="ps">
+    <div class="card bad">
+      <h3>Sin memoria</h3>
+      <p>Repites contexto en cada sesión. Las decisiones viven solo en tu cabeza. El agente comete el mismo error dos veces.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="card good">
+      <h3>Con gomemory</h3>
+      <p>El contexto histórico se inyecta solo al arrancar. El agente guarda lo importante mientras trabaja y lo recupera cuando lo necesita.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ARQUITECTURA -->
+<section class="wrap">
+  <span class="eyebrow">Arquitectura</span>
+  <h2>Qué hay dentro y cómo se conecta</h2>
+  <p class="sub">Un único binario portable (<span class="kbd">mem</span>) cumple tres papeles: servidor MCP, ejecutor de hooks y CLI/TUI. No hay servidor web ni dependencias de shell.</p>
+
+  <div class="arch">
+    <div class="flow">
+      <div class="node">
+        <div class="ico">🤖</div>
+        <div class="t">Agente</div>
+        <div class="d">Claude Code, Cursor…</div>
+      </div>
+      <div class="link">
+        <div class="rail">⇄</div>
+        <div class="lbl">MCP · stdio<br>JSON-RPC</div>
+      </div>
+      <div class="node">
+        <div class="ico">⚙️</div>
+        <div class="t">mem mcp</div>
+        <div class="d">servidor MCP</div>
+      </div>
+      <div class="link">
+        <div class="rail">→</div>
+        <div class="lbl">repositorios<br>(hexagonal)</div>
+      </div>
+      <div class="node">
+        <div class="ico">🗄️</div>
+        <div class="t">SQLite</div>
+        <div class="d">store global<br>~/.local/share/gomemory</div>
+      </div>
+    </div>
+    <div class="callout">
+      <b>¿En qué puerto se levanta el MCP?</b> En ninguno. gomemory <b>no abre un puerto TCP</b>. El cliente MCP lanza <span class="kbd">mem mcp</span> como <b>subproceso</b> y hablan por <b>stdin/stdout</b> con mensajes JSON-RPC (transporte <span class="kbd">stdio</span>). Cuando la sesión termina, el proceso se cierra. Esto lo hace portable e idéntico en Linux, macOS y Windows, sin sockets ni configuración de red.
+    </div>
+  </div>
+
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card">
+      <div class="ico" style="font-size:22px">🧩</div>
+      <h3 style="font-size:16px;margin:6px 0">Arquitectura hexagonal</h3>
+      <p style="color:var(--tx2);font-size:13.5px"><code style="font-family:var(--mono);color:var(--cyan)">domain</code> → reglas puras · <code style="font-family:var(--mono);color:var(--cyan)">application</code> → casos de uso y puertos · <code style="font-family:var(--mono);color:var(--cyan)">adapters</code> → MCP, CLI, SQLite.</p>
+    </div>
+    <div class="card">
+      <div class="ico" style="font-size:22px">🔒</div>
+      <h3 style="font-size:16px;margin:6px 0">Aislado por proyecto</h3>
+      <p style="color:var(--tx2);font-size:13.5px">Cada proyecto tiene su propia <code style="font-family:var(--mono);color:var(--cyan)">mem.db</code>, pero <b>no dentro del repo</b>: viven todas en un store global, una subcarpeta por proyecto. La clave es el raíz de git (o el cwd). Nada se mezcla entre repos.</p>
+    </div>
+    <div class="card">
+      <div class="ico" style="font-size:22px">📦</div>
+      <h3 style="font-size:16px;margin:6px 0">Local y sin nube</h3>
+      <p style="color:var(--tx2);font-size:13.5px">Todo vive en tu máquina, en archivos SQLite. Sin cuentas, sin servidores externos, sin telemetría.</p>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:16px">
+    <b>Aclaración importante — ¿dónde está realmente la base de datos?</b> <b>No</b> está en el <code style="font-family:var(--mono);color:var(--cyan)">.memory/</code> de tu proyecto, sino en un <b>store global del usuario</b>:
+    <span class="kbd">~/.local/share/gomemory</span> en Linux/macOS (o <span class="kbd">$XDG_DATA_HOME</span>), <span class="kbd">%LOCALAPPDATA%\gomemory</span> en Windows, o lo que fijes en <span class="kbd">GOMEMORY_DATA_HOME</span>. La ruta exacta es
+    <span class="kbd">&lt;store&gt;/projects/&lt;clave-del-proyecto&gt;/mem.db</span>, donde la clave = <i>slug de la carpeta</i> + <i>hash de la ruta absoluta</i> (dos proyectos con el mismo nombre nunca colisionan).<br><br>
+    ¿Y el <code style="font-family:var(--mono);color:var(--cyan)">.memory/</code> que sí ves en el repo? Solo guarda <b>archivos auxiliares</b>: el marcador de sesión de los hooks y un <span class="kbd">context.md</span> legible. La <b>base de datos no se versiona</b> ni ensucia tu árbol de trabajo. Si actualizas desde una versión antigua, un <code style="font-family:var(--mono);color:var(--cyan)">.memory/mem.db</code> legado se <b>migra solo</b> al store global en el primer uso.
+  </div>
+</section>
+
+<!-- DOS CAMINOS -->
+<section class="wrap">
+  <span class="eyebrow">Los dos caminos hacia la memoria</span>
+  <h2>El modelo decide · el sistema recuerda</h2>
+  <p class="sub">gomemory graba memoria por dos vías complementarias. Una la activa el propio modelo; la otra ocurre sola, de forma determinista, sin gastar tokens del agente.</p>
+  <div class="grid g2">
+    <div class="path active">
+      <span class="tag">Camino A · Activo</span>
+      <h3>Tools MCP</h3>
+      <p>El modelo <b>decide</b> llamar a una herramienta cuando toma una decisión, corrige un bug o quiere buscar contexto previo. Son las 14 tools que el servidor expone.</p>
+      <ul>
+        <li>Guardar: <b>save_memory</b></li>
+        <li>Consultar: <b>search_memories</b>, <b>get_context</b></li>
+        <li>Sesión: <b>start_session</b> / <b>end_session</b></li>
+        <li>Rico pero voluntario: depende de que el modelo lo llame</li>
+      </ul>
+    </div>
+    <div class="path passive">
+      <span class="tag">Camino B · Pasivo</span>
+      <h3>Hooks del agente</h3>
+      <p>Eventos del ciclo de vida (arranque, fin de turno, plan aprobado…) disparan <span class="kbd">mem hook &lt;evento&gt;</span> <b>automáticamente</b>. Es la red de seguridad determinista.</p>
+      <ul>
+        <li>Inyecta el contexto histórico al arrancar</li>
+        <li>Registra actividad (archivos, comandos) sin pedírselo al modelo</li>
+        <li>Captura el plan aprobado aunque el modelo no lo guarde</li>
+        <li>Recuerda al modelo guardar si lleva rato sin hacerlo</li>
+      </ul>
+    </div>
+  </div>
+  <div class="goldbox">
+    <h3>🛡️ Regla de oro de los hooks</h3>
+    <p>Un hook <b>nunca</b> puede abortar el arranque del agente. Ante cualquier error sale con código 0 y, como mucho, sin salida. La memoria es una ayuda, jamás un obstáculo.</p>
+  </div>
+</section>
+
+<!-- FLUJO / TIMELINE -->
+<section class="wrap">
+  <span class="eyebrow">Flujo de una sesión</span>
+  <h2>Qué ocurre, paso a paso</h2>
+  <p class="sub">Así se encadenan los hooks a lo largo de una sesión de trabajo. Cada evento de Claude Code invoca un subcomando del binario.</p>
+  <div class="tl">
+    <div class="step">
+      <div class="hd"><span class="ev">SessionStart</span><span class="arrow-s">→</span><span class="sub-cmd">mem hook session-start</span></div>
+      <p style="color:var(--tx2);font-size:14px"><b>Arranque.</b> Inicia la sesión si no hay ninguna activa e <b>inyecta el contexto histórico</b> (preferencias, sesiones previas, conflictos, memorias enlazadas) como <code style="font-family:var(--mono);color:var(--accent)">additionalContext</code>. El agente empieza ya sabiendo dónde quedó todo.</p>
+    </div>
+    <div class="step">
+      <div class="hd"><span class="ev">UserPromptSubmit</span><span class="arrow-s">→</span><span class="sub-cmd">mem hook user-prompt-submit</span></div>
+      <p style="color:var(--tx2);font-size:14px"><b>Cada prompt.</b> En el <b>primer</b> prompt fuerza la carga de las tools de memoria y recuerda el protocolo. En los siguientes es pasivo, salvo que toque un <b>recordatorio de guardado</b> (con debounce). Además guarda el prompt del turno como <i>provenance</i>.</p>
+    </div>
+    <div class="step">
+      <div class="hd"><span class="ev">PostToolUse · ExitPlanMode</span><span class="arrow-s">→</span><span class="sub-cmd">mem hook plan-approved</span></div>
+      <p style="color:var(--tx2);font-size:14px"><b>Al aprobar un plan.</b> Un turno de plan mode no toca archivos, así que el checkpoint normal lo descartaría por vacío. Este hook <b>guarda el plan aprobado como memoria</b> <code style="font-family:var(--mono);color:var(--accent)">type=decision</code>, sin gastar tokens.</p>
+    </div>
+    <div class="step">
+      <div class="hd"><span class="ev">Stop</span><span class="arrow-s">→</span><span class="sub-cmd">mem hook turn-end</span></div>
+      <p style="color:var(--tx2);font-size:14px"><b>Fin de turno.</b> Registra un <b>checkpoint automático determinista</b>: qué archivos se editaron y qué comandos corrieron, y reindexa los <code style="font-family:var(--mono);color:var(--accent)">.go</code> tocados. Los turnos de puro chat no generan checkpoint. Además <b>refresca el snapshot del grafo externo</b> si está viejo (v1.18.1) y, al pasar el umbral de huella, emite un <b>aviso neutral de compactación</b> (v1.20).</p>
+    </div>
+    <div class="step">
+      <div class="hd"><span class="ev">SubagentStop</span><span class="arrow-s">→</span><span class="sub-cmd">mem hook subagent-stop</span></div>
+      <p style="color:var(--tx2);font-size:14px"><b>Fin de un subagente.</b> Captura la actividad del subagente (que el hook Stop principal no ve, porque vive en su propio transcript). Misma red de seguridad, un nivel más abajo.</p>
+    </div>
+    <div class="step">
+      <div class="hd"><span class="ev">SessionStart · compact</span><span class="arrow-s">→</span><span class="sub-cmd">mem hook post-compact</span></div>
+      <p style="color:var(--tx2);font-size:14px"><b>Tras compactar el contexto.</b> Cuando la conversación se resume, este hook <b>re-inyecta</b> las instrucciones de recuperación y el contexto previo — su salida sobrevive a la compactación.</p>
+    </div>
+    <div class="step">
+      <div class="hd"><span class="ev">SessionEnd</span><span class="arrow-s">→</span><span class="sub-cmd">mem hook session-end</span></div>
+      <p style="color:var(--tx2);font-size:14px"><b>Cierre.</b> Cierra la sesión activa como red de seguridad. El resumen rico lo aporta el modelo llamando a <code style="font-family:var(--mono);color:var(--accent)">end_session</code>; aquí solo se garantiza que la sesión quede cerrada.</p>
+    </div>
+  </div>
+</section>
+
+<!-- TABLA DE DECISIONES POR HOOK -->
+<section class="wrap">
+  <span class="eyebrow">Blueprint de decisiones</span>
+  <h2>Qué decide cada hook</h2>
+  <p class="sub">La lógica vive en Go (transversal a todos los agentes); cada agente la invoca con su propia señal. Esta es la decisión concreta que toma cada uno.</p>
+  <div class="tscroll">
+  <table class="htable">
+    <thead>
+      <tr><th>Evento</th><th>Subcomando</th><th>Decisión que toma</th><th>Tipo</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="ev">SessionStart</span></td>
+        <td><code>session-start</code></td>
+        <td>¿Hay sesión activa? Si no → la crea. Construye e inyecta el contexto histórico. Borra el marcador de sesión.</td>
+        <td><span class="chip inj">inyecta</span></td>
+      </tr>
+      <tr>
+        <td><span class="ev">UserPromptSubmit</span></td>
+        <td><code>user-prompt-submit</code></td>
+        <td>¿Primer prompt? → carga tools + recordatorio. Si no → ¿lleva rato sin guardar? → nudge con debounce. Siempre: guarda el prompt (provenance).</td>
+        <td><span class="chip inj">inyecta</span></td>
+      </tr>
+      <tr>
+        <td><span class="ev">PostToolUse · ExitPlanMode</span></td>
+        <td><code>plan-approved</code></td>
+        <td>Solo dispara si el usuario aprobó el plan. ¿Hay texto de plan? → lo guarda como memoria <code>type=decision</code>.</td>
+        <td><span class="chip det">determinista</span></td>
+      </tr>
+      <tr>
+        <td><span class="ev">Stop</span></td>
+        <td><code>turn-end</code></td>
+        <td>Refresca el snapshot del grafo externo si está viejo y emite el nudge de compactación. Luego extrae actividad: ¿vacía (puro chat)? → sin checkpoint. Si no → checkpoint + reindexa los <code>.go</code>.</td>
+        <td><span class="chip det">determinista</span></td>
+      </tr>
+      <tr>
+        <td><span class="ev">SubagentStop</span></td>
+        <td><code>subagent-stop</code></td>
+        <td>Lee el transcript del subagente. ¿Actividad no vacía? → checkpoint de subagente.</td>
+        <td><span class="chip det">determinista</span></td>
+      </tr>
+      <tr>
+        <td><span class="ev">SessionStart · compact</span></td>
+        <td><code>post-compact</code></td>
+        <td>Re-inyecta instrucciones de recuperación + contexto previo. Borra el marcador para re-materializar las tools diferidas.</td>
+        <td><span class="chip inj">inyecta</span></td>
+      </tr>
+      <tr>
+        <td><span class="ev">SessionEnd</span></td>
+        <td><code>session-end</code></td>
+        <td>¿Hay sesión activa? → la cierra (con resumen opcional del payload). Red de seguridad ante cierres sin <code>end_session</code>.</td>
+        <td><span class="chip det">determinista</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- SINAPSIS -->
+<section class="wrap">
+  <span class="eyebrow">Novedad v1.17 · memoria sináptica</span>
+  <h2>Sinapsis: la memoria se enlaza sola</h2>
+  <p class="sub">Guardar una memoria no la deja suelta. En el mismo punto por el que pasa <b>todo</b> guardado (MCP, checkpoint, CLI, TUI), gomemory teje una arista hacia la decisión más reciente de la sesión. Sin tokens del agente, de forma determinista.</p>
+  <div class="grid g2">
+    <div class="card" style="border-left:3px solid var(--accent2)">
+      <h3 style="font-size:17px;margin-bottom:10px">Cómo se forma</h3>
+      <div class="flow" style="gap:0">
+        <div class="node" style="min-width:0">
+          <div class="ico">🧠</div>
+          <div class="t" style="font-size:13px">Memoria nueva</div>
+          <div class="d">recién guardada</div>
+        </div>
+        <div class="link" style="min-width:70px">
+          <div class="rail">→</div>
+          <div class="lbl">related<br>conf. 0.5</div>
+        </div>
+        <div class="node" style="min-width:0">
+          <div class="ico">⚓</div>
+          <div class="t" style="font-size:13px">Ancla</div>
+          <div class="d">decisión previa<br>de la sesión</div>
+        </div>
+      </div>
+      <p style="color:var(--tx2);font-size:13.5px;margin-top:14px">El ancla es el engrama <b>sustantivo más reciente</b> de la misma sesión — nunca un checkpoint. Así se hila el reguero de decisiones y cada checkpoint queda colgado de la decisión que lo gobierna, sin ruido checkpoint↔checkpoint.</p>
+    </div>
+    <div class="card">
+      <h3 style="font-size:17px;margin-bottom:10px">Sus garantías</h3>
+      <ul class="path" style="border:none;padding:0;list-style:none;font-size:14px">
+        <li style="padding:6px 0 6px 22px;position:relative;color:var(--tx2)"><span style="position:absolute;left:2px;color:var(--green)">▸</span> <b>Determinista</b> — reglas fijas, no depende de que el modelo lo pida</li>
+        <li style="padding:6px 0 6px 22px;position:relative;color:var(--tx2)"><span style="position:absolute;left:2px;color:var(--green)">▸</span> <b>Sin coste</b> — cero tokens del agente</li>
+        <li style="padding:6px 0 6px 22px;position:relative;color:var(--tx2)"><span style="position:absolute;left:2px;color:var(--green)">▸</span> <b>Idempotente</b> — no duplica una arista ya existente</li>
+        <li style="padding:6px 0 6px 22px;position:relative;color:var(--tx2)"><span style="position:absolute;left:2px;color:var(--green)">▸</span> <b>Best-effort</b> — una sinapsis fallida jamás rompe el guardado</li>
+        <li style="padding:6px 0 6px 22px;position:relative;color:var(--tx2)"><span style="position:absolute;left:2px;color:var(--green)">▸</span> <b>Transversal</b> — vale para todas las vías de guardado</li>
+      </ul>
+      <p style="color:var(--tx2);font-size:13.5px;margin-top:10px">Al arrancar, estas conexiones vuelven al agente bajo <code style="font-family:var(--mono);color:var(--accent)">🔗 Sinapsis (memorias enlazadas)</code> dentro del contexto histórico.</p>
+    </div>
+  </div>
+</section>
+
+<!-- GRAFO EXTERNO -->
+<section class="wrap">
+  <span class="eyebrow">Novedad v1.18 · brazo extensor</span>
+  <h2>Un grafo de código externo, sin acoplarse</h2>
+  <p class="sub">gomemory guarda el <b>porqué</b> — decisiones, bugs, sinapsis. Para el <b>qué y el cómo</b> del código puede apoyarse en un grafo estructural externo ya indexado (<span class="kbd">codebase-memory-mcp</span>): miles de nodos y relaciones que enriquecen el contexto histórico, sin convertirse en una dependencia dura.</p>
+
+  <div class="arch">
+    <div class="flow">
+      <div class="node">
+        <div class="ico">🧠</div>
+        <div class="t">gomemory</div>
+        <div class="d">el porqué</div>
+      </div>
+      <div class="link">
+        <div class="rail">＋</div>
+        <div class="lbl">snapshot<br>cacheado</div>
+      </div>
+      <div class="node">
+        <div class="ico">🕸️</div>
+        <div class="t">Grafo externo</div>
+        <div class="d">el qué / cómo</div>
+      </div>
+      <div class="link">
+        <div class="rail">→</div>
+        <div class="lbl">get_context<br>session-start</div>
+      </div>
+      <div class="node">
+        <div class="ico">📋</div>
+        <div class="t">Contexto</div>
+        <div class="d">módulos · hotspots</div>
+      </div>
+    </div>
+    <div class="callout">
+      <b>No-bloqueante por diseño.</b> El hot path solo lee un <b>snapshot cacheado</b> en disco (instantáneo). Si está viejo (TTL 60s), se lanza un proceso <b>desacoplado</b> que lo refresca para la próxima llamada — nunca frena al agente. Si el proveedor no está en el <span class="kbd">PATH</span> o el repo no está indexado, gomemory simplemente sigue sin el bloque: <b>enchufable y opcional</b>.
+    </div>
+  </div>
+
+  <div class="grid g3" style="margin-top:16px">
+    <div class="card">
+      <div class="ico" style="font-size:22px">🔌</div>
+      <h3 style="font-size:16px;margin:6px 0">Puerto agnóstico</h3>
+      <p style="color:var(--tx2);font-size:13.5px">Un puerto <code style="font-family:var(--mono);color:var(--cyan)">CodeGraphProvider</code> (hexagonal) aísla al proveedor. El grafo propio Fase-1 sigue intacto; el externo se acopla por su <b>CLI</b>, no por su base de datos.</p>
+    </div>
+    <div class="card">
+      <div class="ico" style="font-size:22px">🔄</div>
+      <h3 style="font-size:16px;margin:6px 0">Refresco por turno</h3>
+      <p style="color:var(--tx2);font-size:13.5px">Desde v1.18.1 el hook <span class="kbd">turn-end</span> también dispara el refresco del snapshot, no solo <code style="font-family:var(--mono);color:var(--cyan)">get_context</code>. En sesiones largas el grafo no se queda frío.</p>
+    </div>
+    <div class="card">
+      <div class="ico" style="font-size:22px">🧭</div>
+      <h3 style="font-size:16px;margin:6px 0">Agnóstico al agente</h3>
+      <p style="color:var(--tx2);font-size:13.5px">Vive en el binario <span class="kbd">mem</span> y viaja en el contexto que consumen todos los agentes — no en el plugin de uno solo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- HUELLA DE CONTEXTO -->
+<section class="wrap">
+  <span class="eyebrow">Novedad v1.20 · huella de contexto</span>
+  <h2>Menos tokens, la misma señal</h2>
+  <p class="sub">La memoria no sirve si inunda la ventana de contexto. La v1.20 recorta la huella del contexto inyectado sin perder valor: en el binario real, <code style="font-family:var(--mono);color:var(--accent)">get_context</code> pasó de <b>~86&nbsp;KB a ~17&nbsp;KB</b> (~80% menos). Cuatro palancas, activadas por defecto.</p>
+  <div class="grid g2">
+    <div class="card" style="border-left:3px solid var(--accent)">
+      <h3 style="font-size:16px;margin-bottom:6px"><span class="num">1.</span> Presupuesto</h3>
+      <p style="color:var(--tx2);font-size:13.5px">El contexto se acota a un límite de caracteres. Cada memoria se resume a su extracto con un puntero <code style="font-family:var(--mono);color:var(--accent)">→ get_memory &lt;id&gt;</code>. El protocolo y los conflictos <b>nunca</b> se recortan.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--accent2)">
+      <h3 style="font-size:16px;margin-bottom:6px"><span class="num">2.</span> Divulgación progresiva</h3>
+      <p style="color:var(--tx2);font-size:13.5px"><code style="font-family:var(--mono);color:var(--accent)">search_memories</code> y <code style="font-family:var(--mono);color:var(--accent)">list_memories</code> ya no vuelcan el contenido íntegro: devuelven extractos. El detalle completo se pide bajo demanda con <code style="font-family:var(--mono);color:var(--accent)">get_memory</code>.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--green)">
+      <h3 style="font-size:16px;margin-bottom:6px"><span class="num">3.</span> Aviso de compactación</h3>
+      <p style="color:var(--tx2);font-size:13.5px">Un contador honesto de bytes emitidos por sesión dispara, al pasar un umbral, un recordatorio <b>neutral</b> (sin comandos de un agente concreto, con debounce). Agnóstico al agente.</p>
+    </div>
+    <div class="card" style="border-left:3px solid var(--pink)">
+      <h3 style="font-size:16px;margin-bottom:6px"><span class="num">4.</span> Dedup en la fuente</h3>
+      <p style="color:var(--tx2);font-size:13.5px">Al guardar, una <code style="font-family:var(--mono);color:var(--accent)">topic_key</code> (o la identidad tipo+título) detecta duplicados dentro de una ventana y evita grabar la misma decisión una y otra vez.</p>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:16px">
+    Los tunables (presupuesto, umbral, ventana de dedup) viven en <span class="kbd">settings.json</span> con <b>valores por defecto sensatos</b>: la feature va activada sin configurar nada, y un valor negativo es opt-out explícito. Generar el contexto <b>nunca</b> altera las memorias.
+  </div>
+</section>
+
+<!-- PORTABILIDAD + TUI -->
+<section class="wrap">
+  <span class="eyebrow">Novedad v1.19 · portabilidad y control</span>
+  <h2>Llévate la memoria · gestiónala a mano</h2>
+  <p class="sub">La memoria de un proyecto ya no está atada a una sola máquina, y su control deja de vivir solo en la línea de comandos.</p>
+  <div class="grid g2">
+    <div class="card">
+      <div class="ico" style="font-size:22px">📤</div>
+      <h3 style="font-size:16px;margin:6px 0">Export / import portable</h3>
+      <p style="color:var(--tx2);font-size:13.5px"><span class="kbd">mem export</span> vuelca las memorias <b>y sus relaciones</b> a un JSON cross-OS; <span class="kbd">mem import</span> las reinyecta en otro equipo. Deduplica por hash (tipo+título+contenido), preserva timestamps y no crea sinapsis espurias.</p>
+    </div>
+    <div class="card">
+      <div class="ico" style="font-size:22px">⌨️</div>
+      <h3 style="font-size:16px;margin:6px 0">Pantalla de Configuración (TUI)</h3>
+      <p style="color:var(--tx2);font-size:13.5px">En la TUI, la tecla <span class="kbd">c</span> abre Configuración: estado del grafo externo y su <b>toggle</b>, auto-approve y accesos a export/import.</p>
+    </div>
+  </div>
+</section>
+
+<!-- TOOLS MCP -->
+<section class="wrap">
+  <span class="eyebrow">La caja de herramientas MCP</span>
+  <h2>14 tools que el modelo puede invocar</h2>
+  <p class="sub">El servidor expone dos familias: memoria (9) y grafo de código (5), más recursos de solo lectura.</p>
+
+  <h3 style="font-size:15px;color:var(--tx2);margin-bottom:12px;font-family:var(--mono)">// Memoria</h3>
+  <div class="toolgrid">
+    <div class="tool"><code>save_memory</code><span>Guarda una memoria (decisión, bug, patrón…); dedup por topic_key</span></div>
+    <div class="tool"><code>search_memories</code><span>Busca en las memorias del proyecto</span></div>
+    <div class="tool"><code>list_memories</code><span>Lista las memorias recientes</span></div>
+    <div class="tool"><code>get_memory</code><span>Obtiene una memoria por su ID</span></div>
+    <div class="tool"><code>forget_memory</code><span>Borra una memoria puntual (irreversible)</span></div>
+    <div class="tool"><code>judge_memories</code><span>Veredicto imparcial entre dos memorias en conflicto</span></div>
+    <div class="tool"><code>get_context</code><span>Contexto del proyecto en markdown, acotado a presupuesto</span></div>
+    <div class="tool"><code>start_session</code><span>Abre la sesión de trabajo</span></div>
+    <div class="tool"><code>end_session</code><span>Cierra la sesión con un resumen</span></div>
+  </div>
+
+  <h3 style="font-size:15px;color:var(--tx2);margin:24px 0 12px;font-family:var(--mono)">// Grafo de código</h3>
+  <div class="toolgrid">
+    <div class="tool"><code>index_project</code><span>Indexa el código en un grafo consultable</span></div>
+    <div class="tool"><code>graph_status</code><span>Estado del grafo (símbolos, dependencias)</span></div>
+    <div class="tool"><code>search_code</code><span>Búsqueda de símbolos aumentada por grafo</span></div>
+    <div class="tool"><code>get_symbol</code><span>Código exacto de un símbolo por nombre</span></div>
+    <div class="tool"><code>list_dependencies</code><span>Dependencias entrantes/salientes de un símbolo</span></div>
+  </div>
+
+  <div class="callout" style="margin-top:18px">
+    También se exponen dos <b>recursos MCP</b> de solo lectura: <span class="kbd">Project Context</span> (contexto del proyecto) y <span class="kbd">Memory by ID</span> (una memoria concreta). Si el MCP no está disponible en un agente, cada tool tiene su <b>equivalente por CLI</b>: <span class="kbd">mem save</span>, <span class="kbd">mem search</span>, <span class="kbd">mem context</span>, <span class="kbd">mem session start|end</span>…
+  </div>
+</section>
+
+<!-- RESUMEN -->
+<section class="wrap">
+  <span class="eyebrow">En una frase</span>
+  <h2>El resumen para presentar</h2>
+  <div class="card" style="border-left:3px solid var(--accent);font-size:16.5px;line-height:1.7;color:var(--tx)">
+    <span class="num">gomemory</span> es un binario en Go que actúa como <b>servidor MCP por stdio</b> (sin puerto) y como <b>ejecutor de hooks</b>. Guarda la memoria de cada proyecto en un <b>SQLite local</b> aislado. El <b>modelo</b> graba y consulta memoria llamando a sus <b>14 tools</b>; en paralelo, <b>7 hooks</b> inyectan el contexto histórico al arrancar y capturan la actividad de forma determinista — de modo que, aunque el modelo olvide guardar, la memoria del proyecto <b>no se pierde</b>. Cada memoria se <b>enlaza sola</b> (sinapsis), el contexto puede enriquecerse con un <b>grafo de código externo</b> enchufable, y su <b>huella se mantiene bajo control</b>; todo es portable con <span class="kbd">export/import</span>.
+  </div>
+</section>
+
+<footer class="wrap">
+  gomemory v1.20.0 · Servidor MCP + CLI en Go · SQLite embebido · Blueprint técnico<br>
+  Levanta el servidor con <span class="kbd">mem mcp</span> · Abre la TUI con <span class="kbd">mem</span> · Registra los hooks con <span class="kbd">mem setup-mcp</span>
+</footer>
+
+</body>
+</html>
