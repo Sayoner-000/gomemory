@@ -15,7 +15,7 @@ Call `save_memory` IMMEDIATELY after each of these:
 | Tool/library choice | What was chosen, alternatives rejected, tradeoffs |
 | Non-obvious codebase discovery | What was found, why it matters |
 | Pattern established | The pattern, where it applies |
-| User preference learned | The preference, context (type=preference — interactive/session memory: how the user wants to be worked with. Save it here, not in an external store) |
+| User preference learned | The preference, context (type=preference — interactive/session memory: how the user wants to be worked with. Save it here, not in an external store). Fixed rule, not an incident log: reuse topic_key/title on repeat corrections to UPDATE, never quote the wrong-behavior examples in the content. |
 
 Self-check after EVERY task: "Did I make a decision, fix a bug, discover
 something non-obvious, or establish a convention? If yes → call save_memory NOW."
