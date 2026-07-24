@@ -149,7 +149,11 @@ Call save_memory() IMMEDIATELY after:
 - Pattern established (naming, structure, convention)
 - User preference or constraint learned (type=preference — interactive/session
   memory about how the user wants to be worked with; save it here, not in an
-  external store)
+  external store). A preference is a FIXED RULE, not an incident log: if the
+  same correction happens again, reuse a topic_key (or the same title) to
+  UPDATE that memory instead of creating a new one. Do not quote examples of
+  the wrong behavior in the content — repeating them can reinforce the
+  pattern instead of correcting it.
 
 Self-check after EVERY task: "Did I make a decision, fix a bug,
 discover something, or establish a convention?"

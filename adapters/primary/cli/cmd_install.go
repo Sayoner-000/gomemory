@@ -242,7 +242,7 @@ func runIn(dir, bin string, args ...string) error {
 }
 
 const integrationMarker = "## Memoria Persistente"
-const integrationVersionMarker = "<!-- gomemory-protocol-v4 -->"
+const integrationVersionMarker = "<!-- gomemory-protocol-v5 -->"
 const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
 
 // TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
@@ -342,7 +342,7 @@ func buildIntegrationBlock() string {
 		"- Un patrón o convención establecida",
 		"- Un descubrimiento no obvio sobre el código",
 		"- El usuario confirma o rechaza un enfoque propuesto",
-		"- El usuario expresa una preferencia o corrige tu forma de interactuar (" + bt + "type=preference" + bt + ") — esto incluye memoria interactiva de sesión (estilo, tono, flujo de trabajo); no la guardes fuera de gomemory",
+		"- El usuario expresa una preferencia o corrige tu forma de interactuar (" + bt + "type=preference" + bt + ") — esto incluye memoria interactiva de sesión (estilo, tono, flujo de trabajo); no la guardes fuera de gomemory. Una preferencia es una REGLA FIJA, no un historial de incidentes: si la misma corrección se repite, usa " + bt + "topic_key" + bt + " (o el mismo título) para ACTUALIZAR esa memoria en vez de crear una nueva. No repitas ejemplos citados de la conducta incorrecta en el contenido — reforzarían el patrón en vez de corregirlo.",
 		"",
 		"Autochequeo después de CADA tarea: \"¿Tomé una decisión, corregí un bug, descubrí algo",
 		"o establecí una convención? Si sí → " + bt + "save_memory" + bt + " AHORA.\"",
