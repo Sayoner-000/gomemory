@@ -346,7 +346,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "j", "down":
-		if m.cursor < len(m.memories)-1 {
+		if m.cursor < len(m.visibleMemories())-1 {
 			m.cursor++
 		}
 
@@ -798,7 +798,7 @@ func (m model) View() string {
 }
 
 func (m model) listView() string {
-	var b strings.Builder
+	var head strings.Builder
 
 	title := titleStyle.Render("gomemory")
 	sizeInfo := ""
@@ -806,30 +806,42 @@ func (m model) listView() string {
 		sizeInfo = " · " + humanize.Bytes(uint64(m.stats.FileSizeBytes)) + " en disco"
 	}
 	info := subtitleStyle.Render(fmt.Sprintf("%s · %d memorias%s", m.project, len(m.memories), sizeInfo))
-	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, title, "  ", info))
+	head.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, title, "  ", info))
 	if m.autoApprove {
 		aa := lipgloss.NewStyle().Foreground(green).Render("autoApprove")
-		b.WriteString("  " + aa)
+		head.WriteString("  " + aa)
 	}
-	b.WriteString("\n")
+	head.WriteString("\n")
 
 	if m.searching {
-		b.WriteString("\n")
-		b.WriteString(lipgloss.NewStyle().
+		head.WriteString("\n")
+		head.WriteString(lipgloss.NewStyle().
 			Foreground(highlight).
 			Render("🔍 " + m.search + "█"))
-		b.WriteString("\n")
+		head.WriteString("\n")
 	}
 
+	var foot strings.Builder
+	foot.WriteString("\n")
+	if m.statusTimer > 0 {
+		foot.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+		foot.WriteString("\n")
+	}
+	foot.WriteString(m.helpView())
+
+	// El cuerpo (grupos + items) se arma como líneas independientes para
+	// poder recortarlo a la altura visible sin perder la selección de vista.
 	visible := m.visibleMemories()
+	var bodyLines []string
+	cursorLine := -1
 	if len(visible) == 0 {
-		b.WriteString("\n")
 		if m.search != "" {
-			b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  Sin resultados para \"" + m.search + "\""))
+			bodyLines = append(bodyLines, lipgloss.NewStyle().Foreground(faint).Render("  Sin resultados para \""+m.search+"\""))
 		} else {
-			b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  Todavía no hay memorias.\n  Guarda la primera con: mem save \"aprendizaje\""))
+			bodyLines = append(bodyLines,
+				lipgloss.NewStyle().Foreground(faint).Render("  Todavía no hay memorias."),
+				lipgloss.NewStyle().Foreground(faint).Render("  Guarda la primera con: mem save \"aprendizaje\""))
 		}
-		b.WriteString("\n")
 	} else {
 		grouped := groupByType(visible)
 		typeOrder := []string{"preference", "architecture", "decision", "pattern", "bugfix", "learning", "discovery"}
@@ -843,8 +855,10 @@ func (m model) listView() string {
 
 			headerLabel := typeLabel(t)
 			headerIcon := typeIcon(t)
-			b.WriteString(groupHeaderStyle.Render(fmt.Sprintf("  %s %s  (%d)", headerIcon, headerLabel, len(mems))))
-			b.WriteString("\n")
+			bodyLines = append(bodyLines, "")
+			bodyLines = append(bodyLines, groupHeaderStyle.
+				UnsetMarginTop().UnsetMarginBottom().
+				Render(fmt.Sprintf("  %s %s  (%d)", headerIcon, headerLabel, len(mems))))
 
 			for _, mem := range mems {
 				content := truncate(mem.Content, 70)
@@ -853,9 +867,10 @@ func (m model) listView() string {
 					line = fmt.Sprintf("  %s — %s", mem.Title, content)
 				}
 
+				var rendered string
 				if globalIdx == m.cursor {
 					tag := typeTag(string(mem.Type))
-					b.WriteString(itemSelected.Render(
+					rendered = itemSelected.Render(
 						lipgloss.JoinHorizontal(lipgloss.Top,
 							lipgloss.NewStyle().Foreground(highlight).Render("▸"),
 							" ",
@@ -863,30 +878,86 @@ func (m model) listView() string {
 							" ",
 							line,
 						),
-					))
+					)
+					cursorLine = len(bodyLines)
 				} else {
-					b.WriteString(itemNormal.Render(
+					rendered = itemNormal.Render(
 						lipgloss.JoinHorizontal(lipgloss.Top,
 							"  ",
 							lipgloss.NewStyle().Foreground(typeColor(string(mem.Type))).Render(typeIcon(string(mem.Type))),
 							" ",
 							line,
 						),
-					))
+					)
 				}
-				b.WriteString("\n")
+				bodyLines = append(bodyLines, rendered)
 				globalIdx++
 			}
 		}
 	}
 
-	b.WriteString("\n")
-	if m.statusTimer > 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
-		b.WriteString("\n")
+	return appStyle.Render(head.String() + windowLines(bodyLines, cursorLine, m.bodyBudget(head.String(), foot.String())) + foot.String())
+}
+
+// bodyBudget calcula cuántas líneas quedan disponibles para el cuerpo de la
+// lista, descontando el padding vertical de appStyle y lo que ya ocupan el
+// encabezado y el pie (ambos de tamaño variable según estado: buscando,
+// mensaje de estado, etc.). 0/negativo (o terminal sin tamaño aún) desactiva
+// el recorte y se muestra todo, como antes.
+func (m model) bodyBudget(head, foot string) int {
+	if !m.ready || m.height <= 0 {
+		return 0
 	}
-	b.WriteString(m.helpView())
-	return appStyle.Render(b.String())
+	const appStyleVerticalPadding = 2
+	used := appStyleVerticalPadding + strings.Count(head, "\n") + strings.Count(foot, "\n") + 1
+	budget := m.height - used
+	if budget < 3 {
+		return 0
+	}
+	return budget
+}
+
+// windowLines recorta líneas a `budget` de alto, centrando la ventana en
+// `cursorLine` para que el ítem seleccionado siempre quede visible aunque la
+// lista completa no quepa en la terminal. budget<=0 desactiva el recorte.
+func windowLines(lines []string, cursorLine, budget int) string {
+	if budget <= 0 || len(lines) <= budget {
+		return strings.Join(lines, "\n") + "\n"
+	}
+
+	inner := budget - 2 // reserva 1 línea arriba + 1 abajo para indicadores de scroll
+	if inner < 1 {
+		inner = 1
+	}
+	if cursorLine < 0 {
+		cursorLine = 0
+	}
+
+	offset := cursorLine - inner/2
+	maxOffset := len(lines) - inner
+	if offset > maxOffset {
+		offset = maxOffset
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	end := offset + inner
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	var b strings.Builder
+	if offset > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render(fmt.Sprintf("  ↑ %d más arriba", offset)))
+	}
+	b.WriteString("\n")
+	b.WriteString(strings.Join(lines[offset:end], "\n"))
+	b.WriteString("\n")
+	if hidden := len(lines) - end; hidden > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render(fmt.Sprintf("  ↓ %d más abajo", hidden)))
+	}
+	b.WriteString("\n")
+	return b.String()
 }
 
 func (m model) maintenanceView() string {
