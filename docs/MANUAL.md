@@ -393,8 +393,12 @@ para el detalle completo de flags y comportamiento.
 ./mem setup claude-code           # Plugin para Claude Code
 
 # Configuración
-./mem settings --show                 # Ver settings (auto-approve, grafo externo)
-./mem settings --code-graph=false     # Apagar el grafo de código externo
+./mem settings --show                       # Ver settings (auto-approve, grafo externo, ADR, etc.)
+./mem settings --code-graph=false           # Apagar el grafo de código externo
+./mem settings --code-graph-providers=a,b   # Proveedores candidatos, en orden de prioridad
+./mem settings --code-impact-annotation=false  # Apagar la anotación de impacto al guardar
+./mem settings --adr-sync=true              # Activar la sincronización bidireccional de ADR
+./mem adr-sync status                       # Ver el estado de la sincronización de ADR
 
 # Portabilidad de memorias
 ./mem export                          # Volcar memorias + relaciones a un JSON portable

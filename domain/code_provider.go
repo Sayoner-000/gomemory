@@ -54,4 +54,19 @@ type CodeCluster struct {
 type CodeHotspot struct {
 	Name  string `json:"name"`
 	FanIn int    `json:"fan_in"`
+	// File es la ruta (relativa al root del proyecto) donde vive el símbolo.
+	// get_architecture no la expone: se resuelve aparte vía search_code
+	// durante Refresh (ver adapters/secondary/codegraph/codebasememory).
+	// omitempty: un snapshot cacheado de una versión anterior sigue siendo
+	// JSON válido, simplemente sin este dato hasta el próximo refresco.
+	File string `json:"file,omitempty"`
+}
+
+// CodeImpactAnnotation es el resultado de consultar el snapshot cacheado por
+// un filepath concreto (feature 010, Historia 1): no se persiste como
+// entidad propia, vive adjunta al content de la memoria que la generó.
+type CodeImpactAnnotation struct {
+	Hotspot bool
+	Symbol  string
+	FanIn   int
 }

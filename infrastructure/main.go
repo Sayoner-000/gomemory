@@ -60,7 +60,21 @@ func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "code-refresh" {
 		if root, err := persistence.FindRoot(); err == nil {
 			if s := persistence.ReadSettings(root); !s.CodeGraphDisabled {
-				codebasememory.New(root, filepath.Join(root, persistence.MemDir), s.CodeGraphCommand).Refresh(context.Background())
+				// Historia 3 (feature 010): refresca CADA candidato configurado
+				// (ReadSettings ya normaliza el legado CodeGraphCommand a una
+				// lista de 1 si CodeGraphProviders viene vacía) — cada uno tiene
+				// su propio archivo de snapshot (ver snapshotPath), así que no se
+				// pisan entre sí. Sin candidatos configurados, autodetección en
+				// PATH (comportamiento previo a esta feature).
+				memDir := filepath.Join(root, persistence.MemDir)
+				cmds := s.CodeGraphProviders
+				if len(cmds) == 0 {
+					cmds = []string{""}
+				}
+				ctx := context.Background()
+				for _, cmd := range cmds {
+					codebasememory.New(root, memDir, cmd).Refresh(ctx)
+				}
 			}
 		}
 		os.Exit(0)

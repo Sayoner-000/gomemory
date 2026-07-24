@@ -25,6 +25,8 @@ type Container struct {
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
 	CodeProviders   []ports.CodeGraphProvider
+	ADRSyncProvider ports.ADRSyncProvider
+	ADRSyncRepo     ports.ADRSyncRepository
 }
 
 func NewContainer(root string) (*Container, error) {
@@ -55,11 +57,37 @@ func NewContainer(root string) (*Container, error) {
 	// silencio y el contexto se arma igual con el grafo propio.
 	var codeProviders []ports.CodeGraphProvider
 	if !settings.CodeGraphDisabled {
-		codeProviders = []ports.CodeGraphProvider{
-			codebasememory.New(root, filepath.Join(root, persistence.MemDir), settings.CodeGraphCommand),
-		}
+		codeProviders = buildCodeProviders(root, settings)
 	}
 	contextBuilder.CodeProviders = codeProviders
+
+	// Proveedor "activo" para los consumidores que necesitan una única
+	// fuente inequívoca (a diferencia de get_context, que muestra una
+	// sección por cada uno disponible): el primero de la lista cuyo
+	// snapshot cacheado esté disponible (feature 010, Historia 3).
+	activeProvider := usecases.FirstAvailable(codeProviders)
+
+	// Anotación de impacto al guardar (feature 010, Historia 1). nil si no
+	// hay proveedor activo o si la capacidad está apagada por settings.
+	if !settings.CodeImpactAnnotationDisabled {
+		persistence.SetCodeImpactProvider(activeProvider)
+	} else {
+		persistence.SetCodeImpactProvider(nil)
+	}
+
+	// Sincronización de ADR (feature 010, Historia 2): opt-in explícito
+	// (default false). Reusa el mismo proveedor activo que Historia 1 —
+	// codebasememory.Provider implementa tanto CodeGraphProvider como
+	// ADRSyncProvider, así que el type assertion solo falla si algún día hay
+	// un CodeGraphProvider que NO hable manage_adr (degrada a nil, sin
+	// exportar/importar, sin error).
+	adrSyncRepo := persistence.NewADRSyncRepository(db)
+	var adrSyncProvider ports.ADRSyncProvider
+	if activeProvider != nil {
+		adrSyncProvider, _ = activeProvider.(ports.ADRSyncProvider)
+	}
+	persistence.SetAdrSyncEnabled(settings.AdrSyncEnabled)
+	persistence.SetADRSync(adrSyncProvider, adrSyncRepo)
 
 	c := &Container{
 		Root:    root,
@@ -74,6 +102,10 @@ func NewContainer(root string) (*Container, error) {
 		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 		CodeGraphRepo:   codeGraphRepo,
 		CodeProviders:   codeProviders,
+		ADRSyncRepo:     adrSyncRepo,
+	}
+	if settings.AdrSyncEnabled {
+		c.ADRSyncProvider = adrSyncProvider
 	}
 
 	return c, nil
@@ -96,16 +128,44 @@ func (c *Container) ToDeps() *cli.Deps {
 		CodeGraphRepo:   c.CodeGraphRepo,
 		CodeProviders:   c.CodeProviders,
 		TUIProvider:     c.tuiProvider(),
+		ADRSyncProvider: c.ADRSyncProvider,
+		ADRSyncRepo:     c.ADRSyncRepo,
 	}
 }
 
 // tuiProvider construye el proveedor de grafo externo para la TUI. Se construye
 // SIEMPRE (independiente del toggle), para poder mostrar el estado del grafo
 // externo aunque esté desactivado. Snapshot() solo lee el archivo cacheado:
-// nunca bloquea.
+// nunca bloquea. Con varios candidatos configurados (Historia 3), muestra el
+// primero disponible — si ninguno lo está, el primero de la lista (para que
+// la TUI tenga algo que mostrar como "no disponible" en vez de nada).
 func (c *Container) tuiProvider() ports.CodeGraphProvider {
 	s := persistence.ReadSettings(c.Root)
-	return codebasememory.New(c.Root, filepath.Join(c.Root, persistence.MemDir), s.CodeGraphCommand)
+	providers := buildCodeProviders(c.Root, s)
+	if active := usecases.FirstAvailable(providers); active != nil {
+		return active
+	}
+	if len(providers) > 0 {
+		return providers[0]
+	}
+	return nil
+}
+
+// buildCodeProviders construye un CodeGraphProvider por cada comando
+// candidato en settings.CodeGraphProviders (ya normalizada por ReadSettings,
+// que incluye el legado CodeGraphCommand cuando la lista viene vacía). Sin
+// ningún candidato configurado, arma el único proveedor por defecto
+// (autodetección en PATH) — mismo comportamiento que antes de Historia 3.
+func buildCodeProviders(root string, settings persistence.Settings) []ports.CodeGraphProvider {
+	memDir := filepath.Join(root, persistence.MemDir)
+	if len(settings.CodeGraphProviders) == 0 {
+		return []ports.CodeGraphProvider{codebasememory.New(root, memDir, "")}
+	}
+	providers := make([]ports.CodeGraphProvider, 0, len(settings.CodeGraphProviders))
+	for _, cmd := range settings.CodeGraphProviders {
+		providers = append(providers, codebasememory.New(root, memDir, cmd))
+	}
+	return providers
 }
 
 func (c *Container) RunTUI() error {

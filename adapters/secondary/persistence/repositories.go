@@ -19,6 +19,14 @@ func (r *MemoryRepository) Insert(m *domain.Memory) (int64, error) {
 	return InsertMemory(r.db, m)
 }
 
+func (r *MemoryRepository) Get(project string, id int64) (*domain.Memory, error) {
+	return GetMemoryByID(r.db, project, id)
+}
+
+func (r *MemoryRepository) UpdateContent(project string, id int64, title, content string) error {
+	return UpdateMemoryContent(r.db, project, id, title, content)
+}
+
 func (r *MemoryRepository) List(project string, limit int) ([]domain.Memory, error) {
 	return ListMemories(r.db, project, limit)
 }
@@ -113,6 +121,37 @@ func (r *RelationRepository) ImportRelation(rel *domain.Relation) (int64, error)
 
 var _ ports.RelationRepository = (*RelationRepository)(nil)
 
+// ADRSyncRepository envuelve el CRUD de adr_sync.go (feature 010, Historia 2).
+type ADRSyncRepository struct {
+	db *sql.DB
+}
+
+func NewADRSyncRepository(db *sql.DB) ports.ADRSyncRepository {
+	return &ADRSyncRepository{db: db}
+}
+
+func (r *ADRSyncRepository) Insert(rec *domain.ADRSyncRecord) (int64, error) {
+	return InsertADRSyncRecord(r.db, rec)
+}
+
+func (r *ADRSyncRepository) GetByMemory(project string, memoryID int64) (*domain.ADRSyncRecord, error) {
+	return GetADRSyncByMemory(r.db, project, memoryID)
+}
+
+func (r *ADRSyncRepository) GetByBlockKey(project, provider, blockKey string) (*domain.ADRSyncRecord, error) {
+	return GetADRSyncByBlockKey(r.db, project, provider, blockKey)
+}
+
+func (r *ADRSyncRepository) UpdateStatus(id int64, status domain.SyncStatus, contentHash string) error {
+	return UpdateADRSyncStatus(r.db, id, status, contentHash)
+}
+
+func (r *ADRSyncRepository) ListByProject(project string) ([]domain.ADRSyncRecord, error) {
+	return ListADRSyncRecords(r.db, project)
+}
+
+var _ ports.ADRSyncRepository = (*ADRSyncRepository)(nil)
+
 type SettingsRepository struct{}
 
 func NewSettingsRepository() ports.SettingsRepository {
@@ -122,25 +161,31 @@ func NewSettingsRepository() ports.SettingsRepository {
 func (r *SettingsRepository) Read(root string) ports.SettingsData {
 	s := ReadSettings(root)
 	return ports.SettingsData{
-		AutoApprove:       s.AutoApprove,
-		AutoApproveTools:  s.AutoApproveTools,
-		CodeGraphDisabled: s.CodeGraphDisabled,
-		CodeGraphCommand:  s.CodeGraphCommand,
-		Budget:            s.Budget,
-		CompactThreshold:  s.CompactThreshold,
-		DedupWindowDays:   s.DedupWindowDays,
+		AutoApprove:                  s.AutoApprove,
+		AutoApproveTools:             s.AutoApproveTools,
+		CodeGraphDisabled:            s.CodeGraphDisabled,
+		CodeGraphCommand:             s.CodeGraphCommand,
+		CodeGraphProviders:           s.CodeGraphProviders,
+		AdrSyncEnabled:               s.AdrSyncEnabled,
+		CodeImpactAnnotationDisabled: s.CodeImpactAnnotationDisabled,
+		Budget:                       s.Budget,
+		CompactThreshold:             s.CompactThreshold,
+		DedupWindowDays:              s.DedupWindowDays,
 	}
 }
 
 func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 	return WriteSettings(root, Settings{
-		AutoApprove:       s.AutoApprove,
-		AutoApproveTools:  s.AutoApproveTools,
-		CodeGraphDisabled: s.CodeGraphDisabled,
-		CodeGraphCommand:  s.CodeGraphCommand,
-		Budget:            s.Budget,
-		CompactThreshold:  s.CompactThreshold,
-		DedupWindowDays:   s.DedupWindowDays,
+		AutoApprove:                  s.AutoApprove,
+		AutoApproveTools:             s.AutoApproveTools,
+		CodeGraphDisabled:            s.CodeGraphDisabled,
+		CodeGraphCommand:             s.CodeGraphCommand,
+		CodeGraphProviders:           s.CodeGraphProviders,
+		AdrSyncEnabled:               s.AdrSyncEnabled,
+		CodeImpactAnnotationDisabled: s.CodeImpactAnnotationDisabled,
+		Budget:                       s.Budget,
+		CompactThreshold:             s.CompactThreshold,
+		DedupWindowDays:              s.DedupWindowDays,
 	})
 }
 

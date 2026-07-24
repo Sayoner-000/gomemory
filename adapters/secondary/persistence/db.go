@@ -179,7 +179,23 @@ func migrate(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_code_edges_from ON code_edges(from_id);
 	CREATE INDEX IF NOT EXISTS idx_code_edges_to ON code_edges(to_id);
 	CREATE INDEX IF NOT EXISTS idx_code_edges_src_file ON code_edges(src_file_id);
-	`, Now, Now, Now, Now, Now)
+	CREATE TABLE IF NOT EXISTS adr_sync_records (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		memory_id INTEGER,
+		provider TEXT NOT NULL,
+		section TEXT NOT NULL,
+		block_key TEXT NOT NULL,
+		origin TEXT NOT NULL,
+		status TEXT NOT NULL,
+		content_hash TEXT NOT NULL DEFAULT '',
+		last_synced_at TEXT NOT NULL DEFAULT (%s),
+		created_at TEXT NOT NULL DEFAULT (%s),
+		FOREIGN KEY (memory_id) REFERENCES memories(id)
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL;
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_adr_sync_block ON adr_sync_records(project, provider, block_key);
+	`, Now, Now, Now, Now, Now, Now, Now)
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}

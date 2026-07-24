@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"mem/adapters/secondary/persistence"
 	"mem/application/usecases"
@@ -272,6 +274,16 @@ func hookTurnEnd(deps *Deps) {
 		if cp != nil {
 			cp.MaybeRefresh()
 		}
+	}
+
+	// Importación de ADR (feature 010, Historia 2, sentido proveedor→
+	// gomemory): mismo criterio best-effort/no-bloqueante que MaybeRefresh
+	// arriba — timeout corto, cualquier error (proveedor caído, no
+	// disponible) se ignora en silencio, nunca aborta el cierre del turno.
+	if deps.ADRSyncProvider != nil && deps.ADRSyncRepo != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		usecases.ImportADRs(ctx, deps.ADRSyncProvider, deps.ADRSyncRepo, deps.MemoryRepo, deps.Project)
+		cancel()
 	}
 
 	// Recordatorio de compactación (feature 008): si la huella emitida por

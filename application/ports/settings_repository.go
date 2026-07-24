@@ -7,7 +7,17 @@ type SettingsData struct {
 	// (codebase-memory-mcp). Ausente/false = auto-detección activada.
 	CodeGraphDisabled bool `json:"code_graph_disabled,omitempty"`
 	// CodeGraphCommand apunta a otro binario del proveedor. Vacío = default.
+	// Legado: ver CodeGraphProviders (feature 010).
 	CodeGraphCommand string `json:"code_graph_command,omitempty"`
+	// CodeGraphProviders es la lista ordenada (prioridad) de proveedores de
+	// grafo de código candidatos (feature 010, Historia 3).
+	CodeGraphProviders []string `json:"code_graph_providers,omitempty"`
+	// AdrSyncEnabled activa la sincronización bidireccional de ADR (feature
+	// 010, Historia 2). Default false.
+	AdrSyncEnabled bool `json:"adr_sync_enabled,omitempty"`
+	// CodeImpactAnnotationDisabled apaga la anotación de impacto al guardar
+	// (feature 010, Historia 1). Ausente/false = activada.
+	CodeImpactAnnotationDisabled bool `json:"code_impact_annotation_disabled,omitempty"`
 	// Budget es el techo blando (en CARACTERES emitidos) de get_context. <=0 =
 	// sin límite (opt-in). Reduce la huella persistente del contexto de arranque.
 	Budget int `json:"budget,omitempty"`
