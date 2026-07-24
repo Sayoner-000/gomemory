@@ -22,6 +22,12 @@ func (f *fakeCodeProvider) Name() string                          { return f.sna
 func (f *fakeCodeProvider) Snapshot() domain.CodeProviderSnapshot { return f.snap }
 func (f *fakeCodeProvider) MaybeRefresh()                         { f.refreshed = true }
 
+// ImpactFor: fake sin comportamiento real, build_context.go no la usa (solo
+// InsertMemory sí, ver adapters/secondary/persistence/memory_test.go).
+func (f *fakeCodeProvider) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
+	return domain.CodeImpactAnnotation{}, false
+}
+
 var _ ports.CodeGraphProvider = (*fakeCodeProvider)(nil)
 
 func TestBuild_SurfacesUnresolvedConflicts(t *testing.T) {

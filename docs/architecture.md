@@ -258,6 +258,59 @@ Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `dedup_windo
 
 El dominio del resumen compacto vive en `domain/code_provider.go` (`CodeProviderSnapshot`, `CodeArchitecture`: totales, lenguajes, clusters, hotspots).
 
+#### Evolución del brazo extensor (feature 010): impacto, ADR y multi-proveedor
+
+Tres capacidades aditivas sobre la base anterior, todas opcionales y
+desactivables por separado (`specs/010-codegraph-integration-evolution/`):
+
+- **Anotación de impacto al guardar (Historia 1).** Al guardar una memoria
+  con `filepath`, `InsertMemory` (`adapters/secondary/persistence/memory.go`)
+  llama `codeImpactProvider.ImpactFor(filepath)` (singleton de proceso, mismo
+  patrón que `dedupWindowDays`) y anexa una nota si el archivo casa con un
+  hotspot del snapshot cacheado — sin I/O nuevo en el hot path.
+  `get_architecture` no expone el archivo de cada hotspot, así que se
+  resuelve aparte: `resolveHotspotFiles()` pide `search_code` por
+  `qualified_name`, pero **solo dentro de `Refresh()`** (proceso detached),
+  nunca al guardar. `domain.CodeHotspot` ganó el campo `File`.
+  Toggle: `mem settings --code-impact-annotation=true|false` (default `true`).
+
+- **Sincronización bidireccional de ADR (Historia 2).** `manage_adr` del
+  proveedor NO es un CRUD de múltiples ADR con ID (verificado en vivo) — es
+  **un documento único por proyecto** con 6 secciones fijas (`PURPOSE, STACK,
+  ARCHITECTURE, PATTERNS, TRADEOFFS, PHILOSOPHY`). Cada memoria
+  `architecture`/`decision` se representa como un bloque marcado
+  (`<!-- gomemory:id=N -->`) dentro de la sección que le corresponde
+  (`ARCHITECTURE`/`TRADEOFFS`). El parseo/render del documento es dominio
+  puro (`domain/adr_document.go`: `ParseADRDocument`, `Render`,
+  `UpsertBlock`), testeado sin CLI. Export (gomemory→proveedor) vive en el
+  mismo choke point que la anotación de impacto (`exportToADR` en
+  `memory.go`, síncrono con timeout de 4s — la capacidad es opt-in, así que
+  el costo solo se paga si está activa). Import (proveedor→gomemory) es la
+  única pieza de esta feature que amerita una capa de *usecase* propia
+  (`application/usecases/import_adrs.go`, `ImportADRs`), porque coordina
+  tres puertos; corre en el mismo ciclo de refresco detached que
+  `MaybeRefresh()`. Los bloques marcados nunca se reimportan (evita el
+  bucle); el estado de cada par memoria↔bloque vive en `adr_sync_records`
+  (`origin`, `status`, `content_hash` — sin timestamp real por bloque, el
+  conflicto se detecta comparando hashes, no fechas). Consultable con
+  `mem adr-sync status` (solo lectura, no expuesto vía MCP). Toggle:
+  `mem settings --adr-sync=true|false` (default `false`, opt-in).
+
+- **Múltiples proveedores con fallback automático (Historia 3).**
+  `build_context.go` ya iteraba `[]ports.CodeGraphProvider` mostrando una
+  sección por cada uno disponible — no hizo falta un adaptador Composite
+  nuevo, solo alimentar esa lista desde `settings.code_graph_providers`
+  (`infrastructure/container.go:buildCodeProviders`, con fallback al legado
+  `code_graph_command` como lista de 1). Para los consumidores que sí
+  necesitan una única fuente (impacto y ADR), `usecases.FirstAvailable`
+  devuelve el primero con `Snapshot().Available=true`. Bug encontrado y
+  corregido durante la implementación: el snapshot cacheado era un archivo
+  único por `.memory/` — con 2+ proveedores, el último en refrescar pisaba
+  los datos del anterior. Fix: `snapshotPath()` deriva el nombre de archivo
+  de la identidad del proveedor (hash de `binOverride`), preservando el
+  nombre legado cuando no hay override (retrocompatible). Toggle:
+  `mem settings --code-graph-providers=cmd1,cmd2` (orden de prioridad).
+
 ### 5. Wrap (`adapters/primary/cli/cmd_wrap.go`)
 
 Wrapper interactivo que envuelve cualquier comando:

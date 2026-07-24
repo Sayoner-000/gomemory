@@ -13,7 +13,9 @@ package codebasememory
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,7 +23,18 @@ import (
 	"sync"
 	"time"
 
+	"mem/application/ports"
 	"mem/domain"
+)
+
+// Provider implementa tanto CodeGraphProvider (grafo de código, Historia 1)
+// como ADRSyncProvider (documento único de ADR, Historia 2): ambos hablan
+// con el mismo binario y resuelven el mismo proyecto, así que comparten
+// implementación en vez de duplicar resolveProject/runCLI en un adaptador
+// aparte.
+var (
+	_ ports.CodeGraphProvider = (*Provider)(nil)
+	_ ports.ADRSyncProvider   = (*Provider)(nil)
 )
 
 const (
@@ -46,6 +59,10 @@ type Provider struct {
 	root    string
 	memDir  string
 	binPath string // ruta al binario, "" si no está en PATH
+	// identity es binOverride TAL COMO SE PIDIÓ (antes de resolver contra el
+	// PATH): identifica el snapshot de ESTE proveedor entre varios candidatos
+	// (feature 010, Historia 3), sin depender de si el binario existe.
+	identity string
 
 	mu          sync.Mutex
 	lastTrigger time.Time
@@ -65,13 +82,25 @@ func New(root, memDir, binOverride string) *Provider {
 			bin = resolved
 		}
 	}
-	return &Provider{root: root, memDir: memDir, binPath: bin}
+	return &Provider{root: root, memDir: memDir, binPath: bin, identity: binOverride}
 }
 
 // Name identifica al proveedor.
 func (p *Provider) Name() string { return ProviderName }
 
-func (p *Provider) snapshotPath() string { return filepath.Join(p.memDir, snapshotFile) }
+// snapshotPath: con el proveedor "por defecto" (sin binOverride,
+// autodetección en PATH) usa el nombre de archivo LEGADO, para no invalidar
+// el cache de una base existente de un solo proveedor. Con un binOverride
+// explícito (custom o uno de varios candidatos, Historia 3), cada identidad
+// distinta usa su propio archivo — así dos proveedores configurados nunca se
+// pisan el snapshot entre sí.
+func (p *Provider) snapshotPath() string {
+	if p.identity == "" {
+		return filepath.Join(p.memDir, snapshotFile)
+	}
+	sum := sha256.Sum256([]byte(p.identity))
+	return filepath.Join(p.memDir, fmt.Sprintf("code_provider_snapshot_%x.json", sum[:6]))
+}
 
 // Snapshot lee el estado cacheado en disco. INSTANTÁNEO: nunca invoca al
 // proveedor. Si no hay snapshot o no parsea, devuelve uno vacío (Available=false).
@@ -140,12 +169,164 @@ func (p *Provider) Refresh(ctx context.Context) {
 	if !ok {
 		return // repo no indexado o CLI falló → no disponible (sin indexar)
 	}
-	arch, ok := p.fetchArchitecture(ctx, project)
+	arch, qualifiedNames, ok := p.fetchArchitecture(ctx, project)
 	if !ok {
 		return
 	}
+	// Resolución de archivo por hotspot (feature 010, Historia 1): corre acá
+	// —dentro del proceso detached de Refresh, NUNCA en el hot path— porque
+	// get_architecture no expone "file" y hay que pedirlo aparte por
+	// hotspot. Best-effort: un hotspot sin archivo resuelto simplemente no
+	// participa del match por filepath, no aborta el resto del refresco.
+	p.resolveHotspotFiles(ctx, project, arch.Hotspots, qualifiedNames)
 	snap.Available = true
 	snap.Architecture = arch
+}
+
+// ImpactFor resuelve el impacto de un filepath contra el snapshot YA
+// cacheado (instantáneo, nunca invoca al proveedor — mismo contrato de
+// no-bloqueo que Snapshot()). false si no hay snapshot disponible o ningún
+// hotspot casa por archivo.
+func (p *Provider) ImpactFor(filepath string) (domain.CodeImpactAnnotation, bool) {
+	snap := p.Snapshot()
+	if !snap.Available || snap.Architecture == nil {
+		return domain.CodeImpactAnnotation{}, false
+	}
+	for _, h := range snap.Architecture.Hotspots {
+		if h.File != "" && h.File == filepath {
+			return domain.CodeImpactAnnotation{Hotspot: true, Symbol: h.Name, FanIn: h.FanIn}, true
+		}
+	}
+	return domain.CodeImpactAnnotation{}, false
+}
+
+// resolveHotspotFiles completa CodeHotspot.File por cada hotspot, vía un
+// search_code por qualified_name (acotado a los hotspots ya condensados por
+// parseArchitecture, máx. maxHotspots). Best-effort: sin binario, sin
+// qualified_name conocido, o sin match → ese hotspot queda con File vacío y
+// se sigue con el resto. Muta hotspots in-place.
+func (p *Provider) resolveHotspotFiles(ctx context.Context, project string, hotspots []domain.CodeHotspot, qualifiedNames map[string]string) {
+	if p.binPath == "" {
+		return
+	}
+	for i := range hotspots {
+		qn := qualifiedNames[hotspots[i].Name]
+		if qn == "" {
+			continue
+		}
+		args, err := json.Marshal(map[string]any{"pattern": qn, "project": project, "regex": false, "limit": 5})
+		if err != nil {
+			continue
+		}
+		out, err := p.runCLI(ctx, "search_code", string(args))
+		if err != nil {
+			continue
+		}
+		if file, ok := parseSearchCodeFile(out, qn); ok {
+			hotspots[i].File = file
+		}
+	}
+}
+
+// parseSearchCodeFile toma la salida de search_code y devuelve el "file" del
+// resultado cuyo qualified_name matchea exacto — search_code busca por texto
+// libre, así que puede traer más de un resultado; solo el match exacto es
+// confiable para no anotar impacto sobre el archivo equivocado.
+func parseSearchCodeFile(out []byte, qualifiedName string) (string, bool) {
+	var resp struct {
+		Results []struct {
+			QualifiedName string `json:"qualified_name"`
+			File          string `json:"file"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(out, &resp); err != nil {
+		return "", false
+	}
+	for _, r := range resp.Results {
+		if r.QualifiedName == qualifiedName && r.File != "" {
+			return r.File, true
+		}
+	}
+	return "", false
+}
+
+// GetDocument lee el documento único de ADR del proveedor (manage_adr,
+// mode=get) para este proyecto. A diferencia de Snapshot()/ImpactFor, SÍ
+// invoca al proveedor (no hay snapshot cacheado de esto) — por eso solo se
+// llama desde flujos ya fuera del hot path: export post-guardado
+// (fire-and-forget) e import en el ciclo de refresco detached.
+func (p *Provider) GetDocument(ctx context.Context) (string, error) {
+	project, ok := p.resolveProject(ctx)
+	if !ok {
+		return "", fmt.Errorf("manage_adr: proveedor no disponible o proyecto no indexado")
+	}
+	args, _ := json.Marshal(map[string]string{"project": project, "mode": "get"})
+	out, err := p.runCLI(ctx, "manage_adr", string(args))
+	if err != nil {
+		return "", fmt.Errorf("manage_adr get: %w", err)
+	}
+	content, ok := parseGetADRResponse(out)
+	if !ok {
+		return "", fmt.Errorf("manage_adr get: respuesta inesperada")
+	}
+	return content, nil
+}
+
+// UpdateDocument reemplaza el documento único de ADR del proveedor
+// (manage_adr, mode=update) con el content ya reserializado (ver
+// domain.ADRDocument.Render). Mismo criterio de "fuera del hot path" que
+// GetDocument.
+func (p *Provider) UpdateDocument(ctx context.Context, content string) error {
+	project, ok := p.resolveProject(ctx)
+	if !ok {
+		return fmt.Errorf("manage_adr: proveedor no disponible o proyecto no indexado")
+	}
+	args, err := json.Marshal(map[string]string{"project": project, "mode": "update", "content": content})
+	if err != nil {
+		return err
+	}
+	if _, err := p.runCLI(ctx, "manage_adr", string(args)); err != nil {
+		return fmt.Errorf("manage_adr update: %w", err)
+	}
+	return nil
+}
+
+// parseGetADRResponse extrae "content" de la respuesta de manage_adr(mode=
+// get). Tolerante: "status":"no_adr" (verificado en vivo) trae content=""
+// y es válido (documento vacío, no un error).
+func parseGetADRResponse(out []byte) (string, bool) {
+	var resp struct {
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(out, &resp); err != nil {
+		return "", false
+	}
+	return resp.Content, true
+}
+
+// hotspotQualifiedNames relee el mismo JSON crudo de get_architecture (el
+// que ya consume parseArchitecture, sin tocar esa función ni su contrato ya
+// probado) para obtener el qualified_name de cada hotspot — dato que el tipo
+// de dominio no necesita conservar una vez resuelto el archivo, pero que
+// hace falta para pedirlo a search_code con precisión. JSON inválido o sin
+// hotspots → mapa vacío (tolerante, mismo criterio que parseArchitecture).
+func hotspotQualifiedNames(out []byte) map[string]string {
+	var raw struct {
+		Hotspots []struct {
+			Name          string `json:"name"`
+			QualifiedName string `json:"qualified_name"`
+		} `json:"hotspots"`
+	}
+	qn := make(map[string]string)
+	if err := json.Unmarshal(out, &raw); err != nil {
+		return qn
+	}
+	for _, h := range raw.Hotspots {
+		if h.Name != "" && h.QualifiedName != "" {
+			qn[h.Name] = h.QualifiedName
+		}
+	}
+	return qn
 }
 
 func (p *Provider) runCLI(ctx context.Context, tool, argsJSON string) ([]byte, error) {
@@ -163,13 +344,17 @@ func (p *Provider) resolveProject(ctx context.Context) (string, bool) {
 	return parseProjectName(out, p.root)
 }
 
-func (p *Provider) fetchArchitecture(ctx context.Context, project string) (*domain.CodeArchitecture, bool) {
+func (p *Provider) fetchArchitecture(ctx context.Context, project string) (*domain.CodeArchitecture, map[string]string, bool) {
 	args, _ := json.Marshal(map[string]string{"project": project})
 	out, err := p.runCLI(ctx, "get_architecture", string(args))
 	if err != nil {
-		return nil, false
+		return nil, nil, false
 	}
-	return parseArchitecture(out)
+	arch, ok := parseArchitecture(out)
+	if !ok {
+		return nil, nil, false
+	}
+	return arch, hotspotQualifiedNames(out), true
 }
 
 func (p *Provider) writeSnapshot(snap domain.CodeProviderSnapshot) {

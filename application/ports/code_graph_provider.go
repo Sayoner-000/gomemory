@@ -25,4 +25,9 @@ type CodeGraphProvider interface {
 	Name() string
 	Snapshot() domain.CodeProviderSnapshot
 	MaybeRefresh()
+	// ImpactFor resuelve, SOLO contra el snapshot cacheado (mismo contrato de
+	// no-bloqueo que Snapshot()), si filepath casa con un símbolo del grafo
+	// externo marcado como hotspot. false si no hay match o no hay snapshot
+	// disponible — nunca invoca al proveedor (feature 010, Historia 1).
+	ImpactFor(filepath string) (domain.CodeImpactAnnotation, bool)
 }

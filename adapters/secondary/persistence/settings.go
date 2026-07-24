@@ -13,8 +13,23 @@ type Settings struct {
 	// (codebase-memory-mcp). Ausente/false = auto-detección activada.
 	CodeGraphDisabled bool `json:"code_graph_disabled,omitempty"`
 	// CodeGraphCommand permite apuntar a otro binario del proveedor. Vacío =
-	// se busca "codebase-memory-mcp" en el PATH.
+	// se busca "codebase-memory-mcp" en el PATH. Campo LEGADO: se conserva
+	// por compatibilidad, pero ReadSettings lo normaliza a CodeGraphProviders
+	// cuando esta lista viene vacía (feature 010).
 	CodeGraphCommand string `json:"code_graph_command,omitempty"`
+	// CodeGraphProviders es la lista ordenada (prioridad) de proveedores de
+	// grafo de código candidatos. Vacía ⇒ se usa CodeGraphCommand (si lo hay)
+	// como lista de 1 elemento; si tampoco hay, autodetección en PATH.
+	CodeGraphProviders []string `json:"code_graph_providers,omitempty"`
+	// AdrSyncEnabled activa la sincronización bidireccional de ADR (feature
+	// 010, Historia 2). Default false: opt-in explícito.
+	AdrSyncEnabled bool `json:"adr_sync_enabled,omitempty"`
+	// CodeImpactAnnotationDisabled apaga la anotación de impacto al guardar
+	// una memoria con filepath (feature 010, Historia 1). Ausente/false =
+	// activada por defecto — mismo patrón "disabled" que CodeGraphDisabled,
+	// necesario porque un bool JSON no distingue "ausente" de "false" y la
+	// anotación debe quedar ON sin que el usuario tenga que optar por ella.
+	CodeImpactAnnotationDisabled bool `json:"code_impact_annotation_disabled,omitempty"`
 	// Budget: techo blando (CARACTERES) de get_context. Semántica normalizada en
 	// ReadSettings: ausente/0 → default; negativo → sin límite (opt-out).
 	Budget int `json:"budget,omitempty"`
@@ -75,7 +90,18 @@ func ReadSettings(root string) Settings {
 		return DefaultSettings()
 	}
 	applyFootprintDefaults(&s)
+	applyCodeGraphProvidersDefault(&s)
 	return s
+}
+
+// applyCodeGraphProvidersDefault normaliza el campo legado CodeGraphCommand
+// (singular) a CodeGraphProviders (lista) cuando esta última no viene
+// explícita en el settings.json — así una base existente que solo conoce el
+// campo viejo sigue funcionando sin migración manual (feature 010).
+func applyCodeGraphProvidersDefault(s *Settings) {
+	if len(s.CodeGraphProviders) == 0 && s.CodeGraphCommand != "" {
+		s.CodeGraphProviders = []string{s.CodeGraphCommand}
+	}
 }
 
 func WriteSettings(root string, s Settings) error {
