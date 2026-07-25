@@ -30,6 +30,7 @@ const (
 	screenOptimize
 	screenOptimizeDetail
 	screenOptimizeConfirm
+	screenOptimizeAllConfirm
 )
 
 const gcDefaultOlderThanDays = 90
@@ -360,6 +361,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenOptimizeConfirm {
 			return m.updateOptimizeConfirm(msg)
+		}
+		if m.screen == screenOptimizeAllConfirm {
+			return m.updateOptimizeAllConfirm(msg)
 		}
 		return m.updateList(msg)
 	}
@@ -749,6 +753,15 @@ func (m model) updateOptimize(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.screen = screenOptimizeDetail
+
+	case "a":
+		if len(m.dupGroups) == 0 {
+			return m, nil
+		}
+		m.dupErr = ""
+		m.dupConfirm.SetValue("")
+		m.dupConfirm.Focus()
+		m.screen = screenOptimizeAllConfirm
 	}
 	return m, nil
 }
@@ -859,36 +872,129 @@ func (m model) updateOptimizeConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) optimizeView() string {
+// totalDeletionCandidates cuenta cuántas memorias se borrarían en total si se
+// compactan TODOS los grupos de una vez, usando la sugerencia automática
+// (SuggestedKeepID) como canónica de cada grupo — sin revisión manual grupo
+// por grupo.
+func (m model) totalDeletionCandidates() int {
+	n := 0
+	for _, g := range m.dupGroups {
+		for _, mem := range g.Memories {
+			if mem.ID != g.SuggestedKeepID {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+// updateOptimizeAllConfirm aplica la compactación masiva: borra, en todos los
+// grupos detectados, todo lo que no sea la memoria sugerida como canónica.
+// Es la vía rápida para mantenimiento cuando hay muchos grupos y revisar uno
+// por uno no es práctico.
+func (m model) updateOptimizeAllConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.screen = screenOptimize
+		m.dupErr = ""
+		return m, nil
+
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "enter":
+		typed := strings.TrimSpace(m.dupConfirm.Value())
+		if !strings.EqualFold(typed, "si") {
+			m.dupErr = `Escribe "si" para confirmar. No se eliminó nada.`
+			return m, nil
+		}
+
+		deleted := 0
+		for _, g := range m.dupGroups {
+			for _, mem := range g.Memories {
+				if mem.ID == g.SuggestedKeepID {
+					continue
+				}
+				if ok, err := m.memRepo.Delete(m.project, mem.ID); err == nil && ok {
+					deleted++
+				}
+			}
+		}
+
+		m.statusMsg = fmt.Sprintf("Compactación completa: %d memoria(s) eliminada(s) en %d grupo(s)", deleted, len(m.dupGroups))
+		m.statusTimer = 60
+		m.memories, _ = m.memRepo.List(m.project, 200)
+		if m.maintenanceRepo != nil {
+			m.stats, _ = m.maintenanceRepo.Stats(m.project)
+		}
+
+		m.dupGroups = nil
+		m.dupCursor = 0
+		m.dupErr = ""
+		m.screen = screenOptimize
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.dupConfirm, cmd = m.dupConfirm.Update(msg)
+	return m, cmd
+}
+
+func (m model) optimizeAllConfirmView() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("Optimizar memorias"))
+	b.WriteString(titleStyle.Render("Compactar todas las memorias"))
 	b.WriteString("\n")
-	b.WriteString(subtitleStyle.Render(fmt.Sprintf("%s · candidatos a duplicado por similitud de contenido", m.project)))
+	b.WriteString(lipgloss.NewStyle().Foreground(red).Bold(true).Render(
+		fmt.Sprintf("Se aplicará la sugerencia automática en los %d grupo(s) detectados: se eliminarán %d memoria(s) en total.",
+			len(m.dupGroups), m.totalDeletionCandidates()),
+	))
+	b.WriteString("\n\n")
+	b.WriteString(formLabel.Render(`Escribe "si" para confirmar:`))
+	b.WriteString("\n")
+	b.WriteString(m.dupConfirm.View())
 	b.WriteString("\n\n")
 
-	if len(m.dupGroups) == 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  No se detectaron duplicados."))
+	if m.dupErr != "" {
+		b.WriteString(errorStyle.Render("✕ " + m.dupErr))
 		b.WriteString("\n")
+	}
+
+	b.WriteString(helpStyle.Render("  enter confirmar  ·  esc cancelar"))
+	return appStyle.Render(b.String())
+}
+
+func (m model) optimizeView() string {
+	var head strings.Builder
+
+	head.WriteString(titleStyle.Render("Optimizar memorias"))
+	head.WriteString("\n")
+	head.WriteString(subtitleStyle.Render(fmt.Sprintf("%s · candidatos a duplicado por similitud de contenido", m.project)))
+	head.WriteString("\n\n")
+
+	var foot strings.Builder
+	foot.WriteString("\n")
+	if m.statusTimer > 0 {
+		foot.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+		foot.WriteString("\n")
+	}
+	foot.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter revisar grupo  ·  a compactar todas  ·  esc volver"))
+
+	var bodyLines []string
+	if len(m.dupGroups) == 0 {
+		bodyLines = append(bodyLines, lipgloss.NewStyle().Foreground(faint).Render("  No se detectaron duplicados."))
 	} else {
 		for i, g := range m.dupGroups {
 			label := fmt.Sprintf("[%s] %d memorias — %s", typeLabel(string(g.Type)), len(g.Memories), truncate(groupPreview(g), 60))
 			if i == m.dupCursor {
-				b.WriteString(itemSelected.Render("▸ " + label))
+				bodyLines = append(bodyLines, itemSelected.Render("▸ "+label))
 			} else {
-				b.WriteString(itemNormal.Render("  " + label))
+				bodyLines = append(bodyLines, itemNormal.Render("  "+label))
 			}
-			b.WriteString("\n")
 		}
 	}
 
-	b.WriteString("\n")
-	if m.statusTimer > 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
-		b.WriteString("\n")
-	}
-	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter revisar grupo  ·  esc volver"))
-	return appStyle.Render(b.String())
+	return appStyle.Render(head.String() + windowLines(bodyLines, m.dupCursor, m.bodyBudget(head.String(), foot.String())) + foot.String())
 }
 
 // groupPreview arma un resumen corto de los títulos del grupo para la lista,
@@ -905,13 +1011,27 @@ func groupPreview(g usecases.DuplicateGroup) string {
 
 func (m model) optimizeDetailView() string {
 	group := m.dupGroups[m.dupGroupIdx]
-	var b strings.Builder
 
-	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  ← esc para volver"))
-	b.WriteString("\n\n")
-	b.WriteString(subtitleStyle.Render(fmt.Sprintf("%s · %d memorias en este grupo", typeLabel(string(group.Type)), len(group.Memories))))
-	b.WriteString("\n\n")
+	var head strings.Builder
+	head.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  ← esc para volver"))
+	head.WriteString("\n\n")
+	head.WriteString(subtitleStyle.Render(fmt.Sprintf("%s · %d memorias en este grupo", typeLabel(string(group.Type)), len(group.Memories))))
+	head.WriteString("\n\n")
 
+	var foot strings.Builder
+	if m.dupErr != "" {
+		foot.WriteString(errorStyle.Render("✕ " + m.dupErr))
+		foot.WriteString("\n")
+	}
+	foot.WriteString(helpStyle.Render("  ↑↓ elegir memoria  ·  enter marcar canónica  ·  space conservar/borrar  ·  c confirmar borrado  ·  esc volver"))
+
+	// El cuerpo (una caja bordeada por memoria) se arma como líneas
+	// independientes para poder recortarlo a la altura visible, igual que en
+	// listView — si no, con varias memorias de contenido largo el grupo no
+	// cabe en la terminal y la caja seleccionada queda fuera de pantalla sin
+	// forma de desplazarse hasta ella.
+	var bodyLines []string
+	cursorLine := 0
 	for i, mem := range group.Memories {
 		tag := "        "
 		switch {
@@ -937,18 +1057,16 @@ func (m model) optimizeDetailView() string {
 		} else {
 			border = border.BorderForeground(faint)
 		}
-		b.WriteString(tag + "\n")
-		b.WriteString(border.Render(body))
-		b.WriteString("\n")
+
+		block := strings.Split(tag+"\n"+border.Render(body), "\n")
+		if i == m.dupMemberCursor {
+			cursorLine = len(bodyLines) + len(block)/2
+		}
+		bodyLines = append(bodyLines, block...)
+		bodyLines = append(bodyLines, "")
 	}
 
-	if m.dupErr != "" {
-		b.WriteString(errorStyle.Render("✕ " + m.dupErr))
-		b.WriteString("\n")
-	}
-
-	b.WriteString(helpStyle.Render("  ↑↓ elegir memoria  ·  enter marcar canónica  ·  space conservar/borrar  ·  c confirmar borrado  ·  esc volver"))
-	return appStyle.Render(b.String())
+	return appStyle.Render(head.String() + windowLines(bodyLines, cursorLine, m.bodyBudget(head.String(), foot.String())) + foot.String())
 }
 
 func (m model) optimizeConfirmView() string {
@@ -1098,6 +1216,8 @@ func (m model) View() string {
 		return m.optimizeDetailView()
 	case screenOptimizeConfirm:
 		return m.optimizeConfirmView()
+	case screenOptimizeAllConfirm:
+		return m.optimizeAllConfirmView()
 	}
 	return ""
 }

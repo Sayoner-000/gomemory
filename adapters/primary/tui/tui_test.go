@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -281,5 +282,151 @@ func TestOptimizeDetail_SpaceExcludesFromDeletion(t *testing.T) {
 	}
 	if m.dupErr == "" {
 		t.Fatalf("esperaba un mensaje de error explicando que no hay nada para borrar")
+	}
+}
+
+// duplicateGroupsFixture arma varios grupos de duplicados independientes,
+// cada uno con contenido largo, para forzar que optimizeDetailView() necesite
+// más líneas que las que caben en una terminal chica.
+func duplicateGroupsFixture(groups, perGroup int) []domain.Memory {
+	longContent := strings.Repeat("contenido largo de prueba para forzar varias líneas de renderizado. ", 10)
+	var mems []domain.Memory
+	id := int64(1)
+	for g := 0; g < groups; g++ {
+		title := fmt.Sprintf("Preferencia de idioma: español neutro sin voseo grupo %d", g)
+		for i := 0; i < perGroup; i++ {
+			mems = append(mems, domain.Memory{
+				ID:      id,
+				Type:    domain.Preference,
+				Title:   title,
+				Content: longContent,
+			})
+			id++
+		}
+	}
+	return mems
+}
+
+// Regresión: la pantalla de detalle de un grupo (varias cajas bordeadas, una
+// por memoria) no aplicaba ninguna ventana de scroll, así que con memorias de
+// contenido largo el grupo entero no cabía en una terminal chica y la caja
+// seleccionada podía quedar fuera de lo visible sin forma de llegar a ella.
+func TestOptimizeDetailViewFitsTerminalHeight(t *testing.T) {
+	repo := &fakeMemRepo{mems: duplicateGroupsFixture(1, 6)}
+	m := model{
+		memRepo:    repo,
+		project:    "demo",
+		ready:      true,
+		width:      100,
+		height:     20,
+		dupConfirm: textinput.New(),
+		dupExclude: make(map[int64]bool),
+	}
+
+	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	m = mm.(model)
+	mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyEnter})
+	m = mm.(model)
+
+	out := m.optimizeDetailView()
+	lines := strings.Split(out, "\n")
+	if len(lines) > m.height+2 {
+		t.Fatalf("optimizeDetailView() produjo %d líneas para una terminal de %d filas; se esperaba que quedara acotado", len(lines), m.height)
+	}
+}
+
+// El cursor sobre miembros del grupo (dupMemberCursor) debe permanecer
+// visible sin importar en qué posición esté, incluso cuando el grupo no cabe
+// entero en la terminal.
+func TestOptimizeDetailViewKeepsCursorVisible(t *testing.T) {
+	repo := &fakeMemRepo{mems: duplicateGroupsFixture(1, 6)}
+	for _, cursor := range []int{0, 3, 5} {
+		m := model{
+			memRepo:    repo,
+			project:    "demo",
+			ready:      true,
+			width:      100,
+			height:     20,
+			dupConfirm: textinput.New(),
+			dupExclude: make(map[int64]bool),
+		}
+
+		mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+		m = mm.(model)
+		mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyEnter})
+		m = mm.(model)
+		m.dupMemberCursor = cursor
+
+		out := m.optimizeDetailView()
+		if !strings.Contains(out, fmt.Sprintf("#%d", m.dupGroups[m.dupGroupIdx].Memories[cursor].ID)) {
+			t.Fatalf("dupMemberCursor=%d: la memoria seleccionada no aparece en la ventana visible", cursor)
+		}
+	}
+}
+
+// Compactar todas (tecla "a" en screenOptimize) debe aplicar la sugerencia
+// automática de cada grupo detectado y borrar todo lo que no sea la memoria
+// canónica sugerida, en un solo paso, sin revisión grupo por grupo.
+func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
+	// Dos clusters de duplicados sobre temas sin ningún vocabulario en común,
+	// para que el detector los agrupe por separado (2 grupos), no juntos.
+	mems := append(duplicatePreferenceFixture(), []domain.Memory{
+		{ID: 101, Type: domain.Architecture,
+			Title:   "Decisión de despliegue: usar contenedores Docker en producción",
+			Content: "El equipo decidió empaquetar el servicio con Docker y desplegarlo en contenedores para producción, evitando instalaciones manuales."},
+		{ID: 102, Type: domain.Architecture,
+			Title:   "Recordatorio: despliegue con contenedores Docker en producción",
+			Content: "Siempre desplegar el servicio en producción usando contenedores Docker, nunca instalaciones manuales en el servidor."},
+	}...)
+	repo := &fakeMemRepo{mems: mems}
+	m := model{
+		memRepo:    repo,
+		project:    "demo",
+		ready:      true,
+		width:      100,
+		height:     40,
+		dupConfirm: textinput.New(),
+		dupExclude: make(map[int64]bool),
+	}
+
+	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	m = mm.(model)
+	if len(m.dupGroups) != 2 {
+		t.Fatalf("esperaba 2 grupos de duplicados, obtuve %d", len(m.dupGroups))
+	}
+
+	mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m = mm.(model)
+	if m.screen != screenOptimizeAllConfirm {
+		t.Fatalf("esperaba screenOptimizeAllConfirm, quedó en %v", m.screen)
+	}
+
+	wantDeleted := m.totalDeletionCandidates()
+	keepIDs := map[int64]bool{}
+	for _, g := range m.dupGroups {
+		keepIDs[g.SuggestedKeepID] = true
+	}
+
+	mm, _ = m.updateOptimizeAllConfirm(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = mm.(model)
+	mm, _ = m.updateOptimizeAllConfirm(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	m = mm.(model)
+
+	mm, _ = m.updateOptimizeAllConfirm(tea.KeyMsg{Type: tea.KeyEnter})
+	m = mm.(model)
+
+	if len(repo.deleted) != wantDeleted {
+		t.Fatalf("esperaba %d Delete en total, hubo %d: %v", wantDeleted, len(repo.deleted), repo.deleted)
+	}
+	for _, id := range repo.deleted {
+		if keepIDs[id] {
+			t.Fatalf("se borró la memoria canónica #%d, no debía tocarse", id)
+		}
+	}
+	if len(m.dupGroups) != 0 {
+		t.Fatalf("esperaba dupGroups vacío tras compactar todas, quedaron %d", len(m.dupGroups))
+	}
+	if m.screen != screenOptimize {
+		t.Fatalf("esperaba volver a screenOptimize, quedó en %v", m.screen)
 	}
 }
