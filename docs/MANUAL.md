@@ -84,7 +84,7 @@ con `mem install .` o `mem setup claude-code`.
 
 Esto:
 
-1. Copia `infrastructure/plugin/opencode/plugin.ts` a `~/.config/opencode/plugins/gomemory.ts` (archivo suelto — OpenCode auto-descubre plugins como archivos en `plugins/`, no en subcarpetas)
+1. Copia `infrastructure/plugin/opencode/gomemory.ts` a `~/.config/opencode/plugins/gomemory.ts` (archivo suelto — OpenCode auto-descubre plugins como archivos en `plugins/`, no en subcarpetas)
 2. Crea/actualiza el `opencode.json` **del proyecto actual** con la entrada `mcp.gomemory` (usa `mem setup-mcp --scope global --agents opencode` en vez de esto para registrar el MCP una sola vez, en `~/.config/opencode/opencode.json`, para todos los proyectos)
 3. El plugin se activa automáticamente al iniciar OpenCode — OpenCode lo descubre solo, sin que ningún `opencode.json` lo referencie explícitamente
 
@@ -106,6 +106,20 @@ cat opencode.json   # o ~/.config/opencode/opencode.json si usaste --scope globa
 - **Context injection**: Provee contexto de sesiones previas al arrancar
 - **Compaction recovery**: Recupera estado después de compactación
 - **Context enrichment**: ToolSearch instruction en el primer prompt
+
+### Eventos de OpenCode — para qué sirve cada uno
+
+El plugin `gomemory.ts` mapea los eventos de OpenCode al binario `mem`, en
+paralelo a los hooks de Claude Code (misma lógica, resuelta en Go):
+
+| Evento OpenCode | Invoca | Función |
+|-----------------|--------|---------|
+| `session.created` | `mem session start` | Abre la sesión de gomemory |
+| `session.idle` | `mem hook turn-end` (stdin) | Checkpoint de actividad del turno (archivos/comandos) |
+| `chat.message` | `mem hook prompt` (stdin) | Persiste el prompt del turno como provenance (`origin_prompt`) |
+| `experimental.chat.system.transform` | `mem context` + `mem hook nudge` | Inyecta protocolo + contexto histórico + recordatorio de guardado por turno |
+| `experimental.session.compacting` | `mem hook post-compact` | Empuja recuperación + contexto al contexto retenido (sobrevive a la compactación) |
+| `dispose` | `mem session end` | Cierra la sesión al descargarse el plugin |
 
 ---
 
@@ -208,7 +222,7 @@ go vet ./... && echo "OK"
 
 ```bash
 # Asegúrate de compilar desde la raíz del proyecto
-ls infrastructure/plugin/opencode/plugin.ts   # debe existir
+ls infrastructure/plugin/opencode/gomemory.ts   # debe existir
 ls infrastructure/plugin/claude-code/         # debe existir
 ```
 
@@ -328,6 +342,30 @@ La deduplicación en la fuente evita filas casi idénticas: guardar una memoria 
 un `topic_key` ya usado (o el mismo tipo+título dentro de la ventana) **actualiza**
 la existente en vez de crear otra.
 
+### Refuerzo periódico de preferencias (v1.23.0)
+
+En sesiones largas que no llegan a compactar, el protocolo y las preferencias
+del usuario (`type=preference`) solo se inyectaban en `SessionStart` y
+`post-compact` — sin nada que las recuerde en el medio, se diluyen del
+contexto. El hook de fin de turno (`turn-end`) ahora reutiliza el mismo
+contador de huella que gobierna el recordatorio de compactación
+(`compact_threshold`): al superar **un tercio** de ese umbral, reinyecta el
+**título y contenido real** de las preferencias guardadas más recientes (no un
+recordatorio genérico), con un debounce de 20 minutos. Si en el mismo turno
+también corresponde sugerir compactar, ese recordatorio tiene prioridad — la
+compactación reinyecta el contexto completo de todos modos.
+
+### Memoria conectada a código activo (v1.23.0)
+
+`get_context` ahora cruza el `Filepath` de cada memoria contra el grafo de
+código externo (si hay un proveedor configurado) **en cada llamada**, no solo
+al guardar: si el archivo asociado es un hotspot vigente, aparece en una
+sección `🔥 Memoria conectada a código activo` con su fan-in actual. A
+diferencia de la anotación estática que se pega al `content` al guardar
+(ver "Anotación de impacto al guardar" en el README), esta relación se
+recalcula contra el snapshot vigente del grafo — si el código se reindexa y
+cambian los hotspots, la relevancia se actualiza sola.
+
 ---
 
 ## 8. Mantenimiento de Memoria
@@ -417,7 +455,6 @@ go test ./...                     # Tests
 ```
 
 Para más detalles técnicos, ver:
-- `docs/PLUGINS.md` — Arquitectura del sistema de plugins
 - `docs/MEMORY-PROTOCOL.md` — Referencia técnica del protocolo
 
 ---
@@ -439,7 +476,7 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 | Agente | Config MCP | `AGENTS.md`/`CLAUDE.md` (refuerzo opcional) | Hooks |
 |--------|-----------|---------------------------------------------|-------|
 | **Claude Code** | `.mcp.json` | Sí, si se instaló con `mem install` | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
-| **OpenCode** | `opencode.json` | Sí, si se instaló con `mem install` | `plugin/opencode/plugin.ts` (auto-inicio, ya es global) |
+| **OpenCode** | `opencode.json` | Sí, si se instaló con `mem install` | `plugin/opencode/gomemory.ts` (auto-inicio, ya es global) |
 | **Cursor** | `.cursor/mcp.json` | — | — |
 | **Windsurf** | `.windsurf/mcp.json` | — | — |
 | **Cline** | `.cline/mcp.json` | — | — |

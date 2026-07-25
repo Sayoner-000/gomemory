@@ -7,7 +7,7 @@
 [![MCP](https://img.shields.io/badge/MCP-14_tools-blueviolet)](https://modelcontextprotocol.io/)
 [![SQLite](https://img.shields.io/badge/SQLite-embebido-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
-Servidor MCP y CLI en Go que proporciona memoria persistente a agentes de código (Claude Code, Cursor, OpenCode, Cline). Guarda contexto, decisiones de arquitectura y bugfixes en una base de datos SQLite embebida local, permitiendo recuperar el contexto entre sesiones sin depender de archivos en el repositorio.
+Servidor MCP y CLI en Go que proporciona memoria persistente a agentes de código (Claude Code, Cursor, OpenCode, Windsurf, Cline, Codex). Guarda contexto, decisiones de arquitectura y bugfixes en una base de datos SQLite embebida local, permitiendo recuperar el contexto entre sesiones sin depender de archivos en el repositorio.
 
 ## Inicio Rápido
 
@@ -42,6 +42,8 @@ mem setup-mcp --scope project --agents cursor,windsurf,cline --target .
 
 *Nota: La base de datos `mem.db` se guarda en `~/.local/share/gomemory/` o `%LOCALAPPDATA%\gomemory`. No ensucia tu repositorio con archivos adicionales.*
 
+> **`mem setup-mcp` vs `mem setup`:** `setup-mcp` (arriba) solo registra las **tools MCP** — funciona para los 6 agentes soportados. Los **auto-checkpoints** y la **captura de planes aprobados** (ver más abajo) requieren además los **hooks/plugin** de `mem setup <agent>`, disponible hoy solo para `opencode` y `claude-code`. En Cursor/Windsurf/Cline/Codex tienes memoria vía MCP, pero sin esa captura automática por turno.
+
 ## Uso y Características Principales
 
 Una vez configurado, el agente interactúa con la memoria automáticamente vía MCP. Puedes gestionarla manualmente mediante el CLI:
@@ -64,6 +66,7 @@ mem search "API"
 * **Consolidación sináptica ("siempre sinapsis"):** Cada memoria que se guarda se enlaza automáticamente con el engrama sustantivo más reciente de su sesión, tejiendo un grafo de decisiones que se re-inyecta en cada `get_context`. Determinista y transversal a todos los agentes (vive en el choke point de guardado, no en cada agente).
 * **Grafo de código externo (brazo extensor, opcional):** si detecta un grafo de código ya indexado por [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp), gomemory enriquece `get_context` con un resumen estructural (módulos de facto, hotspots, lenguajes) para que la memoria "entienda" el código. **No es una dependencia dura**: si el proveedor no está, todo funciona igual. Es **no-bloqueante** (el contexto lee un snapshot cacheado al instante; el refresco corre en segundo plano) y **agnóstico al agente**. Se enciende/apaga con `mem settings --code-graph=true|false`.
 * **Anotación de impacto al guardar:** si el archivo asociado a una memoria (`bugfix`/`decision`) es un hotspot conocido del grafo externo, la memoria queda anotada con el símbolo y sus llamadores directos — sin latencia extra (solo lee el snapshot ya cacheado). `mem settings --code-impact-annotation=true|false` (default activado).
+* **Memoria conectada a código activo (recalculada en vivo):** a diferencia de la anotación anterior (que se congela al guardar), `get_context` cruza el archivo de cada memoria contra los hotspots vigentes del grafo externo **en cada llamada** — si el código se reindexa y cambian los hotspots, qué memorias son relevantes se actualiza solo, sin tocar lo ya guardado.
 * **Sincronización bidireccional de ADR (opcional):** las memorias `architecture`/`decision` se reflejan como bloques marcados en el documento de ADR del proveedor externo, y los bloques que el proveedor tenga sin marcar se importan como memoria — sin bucles de resincronización. Consultable con `mem adr-sync status`. `mem settings --adr-sync=true|false` (default apagado).
 * **Múltiples proveedores de grafo con fallback automático:** `mem settings --code-graph-providers=cmd1,cmd2` declara candidatos en orden de prioridad; gomemory usa el primero disponible sin reconfigurar al cambiar de máquina/entorno.
 * **Resolución de conflictos:** `judge_memories` resuelve colisiones entre memorias obsoletas y nuevas con veredictos semánticos obligatorios.
@@ -87,9 +90,10 @@ mem search "API"
 
 > El servidor también expone 5 herramientas adicionales para indexar y consultar
 > el grafo de código fuente propio (`index_project`, `search_code`, `get_symbol`,
-> `list_dependencies`, `graph_status`). Además, de forma **opcional**, puede
-> apoyarse en un grafo de código externo ya indexado (codebase-memory-mcp) como
-> brazo extensor — ver [`docs/architecture.md`](docs/architecture.md).
+> `list_dependencies`, `graph_status`) — el CLI equivalente para poblar ese
+> índice es `mem index [--force]` (ver tabla CLI). Además, de forma **opcional**,
+> puede apoyarse en un grafo de código externo ya indexado (codebase-memory-mcp)
+> como brazo extensor — ver [`docs/architecture.md`](docs/architecture.md).
 
 ## CLI
 
@@ -101,11 +105,16 @@ Comandos principales para la gestión manual:
 | `mem init [--force]` | Inicializa `.memory/` explícitamente. |
 | `mem context [-w]` | Muestra o escribe el contexto actual. |
 | `mem capture` | Formulario guiado (What/Why/Where/Learned). |
+| `mem project` | Detecta el proyecto actual (clave, raíz) y muestra su información. |
+| `mem index [--force]` | Indexa el código Go del propio proyecto (grafo de símbolos interno — ver "Herramientas MCP Expuestas"). |
 | `mem update` | Actualiza el binario de forma idempotente. |
+| `mem uninstall [--yes]` | Desinstala gomemory por completo: reverso de `mem install`. |
+| `mem purge` | Vacía memorias (por tipo, antigüedad o proyecto completo) — requiere confirmación salvo `--yes`. |
 | `mem gc` / `mem compact`| Limpieza de registros antiguos (>90 días) y optimización de BD. |
 | `mem settings` | Configuración general: auto-approve de MCP, toggle del grafo de código externo (`--code-graph=true\|false`, `--code-graph-command`/`--code-graph-providers`), anotación de impacto (`--code-impact-annotation`) y sincronización de ADR (`--adr-sync`). |
 | `mem adr-sync status` | Estado de la sincronización de ADR (solo lectura): qué memorias están vinculadas a qué bloque del documento del proveedor, y su estado (ok/pendiente/fallido/conflicto). |
 | `mem export` / `mem import` | Exporta la memoria (memorias + relaciones) a un JSON portable e impórtala en otro proyecto/máquina con dedup por contenido. También desde la TUI (tecla `c`). |
+| `mem hook <evento>` | Entrypoint interno de hooks de agentes (`mem hook turn-end`, etc.) — no se invoca a mano, lo llaman los plugins de Claude Code/OpenCode. |
 
 *Ejecuta `mem help` para ver los subcomandos disponibles.*
 
@@ -125,6 +134,7 @@ gomemory está diseñado para **no inflar la ventana del agente**. Como los resu
 - **Revelación progresiva:** `search_memories`/`list_memories` devuelven extractos compactos; el contenido íntegro queda en `get_memory`.
 - **Dedup en la fuente:** guardar una memoria equivalente (mismo tipo+título, o el mismo `topic_key`) **actualiza** la existente en vez de crear otra.
 - **Recordatorio de compactación:** al cerrar el turno, si la huella emitida por gomemory supera un umbral, sugiere de forma neutral compactar el contexto.
+- **Refuerzo periódico de preferencias:** las preferencias del usuario (`type=preference`) solo se reinyectaban al iniciar sesión y tras compactar; en sesiones largas que no llegan a compactar se diluían. Ahora, al superar un tercio del umbral de compactación, el hook de fin de turno reinyecta el contenido real (no un recordatorio genérico) de las preferencias más recientes, con enfriamiento de 20 min.
 
 Ajustable en `.memory/settings.json` (valores por defecto entre paréntesis):
 
@@ -167,7 +177,6 @@ Como proyecto de un mes/un autor con la memoria aún en evolución, se atendiero
 |-----------|-------------|
 | [`docs/MANUAL.md`](docs/MANUAL.md) | Guía completa: multi-agente, troubleshooting, seguridad, stack, portabilidad |
 | [`docs/architecture.md`](docs/architecture.md) | Arquitectura interna a fondo |
-| [`docs/PLUGINS.md`](docs/PLUGINS.md) | Sistema de plugins multi-agente |
 | [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Protocolo de memoria (referencia técnica) |
 
 ---

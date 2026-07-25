@@ -223,6 +223,9 @@ mem context --write → escribe .memory/context.md
 - **título**: contenido (archivo relacionado)
 ...
 
+## 🔥 Memoria conectada a código activo
+- **título** — `archivo` (fan-in N, hotspot vigente)
+
 ## Sesión Activa
 - Iniciada: timestamp
 
@@ -241,6 +244,7 @@ Los resultados de las tools MCP **persisten en la ventana del agente** toda la s
 - **Presupuesto en `Build()`.** El campo `Builder.Budget` (en **caracteres**, cableado desde `settings.Budget`) impone un techo blando: cada entrada larga se acota con `domain.Extract` (helper puro: primera oración o truncado sin cortar palabra) y se le adjunta un puntero `→ get_memory <id>` para el detalle bajo demanda. Las secciones de lista dejan de crecer al acercarse al techo (`fits()`), cerrando con «(+N memorias; usa search_memories/get_memory)». **Protocolo y conflictos nunca se recortan.** `Budget < 0` = sin límite (opt-out); `0`/ausente = default (24000).
 - **Progressive disclosure en las tools.** `search_memories`/`list_memories` devuelven extractos compactos (`domain.Extract`, ~160 chars) en vez del contenido íntegro; `get_memory` sigue devolviendo el detalle completo (capa 3). Render unificado en `adapters/primary/cli/cmd_mcp_render.go`.
 - **Recordatorio de compactación (proxy honesto).** El servidor no puede leer la ventana del cliente, pero sí cuenta **los bytes que él mismo emite** por sesión: un middleware `AddReceivingMiddleware` acumula `len` de cada `CallToolResult` en `.memory/.footprint` (se resetea al iniciar sesión y en `post-compact`). Al cerrar el turno, `hookTurnEnd` compara contra `settings.CompactThreshold` y, con debounce, emite un recordatorio **neutral** (nunca nombra `/compact` ni comando de cliente) sugiriendo compactar. El servidor **señala**, no compacta; la evicción es del cliente.
+- **Refuerzo periódico de preferencias (v1.23.0).** Mismo contador de huella que el punto anterior, pero un umbral más bajo: al superar **un tercio** de `CompactThreshold`, `computePreferenceReinforcement` (`adapters/primary/cli/footprint.go`) reinyecta el título y contenido real de las memorias `type=preference` más recientes, con debounce propio de 20 min (`.memory/.last-preference-nudge`, reseteado junto al footprint en `post-compact`/inicio de sesión). Cubre el hueco entre `SessionStart`/`post-compact` — los únicos puntos donde antes se reinyectaban las preferencias — para que una sesión larga sin compactar no las pierda de vista. Si en el mismo turno también corresponde el recordatorio de compactación, ese tiene prioridad (la compactación reinyecta el contexto completo de todos modos).
 - **Deduplicación en la fuente.** En el choke point `InsertMemory`, guardar una memoria equivalente (mismo `project`+`type`+`title` dentro de `dedup_window_days`, o el mismo `topic_key`) **actualiza** la existente en vez de crear otra fila. Los `checkpoint` y las memorias sin título quedan excluidos del dedup por identidad.
 
 Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `dedup_window_days` (defaults 24000 / 48000 / 7; `< 0` o `<= 0` desactiva según el campo). Visibles en la pantalla de configuración de la TUI.
@@ -255,6 +259,7 @@ Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `dedup_windo
 - **Nunca indexa:** gomemory jamás invoca `index_repository` (eso puede tardar minutos). Repo no indexado → `available=false` → flujo normal.
 - **Enchufable por settings:** `code_graph_disabled` / `code_graph_command` (`mem settings --code-graph=…`). Sin proveedor/binario/snapshot → se degrada en silencio.
 - **Agnóstico al agente:** vive en el binario `mem`; el bloque va en `get_context`, que todos los agentes consumen.
+- **Memoria conectada a código activo, recalculada en vivo (v1.23.0).** Además del resumen estructural, `Build()` cruza el `Filepath` de cada memoria contra `ImpactFor(filepath)` de cada proveedor **en cada llamada** (mismo contrato de no-bloqueo: solo lee el snapshot cacheado). Las que resuelven a un hotspot vigente aparecen en la sección `🔥 Memoria conectada a código activo`, ordenadas por fan-in. A diferencia de `annotateImpact` (que anota el `content` una única vez, al guardar, y queda congelado), esta relación se re-evalúa contra el snapshot vigente en cada `get_context` — si el código se reindexa y cambian los hotspots, la relevancia se actualiza sola sin tocar la memoria guardada.
 
 El dominio del resumen compacto vive en `domain/code_provider.go` (`CodeProviderSnapshot`, `CodeArchitecture`: totales, lenguajes, clusters, hotspots).
 
@@ -488,7 +493,7 @@ El servidor HTTP legado (`mem serve` en `127.0.0.1:9735`, paquete `adapters/prim
 
 `mem setup <agente>` instala el plugin **y sus hooks** para un agente concreto:
 
-- `mem setup opencode` → copia `plugin.ts` como archivo suelto a `~/.config/opencode/plugins/gomemory.ts` (OpenCode auto-descubre plugins ahí, sin subcarpeta ni referencia explícita en ningún `opencode.json`) y escribe la entrada MCP en el `opencode.json` del proyecto actual.
+- `mem setup opencode` → copia `gomemory.ts` como archivo suelto a `~/.config/opencode/plugins/gomemory.ts` (OpenCode auto-descubre plugins ahí, sin subcarpeta ni referencia explícita en ningún `opencode.json`) y escribe la entrada MCP en el `opencode.json` del proyecto actual.
 - `mem setup claude-code` → copia el plugin a `.claude/plugins/gomemory/`, escribe `.mcp.json` y registra los hooks portables (`mem hook <evento>`) en `.claude/settings.json`.
 
 La referencia al binario es portable (`BinRef`/`binRefFor` en `cmd_install.go`/`binref.go`): se usa `mem` por PATH, nunca una ruta absoluta de máquina. El fallback por-proyecto de los hooks de Claude usa `${CLAUDE_PROJECT_DIR}/mem`, que Claude expande en runtime.
@@ -952,7 +957,7 @@ gomemory/
 │   ├── container.go                 #   NewContainer(): wiring de dependencias
 │   ├── plugin/                      #   Plugins embebidos (go:embed)
 │   │   ├── opencode/
-│   │   │   └── plugin.ts
+│   │   │   └── gomemory.ts
 │   │   └── claude-code/
 │   │       ├── hooks/
 │   │       ├── scripts/
@@ -981,10 +986,8 @@ gomemory/
 │
 ├── docs/
 │   ├── architecture.md       # Este documento
-│   ├── PLUGINS.md
 │   ├── MEMORY-PROTOCOL.md
 │   ├── MANUAL.md
-│   ├── todo.md
 │   └── lessons.md
 ├── scripts/                   # Instaladores universales de consola
 │   ├── install.sh             #   Linux / macOS

@@ -94,6 +94,17 @@ El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
   Claude Code. Lo consumen integraciones que no leen el JSON de Claude Code, como
   el plugin de OpenCode (que lo invoca por turno). Así el umbral y el debounce
   son idénticos en todos los agentes.
+- `mem hook turn-end` (v1.23.0) — al cerrar cada turno, además del checkpoint
+  automático de actividad, reevalúa dos recordatorios que comparten el mismo
+  contador de huella (`compact_threshold`): si la huella superó el umbral
+  completo, sugiere compactar; si no, pero superó **un tercio** del umbral,
+  reinyecta el **título y contenido real** de las preferencias del usuario
+  (`type=preference`) más recientes — no un recordatorio genérico, el texto de
+  la regla en sí — con enfriamiento de 20 minutos (marcador
+  `.memory/.last-preference-nudge`). Cubre el hueco entre `SessionStart` y
+  `post-compact`, los únicos dos puntos donde antes se reinyectaban las
+  preferencias: una sesión larga que nunca llega a compactar ya no las pierde
+  de vista.
 - `mem hook subagent-stop` — cuando un subagente (tool `Task`) termina, guarda
   un **checkpoint de subagente** con los archivos y comandos que tocó. Captura
   actividad que de otro modo se perdería: vive en el transcript propio del

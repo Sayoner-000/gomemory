@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"mem/application/usecases"
@@ -55,7 +56,8 @@ func CmdMCP(deps *Deps, args []string) {
 	// Auto-start session on MCP server start (best-effort, no debe romper el server)
 	if active, _ := deps.SessionRepo.Active(project); active == nil {
 		if sess, err := deps.SessionRepo.Start(project); err == nil {
-			footprintReset(root) // sesión nueva ⇒ huella desde cero
+			footprintReset(root)                      // sesión nueva ⇒ huella desde cero
+			os.Remove(preferenceNudgeStatePath(root)) // idem para el refuerzo de preferencias
 			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
 		}
 	}

@@ -16,16 +16,19 @@ import (
 type fakeCodeProvider struct {
 	snap      domain.CodeProviderSnapshot
 	refreshed bool
+	// impactByFile permite configurar el resultado de ImpactFor por ruta,
+	// para probar la sección "Memoria conectada a código activo" de Build()
+	// sin depender de un proveedor real. Ruta ausente = sin match (false).
+	impactByFile map[string]domain.CodeImpactAnnotation
 }
 
 func (f *fakeCodeProvider) Name() string                          { return f.snap.Provider }
 func (f *fakeCodeProvider) Snapshot() domain.CodeProviderSnapshot { return f.snap }
 func (f *fakeCodeProvider) MaybeRefresh()                         { f.refreshed = true }
 
-// ImpactFor: fake sin comportamiento real, build_context.go no la usa (solo
-// InsertMemory sí, ver adapters/secondary/persistence/memory_test.go).
-func (f *fakeCodeProvider) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
-	return domain.CodeImpactAnnotation{}, false
+func (f *fakeCodeProvider) ImpactFor(filepath string) (domain.CodeImpactAnnotation, bool) {
+	ann, ok := f.impactByFile[filepath]
+	return ann, ok
 }
 
 var _ ports.CodeGraphProvider = (*fakeCodeProvider)(nil)
@@ -254,4 +257,104 @@ func TestBuild_ExternalGraphAbsentWhenUnavailable(t *testing.T) {
 	if !fake.refreshed {
 		t.Fatal("aún sin proveedor disponible, MaybeRefresh debe intentarse")
 	}
+}
+
+// TestBuild_HotCodeSection_MatchAparece verifica que una memoria cuyo
+// Filepath resuelve a un hotspot vigente del grafo externo aparece en la
+// nueva sección "Memoria conectada a código activo" — la relación se
+// recalcula en cada Build() contra ImpactFor, no queda congelada como la
+// anotación estática de InsertMemory.
+func TestBuild_HotCodeSection_MatchAparece(t *testing.T) {
+	root := t.TempDir()
+	db, err := persistence.Init(root)
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	defer db.Close()
+
+	memRepo := persistence.NewMemoryRepository(db)
+	memRepo.Insert(&domain.Memory{
+		Project: "proj", Type: domain.Bugfix, Title: "fix parser de rutas",
+		Content: "...", Filepath: "adapters/secondary/persistence/memory.go",
+	})
+	memRepo.Insert(&domain.Memory{
+		Project: "proj", Type: domain.Decision, Title: "no toca hotspot",
+		Content: "...", Filepath: "docs/README.md",
+	})
+
+	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	fake := &fakeCodeProvider{
+		snap: domain.CodeProviderSnapshot{Provider: "codebase-memory-mcp", Available: true, Architecture: &domain.CodeArchitecture{}},
+		impactByFile: map[string]domain.CodeImpactAnnotation{
+			"adapters/secondary/persistence/memory.go": {Hotspot: true, Symbol: "InsertMemory", FanIn: 41},
+		},
+	}
+	builder.CodeProviders = []ports.CodeGraphProvider{fake}
+
+	out, err := builder.Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if !strings.Contains(out, "Memoria conectada a código activo") {
+		t.Fatalf("esperaba la sección de hotspots en vivo, got:\n%s", out)
+	}
+	if !strings.Contains(out, "fix parser de rutas") || !strings.Contains(out, "fan-in 41") {
+		t.Fatalf("esperaba la memoria con match y su fan-in, got:\n%s", out)
+	}
+	// "no toca hotspot" SÍ aparece en el output (en su propia sección de
+	// Decisiones Técnicas, legítimamente) — lo que no debe hacer es aparecer
+	// DENTRO de la sección nueva de hotspots.
+	start := strings.Index(out, "## 🔥 Memoria conectada a código activo")
+	if start < 0 {
+		t.Fatalf("no se encontró la sección de hotspots en vivo, got:\n%s", out)
+	}
+	section := out[start:]
+	if end := strings.Index(section[len("## 🔥 Memoria conectada a código activo"):], "\n## "); end >= 0 {
+		section = section[:len("## 🔥 Memoria conectada a código activo")+end]
+	}
+	if strings.Contains(section, "no toca hotspot") {
+		t.Fatalf("una memoria sin match no debe aparecer en la sección de hotspots, got sección:\n%s", section)
+	}
+}
+
+// TestBuild_HotCodeSection_AusenteSinMatchNiProveedor cubre dos casos donde
+// la sección nueva no debe aparecer: sin ningún match de hotspot, y sin
+// CodeProviders configurados (no debe romper nada).
+func TestBuild_HotCodeSection_AusenteSinMatchNiProveedor(t *testing.T) {
+	t.Run("proveedor presente pero sin match", func(t *testing.T) {
+		root := t.TempDir()
+		db, _ := persistence.Init(root)
+		defer db.Close()
+		memRepo := persistence.NewMemoryRepository(db)
+		memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "algo", Content: "...", Filepath: "no/existe.go"})
+
+		builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+		fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "codebase-memory-mcp", Available: true, Architecture: &domain.CodeArchitecture{}}}
+		builder.CodeProviders = []ports.CodeGraphProvider{fake}
+
+		out, err := builder.Build()
+		if err != nil {
+			t.Fatalf("build: %v", err)
+		}
+		if strings.Contains(out, "Memoria conectada a código activo") {
+			t.Fatalf("sin ningún match no debe aparecer la sección, got:\n%s", out)
+		}
+	})
+
+	t.Run("sin CodeProviders configurados", func(t *testing.T) {
+		root := t.TempDir()
+		db, _ := persistence.Init(root)
+		defer db.Close()
+		memRepo := persistence.NewMemoryRepository(db)
+		memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "algo", Content: "...", Filepath: "cualquier/archivo.go"})
+
+		builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+		out, err := builder.Build()
+		if err != nil {
+			t.Fatalf("build sin CodeProviders no debe fallar: %v", err)
+		}
+		if strings.Contains(out, "Memoria conectada a código activo") {
+			t.Fatalf("sin CodeProviders no debe aparecer la sección, got:\n%s", out)
+		}
+	})
 }

@@ -167,7 +167,8 @@ func hookPreCompact(deps *Deps) {
 func hookPostCompact(deps *Deps) {
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		os.Remove(sessionMarkerPath(deps, root))
-		footprintReset(root) // tras compactar, la huella cuenta desde cero
+		footprintReset(root)                      // tras compactar, la huella cuenta desde cero
+		os.Remove(preferenceNudgeStatePath(root)) // el refuerzo también arranca de cero
 	}
 	printRecoveryAndContext(deps)
 	os.Exit(0)
@@ -294,6 +295,12 @@ func hookTurnEnd(deps *Deps) {
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		threshold := deps.SettingsRepo.Read(root).CompactThreshold
 		if msg, ok := computeCompactNudge(root, threshold); ok {
+			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
+			fmt.Print(string(data))
+		} else if msg, ok := computePreferenceReinforcement(deps, root, deps.Project, threshold); ok {
+			// Solo uno de los dos por turno: si ya se sugirió compactar, no
+			// compite por espacio con el refuerzo de preferencias — la
+			// compactación reinyecta el contexto completo de todos modos.
 			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
 			fmt.Print(string(data))
 		}

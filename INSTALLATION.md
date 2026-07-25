@@ -185,7 +185,7 @@ todos tus proyectos, usa `mem setup-mcp --scope global --agents opencode`
 en su lugar (ver sección **0.1**).
 
 **Qué hace**:
-- Inicia `mem serve` en background automáticamente
+- Invoca `mem <cmd>` / `mem hook <evento>` como subproceso (sin servidor ni puerto)
 - Crea sesión al iniciar, la cierra al terminar
 - Inyecta el Memory Protocol en el system prompt
 - Provee contexto de sesiones previas
@@ -224,35 +224,11 @@ opencode debug config   # config resuelta (mergea scope global + proyecto)
 
 # Claude Code
 ls .claude/plugins/gomemory/scripts/
-
-# Healthcheck del servidor HTTP (auto-iniciado por plugins)
-curl http://127.0.0.1:9735/health
 ```
 
 ---
 
-## 6. Servidor HTTP (manual)
-
-El servidor HTTP es auto-iniciado por los plugins, pero también puedes
-iniciarlo manualmente:
-
-```bash
-./mem serve                # Puerto default 9735
-./mem serve --port 19735   # Puerto personalizado
-```
-
-Endpoints:
-
-| Endpoint | Método | Descripción |
-|----------|--------|-------------|
-| `/health` | GET | Healthcheck |
-| `/session/start` | POST | Crear sesión |
-| `/session/end` | POST | Cerrar sesión con resumen |
-| `/context` | GET | Contexto de sesiones previas |
-
----
-
-## 7. MCP Server
+## 6. MCP Server
 
 El servidor MCP expone la memoria como herramientas nativas para cualquier
 agente compatible con el Model Context Protocol.
@@ -288,7 +264,7 @@ Configuración multi-agente automática:
 
 ---
 
-## 8. Uso básico
+## 7. Uso básico
 
 ```bash
 # TUI interactiva
@@ -311,7 +287,7 @@ Configuración multi-agente automática:
 
 ---
 
-## 9. Actualizar
+## 8. Actualizar
 
 ```bash
 cd gomemory
@@ -350,24 +326,14 @@ ls .claude/plugins/gomemory/scripts/
 # ¿Olvidaste reiniciar el agente? Los plugins se cargan al arranque.
 ```
 
-### "address already in use"
-
-```bash
-# Puerto 9735 ocupado — usar otro puerto
-./mem serve --port 19735
-./mem setup --port 19735 opencode
-
-# O matar el proceso anterior
-lsof -i :9735
-kill <PID>
-```
-
 ### "MCP connection refused"
 
 ```bash
-# El servidor HTTP debe estar corriendo
-./mem serve &
-curl http://127.0.0.1:9735/health
+# El MCP va por stdio (sin servidor ni puerto): el agente lanza `mem mcp`
+# como subproceso. Verifica que `mem` esté en el PATH y que la config del
+# agente apunte a `mem mcp`.
+which mem
+mem mcp --help
 ```
 
 ---
@@ -377,7 +343,6 @@ curl http://127.0.0.1:9735/health
 | Documento | Descripción |
 |-----------|-------------|
 | [`docs/architecture.md`](docs/architecture.md) | Arquitectura completa |
-| [`docs/PLUGINS.md`](docs/PLUGINS.md) | Sistema de plugins |
 | [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Protocolo de memoria |
 | [`docs/MANUAL.md`](docs/MANUAL.md) | Guía paso a paso |
 | [`README.md`](README.md) | Features y descripción general |

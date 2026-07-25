@@ -84,12 +84,13 @@ o `mem.exe`) más la documentación estándar.
 cd /tmp/gomemory-release
 
 # Documentos que van dentro de cada paquete
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 DOCS="README.md INSTALLATION.md"
-[ -f "/home/admindocker/data/go_memory/LICENSE" ] && DOCS="$DOCS LICENSE"
+[ -f "$REPO_ROOT/LICENSE" ] && DOCS="$DOCS LICENSE"
 
 # Preparar carpeta temporal con docs
 mkdir -p dist
-for f in $DOCS; do cp "/home/admindocker/data/go_memory/$f" dist/; done
+for f in $DOCS; do cp "$REPO_ROOT/$f" dist/; done
 
 # linux/amd64
 cp mem_linux_amd64 dist/mem

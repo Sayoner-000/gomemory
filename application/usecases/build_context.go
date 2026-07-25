@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"mem/application/ports"
@@ -322,6 +323,60 @@ func (b *Builder) Build() (string, error) {
 			writeCodeProviderSection(&sb, snap)
 		}
 		cp.MaybeRefresh()
+	}
+
+	// Memoria conectada a código activo (dinámica): a diferencia de la
+	// anotación estática que InsertMemory pega al content al guardar
+	// (annotateImpact), esto recalcula la relación CADA VEZ que se arma el
+	// contexto contra el snapshot vigente del grafo — si el código se
+	// reindexó y cambiaron los hotspots, la relevancia se actualiza sola, sin
+	// tocar la memoria ya guardada. Reusa ImpactFor tal como está: cero
+	// cambios de puerto.
+	if len(b.CodeProviders) > 0 && b.fits(&sb, 80) {
+		type hotMemory struct {
+			mem   domain.Memory
+			fanIn int
+		}
+		bestByID := make(map[int64]hotMemory)
+		for _, m := range mems {
+			if m.Filepath == "" {
+				continue
+			}
+			for _, cp := range b.CodeProviders {
+				if cp == nil {
+					continue
+				}
+				if ann, ok := cp.ImpactFor(m.Filepath); ok && ann.Hotspot {
+					if prev, seen := bestByID[m.ID]; !seen || ann.FanIn > prev.fanIn {
+						bestByID[m.ID] = hotMemory{mem: m, fanIn: ann.FanIn}
+					}
+				}
+			}
+		}
+		if len(bestByID) > 0 {
+			hot := make([]hotMemory, 0, len(bestByID))
+			for _, h := range bestByID {
+				hot = append(hot, h)
+			}
+			sort.Slice(hot, func(i, j int) bool {
+				if hot[i].fanIn != hot[j].fanIn {
+					return hot[i].fanIn > hot[j].fanIn
+				}
+				return hot[i].mem.ID < hot[j].mem.ID
+			})
+			sb.WriteString("## 🔥 Memoria conectada a código activo\n\n")
+			for i, h := range hot {
+				if i >= 8 {
+					break
+				}
+				line := fmt.Sprintf("- **%s** — `%s` (fan-in %d, hotspot vigente)\n", displayTitle(h.mem), h.mem.Filepath, h.fanIn)
+				if !b.fits(&sb, len(line)) {
+					break
+				}
+				sb.WriteString(line)
+			}
+			sb.WriteString("\n")
+		}
 	}
 
 	sess, _ := b.Session.Active(b.Project)
