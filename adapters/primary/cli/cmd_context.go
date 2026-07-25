@@ -11,7 +11,9 @@ func CmdContext(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("context", flag.ContinueOnError)
 	write := fs.Bool("w", false, "Escribir a .memory/context.md")
 	fs.BoolVar(write, "write", false, "Escribir a .memory/context.md")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {

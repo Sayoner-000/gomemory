@@ -13,7 +13,9 @@ func CmdSave(deps *Deps, args []string) {
 	title := fs.String("t", "", "Título descriptivo")
 	mtype := fs.String("y", "learning", "Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference")
 	filepathStr := fs.String("f", "", "Archivo relacionado")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	content := strings.Join(fs.Args(), " ")
 	if content == "" {

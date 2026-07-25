@@ -11,7 +11,9 @@ import (
 func CmdSearch(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("search", flag.ContinueOnError)
 	limit := fs.Int("n", 20, "Número de resultados")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	query := strings.Join(fs.Args(), " ")
 	if query == "" {

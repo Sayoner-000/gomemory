@@ -102,6 +102,9 @@ Comandos principales para la gestión manual:
 | Comando | Acción |
 | :--- | :--- |
 | `mem` | Abre la TUI interactiva (Bubbletea). |
+| `mem save [flags] <texto>` | Guarda una memoria manualmente. `-t` título opcional, `-y` tipo (`learning\|decision\|architecture\|bugfix\|pattern\|discovery\|preference`, default `learning`), `-f` archivo relacionado. **Las flags van antes del texto** (usan el paquete `flag` de Go, que deja de leer flags en el primer argumento posicional). |
+| `mem search <query>` | Busca en la memoria del proyecto (título y contenido). |
+| `mem list [-n N]` / `mem log` | Lista las memorias más recientes (`-n` cantidad, default 20). |
 | `mem init [--force]` | Inicializa `.memory/` explícitamente. |
 | `mem context [-w]` | Muestra o escribe el contexto actual. |
 | `mem capture` | Formulario guiado (What/Why/Where/Learned). |

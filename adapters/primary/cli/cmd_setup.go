@@ -14,7 +14,9 @@ func CmdSetup(deps *Deps, args []string) {
 	agent := fs.String("agent", "", "Agente: opencode, claude-code")
 	target := fs.String("target", ".", "Directorio del proyecto")
 	port := fs.Int("port", 9735, "Puerto del servidor HTTP")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	if *agent == "" && fs.NArg() > 0 {
 		*agent = fs.Arg(0)

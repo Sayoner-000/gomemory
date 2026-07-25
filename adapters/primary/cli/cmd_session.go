@@ -55,7 +55,9 @@ func cmdSessionStart(deps *Deps, args []string) {
 func cmdSessionEnd(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("session end", flag.ContinueOnError)
 	summary := fs.String("s", "", "Resumen de la sesión")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
@@ -92,7 +94,9 @@ func cmdSessionEnd(deps *Deps, args []string) {
 func cmdSessionList(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("session list", flag.ContinueOnError)
 	limit := fs.Int("n", 10, "Número de sesiones")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {

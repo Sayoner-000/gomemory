@@ -14,7 +14,9 @@ import (
 func CmdWrap(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("wrap", flag.ContinueOnError)
 	autoSession := fs.Bool("s", true, "Auto-iniciar sesión si no hay una activa")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	command := fs.Args()
 	if len(command) == 0 {

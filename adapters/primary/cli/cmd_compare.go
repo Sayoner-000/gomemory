@@ -25,7 +25,9 @@ func CmdCompare(deps *Deps, args []string) {
 	relation := fs.String("r", "related", "Relación: related|compatible|scoped|conflicts_with|supersedes|not_conflict")
 	confidence := fs.Float64("c", 1.0, "Confianza (0.0-1.0)")
 	reasoning := fs.String("m", "", "Razonamiento del veredicto")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	positional := fs.Args()
 	if len(positional) < 2 {
@@ -95,7 +97,9 @@ func CmdCompare(deps *Deps, args []string) {
 func cmdCompareList(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("compare list", flag.ContinueOnError)
 	limit := fs.Int("n", 20, "Número de relaciones")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
@@ -132,10 +136,10 @@ func cmdCompareList(deps *Deps, args []string) {
 }
 
 var relationDescriptions = map[string]string{
-	"related":       "Las memorias están semanticamente relacionadas",
-	"compatible":    "Las memorias son compatibles entre sí",
-	"scoped":        "Una memoria es un caso específico o alcance de la otra",
+	"related":        "Las memorias están semanticamente relacionadas",
+	"compatible":     "Las memorias son compatibles entre sí",
+	"scoped":         "Una memoria es un caso específico o alcance de la otra",
 	"conflicts_with": "Las memorias entran en conflicto",
-	"supersedes":    "Una memoria reemplaza o invalida a la otra",
-	"not_conflict":  "Se evaluaron y no hay conflicto",
+	"supersedes":     "Una memoria reemplaza o invalida a la otra",
+	"not_conflict":   "Se evaluaron y no hay conflicto",
 }

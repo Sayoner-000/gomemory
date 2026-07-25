@@ -16,7 +16,9 @@ import (
 
 func CmdInstall(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	target := "."
 	if len(fs.Args()) > 0 {

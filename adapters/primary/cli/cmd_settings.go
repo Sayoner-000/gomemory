@@ -15,7 +15,9 @@ func CmdSettings(deps *Deps, args []string) {
 	codeImpactAnnotation := fs.Bool("code-impact-annotation", true, "Anotar impacto de código al guardar una memoria con archivo asociado")
 	adrSync := fs.Bool("adr-sync", false, "Sincronizar memorias architecture/decision como ADR con el proveedor externo")
 	show := fs.Bool("show", false, "Mostrar configuración actual")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {

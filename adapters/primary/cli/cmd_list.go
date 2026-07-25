@@ -10,7 +10,9 @@ import (
 func CmdList(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	limit := fs.Int("n", 20, "Número de resultados")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {

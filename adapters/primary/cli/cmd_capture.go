@@ -18,7 +18,9 @@ func CmdCapture(deps *Deps, args []string) {
 	learned := fs.String("l", "", "¿Qué se aprendió? (gotchas, edge cases)")
 	mtype := fs.String("t", "learning", "Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference")
 	interactive := fs.Bool("i", false, "Modo interactivo")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return
+	}
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
