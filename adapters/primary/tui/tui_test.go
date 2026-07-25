@@ -175,11 +175,11 @@ func (f *fakeMemRepo) SecondsSinceLastSave(project string) (int64, bool, error) 
 func duplicatePreferenceFixture() []domain.Memory {
 	return []domain.Memory{
 		{ID: 1, Type: domain.Preference,
-			Title:   "Preferencia de idioma: español neutro sin voseo",
-			Content: "El usuario pide siempre español neutro, nunca voseo rioplatense, usar tú en vez de vos en todas las respuestas."},
+			Title:   "Preferencia de idioma: español neutro con tuteo estándar",
+			Content: "El usuario pide siempre español neutro con tuteo estándar, usar tú y tienes en todas las respuestas."},
 		{ID: 2, Type: domain.Preference,
-			Title:   "Recordatorio: nunca usar voseo, siempre español neutro",
-			Content: "Nunca usar voseo rioplatense, siempre responder en español neutro con tú, no vos, en todas las respuestas del usuario."},
+			Title:   "Recordatorio: siempre español neutro con tuteo estándar",
+			Content: "Responder siempre en español neutro con tuteo estándar, con tú y tienes, en todas las respuestas del usuario."},
 		{ID: 3, Type: domain.Architecture,
 			Title:   "Arquitectura hexagonal del proyecto",
 			Content: "El proyecto separa domain, ports, usecases y adapters siguiendo arquitectura hexagonal clásica."},
@@ -293,7 +293,7 @@ func duplicateGroupsFixture(groups, perGroup int) []domain.Memory {
 	var mems []domain.Memory
 	id := int64(1)
 	for g := 0; g < groups; g++ {
-		title := fmt.Sprintf("Preferencia de idioma: español neutro sin voseo grupo %d", g)
+		title := fmt.Sprintf("Preferencia de idioma: español neutro con tuteo grupo %d", g)
 		for i := 0; i < perGroup; i++ {
 			mems = append(mems, domain.Memory{
 				ID:      id,

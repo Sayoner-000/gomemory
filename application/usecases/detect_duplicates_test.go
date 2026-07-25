@@ -19,33 +19,29 @@ const realThreshold = 0.09
 func realWorldPreferences() []domain.Memory {
 	return []domain.Memory{
 		{ID: 15, Type: domain.Preference,
-			Title: "No usar voseo — español neutral obligatorio (reincidencia confirmada)",
-			Content: `Nunca usar voseo (vos, tenés, querés, sabés, hacé, podés, etc.) al responder en español. Usar siempre español neutral con "tú" (tú/tienes/quieres/sabes/puedes).
+			Title: "Español neutro con tuteo estándar — obligatorio en toda respuesta",
+			Content: `Responder siempre en español neutro con tuteo estándar: "tú" (tú/tienes/quieres/sabes/puedes).
 
-Why: el usuario lo reportó el 2026-07-03 diciendo que lo viene reportando "desde hace rato", y volvió a aparecer voseo en la MISMA sesión después de guardar la corrección la primera vez ("podés", "querés" en un mensaje posterior) — confirma que guardar la memoria no alcanza, hace falta autochequeo activo en cada respuesta en español, no solo recordar la regla en abstracto.
+Why: el usuario lo reportó el 2026-07-03 y la preferencia volvió a necesitar refuerzo en la MISMA sesión después de guardarla la primera vez — confirma que guardar la memoria no alcanza, hace falta autochequeo activo en cada respuesta en español, no solo recordar la regla en abstracto.
 
-How to apply: antes de enviar cualquier respuesta en español, releer la oración buscando conjugaciones de voseo (terminaciones en -ás/-és/-ís, imperativos como "hacé"/"mirá") y reemplazar por la forma con "tú". Tratar esto como un chequeo obligatorio de última línea, no como algo que se resuelve solo por tener la preferencia guardada.`},
+How to apply: antes de enviar cualquier respuesta en español, releer la oración verificando que toda segunda persona use el tuteo estándar (tú/tienes/quieres/sabes/puedes). Tratar esto como un chequeo obligatorio de última línea, no como algo que se resuelve solo por tener la preferencia guardada.`},
 		{ID: 63, Type: domain.Preference,
-			Title: "Preferencia (reincidencia): español neutral SIEMPRE — también en docs, specs, comentarios y artefactos, no solo en el chat",
-			Content: `El usuario reiteró (2026-07-11) que NUNCA se use lenguaje rioplatense/argentino ni voseo: español neutral con "tú" en TODO el contenido generado — respuestas de chat, documentación, specs, comentarios de código, mensajes de commit y cualquier artefacto. Explícito: "nada de argentino por ningún lado", "quita contaminación rioplatense".
+			Title: "Preferencia (reiterada): español neutro SIEMPRE — también en docs, specs, comentarios y artefactos, no solo en el chat",
+			Content: `El usuario reiteró (2026-07-11) que TODO el contenido generado use español neutro con tuteo estándar: respuestas de chat, documentación, specs, comentarios de código y cualquier artefacto.
 
-Reincidencia concreta de hoy: en un mensaje de chat escribí "querés" y "acá" (rioplatenses), y en specs/006/spec.md escribí el imperativo voseante "guardá" — corregido a "guardar". El barrido posterior (grep de marcadores voseantes: acá, querés, tenés, podés, imperativos -á/-é como guardá/revisá/verificá/usá, sos, vos, laburo) sobre docs/ specs/ y código quedó limpio.
+Contexto adicional: este repo se llama gomemory; el proyecto de referencia engram usa otro registro regional de español, así que hay riesgo activo de arrastrar su registro — mantener el neutro.
 
-Contexto adicional: este repo se llama gomemory y su razón de ser NO tiene nada que ver con Argentina; además el proyecto de referencia engram es de autor argentino, así que hay riesgo activo de arrastrar su registro — no hacerlo.
-
-How to apply: antes de enviar CUALQUIER respuesta o de escribir CUALQUIER archivo, releer buscando terminaciones -ás/-és/-ís, imperativos voseantes (hacé/mirá/guardá/revisá), y palabras como "acá/allá/vos/sos/dale/che". Reemplazar por la forma neutral con "tú" (tienes/quieres/puedes) o formas impersonales/infinitivas. Tratarlo como chequeo obligatorio de última línea, incluido el contenido de documentación y specs. Reincidencia ya múltiple: no basta con recordar la regla en abstracto.`},
+How to apply: antes de enviar CUALQUIER respuesta o de escribir CUALQUIER archivo, releer verificando el tuteo estándar (tú/tienes/quieres/puedes) o formas impersonales/infinitivas. Tratarlo como chequeo obligatorio de última línea, incluido el contenido de documentación y specs. Preferencia ya reiterada: no basta con recordar la regla en abstracto.`},
 		{ID: 131, Type: domain.Preference,
-			Title: "Preferencia de estilo: español neutro estricto, sin voseo rioplatense (reincidente)",
-			Content: `El usuario exige ESPAÑOL NEUTRO estricto en toda interacción y todo contenido generado (chat, código, comentarios, docs, memorias). PROHIBIDO el voseo rioplatense/argentino: nada de "usás/querés/podés/tenés/hacés/compilás", imperativos "-á/-í" (anotá, mirá, revisá), "vos", "acá", "che". Usar formas neutras: "usas/quieres/puedes", "aquí", "de aquí en adelante".
+			Title: "Preferencia de estilo: español neutro estricto en todo el contenido (reiterada)",
+			Content: `El usuario exige ESPAÑOL NEUTRO estricto en toda interacción y todo contenido generado (chat, código, comentarios, docs, memorias). Usar siempre las formas neutras del tuteo estándar: "usas/quieres/puedes", "aquí", "de aquí en adelante".
 
-Es REINCIDENTE: ya ocurrió antes y el usuario lo marcó con molestia ("de dónde sacaste el rioplatense, dónde te contaminaste"). No hay causa externa: es un desliz de registro propio que requiere AUTOCHEQUEO ACTIVO antes de emitir cualquier texto, no solo en el chat.
+Es una preferencia REITERADA sin causa externa: es un desliz de registro propio que requiere AUTOCHEQUEO ACTIVO antes de emitir cualquier texto, no solo en el chat.
 
-Verificado en esta sesión: la contaminación estuvo SOLO en mensajes de chat; los archivos del proyecto y las memorias quedaron en español neutro (barrido con grep sin coincidencias reales, solo "recién" que es neutro).
-
-Cómo aplicar: releer mentalmente cada respuesta buscando voseo antes de enviarla; ante la duda entre dos formas, elegir la neutra (tú/usted).`},
+Cómo aplicar: releer mentalmente cada respuesta antes de enviarla; ante la duda entre dos formas, elegir la neutra (tú/usted).`},
 		{ID: 185, Type: domain.Preference,
-			Title:   "Restricción: español neutro obligatorio (sin voseo)",
-			Content: `Regla de cumplimiento obligatorio, no un patrón de error a documentar cada vez que ocurre: todo texto en español (chat, tool calls, documentos) usa exclusivamente español neutro latinoamericano con tuteo. No usar el voseo rioplatense en ninguna forma: ni el pronombre, ni las conjugaciones de segunda persona propias de esa variante, ni sus imperativos con pronombre enclítico. Usar siempre el equivalente con tú. No crear memorias adicionales listando cada reincidencia ni citando ejemplos de las formas incorrectas — esta única entrada es la referencia; agregar más solo la reafirma sin aportar nada nuevo.`},
+			Title:   "Restricción: español neutro obligatorio",
+			Content: `Regla de cumplimiento obligatorio, no un patrón de error a documentar cada vez que ocurre: todo texto en español (chat, tool calls, documentos) usa exclusivamente español neutro latinoamericano con tuteo estándar, siempre con las formas de "tú". No crear memorias adicionales listando cada reincidencia ni citando ejemplos de las formas incorrectas — esta única entrada es la referencia; agregar más solo la reafirma sin aportar nada nuevo.`},
 		{ID: 13, Type: domain.Preference,
 			Title: "No incluir autoría de IA en commits/PRs",
 			Content: `El usuario pidió explícitamente no incluir autoría de IA, mención de Claude, ni línea de "contribución" tipo Co-Authored-By en commits, PRs, release notes ni ningún artefacto del repo.
@@ -102,13 +98,13 @@ func TestDetectDuplicateGroups_GroupsBySharedTopic(t *testing.T) {
 		}
 	}
 
-	voseoIDs := map[int64]bool{15: true, 63: true, 131: true, 185: true}
+	idiomaIDs := map[int64]bool{15: true, 63: true, 131: true, 185: true}
 	autoriaIDs := map[int64]bool{13: true, 115: true, 139: true, 149: true, 60: true}
 	for _, g := range groups {
-		matchesVoseo, matchesAutoria := 0, 0
+		matchesIdioma, matchesAutoria := 0, 0
 		for _, m := range g.Memories {
-			if voseoIDs[m.ID] {
-				matchesVoseo++
+			if idiomaIDs[m.ID] {
+				matchesIdioma++
 			}
 			if autoriaIDs[m.ID] {
 				matchesAutoria++
@@ -116,8 +112,8 @@ func TestDetectDuplicateGroups_GroupsBySharedTopic(t *testing.T) {
 		}
 		switch len(g.Memories) {
 		case 4:
-			if matchesVoseo != 4 {
-				t.Fatalf("grupo de 4 debía ser exactamente el de voseo: %+v", g)
+			if matchesIdioma != 4 {
+				t.Fatalf("grupo de 4 debía ser exactamente el de idioma: %+v", g)
 			}
 		case 5:
 			if matchesAutoria != 5 {

@@ -86,7 +86,7 @@ func TestComputeCompactNudge_UmbralYDebounce(t *testing.T) {
 }
 
 func TestComputePreferenceReinforcement(t *testing.T) {
-	pref := domain.Memory{ID: 1, Type: domain.Preference, Title: "Español neutro", Content: "Sin voseo rioplatense en ningún texto."}
+	pref := domain.Memory{ID: 1, Type: domain.Preference, Title: "Español neutro", Content: "Español neutro con tuteo estándar en todo texto."}
 
 	// Bajo el step (threshold/3): silencio, aunque haya preferencias.
 	root := t.TempDir()

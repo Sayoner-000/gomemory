@@ -33,8 +33,8 @@ var tokenPattern = regexp.MustCompile(`[\p{L}\p{N}]+`)
 // de Jaccard si no se filtran (dos memorias sin relación alguna ya comparten
 // "el", "de", "que", "usuario" solo por estar escritas en el mismo idioma).
 // Lista acotada a artículos/preposiciones/conjunciones/pronombres core, sin
-// intentar cubrir conjugaciones verbales (esas sí son señal: "querés" vs
-// "usar" importa para detectar voseo, por ejemplo).
+// intentar cubrir conjugaciones verbales (esas sí son señal: la conjugación
+// concreta que usa cada memoria importa para agrupar por tema).
 var spanishStopwords = map[string]struct{}{
 	"el": {}, "la": {}, "los": {}, "las": {}, "un": {}, "una": {}, "unos": {}, "unas": {},
 	"de": {}, "del": {}, "al": {}, "a": {}, "en": {}, "con": {}, "sin": {}, "por": {}, "para": {},
