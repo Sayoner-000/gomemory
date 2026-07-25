@@ -27,6 +27,9 @@ const (
 	screenMaintenanceConfirm
 	screenConfig
 	screenImport
+	screenOptimize
+	screenOptimizeDetail
+	screenOptimizeConfirm
 )
 
 const gcDefaultOlderThanDays = 90
@@ -220,6 +223,16 @@ type model struct {
 	importPath   textinput.Model
 	importErr    string
 
+	// Optimizar memorias (detección de duplicados) — ver detect_duplicates.go.
+	dupGroups       []usecases.DuplicateGroup
+	dupCursor       int             // cursor sobre la lista de grupos (screenOptimize)
+	dupGroupIdx     int             // índice del grupo actualmente en detalle
+	dupKeepIdx      int             // índice DENTRO del grupo marcado como canónico
+	dupMemberCursor int             // cursor sobre miembros del grupo (screenOptimizeDetail)
+	dupExclude      map[int64]bool  // IDs del grupo que el usuario excluyó del borrado
+	dupConfirm      textinput.Model // input "si" para confirmar el borrado del grupo
+	dupErr          string
+
 	width  int
 	height int
 	ready  bool
@@ -266,6 +279,11 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	ip.CharLimit = 400
 	ip.Width = 50
 
+	dc := textinput.New()
+	dc.Placeholder = `escribe "si"`
+	dc.CharLimit = 10
+	dc.Width = 20
+
 	settings := settingsRepo.Read(root)
 
 	var stats ports.StorageStats
@@ -291,6 +309,8 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		stats:           stats,
 		maintConfirm:    mc,
 		importPath:      ip,
+		dupConfirm:      dc,
+		dupExclude:      make(map[int64]bool),
 	}
 }
 
@@ -331,6 +351,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenImport {
 			return m.updateImport(msg)
+		}
+		if m.screen == screenOptimize {
+			return m.updateOptimize(msg)
+		}
+		if m.screen == screenOptimizeDetail {
+			return m.updateOptimizeDetail(msg)
+		}
+		if m.screen == screenOptimizeConfirm {
+			return m.updateOptimizeConfirm(msg)
 		}
 		return m.updateList(msg)
 	}
@@ -394,6 +423,14 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.screen = screenConfig
 			m.configCursor = 0
 			m.statusMsg = ""
+		}
+
+	case "o":
+		if m.ready {
+			m.screen = screenOptimize
+			m.dupCursor = 0
+			m.dupErr = ""
+			m.dupGroups, _ = usecases.DetectProjectDuplicates(m.memRepo, m.project)
 		}
 
 	case "/":
@@ -677,6 +714,268 @@ func (m model) importMemories(path string) (domain.ImportReport, error) {
 	return usecases.ImportBundle(m.memRepo, m.relRepo, m.project, bundle)
 }
 
+// ─── Optimizar memorias (detección de duplicados) ───────────────────
+
+// updateOptimize maneja la lista de grupos candidatos a duplicado
+// (usecases.DetectProjectDuplicates, calculada al entrar a la pantalla vía
+// la tecla "o" en updateList).
+func (m model) updateOptimize(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.screen = screenList
+		m.dupErr = ""
+
+	case "j", "down":
+		if m.dupCursor < len(m.dupGroups)-1 {
+			m.dupCursor++
+		}
+
+	case "k", "up":
+		if m.dupCursor > 0 {
+			m.dupCursor--
+		}
+
+	case "enter":
+		if len(m.dupGroups) == 0 || m.dupCursor >= len(m.dupGroups) {
+			return m, nil
+		}
+		m.dupGroupIdx = m.dupCursor
+		m.dupMemberCursor = 0
+		m.dupExclude = make(map[int64]bool)
+		group := m.dupGroups[m.dupGroupIdx]
+		for i, mem := range group.Memories {
+			if mem.ID == group.SuggestedKeepID {
+				m.dupKeepIdx = i
+			}
+		}
+		m.screen = screenOptimizeDetail
+	}
+	return m, nil
+}
+
+// updateOptimizeDetail muestra el contenido completo de cada memoria del
+// grupo y deja elegir cuál se conserva (dupKeepIdx) y cuáles, además de la
+// canónica, se excluyen del borrado (dupExclude) — por si el grupo junta una
+// memoria que en realidad es un tema distinto y conviene conservar las dos.
+func (m model) updateOptimizeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	group := m.dupGroups[m.dupGroupIdx]
+
+	switch msg.String() {
+	case "esc":
+		m.screen = screenOptimize
+
+	case "j", "down":
+		if m.dupMemberCursor < len(group.Memories)-1 {
+			m.dupMemberCursor++
+		}
+
+	case "k", "up":
+		if m.dupMemberCursor > 0 {
+			m.dupMemberCursor--
+		}
+
+	case "enter":
+		m.dupKeepIdx = m.dupMemberCursor
+
+	case " ":
+		id := group.Memories[m.dupMemberCursor].ID
+		if m.dupMemberCursor != m.dupKeepIdx {
+			m.dupExclude[id] = !m.dupExclude[id]
+		}
+
+	case "c":
+		if m.deletionCandidates(group) == 0 {
+			m.dupErr = "No hay nada para borrar: todo el grupo quedó excluido"
+			return m, nil
+		}
+		m.dupErr = ""
+		m.dupConfirm.SetValue("")
+		m.dupConfirm.Focus()
+		m.screen = screenOptimizeConfirm
+	}
+	return m, nil
+}
+
+// deletionCandidates cuenta cuántas memorias del grupo se borrarían: todas
+// menos la canónica (dupKeepIdx) y las excluidas explícitamente por el
+// usuario (dupExclude).
+func (m model) deletionCandidates(group usecases.DuplicateGroup) int {
+	n := 0
+	for i, mem := range group.Memories {
+		if i == m.dupKeepIdx || m.dupExclude[mem.ID] {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+func (m model) updateOptimizeConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.screen = screenOptimizeDetail
+		m.dupErr = ""
+		return m, nil
+
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "enter":
+		typed := strings.TrimSpace(m.dupConfirm.Value())
+		if !strings.EqualFold(typed, "si") {
+			m.dupErr = `Escribe "si" para confirmar. No se eliminó nada.`
+			return m, nil
+		}
+
+		group := m.dupGroups[m.dupGroupIdx]
+		deleted := 0
+		for i, mem := range group.Memories {
+			if i == m.dupKeepIdx || m.dupExclude[mem.ID] {
+				continue
+			}
+			if ok, err := m.memRepo.Delete(m.project, mem.ID); err == nil && ok {
+				deleted++
+			}
+		}
+
+		m.statusMsg = fmt.Sprintf("Grupo optimizado: %d memoria(s) eliminada(s), se conservó #%d", deleted, group.Memories[m.dupKeepIdx].ID)
+		m.statusTimer = 60
+		m.memories, _ = m.memRepo.List(m.project, 200)
+		if m.maintenanceRepo != nil {
+			m.stats, _ = m.maintenanceRepo.Stats(m.project)
+		}
+
+		m.dupGroups = append(m.dupGroups[:m.dupGroupIdx], m.dupGroups[m.dupGroupIdx+1:]...)
+		if m.dupCursor >= len(m.dupGroups) && m.dupCursor > 0 {
+			m.dupCursor--
+		}
+		m.dupErr = ""
+		m.screen = screenOptimize
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.dupConfirm, cmd = m.dupConfirm.Update(msg)
+	return m, cmd
+}
+
+func (m model) optimizeView() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Optimizar memorias"))
+	b.WriteString("\n")
+	b.WriteString(subtitleStyle.Render(fmt.Sprintf("%s · candidatos a duplicado por similitud de contenido", m.project)))
+	b.WriteString("\n\n")
+
+	if len(m.dupGroups) == 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  No se detectaron duplicados."))
+		b.WriteString("\n")
+	} else {
+		for i, g := range m.dupGroups {
+			label := fmt.Sprintf("[%s] %d memorias — %s", typeLabel(string(g.Type)), len(g.Memories), truncate(groupPreview(g), 60))
+			if i == m.dupCursor {
+				b.WriteString(itemSelected.Render("▸ " + label))
+			} else {
+				b.WriteString(itemNormal.Render("  " + label))
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	b.WriteString("\n")
+	if m.statusTimer > 0 {
+		b.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+		b.WriteString("\n")
+	}
+	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter revisar grupo  ·  esc volver"))
+	return appStyle.Render(b.String())
+}
+
+// groupPreview arma un resumen corto de los títulos del grupo para la lista,
+// para distinguir grupos sin tener que entrar a cada uno.
+func groupPreview(g usecases.DuplicateGroup) string {
+	titles := make([]string, 0, len(g.Memories))
+	for _, mem := range g.Memories {
+		if mem.Title != "" {
+			titles = append(titles, mem.Title)
+		}
+	}
+	return strings.Join(titles, " / ")
+}
+
+func (m model) optimizeDetailView() string {
+	group := m.dupGroups[m.dupGroupIdx]
+	var b strings.Builder
+
+	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  ← esc para volver"))
+	b.WriteString("\n\n")
+	b.WriteString(subtitleStyle.Render(fmt.Sprintf("%s · %d memorias en este grupo", typeLabel(string(group.Type)), len(group.Memories))))
+	b.WriteString("\n\n")
+
+	for i, mem := range group.Memories {
+		tag := "        "
+		switch {
+		case i == m.dupKeepIdx:
+			tag = lipgloss.NewStyle().Foreground(green).Bold(true).Render("[CANÓNICA]")
+		case m.dupExclude[mem.ID]:
+			tag = lipgloss.NewStyle().Foreground(yellow).Render("[conservar]")
+		default:
+			tag = lipgloss.NewStyle().Foreground(red).Render("[se borra]")
+		}
+
+		header := fmt.Sprintf("#%d — %s", mem.ID, mem.CreatedAt)
+		body := lipgloss.JoinVertical(lipgloss.Top,
+			lipgloss.NewStyle().Bold(true).Foreground(highlight).Render(mem.Title),
+			lipgloss.NewStyle().Foreground(faint).Render(header),
+			"",
+			truncate(mem.Content, 300),
+		)
+
+		border := detailBorder
+		if i == m.dupMemberCursor {
+			border = border.BorderForeground(highlight)
+		} else {
+			border = border.BorderForeground(faint)
+		}
+		b.WriteString(tag + "\n")
+		b.WriteString(border.Render(body))
+		b.WriteString("\n")
+	}
+
+	if m.dupErr != "" {
+		b.WriteString(errorStyle.Render("✕ " + m.dupErr))
+		b.WriteString("\n")
+	}
+
+	b.WriteString(helpStyle.Render("  ↑↓ elegir memoria  ·  enter marcar canónica  ·  space conservar/borrar  ·  c confirmar borrado  ·  esc volver"))
+	return appStyle.Render(b.String())
+}
+
+func (m model) optimizeConfirmView() string {
+	group := m.dupGroups[m.dupGroupIdx]
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Confirmar optimización"))
+	b.WriteString("\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(red).Bold(true).Render(
+		fmt.Sprintf("Se eliminarán %d memoria(s) de este grupo; se conserva #%d.",
+			m.deletionCandidates(group), group.Memories[m.dupKeepIdx].ID),
+	))
+	b.WriteString("\n\n")
+	b.WriteString(formLabel.Render(`Escribe "si" para confirmar:`))
+	b.WriteString("\n")
+	b.WriteString(m.dupConfirm.View())
+	b.WriteString("\n\n")
+
+	if m.dupErr != "" {
+		b.WriteString(errorStyle.Render("✕ " + m.dupErr))
+		b.WriteString("\n")
+	}
+
+	b.WriteString(helpStyle.Render("  enter confirmar  ·  esc cancelar"))
+	return appStyle.Render(b.String())
+}
+
 // ─── Save screen ───────────────────────────────────────────────────
 
 func (m model) updateSave(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -793,6 +1092,12 @@ func (m model) View() string {
 		return m.configView()
 	case screenImport:
 		return m.importView()
+	case screenOptimize:
+		return m.optimizeView()
+	case screenOptimizeDetail:
+		return m.optimizeDetailView()
+	case screenOptimizeConfirm:
+		return m.optimizeConfirmView()
 	}
 	return ""
 }
@@ -1204,6 +1509,7 @@ func (m model) helpView() string {
 		"s guardar",
 		"c config",
 		"m mantenimiento",
+		"o optimizar",
 		"/ buscar",
 		"q salir",
 	}
