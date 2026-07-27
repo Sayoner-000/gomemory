@@ -78,7 +78,7 @@ mem search "API"
 | Tool / Resource | Descripción |
 | :--- | :--- |
 | `save_memory` | Registra una nueva memoria estructurada. Con `topic_key` opcional: si el tópico ya existe, actualiza esa memoria en vez de duplicar. |
-| `search_memories` | Búsqueda por ranking (título y contenido); devuelve extractos compactos. |
+| `search_memories` | Búsqueda por ranking BM25 con tokenización por palabras (AND implícito); devuelve extractos compactos. Fallback automático a LIKE si FTS5 no está disponible. |
 | `list_memories` | Devuelve las memorias recientes del proyecto (extractos compactos). |
 | `get_memory` | Retorna el contenido íntegro de un ID específico (detalle bajo demanda). |
 | `get_context` | Contexto del proyecto en markdown, acotado por presupuesto, para arrancar sesión. |
@@ -114,7 +114,7 @@ Comandos principales para la gestión manual:
 | `mem uninstall [--yes]` | Desinstala gomemory por completo: reverso de `mem install`. |
 | `mem purge` | Vacía memorias (por tipo, antigüedad o proyecto completo) — requiere confirmación salvo `--yes`. |
 | `mem gc` / `mem compact`| Limpieza de registros antiguos (>90 días) y optimización de BD. |
-| `mem settings` | Configuración general: auto-approve de MCP, toggle del grafo de código externo (`--code-graph=true\|false`, `--code-graph-command`/`--code-graph-providers`), anotación de impacto (`--code-impact-annotation`) y sincronización de ADR (`--adr-sync`). |
+| `settings` | Configuración general: auto-approve de MCP, toggle del grafo de código externo (`--code-graph=true\|false`, `--code-graph-command`/`--code-graph-providers`), anotación de impacto (`--code-impact-annotation`) y sincronización de ADR (`--adr-sync`). También accesible desde la TUI (tecla `c`). |
 | `mem adr-sync status` | Estado de la sincronización de ADR (solo lectura): qué memorias están vinculadas a qué bloque del documento del proveedor, y su estado (ok/pendiente/fallido/conflicto). |
 | `mem export` / `mem import` | Exporta la memoria (memorias + relaciones) a un JSON portable e impórtala en otro proyecto/máquina con dedup por contenido. También desde la TUI (tecla `c`). |
 | `mem hook <evento>` | Entrypoint interno de hooks de agentes (`mem hook turn-end`, etc.) — no se invoca a mano, lo llaman los plugins de Claude Code/OpenCode. |
@@ -146,6 +146,7 @@ Ajustable en `.memory/settings.json` (valores por defecto entre paréntesis):
 | `budget` | Techo de `get_context` en caracteres (`<0` = sin límite) | `24000` (~6k tokens) |
 | `compact_threshold` | Huella emitida/sesión que dispara el recordatorio (`<=0` = off) | `48000` |
 | `dedup_window_days` | Ventana del dedup por identidad (`<=0` = off; el `topic_key` sigue) | `7` |
+| `synapse_disabled` | Desactiva la formación automática de sinapsis (aristas de co-activación en sesión). Reduce 1-3 queries por `save_memory`. | `false` (activada) |
 
 ```text
 gomemory/

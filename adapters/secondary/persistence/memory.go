@@ -161,6 +161,11 @@ var synapseEnabled = true
 // SetSynapseEnabled activa/desactiva la formación de sinapsis en InsertMemory.
 func SetSynapseEnabled(v bool) { synapseEnabled = v }
 
+// lastAnchorCache guarda el último ID de ancla por sesión para evitar la query
+// de lookup en cada inserción. Clave: "project:sessionID", valor: ID del ancla.
+// Se resetea al reiniciar el proceso (inofensivo: las sesiones son por proceso).
+var lastAnchorCache = make(map[string]int64)
+
 // codeImpactProvider es el proveedor de grafo de código "activo" para
 // anotación de impacto (feature 010, Historia 1). nil = capacidad
 // desactivada (sin proveedor disponible, o `code_impact_annotation_disabled`
@@ -385,29 +390,35 @@ func formSynapse(db *sql.DB, project, sessionID string, newID int64) {
 		return // Sin sesión no hay co-activación que enlazar.
 	}
 
-	var anchorID int64
-	err := db.QueryRow(
-		`SELECT id FROM memories
-		 WHERE project = ? AND session_id = ? AND id <> ? AND type <> ?
-		 ORDER BY id DESC LIMIT 1`,
-		project, sessionID, newID, string(domain.Checkpoint),
-	).Scan(&anchorID)
+	cacheKey := project + ":" + sessionID
+
+	// Buscar ancla: primero en caché, luego en DB.
+	anchorID := lastAnchorCache[cacheKey]
+	if anchorID == 0 {
+		err := db.QueryRow(
+			`SELECT id FROM memories
+			 WHERE project = ? AND session_id = ? AND id <> ? AND type <> ?
+			 ORDER BY id DESC LIMIT 1`,
+			project, sessionID, newID, string(domain.Checkpoint),
+		).Scan(&anchorID)
+		if err != nil {
+			return // sql.ErrNoRows (aún no hay ancla) o cualquier error: no enlazar.
+		}
+	}
+
+	// Insertar relación (idempotente: INSERT OR IGNORE requiere unique index).
+	_, err := db.Exec(
+		`INSERT OR IGNORE INTO memory_relations (project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, `+Now+`)`,
+		project, newID, anchorID, string(domain.Related), 0.5,
+		"sinapsis auto: co-activadas en la misma sesión de trabajo",
+	)
 	if err != nil {
-		return // sql.ErrNoRows (aún no hay ancla) o cualquier error: no enlazar.
+		return // best-effort: tragar error.
 	}
 
-	if existing, _ := GetRelationByPair(db, project, newID, anchorID); existing != nil {
-		return // Ya sinaptizadas: no duplicar.
-	}
-
-	InsertRelation(db, &domain.Relation{
-		Project:    project,
-		MemoryIDA:  newID,
-		MemoryIDB:  anchorID,
-		Relation:   domain.Related,
-		Confidence: 0.5,
-		Reasoning:  "sinapsis auto: co-activadas en la misma sesión de trabajo",
-	})
+	// Actualizar caché: el nuevo ID se convierte en el ancla de esta sesión.
+	lastAnchorCache[cacheKey] = newID
 }
 
 // activeSessionLastPrompt devuelve el último prompt registrado en la sesión

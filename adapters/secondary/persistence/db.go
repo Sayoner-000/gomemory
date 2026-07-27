@@ -212,6 +212,11 @@ func migrate(db *sql.DB) error {
 	addColumnIfMissing(db, "memories", "topic_key", "TEXT")
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
 
+	// Unique index para INSERT OR IGNORE en formSynapse: evita duplicar
+	// relaciones sinápticas sin necesidad de SELECT previo. Best-effort: si
+	// ya existen filas duplicadas, el índice se crea de todos modos.
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_pair ON memory_relations(project, memory_id_a, memory_id_b)`)
+
 	// FTS5 es best-effort y separado del schema principal: si la build de
 	// sqlite en uso no lo soporta, code_search simplemente no existe y
 	// SearchNodes cae a LIKE — no debe romper la migración del resto de
