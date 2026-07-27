@@ -171,6 +171,7 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		Budget:                       s.Budget,
 		CompactThreshold:             s.CompactThreshold,
 		DedupWindowDays:              s.DedupWindowDays,
+		SynapseDisabled:              s.SynapseDisabled,
 	}
 }
 
@@ -186,6 +187,7 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		Budget:                       s.Budget,
 		CompactThreshold:             s.CompactThreshold,
 		DedupWindowDays:              s.DedupWindowDays,
+		SynapseDisabled:              s.SynapseDisabled,
 	})
 }
 

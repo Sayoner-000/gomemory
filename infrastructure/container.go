@@ -46,6 +46,9 @@ func NewContainer(root string) (*Container, error) {
 	// Dedup en la fuente (feature 008): la ventana de identidad se toma de settings
 	// (singleton de proceso). <=0 desactiva el dedup por identidad.
 	persistence.SetDedupWindowDays(settings.DedupWindowDays)
+	// Sinapsis (aristas de co-activación): ON por defecto; se desactiva con
+	// synapse_disabled en settings.json para reducir queries por save.
+	persistence.SetSynapseEnabled(!settings.SynapseDisabled)
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
 	contextBuilder.Graph = codeGraphRepo
 	// Presupuesto de contexto (feature 008): techo blando de get_context para no

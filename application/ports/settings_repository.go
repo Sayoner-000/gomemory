@@ -29,6 +29,9 @@ type SettingsData struct {
 	// (mismo proyecto+tipo+título) en vez de crear filas nuevas. <=0 = sin dedup
 	// por identidad.
 	DedupWindowDays int `json:"dedup_window_days,omitempty"`
+	// SynapseDisabled apaga la formación automática de sinapsis (aristas de
+	// co-activación en sesión). Ausente/false = activada.
+	SynapseDisabled bool `json:"synapse_disabled,omitempty"`
 }
 
 type SettingsRepository interface {

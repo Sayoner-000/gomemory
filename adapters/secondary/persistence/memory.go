@@ -59,23 +59,33 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 		origin = activeSessionLastPrompt(db, m.Project)
 	}
 
+	// --- Transacción: INSERT/UPDATE + FTS index como unidad atómica ---
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() // noop si ya commiteó
+
 	// Dedup/upsert en la fuente (feature 008): consolida una memoria equivalente
 	// ya existente en vez de crear una fila nueva, para que el contexto no se
 	// infle con repeticiones. Best-effort: si no hay match, sigue el INSERT normal.
-	if existingID, ok := findDuplicate(db, m, title); ok {
-		if _, err := db.Exec(
+	if existingID, ok := findDuplicateTx(tx, m, title); ok {
+		if _, err := tx.Exec(
 			`UPDATE memories SET content = ?, title = ?, type = ?, filepath = ?, topic_key = ?, updated_at = `+Now+`
 			 WHERE id = ?`,
 			content, title, string(m.Type), m.Filepath, nullableTopic(m.TopicKey), existingID,
 		); err != nil {
 			return 0, fmt.Errorf("update memory (dedup): %w", err)
 		}
-		upsertMemorySearch(db, existingID, title, content)
+		upsertMemorySearchTx(tx, existingID, title, content)
+		if err := tx.Commit(); err != nil {
+			return 0, fmt.Errorf("commit dedup: %w", err)
+		}
 		exportToADR(m.Project, m.Type, title, content, existingID)
 		return existingID, nil
 	}
 
-	res, err := db.Exec(
+	res, err := tx.Exec(
 		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, topic_key, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
 		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin, nullableTopic(m.TopicKey),
@@ -87,15 +97,15 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	upsertMemorySearch(db, id, title, content)
+	upsertMemorySearchTx(tx, id, title, content)
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit insert: %w", err)
+	}
 
-	// Consolidación sináptica ("siempre sinapsis"): en el mismo choke point que la
-	// provenance, la memoria recién codificada forma una sinapsis con el engrama
-	// sustantivo más reciente de su sesión. Determinista, sin tokens del agente y
-	// transversal a todas las vías de guardado. Best-effort: una sinapsis fallida
-	// NUNCA debe hacer fallar el guardado del engrama.
-	formSynapse(db, m.Project, m.SessionID, id)
-
+	// --- Fuera de la transacción: operaciones best-effort / externas ---
+	if synapseEnabled {
+		formSynapse(db, m.Project, m.SessionID, id)
+	}
 	exportToADR(m.Project, m.Type, title, content, id)
 	return id, nil
 }
@@ -117,6 +127,18 @@ func upsertMemorySearch(db *sql.DB, id int64, title, content string) {
 	db.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
 }
 
+// upsertMemorySearchTx variante transaccional de upsertMemorySearch.
+func upsertMemorySearchTx(tx *sql.Tx, id int64, title, content string) {
+	res, err := tx.Exec(`UPDATE memory_search SET title = ?, content = ? WHERE memory_id = ?`, title, content, id)
+	if err != nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return
+	}
+	tx.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
+}
+
 // deleteMemorySearch borra la fila de índice asociada a una memoria borrada.
 // Best-effort: ver upsertMemorySearch.
 func deleteMemorySearch(db *sql.DB, id int64) {
@@ -131,6 +153,13 @@ var dedupWindowDays = DefaultDedupWindowDays
 
 // SetDedupWindowDays ajusta la ventana de dedup por identidad (feature 008).
 func SetDedupWindowDays(n int) { dedupWindowDays = n }
+
+// synapseEnabled controla la formación automática de sinapsis (aristas de
+// co-activación en sesión). Default true; se desactiva con SynapseDisabled.
+var synapseEnabled = true
+
+// SetSynapseEnabled activa/desactiva la formación de sinapsis en InsertMemory.
+func SetSynapseEnabled(v bool) { synapseEnabled = v }
 
 // codeImpactProvider es el proveedor de grafo de código "activo" para
 // anotación de impacto (feature 010, Historia 1). nil = capacidad
@@ -296,6 +325,35 @@ func findDuplicate(db *sql.DB, m *domain.Memory, title string) (int64, bool) {
 	}
 	var id int64
 	if err := db.QueryRow(
+		`SELECT id FROM memories
+		 WHERE project = ? AND type = ? AND title = ? AND type != 'checkpoint'
+		   AND julianday(`+Now+`) - julianday(created_at) <= ?
+		 ORDER BY id DESC LIMIT 1`,
+		m.Project, string(m.Type), title, dedupWindowDays,
+	).Scan(&id); err == nil {
+		return id, true
+	}
+	return 0, false
+}
+
+// findDuplicateTx variante transaccional de findDuplicate.
+func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title string) (int64, bool) {
+	if tk := strings.TrimSpace(m.TopicKey); tk != "" {
+		var id int64
+		if err := tx.QueryRow(
+			`SELECT id FROM memories WHERE project = ? AND topic_key = ? ORDER BY id DESC LIMIT 1`,
+			m.Project, tk,
+		).Scan(&id); err == nil {
+			return id, true
+		}
+		return 0, false
+	}
+
+	if dedupWindowDays <= 0 || m.Type == domain.Checkpoint || strings.TrimSpace(title) == "" {
+		return 0, false
+	}
+	var id int64
+	if err := tx.QueryRow(
 		`SELECT id FROM memories
 		 WHERE project = ? AND type = ? AND title = ? AND type != 'checkpoint'
 		   AND julianday(`+Now+`) - julianday(created_at) <= ?
@@ -543,7 +601,12 @@ func searchMemoriesFTS(db *sql.DB, project, query string, limit int) ([]domain.M
 	if strings.TrimSpace(query) == "" {
 		return nil, fmt.Errorf("search memories fts: query vacía")
 	}
-	ftsQuery := `"` + strings.ReplaceAll(query, `"`, `""`) + `"`
+	// Verificar que la tabla FTS5 existe antes de intentar buscar.
+	var tblName string
+	if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='memory_search'`).Scan(&tblName); err != nil {
+		return nil, fmt.Errorf("memory_search table not found")
+	}
+	ftsQuery := tokenizeFTS(query)
 	rows, err := db.Query(
 		`SELECT m.id, m.project, COALESCE(m.session_id,''), m.type, COALESCE(m.title,''), m.content,
 		        COALESCE(m.filepath,''), COALESCE(m.origin_prompt,''), m.created_at, m.updated_at
@@ -559,6 +622,21 @@ func searchMemoriesFTS(db *sql.DB, project, query string, limit int) ([]domain.M
 	}
 	defer rows.Close()
 	return scanMemories(rows)
+}
+
+// tokenizeFTS convierte una consulta libre en una expresión FTS5 válida:
+// separa en palabras, escapa comillas y envuelve cada una para AND implícito.
+// "auth middleware bug" → `"auth" "middleware" "bug"`
+func tokenizeFTS(query string) string {
+	terms := strings.Fields(query)
+	quoted := make([]string, 0, len(terms))
+	for _, t := range terms {
+		t = strings.ReplaceAll(t, `"`, `""`)
+		if t != "" {
+			quoted = append(quoted, `"`+t+`"`)
+		}
+	}
+	return strings.Join(quoted, " ")
 }
 
 func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.Memory, error) {

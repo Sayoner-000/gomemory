@@ -39,6 +39,10 @@ type Settings struct {
 	// DedupWindowDays: ventana (días) del dedup por identidad. Ausente/0 →
 	// default; negativo → sin dedup por identidad.
 	DedupWindowDays int `json:"dedup_window_days,omitempty"`
+	// SynapseDisabled apaga la formación automática de sinapsis (aristas de
+	// co-activación en sesión) al guardar una memoria. Ausente/false = activada
+	// (misma lógica opt-out que CodeImpactAnnotationDisabled).
+	SynapseDisabled bool `json:"synapse_disabled,omitempty"`
 }
 
 // Defaults de la huella de contexto (feature 008). En CARACTERES emitidos salvo

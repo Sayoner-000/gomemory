@@ -161,19 +161,17 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		ID int `json:"id" jsonschema:"ID de la memoria"`
 	}) (*mcp.CallToolResult, any, error) {
-		mems, err := deps.MemoryRepo.List(project, 200)
+		m, err := deps.MemoryRepo.Get(project, int64(in.ID))
 		if err != nil {
 			return nil, nil, err
 		}
-		for _, m := range mems {
-			if m.ID == int64(in.ID) {
-				return &mcp.CallToolResult{
-					Content: []mcp.Content{&mcp.TextContent{Text: renderMemoryDetail(m)}},
-				}, nil, nil
-			}
+		if m == nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Memoria %d no encontrada", in.ID)}},
+			}, nil, nil
 		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Memoria %d no encontrada", in.ID)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: renderMemoryDetail(*m)}},
 		}, nil, nil
 	})
 
@@ -264,25 +262,22 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			confidence = 1.0
 		}
 
-		mems, err := deps.MemoryRepo.List(project, 200)
+		memA, err := deps.MemoryRepo.Get(project, int64(in.IDA))
 		if err != nil {
-			return nil, nil, fmt.Errorf("listar memorias: %w", err)
+			return nil, nil, fmt.Errorf("obtener memoria %d: %w", in.IDA, err)
 		}
-		foundA, foundB := false, false
-		for _, m := range mems {
-			if m.ID == int64(in.IDA) {
-				foundA = true
-			}
-			if m.ID == int64(in.IDB) {
-				foundB = true
-			}
-		}
-		if !foundA {
+		if memA == nil {
 			return nil, nil, fmt.Errorf("memoria %d no encontrada", in.IDA)
 		}
-		if !foundB {
+		memB, err := deps.MemoryRepo.Get(project, int64(in.IDB))
+		if err != nil {
+			return nil, nil, fmt.Errorf("obtener memoria %d: %w", in.IDB, err)
+		}
+		if memB == nil {
 			return nil, nil, fmt.Errorf("memoria %d no encontrada", in.IDB)
 		}
+		_ = memA
+		_ = memB
 
 		relType := domain.ValidRelationType(in.Verdict)
 		rel, updated, err := usecases.RecordVerdict(deps.RelationRepo, project, int64(in.IDA), int64(in.IDB), relType, confidence, in.Reasoning)
