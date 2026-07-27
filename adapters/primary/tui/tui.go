@@ -584,7 +584,7 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // ─── Config screen ──────────────────────────────────────────────────
 
 // configOptions es el número de filas del menú de configuración.
-const configOptions = 4
+const configOptions = 5
 
 func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -644,6 +644,17 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.importPath.SetValue("")
 			m.importPath.Focus()
 			m.importErr = ""
+
+		case 4: // Toggle sinapsis automática
+			s := m.settingsRepo.Read(m.root)
+			s.SynapseDisabled = !s.SynapseDisabled
+			m.settingsRepo.Write(m.root, s)
+			if s.SynapseDisabled {
+				m.statusMsg = "Sinapsis desactivada (ahorra 1-3 queries por save)"
+			} else {
+				m.statusMsg = "Sinapsis activada (relaciona memorias de la misma sesión)"
+			}
+			m.statusTimer = 40
 		}
 	}
 	return m, nil
@@ -1511,6 +1522,7 @@ func (m model) configView() string {
 		"Auto-approve MCP: " + onOff(s.AutoApprove),
 		"Exportar memorias",
 		"Importar memorias",
+		"Sinapsis automática: " + onOff(!s.SynapseDisabled),
 	}
 	for i, label := range rows {
 		if i == m.configCursor {
