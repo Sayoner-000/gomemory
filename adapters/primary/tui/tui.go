@@ -1289,7 +1289,12 @@ func (m model) listView() string {
 	}
 	m.list.Title = fmt.Sprintf("%s · %d memorias%s", m.project, len(m.memories), sizeInfo)
 
-	return m.list.View()
+	listView := m.list.View()
+
+	// Footer con opciones de teclado (el list no muestra help custom)
+	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  q salir")
+
+	return listView + "\n" + footer
 }
 
 // bodyBudget calcula cuántas líneas quedan disponibles para el cuerpo,
@@ -1587,20 +1592,6 @@ func (m model) renderField(label string, input *textinput.Model) string {
 			input.View(),
 		),
 	)
-}
-
-func (m model) helpView() string {
-	items := []string{
-		"↑↓ navegar",
-		"enter detalle",
-		"s guardar",
-		"c config",
-		"m mantenimiento",
-		"o optimizar",
-		"/ buscar",
-		"q salir",
-	}
-	return helpStyle.Render("  " + strings.Join(items, "  ·  "))
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
