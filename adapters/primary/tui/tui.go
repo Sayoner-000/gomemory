@@ -49,29 +49,30 @@ var (
 	blue      = lipgloss.AdaptiveColor{Light: "#2563EB", Dark: "#60A5FA"}
 	yellow    = lipgloss.AdaptiveColor{Light: "#D97706", Dark: "#FBBF24"}
 	cyan      = lipgloss.AdaptiveColor{Light: "#0891B2", Dark: "#22D3EE"}
+	pink      = lipgloss.AdaptiveColor{Light: "#DB2777", Dark: "#F472B6"}
 	gray      = lipgloss.AdaptiveColor{Light: "#E4E4E7", Dark: "#27272A"}
 	white     = lipgloss.AdaptiveColor{Light: "#18181B", Dark: "#FAFAFA"}
 	bg        = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#18181B"}
 )
 
-func typeColor(t string) lipgloss.Color {
+func typeColor(t string) lipgloss.TerminalColor {
 	switch t {
 	case string(domain.Architecture):
-		return lipgloss.Color("#A78BFA")
+		return highlight
 	case string(domain.Decision):
-		return lipgloss.Color("#34D399")
+		return green
 	case string(domain.Bugfix):
-		return lipgloss.Color("#F87171")
+		return red
 	case string(domain.Pattern):
-		return lipgloss.Color("#60A5FA")
+		return blue
 	case string(domain.Learning):
-		return lipgloss.Color("#FBBF24")
+		return yellow
 	case string(domain.Discovery):
-		return lipgloss.Color("#22D3EE")
+		return cyan
 	case string(domain.Preference):
-		return lipgloss.Color("#F472B6")
+		return pink
 	default:
-		return lipgloss.Color("#52525B")
+		return faint
 	}
 }
 
@@ -183,7 +184,38 @@ var (
 	errorStyle = lipgloss.NewStyle().
 			Foreground(red).
 			Bold(true)
+
+	dangerStyle = lipgloss.NewStyle().
+			Foreground(red).
+			Bold(true)
+
+	backHintStyle = lipgloss.NewStyle().
+			Foreground(faint)
+
+	sectionHeaderStyle = lipgloss.NewStyle().
+				Bold(true)
+
+	statusLineStyle = lipgloss.NewStyle().
+			Foreground(faint).
+			Italic(true)
 )
+
+// backHint es el encabezado corto que usan las pantallas de detalle para
+// indicar cómo volver, reemplazando el bloque repetido en detailView y
+// optimizeDetailView.
+func backHint() string {
+	return backHintStyle.Render("  ← esc para volver")
+}
+
+// statusLine devuelve el mensaje de estado con timer activo (statusMsg +
+// statusTimer), o "" si no hay nada que mostrar. Centraliza el bloque
+// repetido en listView, maintenanceView, configView y optimizeView.
+func (m model) statusLine() string {
+	if m.statusTimer <= 0 {
+		return ""
+	}
+	return statusLineStyle.Render("  " + m.statusMsg)
+}
 
 // ─── Table columns ────────────────────────────────────────────────
 
@@ -1041,7 +1073,7 @@ func (m model) optimizeAllConfirmView() string {
 
 	b.WriteString(titleStyle.Render("Compactar todas las memorias"))
 	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(red).Bold(true).Render(
+	b.WriteString(dangerStyle.Render(
 		fmt.Sprintf("Se aplicará la sugerencia automática en los %d grupo(s) detectados: se eliminarán %d memoria(s) en total.",
 			len(m.dupGroups), m.totalDeletionCandidates()),
 	))
@@ -1070,8 +1102,8 @@ func (m model) optimizeView() string {
 
 	var foot strings.Builder
 	foot.WriteString("\n")
-	if m.statusTimer > 0 {
-		foot.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+	if status := m.statusLine(); status != "" {
+		foot.WriteString(status)
 		foot.WriteString("\n")
 	}
 	foot.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter revisar grupo  ·  a compactar todas  ·  esc volver"))
@@ -1109,7 +1141,7 @@ func (m model) optimizeDetailView() string {
 	group := m.dupGroups[m.dupGroupIdx]
 
 	var head strings.Builder
-	head.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  ← esc para volver"))
+	head.WriteString(backHint())
 	head.WriteString("\n\n")
 	head.WriteString(subtitleStyle.Render(fmt.Sprintf("%s · %d memorias en este grupo", typeLabel(string(group.Type)), len(group.Memories))))
 	head.WriteString("\n\n")
@@ -1171,7 +1203,7 @@ func (m model) optimizeConfirmView() string {
 
 	b.WriteString(titleStyle.Render("Confirmar optimización"))
 	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(red).Bold(true).Render(
+	b.WriteString(dangerStyle.Render(
 		fmt.Sprintf("Se eliminarán %d memoria(s) de este grupo; se conserva #%d.",
 			m.deletionCandidates(group), group.Memories[m.dupKeepIdx].ID),
 	))
@@ -1329,18 +1361,29 @@ func (m model) listView() string {
 	// Input de filtro (visible solo cuando se está buscando)
 	filterBar := ""
 	if m.filtering {
-		filterBar = "\n" + formLabel.Render("buscar:") + " " + m.filterInput.View()
+		filterBar = formLabel.Render("buscar:") + " " + m.filterInput.View()
 	} else {
-		filterBar = "\n" + lipgloss.NewStyle().Foreground(faint).Render("  / buscar")
+		filterBar = lipgloss.NewStyle().Foreground(faint).Render("  / buscar")
 	}
 
-	// Tabla
-	tableView := m.table.View()
+	// Tabla, o mensaje de estado vacío si no hay filas que mostrar.
+	var body string
+	switch {
+	case len(m.filtered) > 0:
+		body = m.table.View()
+	case strings.TrimSpace(m.filterInput.Value()) != "":
+		body = itemNormal.Foreground(faint).Render(fmt.Sprintf("Sin resultados para «%s»", m.filterInput.Value()))
+	default:
+		body = itemNormal.Foreground(faint).Render("Sin memorias en este proyecto")
+	}
 
 	// Footer
 	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  q salir")
+	if status := m.statusLine(); status != "" {
+		footer = status + "\n" + footer
+	}
 
-	return appStyle.Render(header + filterBar + "\n" + tableView + "\n" + footer)
+	return appStyle.Render(lipgloss.JoinVertical(lipgloss.Top, header, filterBar, "", body, footer))
 }
 
 // bodyBudget calcula cuántas líneas quedan disponibles para el cuerpo,
@@ -1423,8 +1466,8 @@ func (m model) maintenanceView() string {
 	}
 
 	b.WriteString("\n")
-	if m.statusTimer > 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+	if status := m.statusLine(); status != "" {
+		b.WriteString(status)
 		b.WriteString("\n")
 	}
 	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter seleccionar  ·  esc volver"))
@@ -1441,7 +1484,7 @@ func (m model) maintenanceConfirmView() string {
 
 	b.WriteString(titleStyle.Render(actionLabel))
 	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(red).Bold(true).Render(
+	b.WriteString(dangerStyle.Render(
 		fmt.Sprintf("Esto eliminará memorias del proyecto %q permanentemente.", m.project),
 	))
 	b.WriteString("\n\n")
@@ -1477,7 +1520,7 @@ func (m model) configView() string {
 	s := m.settingsRepo.Read(m.root)
 
 	// Estado del grafo de código externo (solo lectura, desde el snapshot).
-	b.WriteString(lipgloss.NewStyle().Bold(true).Render("  Grafo de código externo"))
+	b.WriteString(sectionHeaderStyle.Render("  Grafo de código externo"))
 	b.WriteString("\n")
 	var snap domain.CodeProviderSnapshot
 	if m.codeProvider != nil {
@@ -1503,7 +1546,7 @@ func (m model) configView() string {
 
 	// Huella de contexto (feature 008): tunables de solo lectura. Se editan en
 	// .memory/settings.json (budget / compact_threshold / dedup_window_days).
-	b.WriteString(lipgloss.NewStyle().Bold(true).Render("  Huella de contexto"))
+	b.WriteString(sectionHeaderStyle.Render("  Huella de contexto"))
 	b.WriteString("\n")
 	budgetLabel := fmt.Sprintf("%d caracteres", s.Budget)
 	if s.Budget < 0 {
@@ -1540,8 +1583,8 @@ func (m model) configView() string {
 	}
 
 	b.WriteString("\n")
-	if m.statusTimer > 0 {
-		b.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
+	if status := m.statusLine(); status != "" {
+		b.WriteString(status)
 		b.WriteString("\n")
 	}
 	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter activar/ejecutar  ·  esc volver"))
@@ -1573,7 +1616,7 @@ func (m model) detailView() string {
 	mem := m.selected
 	var b strings.Builder
 
-	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("  ← esc para volver"))
+	b.WriteString(backHint())
 	b.WriteString("\n\n")
 	b.WriteString(detailBorder.Render(
 		lipgloss.JoinVertical(lipgloss.Top,

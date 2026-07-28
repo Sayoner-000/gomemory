@@ -121,7 +121,7 @@
 5. *Documenta Resultados*: Añade una sección de revisión en tasks/todo.md
 6. *Captura Lecciones*: Actualiza tasks/lessons.md después de correcciones
 
-<!-- gomemory-protocol-v4 -->
+<!-- gomemory-protocol-v5 -->
 ## Memoria Persistente (`mem`) — Protocolo Activo
 
 Este proyecto tiene el servidor MCP `gomemory` conectado. Este protocolo es OBLIGATORIO
@@ -147,7 +147,7 @@ Llama a `save_memory` (o `./mem save`) INMEDIATAMENTE después de:
 - Un patrón o convención establecida
 - Un descubrimiento no obvio sobre el código
 - El usuario confirma o rechaza un enfoque propuesto
-- El usuario expresa una preferencia o corrige tu forma de interactuar (`type=preference`) — esto incluye memoria interactiva de sesión (estilo, tono, flujo de trabajo); no la guardes fuera de gomemory
+- El usuario expresa una preferencia o corrige tu forma de interactuar (`type=preference`) — esto incluye memoria interactiva de sesión (estilo, tono, flujo de trabajo); no la guardes fuera de gomemory. Una preferencia es una REGLA FIJA, no un historial de incidentes: si la misma corrección se repite, usa `topic_key` (o el mismo título) para ACTUALIZAR esa memoria en vez de crear una nueva. No repitas ejemplos citados de la conducta incorrecta en el contenido — reforzarían el patrón en vez de corregirlo.
 
 Autochequeo después de CADA tarea: "¿Tomé una decisión, corregí un bug, descubrí algo
 o establecí una convención? Si sí → `save_memory` AHORA."
