@@ -457,6 +457,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // ─── List screen ───────────────────────────────────────────────────
 
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Si el list está en modo filtro, no interceptar — pasar todo al list
+	if m.list.FilterState() == list.Filtering {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
