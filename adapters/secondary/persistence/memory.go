@@ -636,8 +636,13 @@ func searchMemoriesFTS(db *sql.DB, project, query string, limit int) ([]domain.M
 }
 
 // tokenizeFTS convierte una consulta libre en una expresión FTS5 válida:
-// separa en palabras, escapa comillas y envuelve cada una para AND implícito.
-// "auth middleware bug" → `"auth" "middleware" "bug"`
+// separa en palabras, escapa comillas y las une con OR. FTS5 trata la unión
+// por espacios como AND implícito, lo que exigía que TODOS los términos
+// coexistieran en la misma memoria — con 2-3 términos casi cualquier búsqueda
+// caía a 0 resultados aunque hubiera memorias muy relevantes para alguno de
+// ellos. Con OR, bm25 (ORDER BY rank) sigue premiando a las que matchean más
+// términos, pero ya no descarta las que matchean solo uno o dos.
+// "auth middleware bug" → `"auth" OR "middleware" OR "bug"`
 func tokenizeFTS(query string) string {
 	terms := strings.Fields(query)
 	quoted := make([]string, 0, len(terms))
@@ -647,7 +652,7 @@ func tokenizeFTS(query string) string {
 			quoted = append(quoted, `"`+t+`"`)
 		}
 	}
-	return strings.Join(quoted, " ")
+	return strings.Join(quoted, " OR ")
 }
 
 func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.Memory, error) {

@@ -5,10 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 
 	"mem/domain"
 )
@@ -27,38 +25,25 @@ func manyMemories(n int) []domain.Memory {
 }
 
 func newTestModel(mems []domain.Memory, height int) model {
-	tbl := table.New(
-		table.WithColumns(tableColumns(80)),
-		table.WithRows(memoriesToRows(mems)),
-		table.WithHeight(height-6),
-		table.WithFocused(true),
-		table.WithStyles(table.Styles{
-			Header:   lipgloss.NewStyle().Bold(true).Padding(0, 1),
-			Cell:     lipgloss.NewStyle().Padding(0, 1),
-			Selected: lipgloss.NewStyle().Bold(true).Padding(0, 1),
-		}),
-	)
-
 	fi := textinput.New()
 	fi.Placeholder = "buscar..."
 	fi.Width = 40
 
 	return model{
-		project:      "demo",
-		memories:     mems,
-		filtered:     mems,
-		table:        tbl,
-		filterInput:  fi,
-		ready:        height > 0,
-		height:       height,
-		width:        80,
-		dupConfirm:   textinput.New(),
-		dupExclude:   make(map[int64]bool),
+		project:     "demo",
+		memories:    mems,
+		filtered:    mems,
+		filterInput: fi,
+		ready:       height > 0,
+		height:      height,
+		width:       80,
+		dupConfirm:  textinput.New(),
+		dupExclude:  make(map[int64]bool),
 	}
 }
 
-// La tabla debe caber en la altura de terminal disponible.
-func TestTableFitsTerminalHeight(t *testing.T) {
+// La lista debe caber en la altura de terminal disponible.
+func TestListFitsTerminalHeight(t *testing.T) {
 	mems := manyMemories(200)
 	m := newTestModel(mems, 30)
 
@@ -69,14 +54,15 @@ func TestTableFitsTerminalHeight(t *testing.T) {
 	}
 }
 
-// La tabla siempre debe tener encabezados visibles.
-func TestTableShowsHeaders(t *testing.T) {
-	mems := manyMemories(10)
+// Cada fila debe mostrar tipo y título de la memoria.
+func TestListShowsTypeAndTitle(t *testing.T) {
+	mems := manyMemories(3)
+	mems[0].Title = "memoria de prueba"
 	m := newTestModel(mems, 20)
 
 	out := m.listView()
-	if !strings.Contains(out, "ID") || !strings.Contains(out, "Tipo") || !strings.Contains(out, "Título") {
-		t.Fatal("la tabla no muestra los encabezados de columna (ID, Tipo, Título)")
+	if !strings.Contains(out, "Aprendizaje") || !strings.Contains(out, "memoria de prueba") {
+		t.Fatal("la lista no muestra el tipo (Aprendizaje) y el título de la memoria")
 	}
 }
 
@@ -199,34 +185,6 @@ func duplicatePreferenceFixture() []domain.Memory {
 	}
 }
 
-// helper para crear modelo con table para tests de optimización
-func newTestModelForOpt(mems []domain.Memory, height int) model {
-	tbl := table.New(
-		table.WithColumns(tableColumns(100)),
-		table.WithRows(memoriesToRows(mems)),
-		table.WithHeight(height-6),
-		table.WithFocused(true),
-	)
-
-	fi := textinput.New()
-	fi.Placeholder = "buscar..."
-	fi.Width = 40
-
-	return model{
-		memRepo:    &fakeMemRepo{mems: mems},
-		project:    "demo",
-		memories:   mems,
-		filtered:   mems,
-		table:      tbl,
-		filterInput: fi,
-		ready:      true,
-		width:      100,
-		height:     height,
-		dupConfirm: textinput.New(),
-		dupExclude: make(map[int64]bool),
-	}
-}
-
 func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 	memFixture := duplicatePreferenceFixture()
 	repo := &fakeMemRepo{mems: memFixture}
@@ -236,7 +194,6 @@ func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 		project:    "demo",
 		memories:   memFixture,
 		filtered:   memFixture,
-		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     40,
@@ -303,7 +260,6 @@ func TestOptimizeDetail_SpaceExcludesFromDeletion(t *testing.T) {
 		project:    "demo",
 		memories:   memFixture,
 		filtered:   memFixture,
-		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     40,
@@ -363,7 +319,6 @@ func TestOptimizeDetailViewFitsTerminalHeight(t *testing.T) {
 		project:    "demo",
 		memories:   memFixture,
 		filtered:   memFixture,
-		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     20,
@@ -392,7 +347,6 @@ func TestOptimizeDetailViewKeepsCursorVisible(t *testing.T) {
 			project:    "demo",
 			memories:   memFixture,
 			filtered:   memFixture,
-			table:      table.New(),
 			ready:      true,
 			width:      100,
 			height:     20,
@@ -488,7 +442,6 @@ func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 		project:    "demo",
 		memories:   memFixture,
 		filtered:   memFixture,
-		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     40,

@@ -63,6 +63,42 @@ func TestSearchMemories_RanksByRelevanceWhenFTSAvailable(t *testing.T) {
 	}
 }
 
+// TestSearchMemories_MultiTermQueryUsesOrNotAnd cubre el bug real reportado:
+// con la unión por espacios (AND implícito de FTS5), una búsqueda de varios
+// términos exigía que TODOS coexistieran en la misma memoria y devolvía 0
+// resultados aunque existieran memorias muy relevantes para uno solo de ellos.
+// tokenizeFTS ahora une con OR, así que cada término por separado debe alcanzar.
+func TestSearchMemories_MultiTermQueryUsesOrNotAnd(t *testing.T) {
+	db := openTestDB(t)
+
+	alphaID, err := InsertMemory(db, &domain.Memory{
+		Project: "proj", Type: domain.Learning, Title: "solo alpha",
+		Content: "esta memoria únicamente habla de alpha, nada más",
+	})
+	if err != nil {
+		t.Fatalf("insert alpha: %v", err)
+	}
+	betaID, err := InsertMemory(db, &domain.Memory{
+		Project: "proj", Type: domain.Learning, Title: "solo beta",
+		Content: "esta memoria únicamente habla de beta, nada más",
+	})
+	if err != nil {
+		t.Fatalf("insert beta: %v", err)
+	}
+
+	mems, err := SearchMemories(db, "proj", "alpha beta gamma", 10)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(mems) != 2 {
+		t.Fatalf("esperaba 2 resultados (alpha y beta, aunque ninguna tenga las 3 palabras), got %d: %+v", len(mems), mems)
+	}
+	got := map[int64]bool{mems[0].ID: true, mems[1].ID: true}
+	if !got[alphaID] || !got[betaID] {
+		t.Fatalf("esperaba encontrar alpha (%d) y beta (%d), got %+v", alphaID, betaID, mems)
+	}
+}
+
 // TestSearchMemories_FallsBackToLikeWhenFTSTableMissing simula un build sin
 // soporte FTS5 (o cualquier corrupción de la tabla auxiliar) borrando
 // memory_search directamente, y confirma que la búsqueda sigue devolviendo

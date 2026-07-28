@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -164,6 +162,11 @@ var (
 			BorderForeground(highlight).
 			Padding(1, 2)
 
+	listBorder = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(highlight).
+			Padding(0, 1)
+
 	helpStyle = lipgloss.NewStyle().
 			Foreground(faint).
 			PaddingTop(1).
@@ -217,45 +220,55 @@ func (m model) statusLine() string {
 	return statusLineStyle.Render("  " + m.statusMsg)
 }
 
-// ─── Table columns ────────────────────────────────────────────────
+// ─── List rows ────────────────────────────────────────────────────
 
-func tableColumns(width int) []table.Column {
-	// Distribuir ancho entre columnas: ID(6) Tipo(14) Título(resto-20) Fecha(12)
-	titleW := width - 6 - 14 - 20
-	if titleW < 20 {
-		titleW = 20
+// memoryDisplayTitle da un título de respaldo a memorias sin título (por
+// ejemplo checkpoints antiguos), para no dejar la primera línea de la fila en
+// blanco.
+func memoryDisplayTitle(m domain.Memory) string {
+	if strings.TrimSpace(m.Title) != "" {
+		return m.Title
 	}
-	return []table.Column{
-		{Title: "ID", Width: 6},
-		{Title: "Tipo", Width: 14},
-		{Title: "Título", Width: titleW},
-		{Title: "Contenido", Width: 20},
-		{Title: "Fecha", Width: 12},
-	}
+	return "(sin título)"
 }
 
-func memoryToRow(m domain.Memory) table.Row {
-	title := truncate(m.Title, 40)
-	content := truncate(m.Content, 18)
-	date := m.CreatedAt
-	if len(date) > 10 {
-		date = date[:10]
-	}
-	return table.Row{
-		strconv.FormatInt(m.ID, 10),
-		typeLabel(string(m.Type)),
-		title,
-		content,
-		date,
-	}
-}
+// listRowLines arma las 2 líneas de una memoria en la lista principal: icono
+// + tipo + título en la primera, una vista previa del contenido en la
+// segunda. Sigue el patrón ya usado en optimizeDetailView (fragmentos
+// renderizados por separado con JoinHorizontal y luego un único Render de
+// fondo/selección envolviendo el bloque) para que el resaltado de selección
+// no pise los colores por tipo.
+//
+// width es el ancho interior disponible (ya descontados marco y padding);
+// título y contenido se truncan en función de él para no desbordar el marco
+// en terminales angostas — mismo espíritu que el tableColumns(width) que
+// reemplaza esta función.
+func listRowLines(m domain.Memory, selected bool, width int) []string {
+	icon := lipgloss.NewStyle().Foreground(typeColor(string(m.Type))).Bold(true).
+		Render(typeIcon(string(m.Type)) + " " + typeLabel(string(m.Type)))
 
-func memoriesToRows(mems []domain.Memory) []table.Row {
-	rows := make([]table.Row, len(mems))
-	for i, m := range mems {
-		rows[i] = memoryToRow(m)
+	titleBudget := width - lipgloss.Width(icon) - 4
+	if titleBudget < 15 {
+		titleBudget = 15
 	}
-	return rows
+	contentBudget := width - 4
+	if contentBudget < 15 {
+		contentBudget = 15
+	}
+
+	title := lipgloss.NewStyle().Bold(true).Render(truncate(memoryDisplayTitle(m), titleBudget))
+	preview := lipgloss.NewStyle().Foreground(faint).Render(truncate(strings.ReplaceAll(m.Content, "\n", " "), contentBudget))
+
+	prefix := "  "
+	style := itemNormal
+	if selected {
+		prefix = "▸ "
+		style = itemSelected
+	}
+
+	line1 := lipgloss.JoinHorizontal(lipgloss.Top, icon, "  ", title)
+	block := style.Render(prefix + line1 + "\n    " + preview)
+	return strings.Split(block, "\n")
 }
 
 // ─── Model ─────────────────────────────────────────────────────────
@@ -271,13 +284,13 @@ type model struct {
 
 	screen   screen
 	memories []domain.Memory
-	table    table.Model
 	err      error
 
 	// Filtro
 	filterInput textinput.Model
 	filtering   bool
 	filtered    []domain.Memory // memorias tras el filtro activo
+	listCursor  int             // índice seleccionado dentro de filtered
 
 	selected    domain.Memory
 	autoApprove bool
@@ -375,26 +388,6 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		stats, _ = maintenanceRepo.Stats(project)
 	}
 
-	tbl := table.New(
-		table.WithColumns(tableColumns(80)),
-		table.WithRows(memoriesToRows(mems)),
-		table.WithHeight(20),
-		table.WithFocused(true),
-		table.WithStyles(table.Styles{
-			Header: lipgloss.NewStyle().
-				Bold(true).
-				Foreground(highlight).
-				Padding(0, 1),
-			Cell: lipgloss.NewStyle().
-				Padding(0, 1),
-			Selected: lipgloss.NewStyle().
-				Bold(true).
-				Background(gray).
-				Foreground(white).
-				Padding(0, 1),
-		}),
-	)
-
 	return model{
 		memRepo:         memRepo,
 		relRepo:         relRepo,
@@ -406,7 +399,6 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		screen:          screenList,
 		memories:        mems,
 		filtered:        mems,
-		table:           tbl,
 		filterInput:     fi,
 		autoApprove:     settings.AutoApprove,
 		saveTitle:       ti,
@@ -435,9 +427,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
-		m.table.SetWidth(msg.Width - 4)
-		m.table.SetHeight(msg.Height - 6)
-		m.table.SetColumns(tableColumns(msg.Width - 4))
 		return m, nil
 
 	case tea.KeyMsg:
@@ -490,8 +479,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.filtering = false
 			m.filterInput.Blur()
 			m.filterInput.SetValue("")
-			m.filtered = m.memories
-			m.table.SetRows(memoriesToRows(m.filtered))
+			m.applyFilter()
 			return m, nil
 		case "enter":
 			m.filtering = false
@@ -516,16 +504,20 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterInput.SetValue("")
 		return m, textinput.Blink
 
+	case "j", "down":
+		if m.listCursor < len(m.filtered)-1 {
+			m.listCursor++
+		}
+
+	case "k", "up":
+		if m.listCursor > 0 {
+			m.listCursor--
+		}
+
 	case "enter":
-		if row := m.table.SelectedRow(); row != nil {
-			id, _ := strconv.ParseInt(row[0], 10, 64)
-			for _, mem := range m.filtered {
-				if mem.ID == id {
-					m.selected = mem
-					m.screen = screenDetail
-					break
-				}
-			}
+		if m.listCursor >= 0 && m.listCursor < len(m.filtered) {
+			m.selected = m.filtered[m.listCursor]
+			m.screen = screenDetail
 		}
 
 	case "s":
@@ -569,17 +561,15 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.dupErr = ""
 			m.dupGroups, _ = usecases.DetectProjectDuplicates(m.memRepo, m.project)
 		}
-
-	default:
-		var cmd tea.Cmd
-		m.table, cmd = m.table.Update(msg)
-		return m, cmd
 	}
 
 	return m, nil
 }
 
-// applyFilter filtra las memorias según el texto del input y actualiza la tabla.
+// applyFilter filtra las memorias según el texto del input y reacota
+// listCursor al nuevo rango — se llama tanto al escribir en el filtro como
+// tras cualquier operación que cambie m.memories (guardar, purgar, importar,
+// optimizar), para que la lista nunca quede desincronizada.
 func (m *model) applyFilter() {
 	query := strings.ToLower(strings.TrimSpace(m.filterInput.Value()))
 	if query == "" {
@@ -594,7 +584,12 @@ func (m *model) applyFilter() {
 			}
 		}
 	}
-	m.table.SetRows(memoriesToRows(m.filtered))
+	if m.listCursor >= len(m.filtered) {
+		m.listCursor = len(m.filtered) - 1
+	}
+	if m.listCursor < 0 {
+		m.listCursor = 0
+	}
 }
 
 // ─── Detail screen ─────────────────────────────────────────────────
@@ -685,6 +680,7 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.statusMsg = fmt.Sprintf("%s: %d memoria(s) eliminada(s)", actionLabel, deleted)
 			m.memories, _ = m.memRepo.List(m.project, 200)
+			m.applyFilter()
 			m.stats, _ = m.maintenanceRepo.Stats(m.project)
 		}
 		m.statusTimer = 30
@@ -820,6 +816,7 @@ func (m model) updateImport(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.memories, _ = m.memRepo.List(m.project, 200)
+		m.applyFilter()
 		m.statusMsg = fmt.Sprintf("Import: %d memorias nuevas (%d omitidas), %d relaciones nuevas (%d omitidas)",
 			rep.MemoriesImported, rep.MemoriesSkipped, rep.RelationsImported, rep.RelationsSkipped)
 		m.statusTimer = 80
@@ -982,6 +979,7 @@ func (m model) updateOptimizeConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.statusMsg = fmt.Sprintf("Grupo optimizado: %d memoria(s) eliminada(s), se conservó #%d", deleted, group.Memories[m.dupKeepIdx].ID)
 		m.statusTimer = 60
 		m.memories, _ = m.memRepo.List(m.project, 200)
+		m.applyFilter()
 		if m.maintenanceRepo != nil {
 			m.stats, _ = m.maintenanceRepo.Stats(m.project)
 		}
@@ -1052,6 +1050,7 @@ func (m model) updateOptimizeAllConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.statusMsg = fmt.Sprintf("Compactación completa: %d memoria(s) eliminada(s) en %d grupo(s)", deleted, len(m.dupGroups))
 		m.statusTimer = 60
 		m.memories, _ = m.memRepo.List(m.project, 200)
+		m.applyFilter()
 		if m.maintenanceRepo != nil {
 			m.stats, _ = m.maintenanceRepo.Stats(m.project)
 		}
@@ -1307,6 +1306,7 @@ func (m model) saveAndReturn() (tea.Model, tea.Cmd) {
 	m.saved = true
 	m.screen = screenList
 	m.memories, _ = m.memRepo.List(m.project, 200)
+	m.applyFilter()
 	m.saveTitle.SetValue("")
 	m.saveType.SetValue("learning")
 	m.saveContent.SetValue("")
@@ -1366,24 +1366,64 @@ func (m model) listView() string {
 		filterBar = lipgloss.NewStyle().Foreground(faint).Render("  / buscar")
 	}
 
-	// Tabla, o mensaje de estado vacío si no hay filas que mostrar.
-	var body string
-	switch {
-	case len(m.filtered) > 0:
-		body = m.table.View()
-	case strings.TrimSpace(m.filterInput.Value()) != "":
-		body = itemNormal.Foreground(faint).Render(fmt.Sprintf("Sin resultados para «%s»", m.filterInput.Value()))
-	default:
-		body = itemNormal.Foreground(faint).Render("Sin memorias en este proyecto")
-	}
-
 	// Footer
 	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  q salir")
 	if status := m.statusLine(); status != "" {
 		footer = status + "\n" + footer
 	}
 
+	// Cuerpo: lista compacta (2 líneas por memoria) enmarcada, o mensaje de
+	// estado vacío si no hay filas que mostrar.
+	head := header + "\n" + filterBar + "\n"
+	var inner string
+	switch {
+	case len(m.filtered) > 0:
+		bodyLines, cursorLine := m.listBodyLines()
+		inner = windowLines(bodyLines, cursorLine, m.listBodyBudget(head, footer))
+	case strings.TrimSpace(m.filterInput.Value()) != "":
+		inner = itemNormal.Foreground(faint).Render(fmt.Sprintf("Sin resultados para «%s»", m.filterInput.Value()))
+	default:
+		inner = itemNormal.Foreground(faint).Render("Sin memorias en este proyecto")
+	}
+	body := listBorder.Render(inner)
+
 	return appStyle.Render(lipgloss.JoinVertical(lipgloss.Top, header, filterBar, "", body, footer))
+}
+
+// listBodyLines arma el cuerpo de la lista principal como líneas
+// independientes (2 por memoria: tipo+título, y vista previa del contenido),
+// listas para recortarse a la altura visible con windowLines — mismo patrón
+// que optimizeView/optimizeDetailView.
+func (m model) listBodyLines() ([]string, int) {
+	// appStyle (4) + borde de listBorder (2) + su padding horizontal (2).
+	innerWidth := m.width - 8
+	if innerWidth < 30 {
+		innerWidth = 30
+	}
+
+	var lines []string
+	cursorLine := 0
+	for i, mem := range m.filtered {
+		if i == m.listCursor {
+			cursorLine = len(lines)
+		}
+		lines = append(lines, listRowLines(mem, i == m.listCursor, innerWidth)...)
+		lines = append(lines, "")
+	}
+	if len(lines) > 0 {
+		lines = lines[:len(lines)-1]
+	}
+	return lines, cursorLine
+}
+
+// listBodyBudget es bodyBudget descontando además las 2 líneas del marco
+// (listBorder) que envuelve la lista.
+func (m model) listBodyBudget(head, foot string) int {
+	b := m.bodyBudget(head, foot) - 2
+	if b < 0 {
+		return 0
+	}
+	return b
 }
 
 // bodyBudget calcula cuántas líneas quedan disponibles para el cuerpo,
