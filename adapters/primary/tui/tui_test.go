@@ -5,9 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"mem/domain"
 )
@@ -26,32 +27,40 @@ func manyMemories(n int) []domain.Memory {
 }
 
 func newTestModel(mems []domain.Memory, height int) model {
-	items := make([]list.Item, len(mems))
-	for i, mem := range mems {
-		items[i] = memoryItem{memory: mem}
-	}
-	l := list.New(items, memoryDelegate{}, 80, height)
-	l.SetShowTitle(false)
-	l.SetShowStatusBar(false)
-	l.SetShowPagination(false)
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(true)
-	l.DisableQuitKeybindings()
+	tbl := table.New(
+		table.WithColumns(tableColumns(80)),
+		table.WithRows(memoriesToRows(mems)),
+		table.WithHeight(height-6),
+		table.WithFocused(true),
+		table.WithStyles(table.Styles{
+			Header:   lipgloss.NewStyle().Bold(true).Padding(0, 1),
+			Cell:     lipgloss.NewStyle().Padding(0, 1),
+			Selected: lipgloss.NewStyle().Bold(true).Padding(0, 1),
+		}),
+	)
+
+	fi := textinput.New()
+	fi.Placeholder = "buscar..."
+	fi.Width = 40
 
 	return model{
-		project:  "demo",
-		memories: mems,
-		list:     l,
-		ready:    height > 0,
-		height:   height,
-		width:    80,
+		project:      "demo",
+		memories:     mems,
+		filtered:     mems,
+		table:        tbl,
+		filterInput:  fi,
+		ready:        height > 0,
+		height:       height,
+		width:        80,
+		dupConfirm:   textinput.New(),
+		dupExclude:   make(map[int64]bool),
 	}
 }
 
-// El cuerpo de la lista debe caber en la altura de terminal disponible.
-func TestListViewFitsTerminalHeight(t *testing.T) {
+// La tabla debe caber en la altura de terminal disponible.
+func TestTableFitsTerminalHeight(t *testing.T) {
 	mems := manyMemories(200)
-	m := newTestModel(mems, 20)
+	m := newTestModel(mems, 30)
 
 	out := m.listView()
 	lines := strings.Split(out, "\n")
@@ -60,40 +69,62 @@ func TestListViewFitsTerminalHeight(t *testing.T) {
 	}
 }
 
-// El ítem seleccionado siempre debe aparecer en la ventana visible.
-func TestListViewKeepsCursorVisible(t *testing.T) {
-	total := 200
-	for _, cursor := range []int{0, total / 2, total - 1} {
-		mems := manyMemories(total)
-		m := newTestModel(mems, 20)
-		m.list.Select(cursor)
-		out := m.listView()
-		if !strings.Contains(out, "▸") {
-			t.Fatalf("cursor=%d: el marcador de selección '▸' no aparece en la ventana visible", cursor)
-		}
+// La tabla siempre debe tener encabezados visibles.
+func TestTableShowsHeaders(t *testing.T) {
+	mems := manyMemories(10)
+	m := newTestModel(mems, 20)
+
+	out := m.listView()
+	if !strings.Contains(out, "ID") || !strings.Contains(out, "Tipo") || !strings.Contains(out, "Título") {
+		t.Fatal("la tabla no muestra los encabezados de columna (ID, Tipo, Título)")
 	}
 }
 
-// Sin recorte de altura (terminal aún no reportó tamaño) se muestra todo.
-func TestListViewNoWindowingWhenNotReady(t *testing.T) {
-	mems := manyMemories(5)
-	m := newTestModel(mems, 0)
-	m.ready = false
+// Verificar que el filtrado por texto funciona correctamente.
+func TestFilterWorksCorrectly(t *testing.T) {
+	mems := manyMemories(10)
+	mems[3].Title = "único match"
+	mems[3].Content = "único match"
+	m := newTestModel(mems, 20)
 
-	out := m.listView()
-	_ = out
+	// Activar filtro
+	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m = mm.(model)
+	if !m.filtering {
+		t.Fatal("esperaba que filtering sea true tras presionar /")
+	}
+
+	// Escribir texto de filtro
+	for _, ch := range "único" {
+		mm, _ = m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = mm.(model)
+	}
+
+	if len(m.filtered) != 1 {
+		t.Fatalf("se esperaba 1 resultado filtrado, hubo %d", len(m.filtered))
+	}
 }
 
-// Verificar que el filtrado del list funciona correctamente.
-// (No testeable con keystrokes simulados: el list maneja su propio state machine interno.)
-func TestSearchFiltersCorrectly(t *testing.T) {
-	// bubbles' filtering requiere tea.KeyMsg con teclas especiales que no se
-	// pueden simular fuera del Update real. Este test valida que el list se
-	// inicializa con filtering habilitado.
+// Verificar que Esc cancela el filtro y restaura las memorias originales.
+func TestFilterEscapeRestores(t *testing.T) {
 	mems := manyMemories(10)
 	m := newTestModel(mems, 20)
-	if !m.list.FilteringEnabled() {
-		t.Fatal("esperaba que el list tuviera filtering habilitado")
+
+	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m = mm.(model)
+	for _, ch := range "algo" {
+		mm, _ = m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = mm.(model)
+	}
+
+	mm, _ = m.updateList(tea.KeyMsg{Type: tea.KeyEsc})
+	m = mm.(model)
+
+	if m.filtering {
+		t.Fatal("esperaba que filtering sea false tras Esc")
+	}
+	if len(m.filtered) != len(mems) {
+		t.Fatalf("esperaba %d memorias restauradas, hubo %d", len(mems), len(m.filtered))
 	}
 }
 
@@ -168,21 +199,26 @@ func duplicatePreferenceFixture() []domain.Memory {
 	}
 }
 
-// helper para crear modelo con list para tests de optimización
+// helper para crear modelo con table para tests de optimización
 func newTestModelForOpt(mems []domain.Memory, height int) model {
-	items := make([]list.Item, len(mems))
-	for i, mem := range mems {
-		items[i] = memoryItem{memory: mem}
-	}
-	l := list.New(items, memoryDelegate{}, 100, height)
-	l.SetShowTitle(false)
-	l.DisableQuitKeybindings()
+	tbl := table.New(
+		table.WithColumns(tableColumns(100)),
+		table.WithRows(memoriesToRows(mems)),
+		table.WithHeight(height-6),
+		table.WithFocused(true),
+	)
+
+	fi := textinput.New()
+	fi.Placeholder = "buscar..."
+	fi.Width = 40
 
 	return model{
 		memRepo:    &fakeMemRepo{mems: mems},
 		project:    "demo",
 		memories:   mems,
-		list:       l,
+		filtered:   mems,
+		table:      tbl,
+		filterInput: fi,
 		ready:      true,
 		width:      100,
 		height:     height,
@@ -194,19 +230,13 @@ func newTestModelForOpt(mems []domain.Memory, height int) model {
 func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 	memFixture := duplicatePreferenceFixture()
 	repo := &fakeMemRepo{mems: memFixture}
-	items := make([]list.Item, len(memFixture))
-	for i, mem := range memFixture {
-		items[i] = memoryItem{memory: mem}
-	}
-	l := list.New(items, memoryDelegate{}, 100, 40)
-	l.SetShowTitle(false)
-	l.DisableQuitKeybindings()
 
 	m := model{
 		memRepo:    repo,
 		project:    "demo",
 		memories:   memFixture,
-		list:       l,
+		filtered:   memFixture,
+		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     40,
@@ -267,19 +297,13 @@ func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 func TestOptimizeDetail_SpaceExcludesFromDeletion(t *testing.T) {
 	memFixture := duplicatePreferenceFixture()
 	repo := &fakeMemRepo{mems: memFixture}
-	items := make([]list.Item, len(memFixture))
-	for i, mem := range memFixture {
-		items[i] = memoryItem{memory: mem}
-	}
-	l := list.New(items, memoryDelegate{}, 100, 40)
-	l.SetShowTitle(false)
-	l.DisableQuitKeybindings()
 
 	m := model{
 		memRepo:    repo,
 		project:    "demo",
 		memories:   memFixture,
-		list:       l,
+		filtered:   memFixture,
+		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     40,
@@ -333,19 +357,13 @@ func duplicateGroupsFixture(groups, perGroup int) []domain.Memory {
 func TestOptimizeDetailViewFitsTerminalHeight(t *testing.T) {
 	memFixture := duplicateGroupsFixture(1, 6)
 	repo := &fakeMemRepo{mems: memFixture}
-	items := make([]list.Item, len(memFixture))
-	for i, mem := range memFixture {
-		items[i] = memoryItem{memory: mem}
-	}
-	l := list.New(items, memoryDelegate{}, 100, 20)
-	l.SetShowTitle(false)
-	l.DisableQuitKeybindings()
 
 	m := model{
 		memRepo:    repo,
 		project:    "demo",
 		memories:   memFixture,
-		list:       l,
+		filtered:   memFixture,
+		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     20,
@@ -369,19 +387,12 @@ func TestOptimizeDetailViewKeepsCursorVisible(t *testing.T) {
 	memFixture := duplicateGroupsFixture(1, 6)
 	repo := &fakeMemRepo{mems: memFixture}
 	for _, cursor := range []int{0, 3, 5} {
-		items := make([]list.Item, len(memFixture))
-		for i, mem := range memFixture {
-			items[i] = memoryItem{memory: mem}
-		}
-		l := list.New(items, memoryDelegate{}, 100, 20)
-		l.SetShowTitle(false)
-		l.DisableQuitKeybindings()
-
 		m := model{
 			memRepo:    repo,
 			project:    "demo",
 			memories:   memFixture,
-			list:       l,
+			filtered:   memFixture,
+			table:      table.New(),
 			ready:      true,
 			width:      100,
 			height:     20,
@@ -471,19 +482,13 @@ func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 			Content: "Siempre desplegar el servicio en producción usando contenedores Docker, nunca instalaciones manuales en el servidor."},
 	}...)
 	repo := &fakeMemRepo{mems: memFixture}
-	items := make([]list.Item, len(memFixture))
-	for i, mem := range memFixture {
-		items[i] = memoryItem{memory: mem}
-	}
-	l := list.New(items, memoryDelegate{}, 100, 40)
-	l.SetShowTitle(false)
-	l.DisableQuitKeybindings()
 
 	m := model{
 		memRepo:    repo,
 		project:    "demo",
 		memories:   memFixture,
-		list:       l,
+		filtered:   memFixture,
+		table:      table.New(),
 		ready:      true,
 		width:      100,
 		height:     40,

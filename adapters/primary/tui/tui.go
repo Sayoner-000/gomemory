@@ -2,13 +2,13 @@ package tui
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -185,71 +185,45 @@ var (
 			Bold(true)
 )
 
-// ─── List item types ─────────────────────────────────────────────
+// ─── Table columns ────────────────────────────────────────────────
 
-type memoryItem struct {
-	memory domain.Memory
+func tableColumns(width int) []table.Column {
+	// Distribuir ancho entre columnas: ID(6) Tipo(14) Título(resto-20) Fecha(12)
+	titleW := width - 6 - 14 - 20
+	if titleW < 20 {
+		titleW = 20
+	}
+	return []table.Column{
+		{Title: "ID", Width: 6},
+		{Title: "Tipo", Width: 14},
+		{Title: "Título", Width: titleW},
+		{Title: "Contenido", Width: 20},
+		{Title: "Fecha", Width: 12},
+	}
 }
 
-func (i memoryItem) Title() string {
-	content := truncate(i.memory.Content, 70)
-	line := fmt.Sprintf("  %s", content)
-	if i.memory.Title != "" {
-		line = fmt.Sprintf("  %s — %s", i.memory.Title, content)
+func memoryToRow(m domain.Memory) table.Row {
+	title := truncate(m.Title, 40)
+	content := truncate(m.Content, 18)
+	date := m.CreatedAt
+	if len(date) > 10 {
+		date = date[:10]
 	}
-	return line
+	return table.Row{
+		strconv.FormatInt(m.ID, 10),
+		typeLabel(string(m.Type)),
+		title,
+		content,
+		date,
+	}
 }
 
-func (i memoryItem) Description() string { return "" }
-func (i memoryItem) FilterValue() string {
-	return i.memory.Title + " " + i.memory.Content + " " + string(i.memory.Type)
-}
-
-type memoryDelegate struct{}
-
-func (d memoryDelegate) Height() int                             { return 1 }
-func (d memoryDelegate) Spacing() int                            { return 0 }
-func (d memoryDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
-
-func (d memoryDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	mi := item.(memoryItem)
-	isSelected := index == m.Index()
-
-	tag := typeTag(string(mi.memory.Type))
-	icon := typeIcon(string(mi.memory.Type))
-	content := truncate(mi.memory.Content, 70)
-	line := fmt.Sprintf("  %s", content)
-	if mi.memory.Title != "" {
-		line = fmt.Sprintf("  %s — %s", mi.memory.Title, content)
+func memoriesToRows(mems []domain.Memory) []table.Row {
+	rows := make([]table.Row, len(mems))
+	for i, m := range mems {
+		rows[i] = memoryToRow(m)
 	}
-
-	var rendered string
-	if isSelected {
-		rendered = itemSelected.Render(
-			lipgloss.JoinHorizontal(lipgloss.Top,
-				lipgloss.NewStyle().Foreground(highlight).Render("▸"),
-				" ",
-				tag,
-				" ",
-				icon,
-				" ",
-				line,
-			),
-		)
-	} else {
-		rendered = itemNormal.Render(
-			lipgloss.JoinHorizontal(lipgloss.Top,
-				"  ",
-				lipgloss.NewStyle().Foreground(typeColor(string(mi.memory.Type))).Render(icon),
-				" ",
-				tag,
-				" ",
-				line,
-			),
-		)
-	}
-
-	fmt.Fprint(w, rendered)
+	return rows
 }
 
 // ─── Model ─────────────────────────────────────────────────────────
@@ -265,8 +239,13 @@ type model struct {
 
 	screen   screen
 	memories []domain.Memory
-	list     list.Model
+	table    table.Model
 	err      error
+
+	// Filtro
+	filterInput textinput.Model
+	filtering   bool
+	filtered    []domain.Memory // memorias tras el filtro activo
 
 	selected    domain.Memory
 	autoApprove bool
@@ -352,6 +331,11 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	dc.CharLimit = 10
 	dc.Width = 20
 
+	fi := textinput.New()
+	fi.Placeholder = "buscar..."
+	fi.CharLimit = 80
+	fi.Width = 40
+
 	settings := settingsRepo.Read(root)
 
 	var stats ports.StorageStats
@@ -359,19 +343,25 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		stats, _ = maintenanceRepo.Stats(project)
 	}
 
-	items := make([]list.Item, len(mems))
-	for i, mem := range mems {
-		items[i] = memoryItem{memory: mem}
-	}
-
-	l := list.New(items, memoryDelegate{}, 0, 0)
-	l.SetShowTitle(false)
-	l.SetShowStatusBar(false)
-	l.SetShowPagination(false)
-	l.SetShowHelp(false)
-	l.SetFilteringEnabled(true)
-	l.DisableQuitKeybindings()
-	l.Title = fmt.Sprintf("gomemory · %d memorias", len(mems))
+	tbl := table.New(
+		table.WithColumns(tableColumns(80)),
+		table.WithRows(memoriesToRows(mems)),
+		table.WithHeight(20),
+		table.WithFocused(true),
+		table.WithStyles(table.Styles{
+			Header: lipgloss.NewStyle().
+				Bold(true).
+				Foreground(highlight).
+				Padding(0, 1),
+			Cell: lipgloss.NewStyle().
+				Padding(0, 1),
+			Selected: lipgloss.NewStyle().
+				Bold(true).
+				Background(gray).
+				Foreground(white).
+				Padding(0, 1),
+		}),
+	)
 
 	return model{
 		memRepo:         memRepo,
@@ -383,7 +373,9 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		project:         project,
 		screen:          screenList,
 		memories:        mems,
-		list:            l,
+		filtered:        mems,
+		table:           tbl,
+		filterInput:     fi,
 		autoApprove:     settings.AutoApprove,
 		saveTitle:       ti,
 		saveType:        ty,
@@ -411,7 +403,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
-		m.list.SetSize(msg.Width, msg.Height)
+		m.table.SetWidth(msg.Width - 4)
+		m.table.SetHeight(msg.Height - 6)
+		m.table.SetColumns(tableColumns(msg.Width - 4))
 		return m, nil
 
 	case tea.KeyMsg:
@@ -457,23 +451,48 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // ─── List screen ───────────────────────────────────────────────────
 
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Si el list está en modo filtro, no interceptar — pasar todo al list
-	if m.list.FilterState() == list.Filtering {
-		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		return m, cmd
+	// Si el filtro está activo, las teclas van al textinput
+	if m.filtering {
+		switch msg.String() {
+		case "esc":
+			m.filtering = false
+			m.filterInput.Blur()
+			m.filterInput.SetValue("")
+			m.filtered = m.memories
+			m.table.SetRows(memoriesToRows(m.filtered))
+			return m, nil
+		case "enter":
+			m.filtering = false
+			m.filterInput.Blur()
+			m.applyFilter()
+			return m, nil
+		default:
+			var cmd tea.Cmd
+			m.filterInput, cmd = m.filterInput.Update(msg)
+			m.applyFilter()
+			return m, cmd
+		}
 	}
 
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 
+	case "/":
+		m.filtering = true
+		m.filterInput.Focus()
+		m.filterInput.SetValue("")
+		return m, textinput.Blink
+
 	case "enter":
-		if idx := m.list.Index(); idx >= 0 {
-			item := m.list.SelectedItem()
-			if mi, ok := item.(memoryItem); ok {
-				m.selected = mi.memory
-				m.screen = screenDetail
+		if row := m.table.SelectedRow(); row != nil {
+			id, _ := strconv.ParseInt(row[0], 10, 64)
+			for _, mem := range m.filtered {
+				if mem.ID == id {
+					m.selected = mem
+					m.screen = screenDetail
+					break
+				}
 			}
 		}
 
@@ -521,11 +540,29 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	default:
 		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
+		m.table, cmd = m.table.Update(msg)
 		return m, cmd
 	}
 
 	return m, nil
+}
+
+// applyFilter filtra las memorias según el texto del input y actualiza la tabla.
+func (m *model) applyFilter() {
+	query := strings.ToLower(strings.TrimSpace(m.filterInput.Value()))
+	if query == "" {
+		m.filtered = m.memories
+	} else {
+		m.filtered = nil
+		for _, mem := range m.memories {
+			if strings.Contains(strings.ToLower(mem.Title), query) ||
+				strings.Contains(strings.ToLower(mem.Content), query) ||
+				strings.Contains(strings.ToLower(string(mem.Type)), query) {
+				m.filtered = append(m.filtered, mem)
+			}
+		}
+	}
+	m.table.SetRows(memoriesToRows(m.filtered))
 }
 
 // ─── Detail screen ─────────────────────────────────────────────────
@@ -1282,26 +1319,28 @@ func (m model) View() string {
 }
 
 func (m model) listView() string {
-	// Actualizar items si cambiaron
-	items := make([]list.Item, len(m.memories))
-	for i, mem := range m.memories {
-		items[i] = memoryItem{memory: mem}
-	}
-	m.list.SetItems(items)
-
-	// Actualizar título con info
+	// Header con título y info
 	sizeInfo := ""
 	if m.maintenanceRepo != nil {
 		sizeInfo = fmt.Sprintf(" · %s en disco", humanize.Bytes(uint64(m.stats.FileSizeBytes)))
 	}
-	m.list.Title = fmt.Sprintf("%s · %d memorias%s", m.project, len(m.memories), sizeInfo)
+	header := titleStyle.Render(fmt.Sprintf("%s · %d memorias%s", m.project, len(m.filtered), sizeInfo))
 
-	listView := m.list.View()
+	// Input de filtro (visible solo cuando se está buscando)
+	filterBar := ""
+	if m.filtering {
+		filterBar = "\n" + formLabel.Render("buscar:") + " " + m.filterInput.View()
+	} else {
+		filterBar = "\n" + lipgloss.NewStyle().Foreground(faint).Render("  / buscar")
+	}
 
-	// Footer con opciones de teclado (el list no muestra help custom)
+	// Tabla
+	tableView := m.table.View()
+
+	// Footer
 	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  q salir")
 
-	return listView + "\n" + footer
+	return appStyle.Render(header + filterBar + "\n" + tableView + "\n" + footer)
 }
 
 // bodyBudget calcula cuántas líneas quedan disponibles para el cuerpo,
