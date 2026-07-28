@@ -2,11 +2,13 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -183,6 +185,73 @@ var (
 			Bold(true)
 )
 
+// ─── List item types ─────────────────────────────────────────────
+
+type memoryItem struct {
+	memory domain.Memory
+}
+
+func (i memoryItem) Title() string {
+	content := truncate(i.memory.Content, 70)
+	line := fmt.Sprintf("  %s", content)
+	if i.memory.Title != "" {
+		line = fmt.Sprintf("  %s — %s", i.memory.Title, content)
+	}
+	return line
+}
+
+func (i memoryItem) Description() string { return "" }
+func (i memoryItem) FilterValue() string {
+	return i.memory.Title + " " + i.memory.Content + " " + string(i.memory.Type)
+}
+
+type memoryDelegate struct{}
+
+func (d memoryDelegate) Height() int                             { return 1 }
+func (d memoryDelegate) Spacing() int                            { return 0 }
+func (d memoryDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
+
+func (d memoryDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	mi := item.(memoryItem)
+	isSelected := index == m.Index()
+
+	tag := typeTag(string(mi.memory.Type))
+	icon := typeIcon(string(mi.memory.Type))
+	content := truncate(mi.memory.Content, 70)
+	line := fmt.Sprintf("  %s", content)
+	if mi.memory.Title != "" {
+		line = fmt.Sprintf("  %s — %s", mi.memory.Title, content)
+	}
+
+	var rendered string
+	if isSelected {
+		rendered = itemSelected.Render(
+			lipgloss.JoinHorizontal(lipgloss.Top,
+				lipgloss.NewStyle().Foreground(highlight).Render("▸"),
+				" ",
+				tag,
+				" ",
+				icon,
+				" ",
+				line,
+			),
+		)
+	} else {
+		rendered = itemNormal.Render(
+			lipgloss.JoinHorizontal(lipgloss.Top,
+				"  ",
+				lipgloss.NewStyle().Foreground(typeColor(string(mi.memory.Type))).Render(icon),
+				" ",
+				tag,
+				" ",
+				line,
+			),
+		)
+	}
+
+	fmt.Fprint(w, rendered)
+}
+
 // ─── Model ─────────────────────────────────────────────────────────
 
 type model struct {
@@ -196,12 +265,10 @@ type model struct {
 
 	screen   screen
 	memories []domain.Memory
-	cursor   int
+	list     list.Model
 	err      error
 
 	selected    domain.Memory
-	searching   bool
-	search      string
 	autoApprove bool
 	statusMsg   string
 	statusTimer int
@@ -292,6 +359,20 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		stats, _ = maintenanceRepo.Stats(project)
 	}
 
+	items := make([]list.Item, len(mems))
+	for i, mem := range mems {
+		items[i] = memoryItem{memory: mem}
+	}
+
+	l := list.New(items, memoryDelegate{}, 0, 0)
+	l.SetShowTitle(false)
+	l.SetShowStatusBar(false)
+	l.SetShowPagination(false)
+	l.SetShowHelp(false)
+	l.SetFilteringEnabled(true)
+	l.DisableQuitKeybindings()
+	l.Title = fmt.Sprintf("gomemory · %d memorias", len(mems))
+
 	return model{
 		memRepo:         memRepo,
 		relRepo:         relRepo,
@@ -302,6 +383,7 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		project:         project,
 		screen:          screenList,
 		memories:        mems,
+		list:            l,
 		autoApprove:     settings.AutoApprove,
 		saveTitle:       ti,
 		saveType:        ty,
@@ -329,6 +411,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
+		m.list.SetSize(msg.Width, msg.Height)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -378,21 +461,13 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 
-	case "j", "down":
-		if m.cursor < len(m.visibleMemories())-1 {
-			m.cursor++
-		}
-
-	case "k", "up":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-
 	case "enter":
-		visible := m.visibleMemories()
-		if len(visible) > 0 && m.cursor >= 0 && m.cursor < len(visible) {
-			m.selected = visible[m.cursor]
-			m.screen = screenDetail
+		if idx := m.list.Index(); idx >= 0 {
+			item := m.list.SelectedItem()
+			if mi, ok := item.(memoryItem); ok {
+				m.selected = mi.memory
+				m.screen = screenDetail
+			}
 		}
 
 	case "s":
@@ -437,46 +512,13 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.dupGroups, _ = usecases.DetectProjectDuplicates(m.memRepo, m.project)
 		}
 
-	case "/":
-		m.searching = !m.searching
-		if !m.searching {
-			m.search = ""
-			m.cursor = 0
-		}
-
 	default:
-		if m.searching {
-			if msg.String() == "backspace" {
-				if len(m.search) > 0 {
-					m.search = m.search[:len(m.search)-1]
-				}
-			} else if msg.String() == "esc" {
-				m.searching = false
-				m.search = ""
-			} else if len(msg.String()) == 1 {
-				m.search += msg.String()
-			}
-			m.cursor = 0
-		}
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
-}
-
-func (m model) visibleMemories() []domain.Memory {
-	if m.search == "" {
-		return m.memories
-	}
-	q := strings.ToLower(m.search)
-	var filtered []domain.Memory
-	for _, mem := range m.memories {
-		if strings.Contains(strings.ToLower(mem.Title), q) ||
-			strings.Contains(strings.ToLower(mem.Content), q) ||
-			strings.Contains(strings.ToLower(string(mem.Type)), q) {
-			filtered = append(filtered, mem)
-		}
-	}
-	return filtered
 }
 
 // ─── Detail screen ─────────────────────────────────────────────────
@@ -568,7 +610,6 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusMsg = fmt.Sprintf("%s: %d memoria(s) eliminada(s)", actionLabel, deleted)
 			m.memories, _ = m.memRepo.List(m.project, 200)
 			m.stats, _ = m.maintenanceRepo.Stats(m.project)
-			m.cursor = 0
 		}
 		m.statusTimer = 30
 		m.maintErr = ""
@@ -1234,112 +1275,26 @@ func (m model) View() string {
 }
 
 func (m model) listView() string {
-	var head strings.Builder
+	// Actualizar items si cambiaron
+	items := make([]list.Item, len(m.memories))
+	for i, mem := range m.memories {
+		items[i] = memoryItem{memory: mem}
+	}
+	m.list.SetItems(items)
 
-	title := titleStyle.Render("gomemory")
+	// Actualizar título con info
 	sizeInfo := ""
 	if m.maintenanceRepo != nil {
-		sizeInfo = " · " + humanize.Bytes(uint64(m.stats.FileSizeBytes)) + " en disco"
+		sizeInfo = fmt.Sprintf(" · %s en disco", humanize.Bytes(uint64(m.stats.FileSizeBytes)))
 	}
-	info := subtitleStyle.Render(fmt.Sprintf("%s · %d memorias%s", m.project, len(m.memories), sizeInfo))
-	head.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, title, "  ", info))
-	if m.autoApprove {
-		aa := lipgloss.NewStyle().Foreground(green).Render("autoApprove")
-		head.WriteString("  " + aa)
-	}
-	head.WriteString("\n")
+	m.list.Title = fmt.Sprintf("%s · %d memorias%s", m.project, len(m.memories), sizeInfo)
 
-	if m.searching {
-		head.WriteString("\n")
-		head.WriteString(lipgloss.NewStyle().
-			Foreground(highlight).
-			Render("🔍 " + m.search + "█"))
-		head.WriteString("\n")
-	}
-
-	var foot strings.Builder
-	foot.WriteString("\n")
-	if m.statusTimer > 0 {
-		foot.WriteString(lipgloss.NewStyle().Foreground(faint).Italic(true).Render("  " + m.statusMsg))
-		foot.WriteString("\n")
-	}
-	foot.WriteString(m.helpView())
-
-	// El cuerpo (grupos + items) se arma como líneas independientes para
-	// poder recortarlo a la altura visible sin perder la selección de vista.
-	visible := m.visibleMemories()
-	var bodyLines []string
-	cursorLine := -1
-	if len(visible) == 0 {
-		if m.search != "" {
-			bodyLines = append(bodyLines, lipgloss.NewStyle().Foreground(faint).Render("  Sin resultados para \""+m.search+"\""))
-		} else {
-			bodyLines = append(bodyLines,
-				lipgloss.NewStyle().Foreground(faint).Render("  Todavía no hay memorias."),
-				lipgloss.NewStyle().Foreground(faint).Render("  Guarda la primera con: mem save \"aprendizaje\""))
-		}
-	} else {
-		grouped := groupByType(visible)
-		typeOrder := []string{"preference", "architecture", "decision", "pattern", "bugfix", "learning", "discovery"}
-		globalIdx := 0
-
-		for _, t := range typeOrder {
-			mems, ok := grouped[t]
-			if !ok {
-				continue
-			}
-
-			headerLabel := typeLabel(t)
-			headerIcon := typeIcon(t)
-			bodyLines = append(bodyLines, "")
-			bodyLines = append(bodyLines, groupHeaderStyle.
-				UnsetMarginTop().UnsetMarginBottom().
-				Render(fmt.Sprintf("  %s %s  (%d)", headerIcon, headerLabel, len(mems))))
-
-			for _, mem := range mems {
-				content := truncate(mem.Content, 70)
-				line := fmt.Sprintf("  %s", content)
-				if mem.Title != "" {
-					line = fmt.Sprintf("  %s — %s", mem.Title, content)
-				}
-
-				var rendered string
-				if globalIdx == m.cursor {
-					tag := typeTag(string(mem.Type))
-					rendered = itemSelected.Render(
-						lipgloss.JoinHorizontal(lipgloss.Top,
-							lipgloss.NewStyle().Foreground(highlight).Render("▸"),
-							" ",
-							tag,
-							" ",
-							line,
-						),
-					)
-					cursorLine = len(bodyLines)
-				} else {
-					rendered = itemNormal.Render(
-						lipgloss.JoinHorizontal(lipgloss.Top,
-							"  ",
-							lipgloss.NewStyle().Foreground(typeColor(string(mem.Type))).Render(typeIcon(string(mem.Type))),
-							" ",
-							line,
-						),
-					)
-				}
-				bodyLines = append(bodyLines, rendered)
-				globalIdx++
-			}
-		}
-	}
-
-	return appStyle.Render(head.String() + windowLines(bodyLines, cursorLine, m.bodyBudget(head.String(), foot.String())) + foot.String())
+	return m.list.View()
 }
 
-// bodyBudget calcula cuántas líneas quedan disponibles para el cuerpo de la
-// lista, descontando el padding vertical de appStyle y lo que ya ocupan el
-// encabezado y el pie (ambos de tamaño variable según estado: buscando,
-// mensaje de estado, etc.). 0/negativo (o terminal sin tamaño aún) desactiva
-// el recorte y se muestra todo, como antes.
+// bodyBudget calcula cuántas líneas quedan disponibles para el cuerpo,
+// descontando el padding vertical de appStyle y lo que ya ocupan el
+// encabezado y el pie. Usado por las pantallas de optimización.
 func (m model) bodyBudget(head, foot string) int {
 	if !m.ready || m.height <= 0 {
 		return 0
@@ -1354,14 +1309,13 @@ func (m model) bodyBudget(head, foot string) int {
 }
 
 // windowLines recorta líneas a `budget` de alto, centrando la ventana en
-// `cursorLine` para que el ítem seleccionado siempre quede visible aunque la
-// lista completa no quepa en la terminal. budget<=0 desactiva el recorte.
+// `cursorLine`. Usado por las pantallas de optimización.
 func windowLines(lines []string, cursorLine, budget int) string {
 	if budget <= 0 || len(lines) <= budget {
 		return strings.Join(lines, "\n")
 	}
 
-	inner := budget - 2 // reserva 1 línea arriba + 1 abajo para indicadores de scroll
+	inner := budget - 2
 	if inner < 1 {
 		inner = 1
 	}
