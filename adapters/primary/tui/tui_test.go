@@ -38,7 +38,7 @@ func TestListViewFitsTerminalHeight(t *testing.T) {
 
 	out := m.listView()
 	lines := strings.Split(out, "\n")
-	if len(lines) > m.height+2 { // +2 de margen por el padding de appStyle
+	if len(lines) > m.height { // appStyle.Padding(1,2) agrega 2 líneas visuales sin \n, así que len(lines) debe ser <= height
 		t.Fatalf("listView() produjo %d líneas para una terminal de %d filas; se esperaba que quedara acotado", len(lines), m.height)
 	}
 }
@@ -367,6 +367,178 @@ func TestOptimizeDetailViewKeepsCursorVisible(t *testing.T) {
 // Compactar todas (tecla "a" en screenOptimize) debe aplicar la sugerencia
 // automática de cada grupo detectado y borrar todo lo que no sea la memoria
 // canónica sugerida, en un solo paso, sin revisión grupo por grupo.
+// TestListViewMixedTypesScroll verifica que con memorias de varios tipos
+// (que generan headers de grupo intercalados), el scroll funcione correctamente:
+// el cursor debe ser visible y la ventana no debe desbordar la terminal.
+func TestListViewMixedTypesScroll(t *testing.T) {
+	var mems []domain.Memory
+	id := int64(1)
+	types := []domain.MemoryType{
+		domain.Preference, domain.Architecture, domain.Decision,
+		domain.Pattern, domain.Bugfix, domain.Learning, domain.Discovery,
+	}
+	for _, mt := range types {
+		for i := 0; i < 5; i++ {
+			mems = append(mems, domain.Memory{
+				ID:      id,
+				Type:    mt,
+				Title:   fmt.Sprintf("memoria %s %d", string(mt), i),
+				Content: fmt.Sprintf("contenido de prueba %s %d", string(mt), i),
+			})
+			id++
+		}
+	}
+	// 35 memorias, 7 tipos × 5 c/u, con headers de grupo intercalados
+
+	for _, cursor := range []int{0, 10, 20, 34} {
+		m := model{
+			project:  "demo",
+			memories: mems,
+			cursor:   cursor,
+			ready:    true,
+			height:   20,
+		}
+		out := m.listView()
+		lines := strings.Split(out, "\n")
+		if len(lines) > m.height+4 {
+			t.Fatalf("cursor=%d: listView() produjo %d líneas para una terminal de %d filas", cursor, len(lines), m.height)
+		}
+		if !strings.Contains(out, "▸") {
+			t.Fatalf("cursor=%d: el marcador de selección '▸' no aparece en la ventana visible", cursor)
+		}
+	}
+}
+
+// TestWindowLinesScrollIndicators verifica que los indicadores ↑↓ aparecen
+// correctamente cuando hay contenido fuera de la ventana.
+func TestWindowLinesScrollIndicators(t *testing.T) {
+	lines := make([]string, 50)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("item %d", i)
+	}
+
+	// budget=10, inner=8, cursor en la línea 25 → offset=21, debe haber indicadores ↑ y ↓
+	out := windowLines(lines, 25, 10)
+	if !strings.Contains(out, "más arriba") {
+		t.Fatalf("esperaba indicador '↑ más arriba' con cursor en línea 25 de 50, budget=10")
+	}
+	if !strings.Contains(out, "más abajo") {
+		t.Fatalf("esperaba indicador '↓ más abajo' con cursor en línea 25 de 50, budget=10")
+	}
+
+	// cursor en la línea 0 → solo indicador ↓
+	out = windowLines(lines, 0, 10)
+	if strings.Contains(out, "más arriba") {
+		t.Fatalf("no debería haber indicador '↑ más arriba' con cursor en línea 0")
+	}
+	if !strings.Contains(out, "más abajo") {
+		t.Fatalf("esperaba indicador '↓ más abajo' con cursor en línea 0")
+	}
+
+	// cursor en la última línea → solo indicador ↑
+	out = windowLines(lines, 49, 10)
+	if !strings.Contains(out, "más arriba") {
+		t.Fatalf("esperaba indicador '↑ más arriba' con cursor en la última línea")
+	}
+	if strings.Contains(out, "más abajo") {
+		t.Fatalf("no debería haber indicador '↓ más abajo' con cursor en la última línea")
+	}
+}
+
+// TestBodyBudgetCalculations verifica que bodyBudget retorna valores razonables
+// para diferentes tamaños de terminal y estados de búsqueda.
+func TestBodyBudgetCalculations(t *testing.T) {
+	tests := []struct {
+		name       string
+		height     int
+		ready      bool
+		searching  bool
+		wantMin    int
+		wantMax    int
+	}{
+		{"terminal chica 20 lineas", 20, true, false, 8, 18},
+		{"terminal grande 50 lineas", 50, true, false, 35, 45},
+		{"terminal chica buscando", 20, true, true, 6, 16},
+		{"sin height", 0, false, false, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := model{
+				ready:    tt.ready,
+				height:   tt.height,
+				searching: tt.searching,
+			}
+			head := "title\n"
+			if tt.searching {
+				head = "title\nsearch\n"
+			}
+			foot := "\nhelp"
+			got := m.bodyBudget(head, foot)
+			if got < tt.wantMin || got > tt.wantMax {
+				t.Fatalf("bodyBudget(%q, %q) = %d, want [%d, %d]", head, foot, got, tt.wantMin, tt.wantMax)
+			}
+		})
+	}
+}
+
+// TestListViewDiagnosticPrint imprime el output de listView() con memorias de
+// varios tipos para diagnosticar visualmente el comportamiento del scroll.
+func TestListViewDiagnosticPrint(t *testing.T) {
+	var mems []domain.Memory
+	id := int64(1)
+	types := []domain.MemoryType{
+		domain.Preference, domain.Architecture, domain.Decision,
+		domain.Pattern, domain.Bugfix, domain.Learning, domain.Discovery,
+	}
+	for _, mt := range types {
+		for i := 0; i < 5; i++ {
+			mems = append(mems, domain.Memory{
+				ID:      id,
+				Type:    mt,
+				Title:   fmt.Sprintf("memoria %s %d", string(mt), i),
+				Content: fmt.Sprintf("contenido de prueba %s %d", string(mt), i),
+			})
+			id++
+		}
+	}
+
+	for _, cursor := range []int{0, 15, 34} {
+		m := model{
+			project:  "demo",
+			memories: mems,
+			cursor:   cursor,
+			ready:    true,
+			height:   20,
+		}
+		out := m.listView()
+		lines := strings.Split(out, "\n")
+		t.Logf("=== cursor=%d, total_lines=%d, height=%d ===", cursor, len(lines), m.height)
+		t.Logf("bodyBudget=%d", m.bodyBudget("title\n", "\nhelp"))
+		for i, line := range lines {
+			t.Logf("  [%2d] %s", i, line)
+		}
+		t.Logf("")
+	}
+}
+
+// TestWindowLinesDiagnosticPrint imprime el output de windowLines para
+// diagnosticar el comportamiento del centrado de ventana.
+func TestWindowLinesDiagnosticPrint(t *testing.T) {
+	lines := make([]string, 30)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("item-%02d", i)
+	}
+	for _, cl := range []int{0, 5, 14, 25, 29} {
+		out := windowLines(lines, cl, 10)
+		outLines := strings.Split(out, "\n")
+		t.Logf("=== cursorLine=%d, budget=10, total_body_lines=%d ===", cl, len(lines))
+		for i, line := range outLines {
+			t.Logf("  [%2d] %s", i, line)
+		}
+		t.Logf("")
+	}
+}
+
 func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 	// Dos clusters de duplicados sobre temas sin ningún vocabulario en común,
 	// para que el detector los agrupe por separado (2 grupos), no juntos.

@@ -1345,7 +1345,7 @@ func (m model) bodyBudget(head, foot string) int {
 		return 0
 	}
 	const appStyleVerticalPadding = 2
-	used := appStyleVerticalPadding + strings.Count(head, "\n") + strings.Count(foot, "\n") + 1
+	used := appStyleVerticalPadding + strings.Count(head, "\n") + strings.Count(foot, "\n") + 3
 	budget := m.height - used
 	if budget < 3 {
 		return 0
@@ -1358,7 +1358,7 @@ func (m model) bodyBudget(head, foot string) int {
 // lista completa no quepa en la terminal. budget<=0 desactiva el recorte.
 func windowLines(lines []string, cursorLine, budget int) string {
 	if budget <= 0 || len(lines) <= budget {
-		return strings.Join(lines, "\n") + "\n"
+		return strings.Join(lines, "\n")
 	}
 
 	inner := budget - 2 // reserva 1 línea arriba + 1 abajo para indicadores de scroll
@@ -1385,14 +1385,15 @@ func windowLines(lines []string, cursorLine, budget int) string {
 	var b strings.Builder
 	if offset > 0 {
 		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render(fmt.Sprintf("  ↑ %d más arriba", offset)))
+		b.WriteString("\n")
 	}
-	b.WriteString("\n")
 	b.WriteString(strings.Join(lines[offset:end], "\n"))
-	b.WriteString("\n")
 	if hidden := len(lines) - end; hidden > 0 {
+		if b.Len() > 0 {
+			b.WriteString("\n")
+		}
 		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render(fmt.Sprintf("  ↓ %d más abajo", hidden)))
 	}
-	b.WriteString("\n")
 	return b.String()
 }
 
