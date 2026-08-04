@@ -32,6 +32,9 @@ type SettingsData struct {
 	// SynapseDisabled apaga la formación automática de sinapsis (aristas de
 	// co-activación en sesión). Ausente/false = activada.
 	SynapseDisabled bool `json:"synapse_disabled,omitempty"`
+	// SpeckitContextDisabled apaga el brazo extensor hacia spec-kit (feature
+	// 011, historia 4). Ausente/false = activado.
+	SpeckitContextDisabled bool `json:"speckit_context_disabled,omitempty"`
 }
 
 type SettingsRepository interface {

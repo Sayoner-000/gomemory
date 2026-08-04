@@ -172,6 +172,7 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		CompactThreshold:             s.CompactThreshold,
 		DedupWindowDays:              s.DedupWindowDays,
 		SynapseDisabled:              s.SynapseDisabled,
+		SpeckitContextDisabled:       s.SpeckitContextDisabled,
 	}
 }
 
@@ -188,6 +189,7 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		CompactThreshold:             s.CompactThreshold,
 		DedupWindowDays:              s.DedupWindowDays,
 		SynapseDisabled:              s.SynapseDisabled,
+		SpeckitContextDisabled:       s.SpeckitContextDisabled,
 	})
 }
 

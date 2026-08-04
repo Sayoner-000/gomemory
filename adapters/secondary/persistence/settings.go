@@ -43,6 +43,13 @@ type Settings struct {
 	// co-activación en sesión) al guardar una memoria. Ausente/false = activada
 	// (misma lógica opt-out que CodeImpactAnnotationDisabled).
 	SynapseDisabled bool `json:"synapse_disabled,omitempty"`
+	// SpeckitContextDisabled apaga el brazo extensor hacia spec-kit (feature
+	// 011): el hook before_specify de la extensión gomemory-context deja de
+	// incorporar el resumen de mem context. Ausente/false = activado, mismo
+	// patrón opt-out que CodeGraphDisabled. Se lee directo de este JSON desde
+	// el script del hook (sin pasar por mem settings), así el gate no depende
+	// de que la CLI/TUI ya lo expongan.
+	SpeckitContextDisabled bool `json:"speckit_context_disabled,omitempty"`
 }
 
 // Defaults de la huella de contexto (feature 008). En CARACTERES emitidos salvo

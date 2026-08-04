@@ -697,7 +697,7 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // ─── Config screen ──────────────────────────────────────────────────
 
 // configOptions es el número de filas del menú de configuración.
-const configOptions = 5
+const configOptions = 6
 
 func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -766,6 +766,17 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Sinapsis desactivada (ahorra 1-3 queries por save)"
 			} else {
 				m.statusMsg = "Sinapsis activada (relaciona memorias de la misma sesión)"
+			}
+			m.statusTimer = 40
+
+		case 5: // Toggle brazo extensor spec-kit
+			s := m.settingsRepo.Read(m.root)
+			s.SpeckitContextDisabled = !s.SpeckitContextDisabled
+			m.settingsRepo.Write(m.root, s)
+			if s.SpeckitContextDisabled {
+				m.statusMsg = "Brazo extensor spec-kit desactivado"
+			} else {
+				m.statusMsg = "Brazo extensor spec-kit activado"
 			}
 			m.statusTimer = 40
 		}
@@ -1612,6 +1623,7 @@ func (m model) configView() string {
 		"Exportar memorias",
 		"Importar memorias",
 		"Sinapsis automática: " + onOff(!s.SynapseDisabled),
+		"Brazo extensor spec-kit: " + onOff(!s.SpeckitContextDisabled),
 	}
 	for i, label := range rows {
 		if i == m.configCursor {

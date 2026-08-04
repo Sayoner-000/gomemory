@@ -316,6 +316,27 @@ desactivables por separado (`specs/010-codegraph-integration-evolution/`):
   nombre legado cuando no hay override (retrocompatible). Toggle:
   `mem settings --code-graph-providers=cmd1,cmd2` (orden de prioridad).
 
+#### Brazo extensor hacia spec-kit (feature 011)
+
+Extensión spec-kit bundleada `.specify/extensions/gomemory-context/`
+(calcada de `agent-context`, ver `specs/011-gomemory-spec-context/`): su
+hook `before_specify` (mandatorio, `optional: false` — a diferencia de
+`agent-context`, cuyos hooks son todos opcionales) llama a `mem context`
+para que cada `spec.md` nuevo se redacte con el historial del proyecto sin
+barrer `specs/` a mano. `before_plan`/`before_clarify` reutilizan el mismo
+comando pero como hooks opcionales, para cuando esas fases ocurren en una
+sesión nueva. El script (`scripts/bash/update-gomemory-context.sh` +
+equivalente PowerShell) es de solo lectura y nunca falla el flujo de
+spec-kit: localiza `./mem`/`mem` en `PATH`, lee
+`speckit_context_disabled` directo de `.memory/settings.json` (sin pasar
+por `mem settings`, para no acoplar el hook a la CLI), y si algo falta o
+falla, termina en `0` sin salida. Toggle propio (visible en la TUI y en
+`mem settings --speckit-context=true|false`, default activado): a
+diferencia de los demás toggles de esta sección, no lo consume ningún
+flujo de arranque de gomemory (`infrastructure/container.go`) — solo lo
+lee el script externo, así que su costo es cero cuando no hay spec-kit
+instalado.
+
 ### 5. Wrap (`adapters/primary/cli/cmd_wrap.go`)
 
 Wrapper interactivo que envuelve cualquier comando:

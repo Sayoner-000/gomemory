@@ -105,8 +105,8 @@ func TestReadSettings_NoProviderConfigured_EmptyList(t *testing.T) {
 func TestReadSettings_PreservesExplicitBooleans(t *testing.T) {
 	root := t.TempDir()
 	writeRawSettings(t, root, map[string]any{
-		"adr_sync_enabled":                 true,
-		"code_impact_annotation_disabled":  true,
+		"adr_sync_enabled":                true,
+		"code_impact_annotation_disabled": true,
 	})
 
 	s := ReadSettings(root)
@@ -116,6 +116,51 @@ func TestReadSettings_PreservesExplicitBooleans(t *testing.T) {
 	}
 	if !s.CodeImpactAnnotationDisabled {
 		t.Error("code_impact_annotation_disabled=true explícito debería preservarse")
+	}
+}
+
+// speckit_context_disabled (feature 011) sigue el mismo patrón opt-out que
+// code_graph_disabled: ausente en el JSON ⇒ activado (false); explícito en
+// true ⇒ se preserva. Se prueba tanto leyendo un JSON crudo como el
+// roundtrip completo WriteSettings/ReadSettings, porque el gate real (el
+// script del hook de la extensión gomemory-context) lee este campo
+// directo del archivo, sin pasar por mem settings.
+func TestReadSettings_SpeckitContextDisabled_AbsentDefaultsToEnabled(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{})
+
+	s := ReadSettings(root)
+
+	if s.SpeckitContextDisabled {
+		t.Error("speckit_context_disabled ausente debería resultar en activado (false)")
+	}
+}
+
+func TestReadSettings_SpeckitContextDisabled_ExplicitTruePreserved(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{
+		"speckit_context_disabled": true,
+	})
+
+	s := ReadSettings(root)
+
+	if !s.SpeckitContextDisabled {
+		t.Error("speckit_context_disabled=true explícito debería preservarse")
+	}
+}
+
+func TestWriteReadSettings_SpeckitContextDisabled_Roundtrip(t *testing.T) {
+	root := t.TempDir()
+	s := DefaultSettings()
+	s.SpeckitContextDisabled = true
+
+	if err := WriteSettings(root, s); err != nil {
+		t.Fatalf("WriteSettings: %v", err)
+	}
+
+	got := ReadSettings(root)
+	if !got.SpeckitContextDisabled {
+		t.Error("SpeckitContextDisabled=true debería sobrevivir un roundtrip write/read")
 	}
 }
 

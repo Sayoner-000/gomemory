@@ -1,5 +1,6 @@
 installed:
 - agent-context
+- gomemory-context
 settings:
   auto_execute_hooks: true
 hooks:
@@ -20,4 +21,34 @@ hooks:
     priority: 10
     prompt: Execute speckit.agent-context.update?
     description: Refresh agent context after planning
+    condition: null
+  before_specify:
+  - extension: gomemory-context
+    command: speckit.gomemory-context.update
+    enabled: true
+    optional: false
+    priority: 10
+    prompt: Execute speckit.gomemory-context.update?
+    description: Incorpora automáticamente el historial del proyecto antes de redactar
+      una especificación nueva
+    condition: null
+  before_plan:
+  - extension: gomemory-context
+    command: speckit.gomemory-context.update
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.gomemory-context.update?
+    description: Incorpora el historial del proyecto al planificar, si la sesión no
+      lo cargó ya en /speckit-specify
+    condition: null
+  before_clarify:
+  - extension: gomemory-context
+    command: speckit.gomemory-context.update
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Execute speckit.gomemory-context.update?
+    description: Incorpora el historial del proyecto al aclarar, si la sesión no lo
+      cargó ya en /speckit-specify
     condition: null
