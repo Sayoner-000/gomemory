@@ -337,6 +337,35 @@ flujo de arranque de gomemory (`infrastructure/container.go`) — solo lo
 lee el script externo, así que su costo es cero cuando no hay spec-kit
 instalado.
 
+#### Distribución del brazo extensor vía `mem install` (feature 012)
+
+La feature 011 quedó verificada en vivo, pero instalada a mano con la CLI
+de terceros `specify` — solo existía dentro de `go_memory` y solo para
+Claude Code. `mem install` (`adapters/primary/cli/cmd_install.go`, paso
+"4c", justo después de copiar la constitución) ahora la distribuye a
+cualquier proyecto destino, sin depender de esa CLI:
+`setup.InstallSpeckitExtension(target, TemplatesFS)`
+(`adapters/primary/setup/speckit_extension.go`) es un no-op silencioso si
+el proyecto no tiene `.specify/` (Historia 3 — nunca impone spec-kit a
+quien no lo usa), y si lo tiene, copia tres árboles embebidos
+(`infrastructure/templates/gomemory-context/{extension,claude,opencode}/`,
+cubiertos por el `go:embed all:templates` ya existente, sin directiva
+nueva) a `.specify/extensions/gomemory-context/`,
+`.claude/skills/speckit-gomemory-context-update/` y
+`.opencode/commands/`, reutilizando `InstallPlugin` (el mismo helper del
+plugin de OpenCode) tres veces — mismo criterio de escritura ya verificado
+en producción: solo reescribe un archivo si su contenido difiere del
+embebido (Historia 4), y nunca toca nada si el destino ya coincide
+(idempotente). Los dos artefactos por agente (`SKILL.md` para Claude Code,
+`speckit.gomemory-context.update.md` para OpenCode) no se generan en
+tiempo de instalación: son fixtures reales, regenerados una vez contra la
+CLI `specify` en proyectos de prueba aislados
+(`specs/012-gomemory-context-distribution/contracts/`) y embebidos tal
+cual — evita reimplementar en Go la lógica de traducción de un proyecto de
+terceros. Alcance: solo Claude Code y OpenCode, los dos únicos agentes que
+`mem install` ya configura por completo (plugin + hooks); Cursor/Windsurf/
+Cline/Codex solo reciben `mcp.json` y quedan fuera de esta iteración.
+
 ### 5. Wrap (`adapters/primary/cli/cmd_wrap.go`)
 
 Wrapper interactivo que envuelve cualquier comando:

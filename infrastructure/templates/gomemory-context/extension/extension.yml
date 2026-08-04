@@ -1,0 +1,38 @@
+schema_version: "1.0"
+
+extension:
+  id: gomemory-context
+  name: "gomemory Project History Context"
+  version: "1.0.0"
+  description: "Inyecta un resumen del historial del proyecto (memorias, decisiones, y grafo de código externo cuando está disponible) desde gomemory antes de crear o continuar una especificación"
+  author: gomemory
+  repository: local
+  license: MIT
+
+requires:
+  speckit_version: ">=0.2.0"
+
+provides:
+  commands:
+    - name: speckit.gomemory-context.update
+      file: commands/speckit.gomemory-context.update.md
+      description: "Obtiene el resumen de historial de gomemory (mem context) y lo incorpora al contexto de la especificación"
+
+hooks:
+  before_specify:
+    command: speckit.gomemory-context.update
+    optional: false
+    description: "Incorpora automáticamente el historial del proyecto antes de redactar una especificación nueva"
+  before_plan:
+    command: speckit.gomemory-context.update
+    optional: true
+    description: "Incorpora el historial del proyecto al planificar, si la sesión no lo cargó ya en /speckit-specify"
+  before_clarify:
+    command: speckit.gomemory-context.update
+    optional: true
+    description: "Incorpora el historial del proyecto al aclarar, si la sesión no lo cargó ya en /speckit-specify"
+
+tags:
+  - "context"
+  - "memory"
+  - "gomemory"

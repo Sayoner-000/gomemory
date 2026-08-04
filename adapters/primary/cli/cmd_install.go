@@ -171,6 +171,13 @@ func CmdInstall(deps *Deps, args []string) {
 		}
 	}
 
+	// 4c. Distribuir el brazo extensor gomemory-context (spec 011/012):
+	// no-op silencioso si el proyecto destino no tiene spec-kit (.specify/
+	// ausente) — nunca bloquea el resto de la instalación.
+	if err := setup.InstallSpeckitExtension(target, TemplatesFS); err != nil {
+		fmt.Printf("  ⚠️  Error al distribuir el brazo extensor spec-kit: %v\n", err)
+	}
+
 	// 5. MCP server config + plugins/hooks for all agents.
 	// Para OpenCode y Claude Code instalamos el plugin completo (que incluye los
 	// hooks automáticos), no solo el MCP: `install` debe dejar todo listo en un
