@@ -330,6 +330,17 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			output = planMethod
 		}
+		// memoryProtocolReminder va SIEMPRE que haya contenido, igual que en
+		// get_context. Corrige un hueco real: una sesión que solo planifica
+		// (nunca llama a get_context) no recibía el recordatorio general de
+		// protocolo — guardar proactivamente, juez imparcial, privacidad,
+		// end_session — por ninguna de las otras capas si el cliente MCP no
+		// muestra initialize.instructions. Se omite deliberadamente cuando
+		// output=="" (apagado por configuración, FR-032): un recordatorio sobre
+		// contenido vacío contradiría al interruptor.
+		if output != "" {
+			output = memoryProtocolReminder + "\n\n" + output
+		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: output}},
 		}, nil, nil

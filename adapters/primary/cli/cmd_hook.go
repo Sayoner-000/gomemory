@@ -226,9 +226,16 @@ func hookUserPromptSubmit(deps *Deps) {
 	// antes NO es un campo soportado por Claude Code en UserPromptSubmit: era un
 	// no-op silencioso, por eso las tools de gomemory seguían llegando diferidas
 	// y la memoria se sentía "manual" hasta que el usuario la mencionaba.
+	//
+	// Se dispara SIEMPRE aquí, sin mirar qué pide el prompt (chat, plan,
+	// resumen, lo que sea): el protocolo se declara "OBLIGATORIO y SIEMPRE
+	// ACTIVO" sin excepción por tipo de tarea, y materializar las tools bajo
+	// demanda según el propósito detectado sería precisamente la excepción que
+	// ese principio prohíbe.
 	os.WriteFile(marker, []byte("1"), 0644)
+	settings := deps.SettingsRepo.Read(root)
 	out := map[string]any{
-		"systemMessage": memoryToolBootstrap,
+		"systemMessage": buildMemoryToolBootstrap(!settings.CodeGraphDisabled),
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "UserPromptSubmit",
 			"additionalContext": memoryProtocolReminder,
@@ -581,31 +588,56 @@ const compactionRecoveryInstructions = `**TRAS LA COMPACTACIÓN — PRIMERA ACCI
 No omitas el paso 1. Sin él, todo lo hecho antes de la compactación
 se pierde de la memoria.`
 
-// memoryToolBootstrap fuerza la carga de las tools MCP de gomemory. En Claude
-// Code las tools de un MCP server llegan DIFERIDAS: existen por nombre pero su
-// esquema no está cargado, así que no pueden invocarse hasta ejecutar un
-// ToolSearch que las materialice. Sin este empujón, el agente "sabe" que hay
-// memoria (por el recordatorio de protocolo) pero no puede llamarla hasta que
-// el usuario la menciona — exactamente lo que hacía sentir la memoria pasiva.
-// El único mecanismo que Claude Code respeta para esto es un systemMessage con
-// el select explícito. Se emite SOLO aquí porque este hook lo registra
-// únicamente Claude Code; OpenCode carga las tools por su plugin y el resto de
-// agentes por las instrucciones MCP nativas, así que no necesitan este bootstrap.
-// memoryToolBootstrap se construye desde domain.MCPAllTools() en vez de llevar
-// la lista escrita a mano: cuando estaba hardcodeada, la tool get_plan_context
+// buildMemoryToolBootstrap fuerza la carga de las tools MCP de gomemory. En
+// Claude Code las tools de un MCP server llegan DIFERIDAS: existen por nombre
+// pero su esquema no está cargado, así que no pueden invocarse hasta ejecutar
+// un ToolSearch que las materialice. Sin este empujón, el agente "sabe" que
+// hay memoria (por el recordatorio de protocolo) pero no puede llamarla hasta
+// que el usuario la menciona — exactamente lo que hacía sentir la memoria
+// pasiva. El único mecanismo que Claude Code respeta para esto es un
+// systemMessage con el select explícito. Se emite SOLO aquí porque este hook
+// lo registra únicamente Claude Code; OpenCode carga las tools por su plugin y
+// el resto de agentes por las instrucciones MCP nativas, así que no necesitan
+// este bootstrap.
+// La lista de gomemory se construye desde domain.MCPAllTools() en vez de
+// llevarla escrita a mano: cuando estaba hardcodeada, la tool get_plan_context
 // (feature 013) y las 5 del grafo de código quedaron fuera, así que el agente
 // leía "llama a get_plan_context() al entrar en modo plan" y no podía hacerlo
 // porque su esquema nunca se materializaba. Un test de contrato verifica que
 // esta lista coincida con las tools que el servidor registra de verdad.
-// MemoryToolBootstrap expone el bootstrap para el test de contrato que verifica
-// que materialice TODAS las tools registradas por el servidor.
-func MemoryToolBootstrap() string { return memoryToolBootstrap }
+// MemoryToolBootstrap expone el bootstrap base (sin el proveedor externo de
+// grafo) para el test de contrato que verifica que materialice TODAS las
+// tools registradas por el servidor gomemory.
+func MemoryToolBootstrap() string { return buildMemoryToolBootstrap(false) }
 
-var memoryToolBootstrap = `PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA, antes de responder al usuario, ` +
-	`para cargar las tools de memoria del proyecto:
-select:` + strings.Join(domain.MCPPrefixed("mcp__gomemory__", domain.MCPAllTools()), ",") + `
+// gomemoryBootstrapToolNames son los nombres de gomemory ya prefijados, listos
+// para el select: de ToolSearch.
+var gomemoryBootstrapToolNames = domain.MCPPrefixed("mcp__gomemory__", domain.MCPAllTools())
+
+// buildMemoryToolBootstrap arma el bootstrap de ToolSearch que fuerza la carga
+// de las tools MCP diferidas de gomemory. Cuando includeCodeGraphProvider es
+// true (el interruptor "Grafo de código externo" de la TUI está activo, mismo
+// !settings.CodeGraphDisabled), añade al MISMO select: las tools de
+// descubrimiento del proveedor externo (codebase-memory-mcp) — una sola
+// llamada de ToolSearch materializa memoria + grafo propio + grafo externo, en
+// vez de depender de que el agente recuerde por su cuenta el mensaje CRITICAL
+// que ese proveedor inyecta por separado.
+//
+// Si el proveedor no está conectado, ToolSearch simplemente no encuentra esos
+// nombres — degradación silenciosa, sin necesidad de detectar su
+// disponibilidad de antemano (domain.CodebaseMemoryMCPDiscoveryTools).
+func buildMemoryToolBootstrap(includeCodeGraphProvider bool) string {
+	names := gomemoryBootstrapToolNames
+	if includeCodeGraphProvider {
+		names = append(append([]string{}, names...),
+			domain.MCPPrefixed(domain.CodebaseMemoryMCPPrefix, domain.CodebaseMemoryMCPDiscoveryTools)...)
+	}
+	return `PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA, antes de responder al usuario, ` +
+		`para cargar las tools de memoria del proyecto:
+select:` + strings.Join(names, ",") + `
 Luego llama a get_context() para cargar la memoria previa del proyecto antes de continuar.
 Si entras en modo plan, llama además a get_plan_context() ANTES de redactar el plan.`
+}
 
 var memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
 	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +
@@ -624,6 +656,11 @@ PRIVACIDAD: si vas a guardar algo que incluye un secreto, token o credencial, en
 	`parte en <private>...</private> — nunca se persiste.
 
 IMPORTANTE — no confundir sistemas: este proyecto usa EXCLUSIVAMENTE las tools MCP de ` +
-	`gomemory (` + strings.Join(domain.MCPAllTools(), ", ") + `). El sistema de memoria nativo ` +
-	`del harness (archivo MEMORY.md bajo ~/.claude/projects/.../memory/) NO aplica aquí — ` +
-	`ignóralo por completo en este proyecto y no lo consultes ni escribas en él.`
+	`gomemory para memoria persistente (` + strings.Join(domain.MCPAllTools(), ", ") + `). El ` +
+	`sistema de memoria nativo del harness (archivo MEMORY.md bajo ~/.claude/projects/.../memory/) ` +
+	`NO aplica aquí — ignóralo por completo en este proyecto y no lo consultes ni escribas en él.
+
+GRAFO DE CÓDIGO EXTERNO: si el servidor MCP codebase-memory-mcp está conectado, úsalo SIEMPRE ` +
+	`para exploración de código —independientemente de la tarea: chat, plan, resumen, lo que sea— ` +
+	`en vez de leer archivos a mano: ` + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, ", ") + `. ` +
+	`Si no está conectado, esta guía no aplica.`

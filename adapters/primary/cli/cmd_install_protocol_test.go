@@ -50,18 +50,22 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 	}
 }
 
-// TestProtocolVersionMarker_SubioAV6 verifica el mecanismo de actualización: al
+// TestProtocolVersionMarker_SubioAV7 verifica el mecanismo de actualización: al
 // subir el número de versión, composeAgentFile reemplaza el bloque anterior
 // completo sin dejar restos (FR-030) y sin necesidad de escribir migración.
-func TestProtocolVersionMarker_SubioAV6(t *testing.T) {
-	if integrationVersionMarker != "<!-- gomemory-protocol-v6 -->" {
-		t.Errorf("integrationVersionMarker = %q, se esperaba la v6", integrationVersionMarker)
+// Subió a v7 al añadir la guía del grafo de código externo a
+// buildIntegrationBlock(): cambiar el contenido sin subir el marcador dejaría a
+// los proyectos ya instalados en v6 (este mismo repo, entre otros) sin forma de
+// detectar que hay una versión nueva al reinstalar.
+func TestProtocolVersionMarker_SubioAV7(t *testing.T) {
+	if integrationVersionMarker != "<!-- gomemory-protocol-v7 -->" {
+		t.Errorf("integrationVersionMarker = %q, se esperaba la v7", integrationVersionMarker)
 	}
 }
 
 // TestComposeAgentFile_ReemplazaV5SinDejarRestos es la prueba del camino de
-// actualización real: un proyecto instalado con la versión anterior debe quedar
-// con la nueva y sin rastro de la vieja.
+// actualización real: un proyecto instalado con una versión antigua debe
+// quedar con la nueva y sin rastro de la vieja.
 func TestComposeAgentFile_ReemplazaV5SinDejarRestos(t *testing.T) {
 	previo := "# Instrucciones\n\nTexto propio del proyecto.\n\n" +
 		"<!-- gomemory-protocol-v5 -->\n" +
@@ -79,8 +83,37 @@ func TestComposeAgentFile_ReemplazaV5SinDejarRestos(t *testing.T) {
 	if strings.Contains(out, "contenido viejo del protocolo") {
 		t.Error("quedó contenido de la versión anterior")
 	}
-	if strings.Count(out, "gomemory-protocol-v6") != 1 {
-		t.Errorf("se esperaba exactamente un marcador v6, hay %d", strings.Count(out, "gomemory-protocol-v6"))
+	if strings.Count(out, "gomemory-protocol-v7") != 1 {
+		t.Errorf("se esperaba exactamente un marcador v7, hay %d", strings.Count(out, "gomemory-protocol-v7"))
+	}
+	if !strings.Contains(out, "Texto propio del proyecto.") {
+		t.Error("se perdió el contenido propio del proyecto")
+	}
+}
+
+// TestComposeAgentFile_ReemplazaV6SinDejarRestos es el caso real de este mismo
+// repositorio: CLAUDE.md/AGENTS.md quedaron en v6 (feature 013, modo plan) y
+// deben poder subir a v7 (grafo de código externo) sin dejar restos, igual que
+// v5→v6.
+func TestComposeAgentFile_ReemplazaV6SinDejarRestos(t *testing.T) {
+	previo := "# Instrucciones\n\nTexto propio del proyecto.\n\n" +
+		"<!-- gomemory-protocol-v6 -->\n" +
+		"## Memoria Persistente (`mem`) — Protocolo Activo\n\n" +
+		"contenido de la v6, sin la guía del grafo externo\n"
+
+	out, changed := composeAgentFile(previo, "", buildIntegrationBlock())
+
+	if !changed {
+		t.Fatal("composeAgentFile debía reportar cambios al subir de v6 a v7")
+	}
+	if strings.Contains(out, "gomemory-protocol-v6") {
+		t.Error("quedaron restos del marcador v6 (FR-030)")
+	}
+	if strings.Contains(out, "contenido de la v6, sin la guía del grafo externo") {
+		t.Error("quedó contenido de la versión anterior")
+	}
+	if !strings.Contains(out, "codebase-memory-mcp") {
+		t.Error("la v7 debe incluir la guía del grafo de código externo")
 	}
 	if !strings.Contains(out, "Texto propio del proyecto.") {
 		t.Error("se perdió el contenido propio del proyecto")

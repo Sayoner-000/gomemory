@@ -214,5 +214,11 @@ reasoning what you verified.
 PRIVACY: if content to save includes a secret, token, or credential, wrap that
 part in <private>...</private> — it is never persisted.
 
+EXTERNAL CODE GRAPH: if the codebase-memory-mcp MCP server is connected, use it
+ALWAYS for code exploration — regardless of the task: chat, plan, summary,
+whatever — instead of reading files by hand: search_graph, trace_path,
+get_code_snippet, query_graph, get_architecture, search_code. If it is not
+connected, this guidance does not apply.
+
 SESSION CLOSE: before saying "done", call end_session(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;

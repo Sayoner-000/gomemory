@@ -121,7 +121,7 @@
 5. *Documenta Resultados*: Añade una sección de revisión en tasks/todo.md
 6. *Captura Lecciones*: Actualiza tasks/lessons.md después de correcciones
 
-<!-- gomemory-protocol-v6 -->
+<!-- gomemory-protocol-v7 -->
 ## Memoria Persistente (`mem`) — Protocolo Activo
 
 Este proyecto tiene el servidor MCP `gomemory` conectado. Este protocolo es OBLIGATORIO
@@ -136,9 +136,14 @@ y SIEMPRE ACTIVO — no esperes a que el usuario lo pida explícitamente.
 - `judge_memories(id_a, id_b, verdict, confidence, reasoning)` — veredicto imparcial entre dos memorias en conflicto
 - `start_session()` / `end_session(summary?)` — gestiona la sesión de trabajo
 - `get_context()` — contexto completo del proyecto en markdown
+- `get_plan_context()` — método de descomposición atómica + historial, para modo plan
+
+Grafo de código propio del proyecto: `search_code`, `get_symbol`, `list_dependencies`, `graph_status`, `index_project`.
+
+Si el servidor MCP `codebase-memory-mcp` está conectado, úsalo SIEMPRE para exploración de código, independientemente de la tarea (chat, plan, resumen): `search_graph`, `trace_path`, `get_code_snippet`, `query_graph`, `get_architecture`, `search_code`. Si no está conectado, esta guía no aplica — no hay nada que invocar.
 
 Si el MCP no está disponible en el agente actual, usa el CLI equivalente:
-`./mem save -t "título" -y tipo "contenido"`, `./mem search "tema"`, `./mem context`, `./mem session start|end`, `./mem forget <id>`, `./mem judge -r <veredicto> -m "razón" <id1> <id2>`.
+`./mem save -t "título" -y tipo "contenido"`, `./mem search "tema"`, `./mem context`, `./mem plan-context`, `./mem session start|end`, `./mem forget <id>`, `./mem judge -r <veredicto> -m "razón" <id1> <id2>`.
 
 ### GUARDAR PROACTIVAMENTE — no esperes a que el usuario lo pida
 Llama a `save_memory` (o `./mem save`) INMEDIATAMENTE después de:

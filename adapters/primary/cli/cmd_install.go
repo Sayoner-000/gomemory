@@ -261,7 +261,7 @@ func runIn(dir, bin string, args ...string) error {
 }
 
 const integrationMarker = "## Memoria Persistente"
-const integrationVersionMarker = "<!-- gomemory-protocol-v6 -->"
+const integrationVersionMarker = "<!-- gomemory-protocol-v7 -->"
 const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
 
 // TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
@@ -353,6 +353,11 @@ func buildIntegrationBlock() string {
 		"- " + bt + "get_plan_context()" + bt + " — método de descomposición atómica + historial, para modo plan",
 		"",
 		"Grafo de código propio del proyecto: " + bt + strings.Join(domain.MCPCodeTools, bt+", "+bt) + bt + ".",
+		"",
+		"Si el servidor MCP " + bt + "codebase-memory-mcp" + bt + " está conectado, úsalo SIEMPRE para " +
+			"exploración de código, independientemente de la tarea (chat, plan, resumen): " +
+			bt + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, bt+", "+bt) + bt + ". " +
+			"Si no está conectado, esta guía no aplica — no hay nada que invocar.",
 		"",
 		"Si el MCP no está disponible en el agente actual, usa el CLI equivalente:",
 		bt + `./mem save -t "título" -y tipo "contenido"` + bt + ", " + bt + `./mem search "tema"` + bt + ", " + bt + "./mem context" + bt + ", " + bt + "./mem plan-context" + bt + ", " + bt + "./mem session start|end" + bt + ", " + bt + "./mem forget <id>" + bt + ", " + bt + "./mem judge -r <veredicto> -m \"razón\" <id1> <id2>" + bt + ".",
