@@ -121,7 +121,7 @@
 5. *Documenta Resultados*: Añade una sección de revisión en tasks/todo.md
 6. *Captura Lecciones*: Actualiza tasks/lessons.md después de correcciones
 
-<!-- gomemory-protocol-v5 -->
+<!-- gomemory-protocol-v6 -->
 ## Memoria Persistente (`mem`) — Protocolo Activo
 
 Este proyecto tiene el servidor MCP `gomemory` conectado. Este protocolo es OBLIGATORIO
@@ -161,6 +161,14 @@ fuente actual para verificar cuál refleja los hechos reales, y registra el vere
 ### Privacidad
 Si vas a guardar un secreto, token o credencial, envuelve esa parte en
 `<private>...</private>` — nunca se persiste.
+
+### Al entrar en modo plan:
+Llama `get_plan_context()` (o `./mem plan-context`) ANTES de redactar el plan, en cuanto
+se dé cualquiera de estas tres situaciones: entras en un modo de planificación; la
+persona invoca un comando de planificación; o la solicitud pide un plan, un enfoque o
+una estrategia antes de tocar código.
+Devuelve el método de descomposición atómica y el historial del proyecto: aplica ese
+método al redactar. En modo plan, entrega el árbol de tareas y **detente** — no ejecutes.
 
 ### Al inicio de cada sesión:
 1. Llama `get_context()` (o `./mem context`) para cargar el contexto histórico
