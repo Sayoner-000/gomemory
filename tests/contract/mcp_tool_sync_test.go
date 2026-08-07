@@ -174,6 +174,37 @@ func TestAutoApproveNoDejaFueraNingunaToolSegura(t *testing.T) {
 	}
 }
 
+// TestOpenCodeProtocolNombraTodasLasToolsPrefijadas cubre el mismo bug que
+// TestBootstrapMaterializaTodasLasTools pero del lado de OpenCode: a
+// diferencia de Claude Code (nombres "mcp__gomemory__<tool>", diferidos vía
+// ToolSearch), OpenCode expone las tools MCP directamente con el prefijo
+// "<servidor>_<tool>" (un solo guión bajo). Si el protocolo que
+// infrastructure/plugin/opencode/gomemory.ts inyecta en el system prompt
+// menciona un nombre pelado o mal prefijado, el modelo intenta invocar una
+// tool que no existe y OpenCode lo reporta como llamada inválida
+// (⚙invalid[tool=, error=Model tried to call unavailable tool '']).
+func TestOpenCodeProtocolNombraTodasLasToolsPrefijadas(t *testing.T) {
+	rutaPlugin := filepath.Join(repoRootContract(t), "infrastructure", "plugin", "opencode", "gomemory.ts")
+	contenido, err := os.ReadFile(rutaPlugin)
+	if err != nil {
+		t.Fatalf("leer %s: %v", rutaPlugin, err)
+	}
+	texto := string(contenido)
+
+	for _, tool := range domain.MCPAllTools() {
+		prefijada := "gomemory_" + tool
+		if !strings.Contains(texto, `"`+prefijada+`"`) {
+			t.Errorf("gomemory.ts no declara %q: el protocolo puede mencionar esa tool sin el prefijo real de OpenCode, y el agente no podrá invocarla", prefijada)
+		}
+	}
+	for _, tool := range domain.CodebaseMemoryMCPDiscoveryTools {
+		prefijada := "codebase-memory-mcp_" + tool
+		if !strings.Contains(texto, `"`+prefijada+`"`) {
+			t.Errorf("gomemory.ts no declara %q: el protocolo del grafo de código externo puede mencionar esa tool sin el prefijo real de OpenCode", prefijada)
+		}
+	}
+}
+
 // TestClaudeAutoAllowCubreTodasLasSeguras y su contraparte destructiva.
 func TestClaudeAutoAllowCubreTodasLasSeguras(t *testing.T) {
 	allow := map[string]bool{}

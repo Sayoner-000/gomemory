@@ -177,20 +177,75 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   };
 };
 
+// OpenCode expone las tools MCP con el prefijo "<servidor>_" (un solo guión
+// bajo), no el "mcp__<servidor>__" de Claude Code. Estos nombres van literales
+// y ya prefijados aquí mismo — en un solo lugar por servidor — para no repetir
+// el bug ya visto del lado de Claude Code (get_plan_context quedó mencionada
+// con un nombre que el agente no podía invocar porque no coincidía con el
+// real). tests/contract/mcp_tool_sync_test.go verifica que esta lista siga
+// cubriendo domain.MCPAllTools() / domain.CodebaseMemoryMCPDiscoveryTools.
+const [
+  T_GET_CONTEXT,
+  T_GET_PLAN_CONTEXT,
+  T_SAVE_MEMORY,
+  T_SEARCH_MEMORIES,
+  T_LIST_MEMORIES,
+  T_GET_MEMORY,
+  T_FORGET_MEMORY,
+  T_JUDGE_MEMORIES,
+  T_START_SESSION,
+  T_END_SESSION,
+] = [
+  "gomemory_get_context",
+  "gomemory_get_plan_context",
+  "gomemory_save_memory",
+  "gomemory_search_memories",
+  "gomemory_list_memories",
+  "gomemory_get_memory",
+  "gomemory_forget_memory",
+  "gomemory_judge_memories",
+  "gomemory_start_session",
+  "gomemory_end_session",
+];
+
+const [T_SEARCH_CODE, T_GET_SYMBOL, T_LIST_DEPENDENCIES, T_GRAPH_STATUS, T_INDEX_PROJECT] = [
+  "gomemory_search_code",
+  "gomemory_get_symbol",
+  "gomemory_list_dependencies",
+  "gomemory_graph_status",
+  "gomemory_index_project",
+];
+
+const [
+  T_EXT_SEARCH_GRAPH,
+  T_EXT_TRACE_PATH,
+  T_EXT_GET_CODE_SNIPPET,
+  T_EXT_QUERY_GRAPH,
+  T_EXT_GET_ARCHITECTURE,
+  T_EXT_SEARCH_CODE,
+] = [
+  "codebase-memory-mcp_search_graph",
+  "codebase-memory-mcp_trace_path",
+  "codebase-memory-mcp_get_code_snippet",
+  "codebase-memory-mcp_query_graph",
+  "codebase-memory-mcp_get_architecture",
+  "codebase-memory-mcp_search_code",
+];
+
 const MEMORY_PROTOCOL = `## Memory Protocol — gomemory (MANDATORY, ALWAYS ACTIVE)
 
 You have a persistent memory system for this project via MCP tools
-(get_context, get_plan_context, save_memory, search_memories, list_memories,
-get_memory, forget_memory, judge_memories, start_session, end_session). The
-project's own code graph is available too (search_code, get_symbol,
-list_dependencies, graph_status, index_project). Do NOT wait for the user to
-ask.
+(${T_GET_CONTEXT}, ${T_GET_PLAN_CONTEXT}, ${T_SAVE_MEMORY}, ${T_SEARCH_MEMORIES},
+${T_LIST_MEMORIES}, ${T_GET_MEMORY}, ${T_FORGET_MEMORY}, ${T_JUDGE_MEMORIES},
+${T_START_SESSION}, ${T_END_SESSION}). The project's own code graph is
+available too (${T_SEARCH_CODE}, ${T_GET_SYMBOL}, ${T_LIST_DEPENDENCIES},
+${T_GRAPH_STATUS}, ${T_INDEX_PROJECT}). Do NOT wait for the user to ask.
 
 PLAN MODE: when you enter plan mode — or when the request asks for a plan, an
-approach, or a strategy before touching code — call get_plan_context() BEFORE
-drafting the plan. It returns the atomic decomposition method plus the project
-history; apply that method when drafting. In plan mode, deliver the task tree
-and STOP — do not execute.
+approach, or a strategy before touching code — call ${T_GET_PLAN_CONTEXT}()
+BEFORE drafting the plan. It returns the atomic decomposition method plus the
+project history; apply that method when drafting. In plan mode, deliver the
+task tree and STOP — do not execute.
 
 SAVE immediately after: an architecture/design decision, a bug fix (include
 root cause), a convention or pattern established, a tool/library choice with
@@ -198,17 +253,18 @@ tradeoffs, or a non-obvious discovery about the codebase. Routine activity
 (which files changed, which commands ran) is already captured automatically as
 a checkpoint — don't duplicate it by hand.
 Self-check after every task: "Did I decide, fix, discover, or establish
-something? If yes → save_memory now."
+something? If yes → ${T_SAVE_MEMORY} now."
 
-SEARCH (progressive disclosure): search_memories(query) for compact hits, then
-get_memory(id) only when you need full content. Search reactively when the user
-references past work, and proactively when starting something that may overlap.
+SEARCH (progressive disclosure): ${T_SEARCH_MEMORIES}(query) for compact hits,
+then ${T_GET_MEMORY}(id) only when you need full content. Search reactively
+when the user references past work, and proactively when starting something
+that may overlap.
 
 IMPARTIAL JUDGE: if two memories contradict each other (shown under "Conflictos
 sin resolver" in the context, or noticed while searching), don't assume the
 newer one is correct. Re-read the current code/source to verify which one
 reflects reality, then record the verdict with
-judge_memories(id_a, id_b, verdict, confidence, reasoning) — explain in
+${T_JUDGE_MEMORIES}(id_a, id_b, verdict, confidence, reasoning) — explain in
 reasoning what you verified.
 
 PRIVACY: if content to save includes a secret, token, or credential, wrap that
@@ -216,9 +272,10 @@ part in <private>...</private> — it is never persisted.
 
 EXTERNAL CODE GRAPH: if the codebase-memory-mcp MCP server is connected, use it
 ALWAYS for code exploration — regardless of the task: chat, plan, summary,
-whatever — instead of reading files by hand: search_graph, trace_path,
-get_code_snippet, query_graph, get_architecture, search_code. If it is not
-connected, this guidance does not apply.
+whatever — instead of reading files by hand: ${T_EXT_SEARCH_GRAPH},
+${T_EXT_TRACE_PATH}, ${T_EXT_GET_CODE_SNIPPET}, ${T_EXT_QUERY_GRAPH},
+${T_EXT_GET_ARCHITECTURE}, ${T_EXT_SEARCH_CODE}. If it is not connected, this
+guidance does not apply.
 
-SESSION CLOSE: before saying "done", call end_session(summary) with Goal /
+SESSION CLOSE: before saying "done", call ${T_END_SESSION}(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;
