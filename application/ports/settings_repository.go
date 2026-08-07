@@ -35,6 +35,10 @@ type SettingsData struct {
 	// SpeckitContextDisabled apaga el brazo extensor hacia spec-kit (feature
 	// 011, historia 4). Ausente/false = activado.
 	SpeckitContextDisabled bool `json:"speckit_context_disabled,omitempty"`
+	// AtomicPlanDisabled apaga la planificación atómica en modo plan (feature
+	// 013, historia 4): get_plan_context deja de emitir método y contexto.
+	// Ausente/false = activada, mismo patrón opt-out que SpeckitContextDisabled.
+	AtomicPlanDisabled bool `json:"atomic_plan_disabled,omitempty"`
 }
 
 type SettingsRepository interface {

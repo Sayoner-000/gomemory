@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/macOS_%7C_Linux_%7C_Windows-supported-lightgrey)](https://github.com/Sayoner-000/gomemory/releases/latest)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![MCP](https://img.shields.io/badge/MCP-14_tools-blueviolet)](https://modelcontextprotocol.io/)
+[![MCP](https://img.shields.io/badge/MCP-15_tools-blueviolet)](https://modelcontextprotocol.io/)
 [![SQLite](https://img.shields.io/badge/SQLite-embebido-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
 Servidor MCP y CLI en Go que proporciona memoria persistente a agentes de código (Claude Code, Cursor, OpenCode, Windsurf, Cline, Codex). Guarda contexto, decisiones de arquitectura y bugfixes en una base de datos SQLite embebida local, permitiendo recuperar el contexto entre sesiones sin depender de archivos en el repositorio.
@@ -69,6 +69,8 @@ mem search "API"
 * **Memoria conectada a código activo (recalculada en vivo):** a diferencia de la anotación anterior (que se congela al guardar), `get_context` cruza el archivo de cada memoria contra los hotspots vigentes del grafo externo **en cada llamada** — si el código se reindexa y cambian los hotspots, qué memorias son relevantes se actualiza solo, sin tocar lo ya guardado.
 * **Sincronización bidireccional de ADR (opcional):** las memorias `architecture`/`decision` se reflejan como bloques marcados en el documento de ADR del proveedor externo, y los bloques que el proveedor tenga sin marcar se importan como memoria — sin bucles de resincronización. Consultable con `mem adr-sync status`. `mem settings --adr-sync=true|false` (default apagado).
 * **Múltiples proveedores de grafo con fallback automático:** `mem settings --code-graph-providers=cmd1,cmd2` declara candidatos en orden de prioridad; gomemory usa el primero disponible sin reconfigurar al cambiar de máquina/entorno.
+* **Modo plan atómico (activación autónoma, cualquier agente):** al entrar en modo plan, el agente llama por su cuenta a `get_plan_context()` (o `./mem plan-context`) y recibe, en **una sola llamada**, el método de descomposición atómica y el historial del proyecto. El plan resultante es un árbol de tareas donde cada hoja declara un resultado verificable, o queda marcada como no atómica con su motivo. La activación no depende de hooks propios de un agente: el disparador viaja en el bloque de protocolo que `mem install` escribe en `AGENTS.md`/`CLAUDE.md`/`.cursorrules`/`.windsurfrules`, así que **cualquier agente que lea el protocolo y alcance gomemory queda cubierto** — los de hoy y los que aparezcan después — sin escribir integración para cada uno. En modo plan el método entrega el árbol y se detiene: la ejecución sigue siendo un paso aparte. Se enciende/apaga desde la TUI o con `mem settings --atomic-plan=true|false` (default activado).
+
 * **Brazo extensor hacia spec-kit (opcional):** si el proyecto ya tiene [GitHub Spec Kit](https://github.com/github/spec-kit) inicializado (`.specify/`), `mem install` deja lista una extensión bundleada (`.specify/extensions/gomemory-context/`) que conecta `get_context`/`mem context` con el flujo `/speckit-specify` (y opcionalmente `/speckit-plan`/`/speckit-clarify`) — sin instalar nada aparte, y funciona igual en **Claude Code y OpenCode**. Cada especificación nueva se redacta con el historial del proyecto (features previas, decisiones) sin barrer `specs/` a mano, y sin mezclar esa historia con el grafo de código externo (secciones separadas y rotuladas). Se enciende/apaga desde la TUI o con `mem settings --speckit-context=true|false` (default activado), de forma independiente a la configuración de spec-kit; en proyectos sin spec-kit, `mem install` no crea ningún archivo relacionado. Ver [`docs/architecture.md`](docs/architecture.md).
 * **Resolución de conflictos:** `judge_memories` resuelve colisiones entre memorias obsoletas y nuevas con veredictos semánticos obligatorios.
 * **Memoria portable (export/import):** `mem export` vuelca las memorias **+ sus relaciones** (sinapsis y veredictos) a un JSON UTF-8 autocontenido, apto para moverlas entre proyectos y máquinas con distinto S.O. `mem import` las trae al proyecto actual con **append + dedup por contenido** (no duplica), **preservando los timestamps** originales, remapeando el proyecto y los ids de relación, y **sin generar sinapsis espurias**. Disponible también desde la TUI (tecla `c` → Configuración).
@@ -83,6 +85,7 @@ mem search "API"
 | `list_memories` | Devuelve las memorias recientes del proyecto (extractos compactos). |
 | `get_memory` | Retorna el contenido íntegro de un ID específico (detalle bajo demanda). |
 | `get_context` | Contexto del proyecto en markdown, acotado por presupuesto, para arrancar sesión. |
+| `get_plan_context` | Método de descomposición atómica + historial del proyecto, en una sola llamada, para arrancar el modo plan. |
 | `start_session` / `end_session` | Abre y cierra una sesión de trabajo con resumen. |
 | `forget_memory` | Elimina un registro por ID (requiere aprobación manual). |
 | `judge_memories` | Resuelve conflictos semánticos entre dos registros. |
@@ -108,6 +111,7 @@ Comandos principales para la gestión manual:
 | `mem list [-n N]` / `mem log` | Lista las memorias más recientes (`-n` cantidad, default 20). |
 | `mem init [--force]` | Inicializa `.memory/` explícitamente. |
 | `mem context [-w]` | Muestra o escribe el contexto actual. |
+| `mem plan-context` | Método de planificación atómica + contexto, para agentes sin MCP. Siempre sale con código 0. |
 | `mem capture` | Formulario guiado (What/Why/Where/Learned). |
 | `mem project` | Detecta el proyecto actual (clave, raíz) y muestra su información. |
 | `mem index [--force]` | Indexa el código Go del propio proyecto (grafo de símbolos interno — ver "Herramientas MCP Expuestas"). |
@@ -148,6 +152,7 @@ Ajustable en `.memory/settings.json` (valores por defecto entre paréntesis):
 | `compact_threshold` | Huella emitida/sesión que dispara el recordatorio (`<=0` = off) | `48000` |
 | `dedup_window_days` | Ventana del dedup por identidad (`<=0` = off; el `topic_key` sigue) | `7` |
 | `synapse_disabled` | Desactiva la formación automática de sinapsis (aristas de co-activación en sesión). Reduce 1-3 queries por `save_memory`. | `false` (activada) |
+| `atomic_plan_disabled` | Desactiva la planificación atómica en modo plan: `get_plan_context` / `mem plan-context` terminan sin salida. | `false` (activada) |
 
 ```text
 gomemory/

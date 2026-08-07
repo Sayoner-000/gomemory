@@ -696,8 +696,34 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // ─── Config screen ──────────────────────────────────────────────────
 
+// configRowAtomicPlan es la fila del interruptor de planificación atómica
+// (feature 013). Nombrada en vez de un literal porque el test la referencia y
+// un reordenamiento del menú debe romper la compilación, no el comportamiento
+// en silencio.
+const configRowAtomicPlan = 6
+
 // configOptions es el número de filas del menú de configuración.
-const configOptions = 6
+const configOptions = configRowAtomicPlan + 1
+
+// atomicPlanScope indica si la planificación atómica también está habilitada en
+// el ámbito de usuario, para que la persona vea desde dónde le llega la
+// funcionalidad (feature 013, FR-033). Vacío si solo aplica a este proyecto.
+func atomicPlanScope() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	globales := []string{
+		filepath.Join(home, ".claude", "skills", "atomic-decomposition", "SKILL.md"),
+		filepath.Join(home, ".config", "opencode", "commands", "atomic-decomposition.md"),
+	}
+	for _, p := range globales {
+		if _, err := os.Stat(p); err == nil {
+			return "  (también en ámbito global)"
+		}
+	}
+	return ""
+}
 
 func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -777,6 +803,17 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Brazo extensor spec-kit desactivado"
 			} else {
 				m.statusMsg = "Brazo extensor spec-kit activado"
+			}
+			m.statusTimer = 40
+
+		case configRowAtomicPlan: // Toggle planificación atómica en modo plan
+			s := m.settingsRepo.Read(m.root)
+			s.AtomicPlanDisabled = !s.AtomicPlanDisabled
+			m.settingsRepo.Write(m.root, s)
+			if s.AtomicPlanDisabled {
+				m.statusMsg = "Planificación atómica desactivada en este proyecto"
+			} else {
+				m.statusMsg = "Planificación atómica activada (el agente la carga al entrar en modo plan)"
 			}
 			m.statusTimer = 40
 		}
@@ -1624,6 +1661,7 @@ func (m model) configView() string {
 		"Importar memorias",
 		"Sinapsis automática: " + onOff(!s.SynapseDisabled),
 		"Brazo extensor spec-kit: " + onOff(!s.SpeckitContextDisabled),
+		"Planificación atómica: " + onOff(!s.AtomicPlanDisabled) + atomicPlanScope(),
 	}
 	for i, label := range rows {
 		if i == m.configCursor {

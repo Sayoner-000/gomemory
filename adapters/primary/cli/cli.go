@@ -55,6 +55,7 @@ Uso:
   mem project                      Detectar proyecto actual y mostrar información
 
   mem context [-w|--write]         Mostrar contexto de memoria
+  mem plan-context                 Método de planificación atómica + contexto (modo plan)
   mem search <query>               Buscar en la memoria
   mem install [dir]                Instalar gomemory en un proyecto
   mem uninstall [dir] [--yes]      Desinstalar gomemory por completo (reverso de install)

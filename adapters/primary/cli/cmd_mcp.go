@@ -307,6 +307,33 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + output}},
 		}, nil, nil
 	})
+
+	// get_plan_context (feature 013): método de descomposición atómica +
+	// contexto histórico en UNA sola llamada, para que el agente la invoque una
+	// vez al entrar en modo plan en vez de encadenar dos pasos que puede
+	// ejecutar a medias. La descripción es parte del contrato: es lo que el
+	// agente lee para decidir cuándo llamarla, así que enumera el disparador.
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "get_plan_context",
+		Description: "Obtiene el método de descomposición atómica y el contexto histórico del proyecto " +
+			"para planificar. Llámala SIEMPRE al entrar en modo plan, ANTES de redactar el plan: " +
+			"cuando entres en un modo de planificación, cuando la persona invoque un comando de " +
+			"planificación, o cuando la solicitud pida un plan, un enfoque o una estrategia antes de " +
+			"tocar código. Aplica el método que devuelve al redactar el plan, y en modo plan entrega " +
+			"el árbol de tareas y detente sin ejecutar.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+		// Nunca propaga error: un modo plan no puede quedar interrumpido porque
+		// la memoria no esté disponible (FR-034). Un output vacío significa que
+		// la funcionalidad está apagada por configuración (FR-032) y se respeta
+		// tal cual — no se repone el método, o el interruptor no serviría.
+		output, err := buildPlanContextDoc(deps)
+		if err != nil {
+			output = planMethod
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: output}},
+		}, nil, nil
+	})
 }
 
 func registerResources(server *mcp.Server, deps *Deps, project string) {

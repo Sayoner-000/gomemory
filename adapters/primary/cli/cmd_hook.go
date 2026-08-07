@@ -591,12 +591,23 @@ se pierde de la memoria.`
 // el select explícito. Se emite SOLO aquí porque este hook lo registra
 // únicamente Claude Code; OpenCode carga las tools por su plugin y el resto de
 // agentes por las instrucciones MCP nativas, así que no necesitan este bootstrap.
-const memoryToolBootstrap = `PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA, antes de responder al usuario, ` +
-	`para cargar las tools de memoria del proyecto:
-select:mcp__gomemory__get_context,mcp__gomemory__save_memory,mcp__gomemory__search_memories,mcp__gomemory__list_memories,mcp__gomemory__get_memory,mcp__gomemory__forget_memory,mcp__gomemory__judge_memories,mcp__gomemory__start_session,mcp__gomemory__end_session
-Luego llama a get_context() para cargar la memoria previa del proyecto antes de continuar.`
+// memoryToolBootstrap se construye desde domain.MCPAllTools() en vez de llevar
+// la lista escrita a mano: cuando estaba hardcodeada, la tool get_plan_context
+// (feature 013) y las 5 del grafo de código quedaron fuera, así que el agente
+// leía "llama a get_plan_context() al entrar en modo plan" y no podía hacerlo
+// porque su esquema nunca se materializaba. Un test de contrato verifica que
+// esta lista coincida con las tools que el servidor registra de verdad.
+// MemoryToolBootstrap expone el bootstrap para el test de contrato que verifica
+// que materialice TODAS las tools registradas por el servidor.
+func MemoryToolBootstrap() string { return memoryToolBootstrap }
 
-const memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
+var memoryToolBootstrap = `PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA, antes de responder al usuario, ` +
+	`para cargar las tools de memoria del proyecto:
+select:` + strings.Join(domain.MCPPrefixed("mcp__gomemory__", domain.MCPAllTools()), ",") + `
+Luego llama a get_context() para cargar la memoria previa del proyecto antes de continuar.
+Si entras en modo plan, llama además a get_plan_context() ANTES de redactar el plan.`
+
+var memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
 	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +
 	`un patrón o convención establecida, o un hallazgo no obvio. No esperes a que el ` +
 	`usuario lo pida. La actividad rutinaria (qué archivos se editaron, qué comandos ` +
@@ -613,7 +624,6 @@ PRIVACIDAD: si vas a guardar algo que incluye un secreto, token o credencial, en
 	`parte en <private>...</private> — nunca se persiste.
 
 IMPORTANTE — no confundir sistemas: este proyecto usa EXCLUSIVAMENTE las tools MCP de ` +
-	`gomemory (save_memory, search_memories, get_memory, list_memories, forget_memory, ` +
-	`judge_memories, start_session, end_session, get_context). El sistema de memoria nativo ` +
+	`gomemory (` + strings.Join(domain.MCPAllTools(), ", ") + `). El sistema de memoria nativo ` +
 	`del harness (archivo MEMORY.md bajo ~/.claude/projects/.../memory/) NO aplica aquí — ` +
 	`ignóralo por completo en este proyecto y no lo consultes ni escribas en él.`

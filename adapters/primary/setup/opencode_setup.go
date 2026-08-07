@@ -16,6 +16,11 @@ func InstallOpenCode(root string, ref AgentRef) error {
 		return err
 	}
 	fmt.Printf("  ✅ opencode: MCP configurado en %s\n", filepath.Join(root, "opencode.json"))
+
+	if err := writeOpenCodePermissions(filepath.Join(root, "opencode.json")); err != nil {
+		return err
+	}
+	fmt.Printf("  ✅ opencode: tools MCP pre-aprobadas en %s\n", filepath.Join(root, "opencode.json"))
 	return nil
 }
 
@@ -42,6 +47,73 @@ func InstallOpenCodeGlobal(ref AgentRef) error {
 		return err
 	}
 	fmt.Printf("  ✅ opencode: MCP registrado en scope global (%s)\n", cfgPath)
+
+	if err := writeOpenCodePermissions(cfgPath); err != nil {
+		return err
+	}
+	fmt.Printf("  ✅ opencode: tools MCP pre-aprobadas en scope global (%s)\n", cfgPath)
+	return nil
+}
+
+// openCodeToolPermissions son los permisos que gomemory declara para sus tools
+// MCP en OpenCode. El comodín abre el conjunto y la entrada específica cierra la
+// excepción: en OpenCode una clave concreta prevalece sobre el comodín.
+//
+// forget_memory queda deliberadamente en "ask" por ser destructiva e
+// irreversible — misma exclusión que ya aplica ClaudeAutoAllowTools. Un comodín
+// plano la habría pre-aprobado de pasada.
+var openCodeToolPermissions = map[string]string{
+	"gomemory_*":             "allow",
+	"gomemory_forget_memory": "ask",
+}
+
+// writeOpenCodePermissions declara los permisos de las tools de gomemory en el
+// opencode.json indicado (de proyecto o de usuario: el esquema es idéntico en
+// ambos scopes, igual que para la entrada "mcp").
+//
+// Sin esto, cada llamada del agente a una tool de gomemory queda bloqueada
+// pidiendo aprobación, que es la causa más común de que el protocolo de memoria
+// no se aplique de forma automática — el mismo problema que writeClaudePermissions
+// resuelve del lado de Claude Code.
+//
+// IMPORTANTE: el esquema correcto es la clave "permission" de PRIMER NIVEL con
+// comodines por servidor MCP. NO es el `mcpServers[].autoApprove` de Claude Code:
+// OpenCode ignora esa forma por completo (ver el comentario de WriteOpenCodeMCP
+// sobre el esquema legado, que produjo exactamente ese fallo silencioso).
+//
+// Idempotente: preserva el resto de la configuración y los permisos que la
+// persona haya declarado por su cuenta, y no reescribe el archivo si nada cambia.
+func writeOpenCodePermissions(cfgPath string) error {
+	cfg := map[string]interface{}{}
+	previo, _ := os.ReadFile(cfgPath)
+	if len(previo) > 0 {
+		json.Unmarshal(previo, &cfg)
+	}
+	if _, ok := cfg["$schema"]; !ok {
+		cfg["$schema"] = "https://opencode.ai/config.json"
+	}
+
+	perm, _ := cfg["permission"].(map[string]interface{})
+	if perm == nil {
+		perm = map[string]interface{}{}
+	}
+	for tool, level := range openCodeToolPermissions {
+		perm[tool] = level
+	}
+	cfg["permission"] = perm
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("serializar %s: %w", cfgPath, err)
+	}
+	// Solo escribe si el contenido difiere: mismo criterio de idempotencia que
+	// usa InstallPlugin, para no tocar mtime en cada reinstalación.
+	if string(previo) == string(data) {
+		return nil
+	}
+	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+		return fmt.Errorf("write %s: %w", cfgPath, err)
+	}
 	return nil
 }
 

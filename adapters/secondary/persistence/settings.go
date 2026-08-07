@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"mem/domain"
 )
 
 type Settings struct {
@@ -50,6 +52,12 @@ type Settings struct {
 	// el script del hook (sin pasar por mem settings), así el gate no depende
 	// de que la CLI/TUI ya lo expongan.
 	SpeckitContextDisabled bool `json:"speckit_context_disabled,omitempty"`
+	// AtomicPlanDisabled apaga la planificación atómica en modo plan (feature
+	// 013): `mem plan-context` / get_plan_context terminan sin salida. Ausente/
+	// false = activada, mismo patrón opt-out que SpeckitContextDisabled. Un
+	// bool JSON no distingue "ausente" de "false", y la funcionalidad debe
+	// quedar ON sin que el usuario tenga que optar por ella.
+	AtomicPlanDisabled bool `json:"atomic_plan_disabled,omitempty"`
 }
 
 // Defaults de la huella de contexto (feature 008). En CARACTERES emitidos salvo
@@ -62,8 +70,13 @@ const (
 
 func DefaultSettings() Settings {
 	return Settings{
-		AutoApprove:      false,
-		AutoApproveTools: []string{"save_memory", "start_session", "end_session", "search_memories", "get_memory", "get_context", "judge_memories"},
+		AutoApprove: false,
+		// Derivado de domain: son las tools que ApplyAutoApprove escribe como
+		// `autoApprove` para Cursor, Windsurf y Cline. Cuando esta lista estaba
+		// escrita a mano se quedó sin get_plan_context ni las 5 del grafo, así que
+		// esos agentes pedían permiso justo en la acción que debía ser automática.
+		// forget_memory queda fuera por destructiva (MCPAutoApprovableTools).
+		AutoApproveTools: domain.MCPAutoApprovableTools(),
 		Budget:           DefaultBudget,
 		CompactThreshold: DefaultCompactThreshold,
 		DedupWindowDays:  DefaultDedupWindowDays,

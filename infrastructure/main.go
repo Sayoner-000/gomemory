@@ -33,6 +33,14 @@ var templatesFS embed.FS
 func init() {
 	setup.PluginFS = pluginFS
 	cli.TemplatesFS = templatesFS
+	// Método de planificación atómica (feature 013): se inyecta una sola vez
+	// desde la plantilla embebida — fuente única de verdad compartida por
+	// `mem plan-context`, la tool MCP get_plan_context y los envoltorios
+	// nativos por agente. Si la plantilla faltara, planMethod queda vacío y la
+	// cadena degrada emitiendo solo el contexto, sin romper el modo plan.
+	if data, err := templatesFS.ReadFile("templates/atomic-plan-method.md"); err == nil {
+		cli.SetPlanMethod(string(data))
+	}
 }
 
 // rootIndependentCommands no requieren un .memory/ preexistente: ellos mismos

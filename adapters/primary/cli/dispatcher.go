@@ -31,6 +31,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdProject(deps, args)
 	case "context":
 		CmdContext(deps, args)
+	case "plan-context":
+		CmdPlanContext(deps, args)
 	case "search":
 		CmdSearch(deps, args)
 	case "session":

@@ -180,9 +180,17 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
 const MEMORY_PROTOCOL = `## Memory Protocol — gomemory (MANDATORY, ALWAYS ACTIVE)
 
 You have a persistent memory system for this project via MCP tools
-(save_memory, search_memories, get_memory, list_memories, forget_memory,
-judge_memories, get_context, start_session, end_session). Do NOT wait for the
-user to ask.
+(get_context, get_plan_context, save_memory, search_memories, list_memories,
+get_memory, forget_memory, judge_memories, start_session, end_session). The
+project's own code graph is available too (search_code, get_symbol,
+list_dependencies, graph_status, index_project). Do NOT wait for the user to
+ask.
+
+PLAN MODE: when you enter plan mode — or when the request asks for a plan, an
+approach, or a strategy before touching code — call get_plan_context() BEFORE
+drafting the plan. It returns the atomic decomposition method plus the project
+history; apply that method when drafting. In plan mode, deliver the task tree
+and STOP — do not execute.
 
 SAVE immediately after: an architecture/design decision, a bug fix (include
 root cause), a convention or pattern established, a tool/library choice with

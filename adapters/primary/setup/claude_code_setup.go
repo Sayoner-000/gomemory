@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"mem/domain"
 	"mem/version"
 )
 
@@ -101,23 +102,11 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 // ClaudeAutoAllowTools son las tools MCP de gomemory seguras para pre-aprobar
 // automáticamente: de solo lectura, o de escritura acotada y reversible.
 // forget_memory queda deliberadamente afuera por ser destructiva/irreversible.
-var ClaudeAutoAllowTools = []string{
-	"mcp__gomemory__save_memory",
-	"mcp__gomemory__search_memories",
-	"mcp__gomemory__list_memories",
-	"mcp__gomemory__get_memory",
-	"mcp__gomemory__start_session",
-	"mcp__gomemory__end_session",
-	"mcp__gomemory__get_context",
-	"mcp__gomemory__judge_memories",
-	// Grafo de código: todas de solo lectura salvo index_project, que solo
-	// escribe en .memory/ (nunca toca el código fuente del proyecto).
-	"mcp__gomemory__index_project",
-	"mcp__gomemory__graph_status",
-	"mcp__gomemory__search_code",
-	"mcp__gomemory__get_symbol",
-	"mcp__gomemory__list_dependencies",
-}
+// Se deriva de domain para que no pueda desincronizarse del servidor: son todas
+// las tools registradas menos las destructivas (forget_memory). Las de grafo son
+// de solo lectura salvo index_project, que solo escribe en .memory/ y nunca toca
+// el código fuente.
+var ClaudeAutoAllowTools = domain.MCPPrefixed("mcp__gomemory__", domain.MCPAutoApprovableTools())
 
 // staleAllowPrefixes son prefijos de entradas de permisos obsoletas de
 // instalaciones/servidores MCP previos que ya no existen, y que se limpian al

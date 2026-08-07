@@ -171,3 +171,47 @@ func TestSettingsPath_UnusedImportsGuard(t *testing.T) {
 		t.Fatal("SettingsPath debería terminar en settings.json")
 	}
 }
+
+// --- Feature 013: modo plan atómico ---
+
+// TestReadSettings_AtomicPlanDisabled_AusenteEsFalse cubre la retrocompatibilidad
+// exigida por FR-025: un settings.json escrito antes de esta feature no tiene la
+// clave, y debe deserializar a false — es decir, la planificación atómica queda
+// ACTIVA sin que nadie tenga que optar por ella. Es el mismo patrón opt-out que
+// SpeckitContextDisabled y SynapseDisabled.
+func TestReadSettings_AtomicPlanDisabled_AusenteEsFalse(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{"auto_approve": false})
+
+	if got := ReadSettings(root).AtomicPlanDisabled; got {
+		t.Errorf("AtomicPlanDisabled con la clave ausente = %v, se esperaba false (funcionalidad activa)", got)
+	}
+}
+
+func TestReadSettings_AtomicPlanDisabled_TrueSeRespeta(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{"atomic_plan_disabled": true})
+
+	if got := ReadSettings(root).AtomicPlanDisabled; !got {
+		t.Errorf("AtomicPlanDisabled = %v, se esperaba true", got)
+	}
+}
+
+// TestSettingsRepository_AtomicPlanDisabled_RoundTrip verifica que el campo
+// sobrevive el mapeo persistence.Settings <-> ports.SettingsData en ambos
+// sentidos. Sin esto, el ajuste se leería bien pero se perdería al guardarlo
+// desde la TUI (que escribe vía el repositorio, no vía WriteSettings).
+func TestSettingsRepository_AtomicPlanDisabled_RoundTrip(t *testing.T) {
+	root := t.TempDir()
+	repo := NewSettingsRepository()
+
+	s := repo.Read(root)
+	s.AtomicPlanDisabled = true
+	if err := repo.Write(root, s); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	if got := repo.Read(root).AtomicPlanDisabled; !got {
+		t.Errorf("tras el round-trip AtomicPlanDisabled = %v, se esperaba true", got)
+	}
+}

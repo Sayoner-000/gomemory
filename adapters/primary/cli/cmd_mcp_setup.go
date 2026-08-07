@@ -153,8 +153,29 @@ func runGlobalScopeSetup(agentList []string) {
 		}
 	}
 
+	// Planificación atómica en scope global (spec 013, Historia 3): además del
+	// registro del servidor MCP, se escribe el bloque de protocolo —que lleva el
+	// disparador de modo plan— en el archivo de instrucciones de nivel usuario
+	// de cada agente, y su envoltorio nativo. Con esto, habilitar una vez cubre
+	// todos los proyectos presentes y futuros.
+	//
+	// Cursor, Windsurf y Cline quedan deliberadamente fuera: no aparecen en
+	// globalScopeAgents porque no tienen un scope de usuario equivalente. Su
+	// cobertura llega por scope de proyecto, donde `mem install` ya les escribe
+	// el mismo bloque de protocolo en .cursorrules/.windsurfrules — así que no
+	// pierden la funcionalidad, solo el "habilitar una sola vez".
+	written, err := setup.InstallAtomicPlanGlobal(PlanMethod(), func(existing string) (string, bool) {
+		return composeAgentFile(existing, "", buildIntegrationBlock())
+	})
+	if err != nil {
+		fmt.Printf("  ⚠️  planificación atómica (scope global): %v\n", err)
+	}
+	for _, p := range written {
+		fmt.Printf("  ✅ planificación atómica: %s\n", p)
+	}
+
 	fmt.Println()
-	if generated > 0 {
+	if generated > 0 || len(written) > 0 {
 		fmt.Printf("✅ %d registro(s) global(es) completados. Reinicia el agente para que los detecte.\n", generated)
 	} else {
 		fmt.Println("ℹ️  No se completó ningún registro global nuevo.")

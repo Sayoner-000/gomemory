@@ -193,3 +193,34 @@ func TestRemoveClaudePermissionsPreservesThirdParty(t *testing.T) {
 		}
 	}
 }
+
+// TestClaudePermissions_IncluyeGetPlanContext cubre la feature 013: la tool de
+// planificación debe quedar pre-aprobada. Sin esto, cada entrada en modo plan
+// queda pidiendo permiso y la activación autónoma deja de ser autónoma — el
+// propio comentario de writeClaudePermissions señala esa omisión como la causa
+// más común de que el protocolo de memoria no se aplique.
+func TestClaudePermissions_IncluyeGetPlanContext(t *testing.T) {
+	root := t.TempDir()
+	if err := writeClaudePermissions(root); err != nil {
+		t.Fatalf("writeClaudePermissions: %v", err)
+	}
+
+	allow := allowList(t, readSettings(t, root))
+	for _, e := range allow {
+		if e == "mcp__gomemory__get_plan_context" {
+			return
+		}
+	}
+	t.Errorf("falta mcp__gomemory__get_plan_context en permissions.allow; hay: %v", allow)
+}
+
+// TestClaudeAutoAllowTools_ExcluyeForgetMemory protege una decisión de seguridad
+// ya tomada: forget_memory es irreversible y NO debe pre-aprobarse. Se verifica
+// aquí para que una adición futura no la cuele por descuido.
+func TestClaudeAutoAllowTools_ExcluyeForgetMemory(t *testing.T) {
+	for _, tool := range ClaudeAutoAllowTools {
+		if tool == "mcp__gomemory__forget_memory" {
+			t.Error("forget_memory no debe pre-aprobarse: es destructiva e irreversible")
+		}
+	}
+}

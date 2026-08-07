@@ -64,7 +64,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
 | `install` | `adapters/primary/cli/cmd_install.go` | Copia binario + init + .gitignore + AGENTS + configura MCP para todos los agentes |
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 9 tools de memoria + 5 de grafo de codigo y 2 recursos. Acepta `--root <dir>` |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 10 tools de memoria + 5 de grafo de codigo y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `post-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `plan-approved`, `nudge`, `prompt`) |
@@ -381,7 +381,7 @@ Wrapper interactivo que envuelve cualquier comando:
 
 Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
 
-**Herramientas de memoria (9):**
+**Herramientas de memoria (10):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -394,6 +394,12 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `start_session` | — | Inicia sesión de trabajo (valida que no haya activa) |
 | `end_session` | summary | Finaliza sesión activa |
 | `get_context` | — | Contexto markdown completo del proyecto |
+| `get_plan_context` | — | Método de descomposición atómica + contexto, para modo plan |
+
+> Los nombres viven en `domain/mcp_tools.go` (fuente única). El bootstrap de
+> ToolSearch, las listas de auto-aprobación y el bloque de protocolo derivan de
+> ahí, y `tests/contract/mcp_tool_sync_test.go` compara esa lista contra las
+> tools que el servidor registra de verdad.
 
 **Herramientas de grafo de codigo (5):**
 
@@ -839,6 +845,18 @@ datos se resuelve solo. Una variable opcional:
 15. **Relaciones semánticas idempotentes**: `mem compare` detecta si ya existe una relación para el par (a,b) y la actualiza en lugar de duplicar. La búsqueda por par funciona en cualquier orden (a,b) o (b,a).
 
 16. **Project como comando read-only**: `mem project` solo lee el sistema de archivos y la BD, nunca escribe. Ideal para verificar contexto antes de operar.
+
+17. **Modo plan atómico: activación por protocolo, no por hooks de agente** (2026-08-06, spec 013). Al entrar en modo plan, el agente invoca `get_plan_context()` / `mem plan-context` **por su propia iniciativa**, siguiendo una instrucción del bloque de protocolo (`gomemory-protocol-v6`). 
+
+    **Contexto**: la alternativa era detectar el modo plan desde el entorno, con un hook por agente (`PreToolUse`/`EnterPlanMode` en Claude Code, un evento del plugin en OpenCode). Se descartó: solo cubre los agentes con integración dedicada, y en varios el cambio a modo plan es un estado de la interfaz que ningún hook observa.
+
+    **Compromisos aceptados**: la fiabilidad pasa a depender de que el agente obedezca la instrucción, no de una garantía del entorno — el mismo trato que ya rige para el resto del protocolo de memoria. A cambio, la cobertura es universal: cualquier agente que lea el protocolo y alcance gomemory queda cubierto sin escribir código para él (verificado: Cursor y Windsurf reciben el disparador sin una sola línea específica).
+
+    **Una sola llamada, no dos**: `get_plan_context()` devuelve método + contexto juntos. El método completo (~4 KB) **no** va en el bloque de protocolo porque ese bloque vive en el prompt de sistema de todos los turnos, y la feature 008 se hizo para reducir esa huella; el bloque solo lleva el disparador (~7 líneas). La parte de contexto reutiliza `ContextBuilder.Build()`, heredando el techo de `budget` — reconstruirla por separado lo habría roto en silencio.
+
+    **Dos ramas de degradación distintas**: sin historial se emite solo el método (la ausencia de memoria es una circunstancia); con `atomic_plan_disabled` no se emite nada (el apagado sí es una preferencia). El código de salida es siempre 0: nada puede interrumpir un modo plan.
+
+    **Pre-aprobación como requisito, no como extra**: sin ella el agente pide permiso en cada planificación y la activación deja de ser autónoma. En Claude Code se añadió a `ClaudeAutoAllowTools`; en OpenCode **no existía ninguna gestión de permisos** y se construyó `writeOpenCodePermissions` con su esquema real (clave `permission` de primer nivel, `gomemory_*: allow` con `gomemory_forget_memory: ask` para no pre-aprobar una operación irreversible). El esquema `mcpServers[].autoApprove` de Claude Code **no sirve en OpenCode**: lo ignora por completo.
 
 ## Estructura de Directorios del Proyecto
 

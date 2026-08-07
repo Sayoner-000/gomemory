@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"mem/adapters/primary/setup"
+	"mem/domain"
 )
 
 func CmdInstall(deps *Deps, args []string) {
@@ -178,6 +179,15 @@ func CmdInstall(deps *Deps, args []string) {
 		fmt.Printf("  ⚠️  Error al distribuir el brazo extensor spec-kit: %v\n", err)
 	}
 
+	// 4d. Envoltorios nativos del método de planificación atómica (spec 013).
+	// Capa OPCIONAL: el disparador ya viaja en el bloque de protocolo que todos
+	// los agentes leen, así que un fallo aquí nunca bloquea la instalación.
+	if err := setup.InstallAtomicPlanWrappers(target, PlanMethod()); err != nil {
+		fmt.Printf("  ⚠️  Error al distribuir el método de planificación atómica: %v\n", err)
+	} else if PlanMethod() != "" {
+		fmt.Printf("  ✅ Método de planificación atómica distribuido (claude-code, opencode)\n")
+	}
+
 	// 5. MCP server config + plugins/hooks for all agents.
 	// Para OpenCode y Claude Code instalamos el plugin completo (que incluye los
 	// hooks automáticos), no solo el MCP: `install` debe dejar todo listo en un
@@ -251,7 +261,7 @@ func runIn(dir, bin string, args ...string) error {
 }
 
 const integrationMarker = "## Memoria Persistente"
-const integrationVersionMarker = "<!-- gomemory-protocol-v5 -->"
+const integrationVersionMarker = "<!-- gomemory-protocol-v6 -->"
 const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
 
 // TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
@@ -340,9 +350,12 @@ func buildIntegrationBlock() string {
 		"- " + bt + "judge_memories(id_a, id_b, verdict, confidence, reasoning)" + bt + " — veredicto imparcial entre dos memorias en conflicto",
 		"- " + bt + "start_session()" + bt + " / " + bt + "end_session(summary?)" + bt + " — gestiona la sesión de trabajo",
 		"- " + bt + "get_context()" + bt + " — contexto completo del proyecto en markdown",
+		"- " + bt + "get_plan_context()" + bt + " — método de descomposición atómica + historial, para modo plan",
+		"",
+		"Grafo de código propio del proyecto: " + bt + strings.Join(domain.MCPCodeTools, bt+", "+bt) + bt + ".",
 		"",
 		"Si el MCP no está disponible en el agente actual, usa el CLI equivalente:",
-		bt + `./mem save -t "título" -y tipo "contenido"` + bt + ", " + bt + `./mem search "tema"` + bt + ", " + bt + "./mem context" + bt + ", " + bt + "./mem session start|end" + bt + ", " + bt + "./mem forget <id>" + bt + ", " + bt + "./mem judge -r <veredicto> -m \"razón\" <id1> <id2>" + bt + ".",
+		bt + `./mem save -t "título" -y tipo "contenido"` + bt + ", " + bt + `./mem search "tema"` + bt + ", " + bt + "./mem context" + bt + ", " + bt + "./mem plan-context" + bt + ", " + bt + "./mem session start|end" + bt + ", " + bt + "./mem forget <id>" + bt + ", " + bt + "./mem judge -r <veredicto> -m \"razón\" <id1> <id2>" + bt + ".",
 		"",
 		"### GUARDAR PROACTIVAMENTE — no esperes a que el usuario lo pida",
 		"Llama a " + bt + "save_memory" + bt + " (o " + bt + "./mem save" + bt + ") INMEDIATAMENTE después de:",
@@ -365,6 +378,14 @@ func buildIntegrationBlock() string {
 		"### Privacidad",
 		"Si vas a guardar un secreto, token o credencial, envuelve esa parte en",
 		bt + "<private>...</private>" + bt + " — nunca se persiste.",
+		"",
+		"### Al entrar en modo plan:",
+		"Llama " + bt + "get_plan_context()" + bt + " (o " + bt + "./mem plan-context" + bt + ") ANTES de redactar el plan, en cuanto",
+		"se dé cualquiera de estas tres situaciones: entras en un modo de planificación; la",
+		"persona invoca un comando de planificación; o la solicitud pide un plan, un enfoque o",
+		"una estrategia antes de tocar código.",
+		"Devuelve el método de descomposición atómica y el historial del proyecto: aplica ese",
+		"método al redactar. En modo plan, entrega el árbol de tareas y **detente** — no ejecutes.",
 		"",
 		"### Al inicio de cada sesión:",
 		"1. Llama " + bt + "get_context()" + bt + " (o " + bt + "./mem context" + bt + ") para cargar el contexto histórico",

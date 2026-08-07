@@ -15,6 +15,7 @@ func CmdSettings(deps *Deps, args []string) {
 	codeImpactAnnotation := fs.Bool("code-impact-annotation", true, "Anotar impacto de código al guardar una memoria con archivo asociado")
 	adrSync := fs.Bool("adr-sync", false, "Sincronizar memorias architecture/decision como ADR con el proveedor externo")
 	speckitContext := fs.Bool("speckit-context", true, "Activar el brazo extensor hacia spec-kit (resumen de historial en /speckit-specify)")
+	atomicPlan := fs.Bool("atomic-plan", true, "Activar la planificación atómica en modo plan (método + contexto vía get_plan_context)")
 	show := fs.Bool("show", false, "Mostrar configuración actual")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -57,6 +58,8 @@ func CmdSettings(deps *Deps, args []string) {
 			settings.AdrSyncEnabled = *adrSync
 		case "speckit-context":
 			settings.SpeckitContextDisabled = !*speckitContext
+		case "atomic-plan":
+			settings.AtomicPlanDisabled = !*atomicPlan
 		}
 	})
 
@@ -85,6 +88,7 @@ func printSettings(deps *Deps, root string) {
 	fmt.Printf("Anotación de impacto al guardar: %v\n", !s.CodeImpactAnnotationDisabled)
 	fmt.Printf("Sincronización de ADR: %v\n", s.AdrSyncEnabled)
 	fmt.Printf("Brazo extensor spec-kit: %v\n", !s.SpeckitContextDisabled)
+	fmt.Printf("Planificación atómica en modo plan: %v\n", !s.AtomicPlanDisabled)
 }
 
 // splitProviderList separa "--code-graph-providers=cmd1,cmd2" en una lista,

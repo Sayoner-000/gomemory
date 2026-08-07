@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"mem/application/ports"
 	"mem/domain"
 )
 
@@ -488,5 +489,65 @@ func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 	}
 	if m.screen != screenOptimize {
 		t.Fatalf("esperaba volver a screenOptimize, quedó en %v", m.screen)
+	}
+}
+
+// --- Feature 013: interruptor de planificación atómica ---
+
+// tuiSettingsStub guarda el estado en memoria para poder ejercer el interruptor
+// sin tocar disco.
+type tuiSettingsStub struct{ data *ports.SettingsData }
+
+func (s tuiSettingsStub) Read(string) ports.SettingsData            { return *s.data }
+func (s tuiSettingsStub) Write(_ string, d ports.SettingsData) error { *s.data = d; return nil }
+func (s tuiSettingsStub) ApplyAutoApprove(string, ports.SettingsData) {}
+
+// TestConfigScreen_MuestraInterruptorDePlanificacionAtomica cubre FR-033: el
+// estado del ajuste debe ser consultable desde la pantalla de configuración.
+func TestConfigScreen_MuestraInterruptorDePlanificacionAtomica(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := model{
+		screen:       screenConfig,
+		settingsRepo: tuiSettingsStub{data: data},
+		width:        100,
+		height:       40,
+		ready:        true,
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "Planificación atómica") {
+		t.Errorf("la pantalla de configuración debe mostrar el interruptor; vista:\n%s", view)
+	}
+	if !strings.Contains(view, "Planificación atómica: ON") {
+		t.Error("con el ajuste ausente la funcionalidad debe verse como ON (opt-out)")
+	}
+
+	data.AtomicPlanDisabled = true
+	if view := m.View(); !strings.Contains(view, "Planificación atómica: OFF") {
+		t.Error("con atomic_plan_disabled=true debe verse como OFF")
+	}
+}
+
+// TestConfigScreen_ToggleDePlanificacionAtomicaPersiste verifica que la opción
+// escribe el ajuste, no solo lo pinta.
+func TestConfigScreen_ToggleDePlanificacionAtomicaPersiste(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := model{
+		screen:       screenConfig,
+		settingsRepo: tuiSettingsStub{data: data},
+		configCursor: configRowAtomicPlan,
+		width:        100,
+		height:       40,
+	}
+
+	updated, _ := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	if !data.AtomicPlanDisabled {
+		t.Error("al confirmar sobre el interruptor debe quedar desactivada")
+	}
+
+	m2 := updated.(model)
+	m2.configCursor = configRowAtomicPlan
+	if _, _ = m2.updateConfig(tea.KeyMsg{Type: tea.KeyEnter}); data.AtomicPlanDisabled {
+		t.Error("al confirmar de nuevo debe reactivarse")
 	}
 }

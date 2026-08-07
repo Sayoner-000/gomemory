@@ -173,6 +173,7 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		DedupWindowDays:              s.DedupWindowDays,
 		SynapseDisabled:              s.SynapseDisabled,
 		SpeckitContextDisabled:       s.SpeckitContextDisabled,
+		AtomicPlanDisabled:           s.AtomicPlanDisabled,
 	}
 }
 
@@ -190,6 +191,7 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		DedupWindowDays:              s.DedupWindowDays,
 		SynapseDisabled:              s.SynapseDisabled,
 		SpeckitContextDisabled:       s.SpeckitContextDisabled,
+		AtomicPlanDisabled:           s.AtomicPlanDisabled,
 	})
 }
 
