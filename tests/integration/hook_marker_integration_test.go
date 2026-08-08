@@ -237,3 +237,83 @@ func TestHookUserPromptSubmit_NudgeDeGuardadoVaEnAdditionalContext(t *testing.T)
 		t.Fatalf("additionalContext debía incluir el recordatorio de save_memory: %q", ctx)
 	}
 }
+
+// TestHookSubagentStart_BootstrapVaEnAdditionalContext cubre el gap real: un
+// subagente (tool Task, p. ej. tipo Explore) arranca en un contexto aislado que
+// NUNCA pasa por session-start ni por el primer prompt de user-prompt-submit,
+// así que sin este hook no recibía el bootstrap de ToolSearch ni el
+// recordatorio del protocolo — el subagente no sabía que codebase-memory-mcp
+// existía y recurría a grep/glob manuales para explorar código. No requiere
+// session-start previo: un subagente puede arrancar sin que la sesión
+// principal haya corrido ese hook en este processo de test.
+func TestHookSubagentStart_BootstrapVaEnAdditionalContext(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := t.TempDir()
+
+	if err := persistence.EnsureDir(target); err != nil {
+		t.Fatalf("ensure dir: %v", err)
+	}
+	db, err := persistence.Open(target)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	db.Close()
+
+	out := runHook(t, bin, target, "subagent-start")
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("salida del hook no es JSON válido: %v\n%s", err, out)
+	}
+	if _, present := payload["systemMessage"]; present {
+		t.Fatalf("el bootstrap de subagente NO debe viajar en systemMessage (el modelo nunca lo ve): %s", out)
+	}
+	hso, ok := payload["hookSpecificOutput"].(map[string]any)
+	if !ok {
+		t.Fatalf("esperaba hookSpecificOutput en la salida de subagent-start: %s", out)
+	}
+	if hso["hookEventName"] != "SubagentStart" {
+		t.Errorf("hookEventName debía ser SubagentStart, got %v", hso["hookEventName"])
+	}
+	ctx, _ := hso["additionalContext"].(string)
+	if !strings.Contains(ctx, "select:") || !strings.Contains(ctx, "mcp__codebase-memory-mcp__") {
+		t.Fatalf("additionalContext del subagente debía incluir el select: con codebase-memory-mcp: %q", ctx)
+	}
+}
+
+// TestHookNudge_IncluyeCompactNudge cubre un gap real de OpenCode: su plugin
+// invoca `mem hook turn-end` en cada session.idle pero descarta la salida (solo
+// la usa para grabar el checkpoint), y session.idle de todos modos ocurre
+// DESPUÉS de que el modelo ya respondió — no hay forma de inyectarle contenido
+// a esa respuesta ya emitida. El compact-nudge y el refuerzo de preferencias
+// (que en Claude Code viajan por el hook Stop) nunca llegaban al modelo en
+// OpenCode. Este test verifica que `mem hook nudge` —el único punto de OpenCode
+// que sí llega al modelo, invocado en cada turno vía chat.system.transform—
+// ahora también los incluye.
+func TestHookNudge_IncluyeCompactNudge(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := t.TempDir()
+
+	if err := persistence.EnsureDir(target); err != nil {
+		t.Fatalf("ensure dir: %v", err)
+	}
+	db, err := persistence.Open(target)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	db.Close()
+
+	// Huella por encima del umbral por defecto (48000): la huella se persiste
+	// en un archivo plano, así que se puede simular sin pasar por el servidor MCP.
+	if err := os.WriteFile(filepath.Join(target, ".memory", ".footprint"), []byte("60000"), 0644); err != nil {
+		t.Fatalf("escribir footprint: %v", err)
+	}
+
+	out := runHook(t, bin, target, "nudge")
+	if strings.Contains(out, "systemMessage") || strings.Contains(out, "{") {
+		t.Fatalf("mem hook nudge debe imprimir texto plano, no JSON: %q", out)
+	}
+	if !strings.Contains(strings.ToLower(out), "compact") {
+		t.Fatalf("esperaba el recordatorio de compactar en la salida de nudge: %q", out)
+	}
+}

@@ -202,7 +202,7 @@ func removeClaudePlugin(target string) {
 	}
 
 	changed := false
-	for _, key := range []string{"SessionStart", "PreCompact", "UserPromptSubmit", "SessionEnd", "Stop", "SubagentStop", "PostToolUse"} {
+	for _, key := range []string{"SessionStart", "PreCompact", "UserPromptSubmit", "SessionEnd", "Stop", "SubagentStart", "SubagentStop", "PostToolUse"} {
 		entries, ok := hooks[key].([]interface{})
 		if !ok {
 			continue

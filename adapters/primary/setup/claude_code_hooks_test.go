@@ -109,7 +109,7 @@ func TestHookCommandIsGomemoryRecognizesAllSubcommands(t *testing.T) {
 	// o quedarían hooks huérfanos de gomemory tras `mem uninstall`.
 	for _, sub := range []string{
 		"session-start", "session-end", "pre-compact", "post-compact",
-		"user-prompt-submit", "turn-end", "subagent-stop",
+		"user-prompt-submit", "turn-end", "subagent-start", "subagent-stop",
 	} {
 		if !hookCommandIsGomemory("mem hook " + sub) {
 			t.Errorf("hookCommandIsGomemory no reconoce %q", "mem hook "+sub)

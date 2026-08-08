@@ -53,6 +53,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookNudge(deps)
 	case "turn-end":
 		hookTurnEnd(deps)
+	case "subagent-start":
+		hookSubagentStart(deps)
 	case "subagent-stop":
 		hookSubagentStop(deps)
 	case "plan-approved":
@@ -264,21 +266,45 @@ func hookUserPromptSubmit(deps *Deps) {
 	os.Exit(0)
 }
 
-// hookNudge imprime, en texto plano, el recordatorio de guardado si corresponde
-// (o nada). Es el punto de entrada transversal del nudge para integraciones que
-// inyectan contexto por turno pero no consumen el JSON del hook de Claude Code
-// —p. ej. el plugin de OpenCode, que lo invoca con `mem hook nudge`—. Comparte
-// la decisión con hookUserPromptSubmit vía computeSaveNudge, así el umbral y el
+// hookNudge imprime, en texto plano, los recordatorios de turno que
+// correspondan (o nada). Es el punto de entrada transversal para integraciones
+// que inyectan contexto por turno pero no consumen el JSON del hook de Claude
+// Code —p. ej. el plugin de OpenCode, que lo invoca con `mem hook nudge` en
+// CADA turno vía chat.system.transform—. Comparte la decisión con
+// hookUserPromptSubmit (save-nudge) y hookTurnEnd (compact-nudge / refuerzo de
+// preferencias) vía las mismas funciones compute*, así el umbral y el
 // debounce son idénticos en todos los agentes.
+//
+// En Claude Code estos tres recordatorios viajan por eventos separados
+// (UserPromptSubmit para el de guardado, Stop para compactar/preferencias)
+// porque ahí sí existe un canal de additionalContext en el evento Stop. En
+// OpenCode no hay un equivalente: session.idle (donde correría el chequeo de
+// compactar/preferencias) ya terminó el turno y no tiene forma de inyectar
+// contenido en la respuesta que el modelo ya dio. Por eso los tres se
+// consolidan aquí, en el único punto de OpenCode que sí llega al modelo: el
+// arranque del turno siguiente.
 func hookNudge(deps *Deps) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
 		os.Exit(0)
 	}
 	project := deps.ProjectRepo.Key(root)
+
+	var parts []string
 	if msg, ok := computeSaveNudge(deps, root, project); ok {
-		fmt.Print(msg)
+		parts = append(parts, msg)
 	}
+
+	threshold := deps.SettingsRepo.Read(root).CompactThreshold
+	if msg, ok := computeCompactNudge(root, threshold); ok {
+		parts = append(parts, msg)
+	} else if msg, ok := computePreferenceReinforcement(deps, root, project, threshold); ok {
+		// Misma exclusividad que hookTurnEnd: si ya se sugirió compactar, no
+		// compite por espacio con el refuerzo de preferencias.
+		parts = append(parts, msg)
+	}
+
+	fmt.Print(strings.Join(parts, "\n\n"))
 	os.Exit(0)
 }
 
@@ -345,6 +371,35 @@ func hookTurnEnd(deps *Deps) {
 	}
 
 	recordActivityCheckpoint(deps, "Checkpoint automático")
+}
+
+// hookSubagentStart corre al arrancar un subagente (tool Task) en Claude Code,
+// ANTES de su primer prompt. Un subagente es un contexto nuevo y aislado: no
+// pasa por hookSessionStart ni por la rama de "primer prompt" de
+// hookUserPromptSubmit, así que sin este hook arrancaba sin el bootstrap de
+// ToolSearch ni el recordatorio del protocolo — el agente principal delega
+// exploración de código a un subagente (p. ej. tipo Explore) y este, al no
+// saber que codebase-memory-mcp existe, recurre a grep/glob manuales. Mismo
+// contenido que el primer prompt de la sesión principal, sin marker: cada
+// invocación de un subagente es una sesión corta de un solo uso, no hace falta
+// deduplicar entre turnos como si se repite en hookUserPromptSubmit.
+func hookSubagentStart(deps *Deps) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		fmt.Print("{}")
+		os.Exit(0)
+	}
+	settings := deps.SettingsRepo.Read(root)
+	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled)
+	out := map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "SubagentStart",
+			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder,
+		},
+	}
+	data, _ := json.Marshal(out)
+	fmt.Print(string(data))
+	os.Exit(0)
 }
 
 // hookSubagentStop corre cuando un subagente (tool Task) termina en Claude Code.

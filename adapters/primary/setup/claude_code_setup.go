@@ -45,6 +45,7 @@ var claudeHookEvents = map[string][]hookReg{
 	"UserPromptSubmit": {{matcher: "", sub: "user-prompt-submit"}},
 	"SessionEnd":       {{matcher: "", sub: "session-end"}},
 	"Stop":             {{matcher: "", sub: "turn-end"}},
+	"SubagentStart":    {{matcher: "", sub: "subagent-start"}},
 	"SubagentStop":     {{matcher: "", sub: "subagent-stop"}},
 	// PostToolUse(ExitPlanMode): captura determinista de las decisiones al aprobar
 	// un plan. Un turno de plan mode no toca archivos ni corre comandos, así que el
@@ -384,6 +385,7 @@ func hookCommandIsGomemory(cmd string) bool {
 		strings.Contains(cmd, "hook post-compact") ||
 		strings.Contains(cmd, "hook user-prompt-submit") ||
 		strings.Contains(cmd, "hook turn-end") ||
+		strings.Contains(cmd, "hook subagent-start") ||
 		strings.Contains(cmd, "hook subagent-stop") ||
 		strings.Contains(cmd, "hook plan-approved") ||
 		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
