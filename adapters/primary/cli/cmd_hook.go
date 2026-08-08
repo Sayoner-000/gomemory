@@ -211,8 +211,21 @@ func hookUserPromptSubmit(deps *Deps) {
 		// Prompts subsiguientes: ya no son mudos. Si el agente lleva rato sin
 		// guardar nada real, se le recuerda (con debounce) que llame a
 		// save_memory; si no toca, salida pasiva.
+		//
+		// Va en additionalContext, NO en systemMessage: systemMessage es un
+		// aviso que Claude Code muestra SOLO al humano en la terminal, nunca se
+		// inyecta en el contexto del modelo (confirmado contra la documentación
+		// oficial de hooks). saveNudgeMessage está escrito en segunda persona
+		// dirigido al agente ("llama a save_memory ahora") — con systemMessage
+		// el agente jamás lo veía, así que el recordatorio de guardado nunca
+		// llegaba a aplicarse, solo se mostraba en la UI del usuario.
 		if msg, ok := computeSaveNudge(deps, root, project); ok {
-			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
+			data, _ := json.Marshal(map[string]any{
+				"hookSpecificOutput": map[string]any{
+					"hookEventName":     "UserPromptSubmit",
+					"additionalContext": msg,
+				},
+			})
 			fmt.Print(string(data))
 		} else {
 			fmt.Print("{}")
@@ -220,12 +233,17 @@ func hookUserPromptSubmit(deps *Deps) {
 		os.Exit(0)
 	}
 
-	// Primer prompt de la sesión: forzar la carga de las tools MCP diferidas
-	// (systemMessage con ToolSearch explícito) e inyectar el recordatorio del
-	// protocolo como additionalContext. El campo "tools": true que se usaba
-	// antes NO es un campo soportado por Claude Code en UserPromptSubmit: era un
-	// no-op silencioso, por eso las tools de gomemory seguían llegando diferidas
-	// y la memoria se sentía "manual" hasta que el usuario la mencionaba.
+	// Primer prompt de la sesión: forzar la carga de las tools MCP diferidas y
+	// el recordatorio del protocolo, ambos en additionalContext (lo único que
+	// Claude Code inyecta en el contexto del modelo). El bootstrap de ToolSearch
+	// vivía antes en "systemMessage", que Claude Code muestra SOLO al humano en
+	// la terminal y NUNCA inyecta en el contexto del modelo (confirmado contra
+	// la documentación oficial de hooks) — por eso el agente nunca ejecutaba el
+	// ToolSearch forzado ni materializaba codebase-memory-mcp automáticamente:
+	// la instrucción "PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA" jamás
+	// llegaba a su contexto, solo aparecía como texto en la UI del usuario. El
+	// campo "tools": true que se usaba antes de eso tampoco era un campo
+	// soportado por Claude Code en UserPromptSubmit: era un no-op silencioso.
 	//
 	// Se dispara SIEMPRE aquí, sin mirar qué pide el prompt (chat, plan,
 	// resumen, lo que sea): el protocolo se declara "OBLIGATORIO y SIEMPRE
@@ -234,11 +252,11 @@ func hookUserPromptSubmit(deps *Deps) {
 	// ese principio prohíbe.
 	os.WriteFile(marker, []byte("1"), 0644)
 	settings := deps.SettingsRepo.Read(root)
+	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled)
 	out := map[string]any{
-		"systemMessage": buildMemoryToolBootstrap(!settings.CodeGraphDisabled),
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "UserPromptSubmit",
-			"additionalContext": memoryProtocolReminder,
+			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder,
 		},
 	}
 	data, _ := json.Marshal(out)
@@ -308,7 +326,20 @@ func hookTurnEnd(deps *Deps) {
 			// Solo uno de los dos por turno: si ya se sugirió compactar, no
 			// compite por espacio con el refuerzo de preferencias — la
 			// compactación reinyecta el contexto completo de todos modos.
-			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
+			//
+			// Va en additionalContext, no en systemMessage: el mensaje está
+			// dirigido al agente ("no las pierdas de vista"), y systemMessage
+			// solo lo ve el humano en la terminal. Stop SÍ soporta
+			// hookSpecificOutput.additionalContext sin bloquear el turno
+			// (documentado como "non-error feedback that continues the
+			// conversation"), a diferencia de decision:"block", que forzaría
+			// una iteración extra no deseada aquí.
+			data, _ := json.Marshal(map[string]any{
+				"hookSpecificOutput": map[string]any{
+					"hookEventName":     "Stop",
+					"additionalContext": msg,
+				},
+			})
 			fmt.Print(string(data))
 		}
 	}
