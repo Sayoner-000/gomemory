@@ -1,170 +1,262 @@
-# gomemory
+<p align="center">
+  <img src="assets/logo-gomemory.png" alt="gomemory logo" width="200">
+</p>
 
+<p align="center">
+  <strong>Persistent, local and portable memory for AI coding agents</strong>
+</p>
+
+[![CI](https://github.com/Sayoner-000/gomemory/actions/workflows/ci.yml/badge.svg)](https://github.com/Sayoner-000/gomemory/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/macOS_%7C_Linux_%7C_Windows-supported-lightgrey)](https://github.com/Sayoner-000/gomemory/releases/latest)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-15_tools-blueviolet)](https://modelcontextprotocol.io/)
-[![SQLite](https://img.shields.io/badge/SQLite-embebido-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 
-Servidor MCP y CLI en Go que proporciona memoria persistente a agentes de código (Claude Code, Cursor, OpenCode, Windsurf, Cline, Codex). Guarda contexto, decisiones de arquitectura y bugfixes en una base de datos SQLite embebida local, permitiendo recuperar el contexto entre sesiones sin depender de archivos en el repositorio.
+gomemory gives AI coding agents persistent memory across sessions.
+It stores project context, architectural decisions, bug fixes, learnings and checkpoints in a local SQLite database — so your agent can remember what happened, why it happened, and what was decided without polluting your repository with memory files.
 
-## Inicio Rápido
+Works with Claude Code, Cursor, OpenCode, Windsurf, Cline and Codex through the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP).
 
-Instala el binario de forma global:
+```
+┌──────────────────────────────────────────────┐
+│              AI Coding Agent                 │
+│                                              │
+│ Claude Code · Cursor · OpenCode · Codex      │
+│ Windsurf · Cline                             │
+└──────────────────────┬───────────────────────┘
+                       │ MCP
+                       ▼
+┌──────────────────────────────────────────────┐
+│                  gomemory                    │
+│                                              │
+│  Context · Decisions · Bugfixes · Learning   │
+│  Checkpoints · Architecture · Patterns       │
+└──────────────────────┬───────────────────────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ Local SQLite DB │
+              │   Persistent    │
+              │    Portable     │
+              └─────────────────┘
+```
+
+No cloud service. No API key. No database server. No files added to your project.
+
+## Why gomemory?
+
+AI coding agents are powerful, but their context is often temporary.
+When a session ends, important information can disappear:
+
+- Why was this architecture chosen?
+- What bug was fixed and how?
+- Which approach was rejected?
+- What did we learn from the previous implementation?
+- What decisions should the next session know about?
+
+gomemory turns that temporary context into persistent project memory.
+
+## Quick Start
+
+### 1. Install
 
 **Linux / macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
 ```
 
-## Configuración del Agente
+Verify:
+```bash
+mem --help
+```
 
-### Registro Global (Claude Code / Codex / OpenCode)
-Ejecuta esto una sola vez en cualquier directorio. Todos los proyectos nuevos usarán gomemory automáticamente:
+### 2. Connect your coding agent
 
+**For agents with global MCP configuration:**
 ```bash
 mem setup-mcp --scope global --agents claude,codex,opencode
 ```
 
-### Registro por Proyecto (Cursor / Windsurf / Cline)
-Ejecuta esto en la raíz del proyecto específico:
-
+**For project-scoped configuration:**
 ```bash
-cd /ruta/a/tu/proyecto
+cd /path/to/your/project
 mem setup-mcp --scope project --agents cursor,windsurf,cline --target .
 ```
 
-*Nota: La base de datos `mem.db` se guarda en `~/.local/share/gomemory/` o `%LOCALAPPDATA%\gomemory`. No ensucia tu repositorio con archivos adicionales.*
+That's it. Your memory is stored outside the repository:
 
-> **`mem setup-mcp` vs `mem setup`:** `setup-mcp` (arriba) solo registra las **tools MCP** — funciona para los 6 agentes soportados. Los **auto-checkpoints** y la **captura de planes aprobados** (ver más abajo) requieren además los **hooks/plugin** de `mem setup <agent>`, disponible hoy solo para `opencode` y `claude-code`. En Cursor/Windsurf/Cline/Codex tienes memoria vía MCP, pero sin esa captura automática por turno.
+- **Linux / macOS:** `~/.local/share/gomemory/`
+- **Windows:** `%LOCALAPPDATA%\gomemory\`
 
-## Uso y Características Principales
+> **`mem setup-mcp` vs `mem setup`:** `setup-mcp` registers the **MCP tools** for all 6 supported agents. The **auto-checkpoints** and **plan capture** features additionally require the hooks/plugin from `mem setup <agent>`, currently available for `opencode` and `claude-code`. In Cursor/Windsurf/Cline/Codex you get memory via MCP, but without that automatic per-turn capture.
 
-Una vez configurado, el agente interactúa con la memoria automáticamente vía MCP. Puedes gestionarla manualmente mediante el CLI:
+### 3. Try it
 
 ```bash
-# Interfaz visual de terminal (TUI)
+# Save a decision
+mem save -t "API routing" -y decision "Use Fiber for HTTP routing"
+
+# Search your project memory
+mem search "API routing"
+
+# View recent memories
+mem list
+
+# Get the current project context
+mem context
+
+# Open the interactive terminal UI
 mem
-
-# Guardar una decisión manualmente
-mem save -t "API REST" -y decision "Usamos Fiber para el enrutamiento"
-
-# Buscar en el historial
-mem search "API"
 ```
 
-* **8 Tipos de memoria:** `architecture`, `decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference`, `checkpoint`.
-* **Privacidad por diseño:** El contenido envuelto en `<private>...</private>` se redacta y no llega a la base de datos. Como segunda capa, patrones de secretos conocidos (claves de AWS, tokens de GitHub, claves de proveedores de IA, tokens de Slack, JWT, bloques de clave privada PEM) se redactan igual aunque el usuario olvide envolverlos. El archivo `mem.db` y sus directorios se crean con permisos restringidos al propietario (`0600`/`0700`).
-* **Auto-Checkpoints:** En Claude Code y OpenCode, los turnos con actividad real se registran automáticamente como `checkpoint` sin consumir tokens del agente.
-* **Captura de planes aprobados:** Al aprobar un plan (Claude Code `ExitPlanMode` / modo `plan` de OpenCode), sus decisiones se guardan automáticamente como `decision` — de forma determinista, sin depender de que el modelo lo recuerde. Cada aprobación (incluidos planes revisados) se acumula, así la evolución de las decisiones no se pierde.
-* **Consolidación sináptica ("siempre sinapsis"):** Cada memoria que se guarda se enlaza automáticamente con el engrama sustantivo más reciente de su sesión, tejiendo un grafo de decisiones que se re-inyecta en cada `get_context`. Determinista y transversal a todos los agentes (vive en el choke point de guardado, no en cada agente).
-* **Grafo de código externo (brazo extensor, opcional):** si detecta un grafo de código ya indexado por [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp), gomemory enriquece `get_context` con un resumen estructural (módulos de facto, hotspots, lenguajes) para que la memoria "entienda" el código. **No es una dependencia dura**: si el proveedor no está, todo funciona igual. Es **no-bloqueante** (el contexto lee un snapshot cacheado al instante; el refresco corre en segundo plano) y **agnóstico al agente**. Se enciende/apaga con `mem settings --code-graph=true|false`.
-* **Anotación de impacto al guardar:** si el archivo asociado a una memoria (`bugfix`/`decision`) es un hotspot conocido del grafo externo, la memoria queda anotada con el símbolo y sus llamadores directos — sin latencia extra (solo lee el snapshot ya cacheado). `mem settings --code-impact-annotation=true|false` (default activado).
-* **Memoria conectada a código activo (recalculada en vivo):** a diferencia de la anotación anterior (que se congela al guardar), `get_context` cruza el archivo de cada memoria contra los hotspots vigentes del grafo externo **en cada llamada** — si el código se reindexa y cambian los hotspots, qué memorias son relevantes se actualiza solo, sin tocar lo ya guardado.
-* **Sincronización bidireccional de ADR (opcional):** las memorias `architecture`/`decision` se reflejan como bloques marcados en el documento de ADR del proveedor externo, y los bloques que el proveedor tenga sin marcar se importan como memoria — sin bucles de resincronización. Consultable con `mem adr-sync status`. `mem settings --adr-sync=true|false` (default apagado).
-* **Múltiples proveedores de grafo con fallback automático:** `mem settings --code-graph-providers=cmd1,cmd2` declara candidatos en orden de prioridad; gomemory usa el primero disponible sin reconfigurar al cambiar de máquina/entorno.
-* **Modo plan atómico (activación autónoma, cualquier agente):** al entrar en modo plan, el agente llama por su cuenta a `get_plan_context()` (o `./mem plan-context`) y recibe, en **una sola llamada**, el método de descomposición atómica y el historial del proyecto. El plan resultante es un árbol de tareas donde cada hoja declara un resultado verificable, o queda marcada como no atómica con su motivo. La activación no depende de hooks propios de un agente: el disparador viaja en el bloque de protocolo que `mem install` escribe en `AGENTS.md`/`CLAUDE.md`/`.cursorrules`/`.windsurfrules`, así que **cualquier agente que lea el protocolo y alcance gomemory queda cubierto** — los de hoy y los que aparezcan después — sin escribir integración para cada uno. En modo plan el método entrega el árbol y se detiene: la ejecución sigue siendo un paso aparte. Se enciende/apaga desde la TUI o con `mem settings --atomic-plan=true|false` (default activado).
+## What it remembers
 
-* **Brazo extensor hacia spec-kit (opcional):** si el proyecto ya tiene [GitHub Spec Kit](https://github.com/github/spec-kit) inicializado (`.specify/`), `mem install` deja lista una extensión bundleada (`.specify/extensions/gomemory-context/`) que conecta `get_context`/`mem context` con el flujo `/speckit-specify` (y opcionalmente `/speckit-plan`/`/speckit-clarify`) — sin instalar nada aparte, y funciona igual en **Claude Code y OpenCode**. Cada especificación nueva se redacta con el historial del proyecto (features previas, decisiones) sin barrer `specs/` a mano, y sin mezclar esa historia con el grafo de código externo (secciones separadas y rotuladas). Se enciende/apaga desde la TUI o con `mem settings --speckit-context=true|false` (default activado), de forma independiente a la configuración de spec-kit; en proyectos sin spec-kit, `mem install` no crea ningún archivo relacionado. Ver [`docs/architecture.md`](docs/architecture.md).
-* **Resolución de conflictos:** `judge_memories` resuelve colisiones entre memorias obsoletas y nuevas con veredictos semánticos obligatorios.
-* **Memoria portable (export/import):** `mem export` vuelca las memorias **+ sus relaciones** (sinapsis y veredictos) a un JSON UTF-8 autocontenido, apto para moverlas entre proyectos y máquinas con distinto S.O. `mem import` las trae al proyecto actual con **append + dedup por contenido** (no duplica), **preservando los timestamps** originales, remapeando el proyecto y los ids de relación, y **sin generar sinapsis espurias**. Disponible también desde la TUI (tecla `c` → Configuración).
-* **Backup automático local:** cada cierre de sesión genera, en modo best-effort, un snapshot con el mismo formato que `mem export` en `<directorio de datos>/backups/<proyecto>/`, conservando por defecto los últimos 10 (ajustable con `GOMEMORY_BACKUP_KEEP`). Para llevarlo entre máquinas, apunta esa carpeta de backups a tu propia herramienta de sincronización (Dropbox, iCloud, Syncthing, un repo git privado). **No sincronices el `mem.db` crudo directamente**: es una base SQLite en modo WAL y una sincronización parcial o fuera de orden puede corromperla; el bundle JSON del backup sí es un snapshot atómico y seguro para mover.
+gomemory supports structured memory instead of treating everything as an undifferentiated text dump.
 
-## Herramientas MCP Expuestas
-
-| Tool / Resource | Descripción |
+| Type | Purpose |
 | :--- | :--- |
-| `save_memory` | Registra una nueva memoria estructurada. Con `topic_key` opcional: si el tópico ya existe, actualiza esa memoria en vez de duplicar. |
-| `search_memories` | Búsqueda por ranking BM25 con tokenización por palabras (AND implícito); devuelve extractos compactos. Fallback automático a LIKE si FTS5 no está disponible. |
-| `list_memories` | Devuelve las memorias recientes del proyecto (extractos compactos). |
-| `get_memory` | Retorna el contenido íntegro de un ID específico (detalle bajo demanda). |
-| `get_context` | Contexto del proyecto en markdown, acotado por presupuesto, para arrancar sesión. |
-| `get_plan_context` | Método de descomposición atómica + historial del proyecto, en una sola llamada, para arrancar el modo plan. |
-| `start_session` / `end_session` | Abre y cierra una sesión de trabajo con resumen. |
-| `forget_memory` | Elimina un registro por ID (requiere aprobación manual). |
-| `judge_memories` | Resuelve conflictos semánticos entre dos registros. |
-| `mem://context` | Recurso: Contexto completo en markdown. |
-| `mem://memory/{id}` | Recurso: Lectura directa de un ID. |
+| `architecture` | Architectural decisions and structure |
+| `decision` | Important technical decisions |
+| `bugfix` | Bugs, causes and solutions |
+| `pattern` | Reusable implementation patterns |
+| `learning` | Lessons learned |
+| `discovery` | Findings and investigations |
+| `preference` | User/project preferences |
+| `checkpoint` | Session progress |
 
-> El servidor también expone 5 herramientas adicionales para indexar y consultar
-> el grafo de código fuente propio (`index_project`, `search_code`, `get_symbol`,
-> `list_dependencies`, `graph_status`) — el CLI equivalente para poblar ese
-> índice es `mem index [--force]` (ver tabla CLI). Además, de forma **opcional**,
-> puede apoyarse en un grafo de código externo ya indexado (codebase-memory-mcp)
-> como brazo extensor — ver [`docs/architecture.md`](docs/architecture.md).
+## Key Features
+
+**Persistent memory**
+Memory survives agent sessions and is stored locally in SQLite.
+
+**Relevant retrieval**
+Memory search uses FTS5 + BM25 ranking, with an automatic LIKE fallback when FTS5 is unavailable.
+
+**Connected memory**
+Related memories are automatically linked through synapses, forming a persistent knowledge graph that is re-injected into each `get_context`.
+
+**Context-aware retrieval**
+`get_context` is budget-limited and `get_memory` provides full details on demand — minimizing token usage.
+
+**Privacy by design**
+Memory stays local. Sensitive information is automatically redacted (AWS credentials, GitHub tokens, AI provider keys, Slack tokens, JWTs, PEM private keys). You can also explicitly mark content as private:
+
+```
+<private>This information should never be persisted.</private>
+```
+
+**Automatic checkpoints**
+With Claude Code and OpenCode, active turns are captured automatically as checkpoints without consuming additional agent tokens.
+
+**Plan memory**
+Agents can retrieve project history and atomic decomposition guidance before planning:
+
+```bash
+mem plan-context
+```
+
+**Code graph integration**
+Optional integration with an external code graph (via [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)) enriches memory with modules, symbols, dependencies, hotspots and callers. Non-blocking and agnostic to the agent. Controlled via `mem settings --code-graph=true|false`.
+
+**ADR synchronization**
+Architecture and decision memories can optionally synchronize with external ADR documents. Controlled via `mem settings --adr-sync=true|false`.
+
+**Portable memory**
+Export project memory as a self-contained JSON bundle:
+
+```bash
+mem export    # → project-memory.json
+mem import    # → import with dedup, preserving timestamps and relationships
+```
+
+**Automatic backups**
+Local snapshots are created at session end. Do not synchronize `mem.db` directly — SQLite uses WAL mode and partial synchronization can corrupt the database. Use the exported JSON backup instead.
+
+## MCP Tools
+
+| Tool | Description |
+| :--- | :--- |
+| `save_memory` | Store structured project memory |
+| `search_memories` | Search relevant memories |
+| `list_memories` | List recent memories |
+| `get_memory` | Retrieve a complete memory |
+| `get_context` | Retrieve project context |
+| `get_plan_context` | Retrieve planning context |
+| `start_session` | Start a working session |
+| `end_session` | Close a working session |
+| `forget_memory` | Remove a memory |
+| `judge_memories` | Resolve conflicting memories |
+
+**Resources:** `mem://context` · `mem://memory/{id}`
 
 ## CLI
 
-Comandos principales para la gestión manual:
-
-| Comando | Acción |
-| :--- | :--- |
-| `mem` | Abre la TUI interactiva (Bubbletea). |
-| `mem save [flags] <texto>` | Guarda una memoria manualmente. `-t` título opcional, `-y` tipo (`learning\|decision\|architecture\|bugfix\|pattern\|discovery\|preference`, default `learning`), `-f` archivo relacionado. **Las flags van antes del texto** (usan el paquete `flag` de Go, que deja de leer flags en el primer argumento posicional). |
-| `mem search <query>` | Busca en la memoria del proyecto (título y contenido). |
-| `mem list [-n N]` / `mem log` | Lista las memorias más recientes (`-n` cantidad, default 20). |
-| `mem init [--force]` | Inicializa `.memory/` explícitamente. |
-| `mem context [-w]` | Muestra o escribe el contexto actual. |
-| `mem plan-context` | Método de planificación atómica + contexto, para agentes sin MCP. Siempre sale con código 0. |
-| `mem capture` | Formulario guiado (What/Why/Where/Learned). |
-| `mem project` | Detecta el proyecto actual (clave, raíz) y muestra su información. |
-| `mem index [--force]` | Indexa el código Go del propio proyecto (grafo de símbolos interno — ver "Herramientas MCP Expuestas"). |
-| `mem update` | Actualiza el binario de forma idempotente. |
-| `mem uninstall [--yes]` | Desinstala gomemory por completo: reverso de `mem install`. |
-| `mem purge` | Vacía memorias (por tipo, antigüedad o proyecto completo) — requiere confirmación salvo `--yes`. |
-| `mem gc` / `mem compact`| Limpieza de registros antiguos (>90 días) y optimización de BD. |
-| `settings` | Configuración general: auto-approve de MCP, toggle del grafo de código externo (`--code-graph=true\|false`, `--code-graph-command`/`--code-graph-providers`), anotación de impacto (`--code-impact-annotation`) y sincronización de ADR (`--adr-sync`). También accesible desde la TUI (tecla `c`). |
-| `mem adr-sync status` | Estado de la sincronización de ADR (solo lectura): qué memorias están vinculadas a qué bloque del documento del proveedor, y su estado (ok/pendiente/fallido/conflicto). |
-| `mem export` / `mem import` | Exporta la memoria (memorias + relaciones) a un JSON portable e impórtala en otro proyecto/máquina con dedup por contenido. También desde la TUI (tecla `c`). |
-| `mem hook <evento>` | Entrypoint interno de hooks de agentes (`mem hook turn-end`, etc.) — no se invoca a mano, lo llaman los plugins de Claude Code/OpenCode. |
-
-*Ejecuta `mem help` para ver los subcomandos disponibles.*
-
-## Arquitectura
-
-- **Base de datos:** SQLite embebido vía `modernc.org/sqlite` (sin CGO). Vive en un store global del usuario (`~/.local/share/gomemory/projects/<clave>/mem.db`), no dentro del repositorio.
-- **Transporte MCP:** `stdio` (JSON-RPC por stdin/stdout). El cliente lanza `mem mcp` como subproceso; **no se abre ningún puerto TCP**. El proceso vive lo que dura la sesión del agente.
-- **Hooks portables:** cada evento del agente invoca `mem hook <evento>`, un binario que habla directo a los repositorios — sin scripts de shell ni `curl`. Idéntico en Linux, macOS y Windows.
-- **Grafo de código externo enchufable:** el puerto `CodeGraphProvider` (arquitectura hexagonal) permite traer la fuerza de un grafo ya indexado por otra herramienta sin acoplarse. El hot path solo lee un snapshot cacheado; el refresco corre en un proceso detached (`mem code-refresh`) con timeout corto — nunca bloquea el guardado ni el contexto, y nunca dispara indexado. Ver [`docs/architecture.md`](docs/architecture.md).
-- **Portabilidad:** Cross-compile nativo. Los timestamps usan UTC-5 por defecto.
-
-### Huella de contexto (bajo costo de tokens)
-
-gomemory está diseñado para **no inflar la ventana del agente**. Como los resultados de las tools MCP persisten en el contexto toda la sesión, gomemory **emite lo mínimo** desde el inicio y **señala** (nunca ejecuta) cuándo conviene compactar — de forma agnóstica al agente (Claude Code, Cursor, otros clientes MCP o el CLI):
-
-- **`get_context` acotado por presupuesto:** el contexto de arranque se limita a un techo de caracteres, truncando lo largo con un puntero `get_memory <id>` para el detalle bajo demanda. Protocolo y conflictos nunca se recortan.
-- **Revelación progresiva:** `search_memories`/`list_memories` devuelven extractos compactos; el contenido íntegro queda en `get_memory`.
-- **Dedup en la fuente:** guardar una memoria equivalente (mismo tipo+título, o el mismo `topic_key`) **actualiza** la existente en vez de crear otra.
-- **Recordatorio de compactación:** al cerrar el turno, si la huella emitida por gomemory supera un umbral, sugiere de forma neutral compactar el contexto.
-- **Refuerzo periódico de preferencias:** las preferencias del usuario (`type=preference`) solo se reinyectaban al iniciar sesión y tras compactar; en sesiones largas que no llegan a compactar se diluían. Ahora, al superar un tercio del umbral de compactación, el hook de fin de turno reinyecta el contenido real (no un recordatorio genérico) de las preferencias más recientes, con enfriamiento de 20 min.
-
-Ajustable en `.memory/settings.json` (valores por defecto entre paréntesis):
-
-| Clave | Efecto | Default |
-|-------|--------|---------|
-| `budget` | Techo de `get_context` en caracteres (`<0` = sin límite) | `24000` (~6k tokens) |
-| `compact_threshold` | Huella emitida/sesión que dispara el recordatorio (`<=0` = off) | `48000` |
-| `dedup_window_days` | Ventana del dedup por identidad (`<=0` = off; el `topic_key` sigue) | `7` |
-| `synapse_disabled` | Desactiva la formación automática de sinapsis (aristas de co-activación en sesión). Reduce 1-3 queries por `save_memory`. | `false` (activada) |
-| `atomic_plan_disabled` | Desactiva la planificación atómica en modo plan: `get_plan_context` / `mem plan-context` terminan sin salida. | `false` (activada) |
-
-```text
-gomemory/
-├── domain/         # Modelos (Memory, Session, Relation, Code, Redact)
-├── application/    # Casos de uso (BuildContext, IndexProject, GoParse)
-├── adapters/       # CLI, MCP Server, TUI y persistencia SQLite
-├── infrastructure/ # Orquestación, plugins de agentes y main
-└── scripts/        # Instaladores shell/powershell
+```
+mem
+├── save          Save a memory manually
+├── search        Search project memory
+├── list          List recent memories
+├── context       Show current context
+├── plan-context  Atomic planning context
+├── capture       Guided memory form
+├── project       Show project info
+├── index         Index project code graph
+├── export        Export memories to JSON
+├── import        Import memories from JSON
+├── update        Update the binary
+├── uninstall     Remove gomemory
+├── purge         Delete memories
+├── gc / compact  Cleanup and optimize
+├── settings      Configure gomemory
+└── help          Show help
 ```
 
-### Compilación Manual
-Requiere Go 1.25+ instalado:
+Run `mem help` for the complete command reference.
+
+## Architecture
+
+```
+gomemory/
+├── domain/          # Core domain models and rules
+├── application/     # Use cases and application services
+├── adapters/        # CLI, MCP, TUI and SQLite adapters
+├── infrastructure/  # Agent integrations and orchestration
+├── scripts/         # Installation scripts
+├── tests/           # Tests
+└── docs/            # Extended documentation
+```
+
+**Storage:** SQLite embedded via `modernc.org/sqlite` (no CGO required). Lives in a global user store, not inside your repository.
+
+**MCP transport:** `stdio` + JSON-RPC. The agent launches `mem mcp` as a subprocess. No TCP server or exposed network port.
+
+**Code graph:** Provider-based architecture (`CodeGraphProvider` port in hexagonal style) allows integrating external code graphs without coupling the core. Hot path reads a cached snapshot; background refresh never blocks saves or context.
+
+For the complete architecture, see [`docs/architecture.md`](docs/architecture.md).
+
+## Configuration
+
+Main settings (via `mem settings` or the interactive TUI):
+
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `budget` | `24000` | Max characters returned by `get_context` |
+| `compact_threshold` | `48000` | Context size that triggers compaction guidance |
+| `dedup_window_days` | `7` | Deduplication window |
+| `synapse_disabled` | `false` | Disable automatic memory relationships |
+| `atomic_plan_disabled` | `false` | Disable atomic planning |
+
+See [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) for all configuration options.
+
+## Build from Source
+
+Requirements: Go 1.25+
+
 ```bash
 git clone https://github.com/Sayoner-000/gomemory.git
 cd gomemory
@@ -172,24 +264,80 @@ go build -o mem ./infrastructure/
 ./mem install .
 ```
 
-## Mitigación de Riesgos Operativos
+Run tests:
+```bash
+go test ./...
+```
 
-Como proyecto de un mes/un autor con la memoria aún en evolución, se atendieron cuatro riesgos operativos concretos (detalle de diseño en [`specs/009-mitigacion-riesgos/`](specs/009-mitigacion-riesgos/)):
+## Supported Agents
 
-1. **Búsqueda por relevancia real** (FTS5 + `bm25()`, con fallback automático a `LIKE` si el build no soporta FTS5) en vez de solo balde título/contenido + recencia.
-2. **Backup automático local** al cerrar sesión (ver "Backup automático local" arriba), para no depender de que el usuario recuerde exportar antes de perder datos.
-3. **Redacción de secretos en dos capas** + permisos de archivo restringidos (ver "Privacidad por diseño" arriba).
-4. **Convención de compatibilidad documentada en el código**: migraciones de esquema solo-aditivas y versionado explícito del bundle de export (`domain.ExportVersion`), para que cambios futuros no rompan datos ya persistidos.
+| Agent | MCP | Automatic hooks |
+| :--- | :---: | :---: |
+| Claude Code | ✅ | ✅ |
+| OpenCode | ✅ | ✅ |
+| Cursor | ✅ | — |
+| Windsurf | ✅ | — |
+| Cline | ✅ | — |
+| Codex | ✅ | — |
 
-## Más Documentación
+MCP provides persistent memory across all supported agents. Automatic checkpoint and plan capture currently depend on the agent integration.
 
-| Documento | Descripción |
-|-----------|-------------|
-| [`docs/MANUAL.md`](docs/MANUAL.md) | Guía completa: multi-agente, troubleshooting, seguridad, stack, portabilidad |
-| [`docs/architecture.md`](docs/architecture.md) | Arquitectura interna a fondo |
-| [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Protocolo de memoria (referencia técnica) |
+## Security & Privacy
+
+gomemory is designed as a local-first memory system.
+By default:
+
+- Data remains on your machine
+- No external database is required
+- No network service is opened
+- Sensitive credential patterns are redacted
+- Database permissions are restricted
+- Memory can be exported or deleted by the user
+
+For security details and limitations, see [`docs/MANUAL.md`](docs/MANUAL.md).
+
+## Documentation
+
+| Document | Description |
+| :--- | :--- |
+| [`docs/MANUAL.md`](docs/MANUAL.md) | Complete user guide: multi-agent, troubleshooting, security, portability |
+| [`docs/architecture.md`](docs/architecture.md) | Internal architecture deep dive |
+| [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Memory protocol technical reference |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community guidelines |
+
+## Contributing
+
+Contributions are welcome. Before opening a pull request:
+
+```bash
+go test ./...
+go vet ./...
+```
+
+Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+If you find a bug or have an idea, [open an issue](https://github.com/Sayoner-000/gomemory/issues) with enough context to reproduce or evaluate it.
+
+## Roadmap
+
+The project is actively evolving. Areas of interest include:
+
+- Additional coding-agent integrations
+- Improved memory ranking and retrieval
+- More code-graph providers
+- Better visualization of memory relationships
+- Performance improvements
+- Additional portability and synchronization options
+
+See [GitHub Issues](https://github.com/Sayoner-000/gomemory/issues) for current work.
 
 ---
-**Autor:** Jose Gomez ([@Sayoner-000](https://github.com/Sayoner-000))
-**Licencia:** MIT
-*Inspirado en la arquitectura base de [Engram](https://github.com/Gentleman-Programming/engram).*
+
+**Author:** Sayoner ([@Sayoner-000](https://github.com/Sayoner-000))
+**License:** MIT · See [`LICENSE`](LICENSE)
+**Inspiration:** Inspired by the architecture of [Engram](https://github.com/Gentleman-Programming/engram).
+
+*Built with Go, SQLite and the [Model Context Protocol](https://modelcontextprotocol.io/).*
+
+If gomemory is useful to you, consider giving the project a ⭐ on GitHub.
