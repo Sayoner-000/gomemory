@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo-gomemory.png" alt="gomemory logo" width="200">
+  <img src="assets/gomemory_light.png" alt="gomemory logo" width="200">
 </p>
 
 <p align="center">
