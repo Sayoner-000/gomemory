@@ -174,6 +174,11 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		SynapseDisabled:              s.SynapseDisabled,
 		SpeckitContextDisabled:       s.SpeckitContextDisabled,
 		AtomicPlanDisabled:           s.AtomicPlanDisabled,
+		ContextDefaultBudget:         s.ContextDefaultBudget,
+		ContextMinRelevance:          s.ContextMinRelevance,
+		ContextMaxItems:              s.ContextMaxItems,
+		ContextCompressionDisabled:   s.ContextCompressionDisabled,
+		ContextDedupDisabled:         s.ContextDedupDisabled,
 	}
 }
 
@@ -192,6 +197,11 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		SynapseDisabled:              s.SynapseDisabled,
 		SpeckitContextDisabled:       s.SpeckitContextDisabled,
 		AtomicPlanDisabled:           s.AtomicPlanDisabled,
+		ContextDefaultBudget:         s.ContextDefaultBudget,
+		ContextMinRelevance:          s.ContextMinRelevance,
+		ContextMaxItems:              s.ContextMaxItems,
+		ContextCompressionDisabled:   s.ContextCompressionDisabled,
+		ContextDedupDisabled:         s.ContextDedupDisabled,
 	})
 }
 

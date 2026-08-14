@@ -216,6 +216,14 @@ const [T_SEARCH_CODE, T_GET_SYMBOL, T_LIST_DEPENDENCIES, T_GRAPH_STATUS, T_INDEX
   "gomemory_index_project",
 ];
 
+// Context Optimization Engine (feature 015): domain.MCPContextPackTools.
+const [T_PACK_BUILD, T_PACK_SHOW, T_PACK_COMPRESS, T_PACK_STATS] = [
+  "gomemory_pack_build",
+  "gomemory_pack_show",
+  "gomemory_pack_compress",
+  "gomemory_pack_stats",
+];
+
 const [
   T_EXT_SEARCH_GRAPH,
   T_EXT_TRACE_PATH,
@@ -269,6 +277,13 @@ reasoning what you verified.
 
 PRIVACY: if content to save includes a secret, token, or credential, wrap that
 part in <private>...</private> — it is never persisted.
+
+CONTEXT PACKS: when a task needs only a slice of the project's memory instead
+of the full get_context() dump, call ${T_PACK_BUILD}(task, max_tokens, ...) to
+get a token-budgeted ContextPack (relevant memories, deduplicated, non-critical
+content compressed, critical content never dropped silently). ${T_PACK_SHOW}
+and ${T_PACK_STATS} reformat/report on an already-built pack; ${T_PACK_COMPRESS}
+compresses arbitrary text on its own, no retrieval involved.
 
 EXTERNAL CODE GRAPH: if the codebase-memory-mcp MCP server is connected, use it
 ALWAYS for code exploration — regardless of the task: chat, plan, summary,

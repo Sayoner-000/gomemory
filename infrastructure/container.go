@@ -7,7 +7,10 @@ import (
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/tui"
 	"mem/adapters/secondary/codegraph/codebasememory"
+	"mem/adapters/secondary/compression"
 	"mem/adapters/secondary/persistence"
+	"mem/adapters/secondary/speckit"
+	"mem/adapters/secondary/tokens"
 	"mem/application/ports"
 	"mem/application/usecases"
 )
@@ -27,6 +30,9 @@ type Container struct {
 	CodeProviders   []ports.CodeGraphProvider
 	ADRSyncProvider ports.ADRSyncProvider
 	ADRSyncRepo     ports.ADRSyncRepository
+	Compressor      ports.Compressor
+	TokenCounter    ports.TokenCounter
+	SpecKitReader   ports.SpecKitReader
 }
 
 func NewContainer(root string) (*Container, error) {
@@ -106,6 +112,9 @@ func NewContainer(root string) (*Container, error) {
 		CodeGraphRepo:   codeGraphRepo,
 		CodeProviders:   codeProviders,
 		ADRSyncRepo:     adrSyncRepo,
+		Compressor:      compression.StructuralCompressor{},
+		TokenCounter:    tokens.ApproximateTokenCounter{},
+		SpecKitReader:   speckit.Reader{},
 	}
 	if settings.AdrSyncEnabled {
 		c.ADRSyncProvider = adrSyncProvider
@@ -133,6 +142,9 @@ func (c *Container) ToDeps() *cli.Deps {
 		TUIProvider:     c.tuiProvider(),
 		ADRSyncProvider: c.ADRSyncProvider,
 		ADRSyncRepo:     c.ADRSyncRepo,
+		Compressor:      c.Compressor,
+		TokenCounter:    c.TokenCounter,
+		SpecKitReader:   c.SpecKitReader,
 	}
 }
 

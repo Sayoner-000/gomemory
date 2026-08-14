@@ -28,6 +28,11 @@ const (
 	ToolSearchCode       = "search_code"
 	ToolGetSymbol        = "get_symbol"
 	ToolListDependencies = "list_dependencies"
+
+	ToolPackBuild    = "pack_build"
+	ToolPackShow     = "pack_show"
+	ToolPackCompress = "pack_compress"
+	ToolPackStats    = "pack_stats"
 )
 
 // MCPMemoryTools son las tools del núcleo de memoria.
@@ -54,15 +59,26 @@ var MCPCodeTools = []string{
 	ToolIndexProject,
 }
 
+// MCPContextPackTools son las tools del Context Optimization Engine (feature
+// 015): construyen/inspeccionan un domain.ContextPack. Ninguna es
+// destructiva — solo cómputo y lectura, nada borra memorias.
+var MCPContextPackTools = []string{
+	ToolPackBuild,
+	ToolPackShow,
+	ToolPackCompress,
+	ToolPackStats,
+}
+
 // MCPDestructiveTools nunca se pre-aprueban: son irreversibles y deben pasar
 // siempre por confirmación explícita de la persona.
 var MCPDestructiveTools = []string{ToolForgetMemory}
 
 // MCPAllTools es el conjunto completo que registra el servidor.
 func MCPAllTools() []string {
-	out := make([]string, 0, len(MCPMemoryTools)+len(MCPCodeTools))
+	out := make([]string, 0, len(MCPMemoryTools)+len(MCPCodeTools)+len(MCPContextPackTools))
 	out = append(out, MCPMemoryTools...)
 	out = append(out, MCPCodeTools...)
+	out = append(out, MCPContextPackTools...)
 	return out
 }
 
@@ -70,7 +86,7 @@ func MCPAllTools() []string {
 // puede pre-aprobarse sin riesgo por ser de solo lectura o de escritura acotada
 // y reversible.
 func MCPAutoApprovableTools() []string {
-	out := make([]string, 0, len(MCPMemoryTools)+len(MCPCodeTools))
+	out := make([]string, 0, len(MCPAllTools()))
 	for _, t := range MCPAllTools() {
 		if !isDestructiveTool(t) {
 			out = append(out, t)

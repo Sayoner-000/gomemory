@@ -37,6 +37,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdSearch(deps, args)
 	case "session":
 		CmdSession(deps, args)
+	case "pack":
+		CmdPack(deps, args)
 	case "install":
 		CmdInstall(deps, args)
 	case "wrap":

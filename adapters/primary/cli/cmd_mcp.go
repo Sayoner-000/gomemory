@@ -345,6 +345,84 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			Content: []mcp.Content{&mcp.TextContent{Text: output}},
 		}, nil, nil
 	})
+
+	// pack_build (feature 015): Context Optimization Engine. Mismo caso de uso
+	// que `mem pack build` (agnóstico de cliente MCP y de proveedor de LLM —
+	// ver specs/015-context-optimization/contracts/mcp-tools.md "Regla de oro").
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "pack_build",
+		Description: "Construye un ContextPack: recupera memorias relevantes a una tarea, elimina " +
+			"duplicados, clasifica por prioridad, comprime lo no crítico y arma un paquete que nunca " +
+			"excede el presupuesto de tokens pedido ni descarta contenido crítico en silencio.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Task           string  `json:"task" jsonschema:"Descripción de la tarea"`
+		Project        string  `json:"project,omitempty" jsonschema:"Proyecto objetivo (default: proyecto actual)"`
+		MaxTokens      int     `json:"max_tokens" jsonschema:"Presupuesto total de tokens, > 0"`
+		MinRelevance   float64 `json:"min_relevance,omitempty" jsonschema:"Relevancia mínima 0-1"`
+		MaxItems       int     `json:"max_items,omitempty" jsonschema:"Tope de candidatos antes de rankear"`
+		IncludeSpeckit bool    `json:"include_speckit,omitempty" jsonschema:"Incluir artefactos de Spec Kit de la feature activa"`
+	}) (*mcp.CallToolResult, any, error) {
+		proj := in.Project
+		if proj == "" {
+			proj = project
+		}
+		pack, err := usecases.BuildContextPack(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader, usecases.ContextRequest{
+			Task:           in.Task,
+			Project:        proj,
+			MaxTokens:      in.MaxTokens,
+			MinRelevance:   float32(in.MinRelevance),
+			MaxItems:       in.MaxItems,
+			IncludeSpecKit: in.IncludeSpeckit,
+			Root:           deps.Root,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: formatContextPack(pack)}},
+		}, nil, nil
+	})
+
+	// pack_show/pack_stats (feature 015): igual que sus contrapartes CLI, son
+	// stateless — reciben un ContextPack ya construido (p. ej. por pack_build)
+	// y solo lo reformatean. Ningún estado se recuerda entre llamadas.
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "pack_show",
+		Description: "Reformatea en Markdown legible un ContextPack ya construido (p. ej. por pack_build).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Pack domain.ContextPack `json:"pack" jsonschema:"ContextPack a mostrar"`
+	}) (*mcp.CallToolResult, any, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: formatContextPack(in.Pack)}},
+		}, nil, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "pack_stats",
+		Description: "Devuelve solo el bloque de estadísticas de reducción de un ContextPack ya construido.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Pack domain.ContextPack `json:"pack" jsonschema:"ContextPack del que reportar estadísticas"`
+	}) (*mcp.CallToolResult, any, error) {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: FormatContextStats(in.Pack.Stats)}},
+		}, nil, nil
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "pack_compress",
+		Description: "Comprime un texto arbitrario de forma determinista (sin retrieval ni presupuesto) " +
+			"y reporta el costo en tokens antes/después.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Text string `json:"text" jsonschema:"Texto a comprimir"`
+	}) (*mcp.CallToolResult, any, error) {
+		result, err := CompressText(deps.Compressor, in.Text)
+		if err != nil {
+			return nil, nil, err
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: result.Content}},
+		}, result, nil
+	})
 }
 
 func registerResources(server *mcp.Server, deps *Deps, project string) {

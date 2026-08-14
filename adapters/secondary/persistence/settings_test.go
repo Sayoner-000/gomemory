@@ -215,3 +215,79 @@ func TestSettingsRepository_AtomicPlanDisabled_RoundTrip(t *testing.T) {
 		t.Errorf("tras el round-trip AtomicPlanDisabled = %v, se esperaba true", got)
 	}
 }
+
+// --- Feature 015: Context Optimization & Budgeting ---
+
+func TestReadSettings_ContextDefaults_AbsentUsesFactoryDefaults(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{"auto_approve": false})
+
+	s := ReadSettings(root)
+
+	if s.ContextDefaultBudget != DefaultContextBudget {
+		t.Errorf("ContextDefaultBudget = %d, se esperaba el default %d", s.ContextDefaultBudget, DefaultContextBudget)
+	}
+	if s.ContextMinRelevance != DefaultContextMinRelevance {
+		t.Errorf("ContextMinRelevance = %v, se esperaba el default %v", s.ContextMinRelevance, DefaultContextMinRelevance)
+	}
+	if s.ContextMaxItems != DefaultContextMaxItems {
+		t.Errorf("ContextMaxItems = %d, se esperaba el default %d", s.ContextMaxItems, DefaultContextMaxItems)
+	}
+	if s.ContextCompressionDisabled {
+		t.Error("ContextCompressionDisabled debería ser false por defecto (compresión activa)")
+	}
+	if s.ContextDedupDisabled {
+		t.Error("ContextDedupDisabled debería ser false por defecto (dedup activo)")
+	}
+}
+
+// Un valor negativo es un opt-out explícito (sin filtro/sin tope) y NO debe
+// pisarse con el default — mismo criterio que Budget/CompactThreshold.
+func TestReadSettings_ContextDefaults_NegativeIsExplicitOptOutNotOverwritten(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{
+		"context_min_relevance": -1,
+		"context_max_items":     -1,
+	})
+
+	s := ReadSettings(root)
+
+	if s.ContextMinRelevance != -1 {
+		t.Errorf("ContextMinRelevance = %v, un valor negativo explícito no debería pisarse con el default", s.ContextMinRelevance)
+	}
+	if s.ContextMaxItems != -1 {
+		t.Errorf("ContextMaxItems = %d, un valor negativo explícito no debería pisarse con el default", s.ContextMaxItems)
+	}
+}
+
+func TestSettingsRepository_ContextFields_RoundTrip(t *testing.T) {
+	root := t.TempDir()
+	repo := NewSettingsRepository()
+
+	s := repo.Read(root)
+	s.ContextDefaultBudget = 8000
+	s.ContextMinRelevance = 0.5
+	s.ContextMaxItems = 30
+	s.ContextCompressionDisabled = true
+	s.ContextDedupDisabled = true
+	if err := repo.Write(root, s); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	got := repo.Read(root)
+	if got.ContextDefaultBudget != 8000 {
+		t.Errorf("ContextDefaultBudget tras roundtrip = %d, se esperaba 8000", got.ContextDefaultBudget)
+	}
+	if got.ContextMinRelevance != 0.5 {
+		t.Errorf("ContextMinRelevance tras roundtrip = %v, se esperaba 0.5", got.ContextMinRelevance)
+	}
+	if got.ContextMaxItems != 30 {
+		t.Errorf("ContextMaxItems tras roundtrip = %d, se esperaba 30", got.ContextMaxItems)
+	}
+	if !got.ContextCompressionDisabled {
+		t.Error("ContextCompressionDisabled=true debería sobrevivir un roundtrip write/read")
+	}
+	if !got.ContextDedupDisabled {
+		t.Error("ContextDedupDisabled=true debería sobrevivir un roundtrip write/read")
+	}
+}

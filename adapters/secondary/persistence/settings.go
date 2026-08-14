@@ -58,6 +58,17 @@ type Settings struct {
 	// bool JSON no distingue "ausente" de "false", y la funcionalidad debe
 	// quedar ON sin que el usuario tenga que optar por ella.
 	AtomicPlanDisabled bool `json:"atomic_plan_disabled,omitempty"`
+	// ContextDefaultBudget/ContextMinRelevance/ContextMaxItems/
+	// ContextCompressionDisabled/ContextDedupDisabled: ajustes de
+	// BuildContextPack (feature 015). Mismo patrón que Budget/CompactThreshold
+	// (0 → default, negativo → opt-out explícito) para los numéricos, y mismo
+	// patrón opt-out `...Disabled` que SpeckitContextDisabled/AtomicPlanDisabled
+	// para los booleanos.
+	ContextDefaultBudget       int     `json:"context_default_budget,omitempty"`
+	ContextMinRelevance        float64 `json:"context_min_relevance,omitempty"`
+	ContextMaxItems            int     `json:"context_max_items,omitempty"`
+	ContextCompressionDisabled bool    `json:"context_compression_disabled,omitempty"`
+	ContextDedupDisabled       bool    `json:"context_dedup_disabled,omitempty"`
 }
 
 // Defaults de la huella de contexto (feature 008). En CARACTERES emitidos salvo
@@ -68,6 +79,14 @@ const (
 	DefaultDedupWindowDays  = 7
 )
 
+// Defaults del Context Optimization Engine (feature 015). ContextMinRelevance
+// en escala 0–1; el resto en tokens/cantidad de items.
+const (
+	DefaultContextBudget       = 4000
+	DefaultContextMinRelevance = 0.65
+	DefaultContextMaxItems     = 20
+)
+
 func DefaultSettings() Settings {
 	return Settings{
 		AutoApprove: false,
@@ -76,10 +95,13 @@ func DefaultSettings() Settings {
 		// escrita a mano se quedó sin get_plan_context ni las 5 del grafo, así que
 		// esos agentes pedían permiso justo en la acción que debía ser automática.
 		// forget_memory queda fuera por destructiva (MCPAutoApprovableTools).
-		AutoApproveTools: domain.MCPAutoApprovableTools(),
-		Budget:           DefaultBudget,
-		CompactThreshold: DefaultCompactThreshold,
-		DedupWindowDays:  DefaultDedupWindowDays,
+		AutoApproveTools:     domain.MCPAutoApprovableTools(),
+		Budget:               DefaultBudget,
+		CompactThreshold:     DefaultCompactThreshold,
+		DedupWindowDays:      DefaultDedupWindowDays,
+		ContextDefaultBudget: DefaultContextBudget,
+		ContextMinRelevance:  DefaultContextMinRelevance,
+		ContextMaxItems:      DefaultContextMaxItems,
 	}
 }
 
@@ -99,6 +121,22 @@ func applyFootprintDefaults(s *Settings) {
 	}
 }
 
+// applyContextDefaults normaliza los ajustes de BuildContextPack (feature
+// 015) tras leer un settings.json que puede no traer las claves nuevas:
+// ausente/0 toma el default; negativo se conserva tal cual (opt-out
+// explícito que el caso de uso interpreta como "sin filtro"/"sin tope").
+func applyContextDefaults(s *Settings) {
+	if s.ContextDefaultBudget == 0 {
+		s.ContextDefaultBudget = DefaultContextBudget
+	}
+	if s.ContextMinRelevance == 0 {
+		s.ContextMinRelevance = DefaultContextMinRelevance
+	}
+	if s.ContextMaxItems == 0 {
+		s.ContextMaxItems = DefaultContextMaxItems
+	}
+}
+
 func SettingsPath(root string) string {
 	return filepath.Join(root, MemDir, "settings.json")
 }
@@ -115,6 +153,7 @@ func ReadSettings(root string) Settings {
 	}
 	applyFootprintDefaults(&s)
 	applyCodeGraphProvidersDefault(&s)
+	applyContextDefaults(&s)
 	return s
 }
 

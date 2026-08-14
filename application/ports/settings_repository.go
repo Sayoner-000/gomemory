@@ -39,6 +39,27 @@ type SettingsData struct {
 	// 013, historia 4): get_plan_context deja de emitir método y contexto.
 	// Ausente/false = activada, mismo patrón opt-out que SpeckitContextDisabled.
 	AtomicPlanDisabled bool `json:"atomic_plan_disabled,omitempty"`
+	// ContextDefaultBudget es el presupuesto de tokens por defecto para
+	// `mem pack build` cuando el ajuste se consulta programáticamente (el CLI
+	// exige --max-tokens explícito). Ausente/0 = default de fábrica; negativo
+	// no tiene sentido (un presupuesto no puede ser "ilimitado") y se trata
+	// como ausente (feature 015).
+	ContextDefaultBudget int `json:"context_default_budget,omitempty"`
+	// ContextMinRelevance es el umbral mínimo de relevancia (0–1) para que un
+	// candidato entre a un ContextPack. Ausente/0 = default de fábrica;
+	// negativo = sin filtro de relevancia (opt-out explícito, feature 015).
+	ContextMinRelevance float64 `json:"context_min_relevance,omitempty"`
+	// ContextMaxItems es el tope de candidatos a considerar antes de rankear.
+	// Ausente/0 = default de fábrica; negativo = sin tope (feature 015).
+	ContextMaxItems int `json:"context_max_items,omitempty"`
+	// ContextCompressionDisabled apaga la compresión estructural de
+	// BuildContextPack (Compression=None en vez de Structural). Ausente/false
+	// = activada, mismo patrón opt-out que SpeckitContextDisabled
+	// (feature 015).
+	ContextCompressionDisabled bool `json:"context_compression_disabled,omitempty"`
+	// ContextDedupDisabled apaga la deduplicación de BuildContextPack.
+	// Ausente/false = activada (feature 015).
+	ContextDedupDisabled bool `json:"context_dedup_disabled,omitempty"`
 }
 
 type SettingsRepository interface {

@@ -32,4 +32,10 @@ type Deps struct {
 	// refresco y `mem adr-sync status` deben chequear nil antes de usarlos.
 	ADRSyncProvider ports.ADRSyncProvider
 	ADRSyncRepo     ports.ADRSyncRepository
+	// Compressor/TokenCounter (feature 015): dependencias del Context
+	// Optimization Engine (`mem pack ...` y las tools MCP pack_*). Siempre
+	// construidos (sin toggle) porque son puro cómputo local, sin I/O externo.
+	Compressor    ports.Compressor
+	TokenCounter  ports.TokenCounter
+	SpecKitReader ports.SpecKitReader
 }
