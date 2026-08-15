@@ -64,7 +64,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
 | `install` | `adapters/primary/cli/cmd_install.go` | Copia binario + init + .gitignore + AGENTS + configura MCP para todos los agentes |
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 10 tools de memoria + 5 de grafo de codigo y 2 recursos. Acepta `--root <dir>` |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 10 tools de memoria + 5 de grafo de código + 4 de optimización de contexto (19 en total) y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `post-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `plan-approved`, `nudge`, `prompt`) |
@@ -74,6 +74,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` de `.memory/mem.db` (recupera espacio, no borra nada) |
 | `gc` | `adapters/primary/cli/cmd_gc.go` | Garbage collection por antigüedad a demanda (90 días por defecto) |
 | `uninstall` | `adapters/primary/cli/cmd_uninstall.go` | Reverso de `install`: quita binario, hooks, MCP, bloques en AGENTS/CLAUDE y datos |
+| `pack` | `adapters/primary/cli/cmd_pack.go` | `build`/`show`/`compress`/`stats` — arma un paquete de contexto acotado a una tarea y a un presupuesto de tokens (ver sección 16) |
 | `tui` | `adapters/primary/cli/cli.go:LaunchTUI()` | Abre interfaz TUI explícitamente |
 | *(sin args)* | `adapters/primary/cli/dispatcher.go` | Abre TUI automáticamente |
 
@@ -411,6 +412,15 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `get_symbol` | name | Obtiene definicion con callers y callees directos |
 | `list_dependencies` | name, direction, kind, depth | Recorre dependencias por profundidad |
 
+**Herramientas de optimización de contexto (4, feature 015 — ver sección 16 más abajo):**
+
+| Tool | Input | Descripción |
+|---|---|---|
+| `pack_build` | task, max_tokens, project?, min_relevance?, max_items?, include_speckit? | Arma un ContextPack acotado a una tarea y a un presupuesto de tokens |
+| `pack_show` | pack | Re-renderiza en Markdown un ContextPack ya construido |
+| `pack_stats` | pack | Devuelve solo el bloque de estadísticas de reducción |
+| `pack_compress` | text | Comprime un texto suelto y reporta tokens antes/después |
+
 **Recursos:**
 
 | URI | Descripción |
@@ -571,6 +581,43 @@ También disponibles desde la TUI (tecla `m`), salvo la desinstalación.
 ### 15. Desinstalación (`adapters/primary/cli/cmd_uninstall.go`)
 
 `mem uninstall [dir] [--yes]` es el reverso exacto de `install`: remueve el binario `mem`, los hooks de `.claude/settings.json`, el registro MCP en `.mcp.json` y configs equivalentes, los bloques inyectados en `AGENTS.md`/`CLAUDE.md` y los datos (`.memory/`). Reporta los componentes que no encontró sin fallar. El archivo global `~/.codex/config.toml` no se toca automáticamente: se informa al usuario para que lo edite si usó el agente Codex.
+
+### 16. Motor de optimización de contexto: `mem pack` (feature 015, v2.4.0)
+
+`mem context`/`get_context` resuelve un problema: darle al agente el historial completo del proyecto, acotado por un presupuesto blando en caracteres (ver "Huella de contexto" más arriba). `mem pack` resuelve uno distinto: armar, para una tarea puntual, un paquete de contexto que **nunca** exceda un presupuesto de tokens explícito. No reemplaza a `mem context`; conviven.
+
+```
+mem pack build --task "arreglar el login" --max-tokens 4000 [--project p] [--min-relevance 0.65] [--max-items 20] [--no-compress] [--no-speckit] [--json]
+mem pack show    < paquete.json     # re-renderiza en Markdown un ContextPack ya construido
+mem pack stats   < paquete.json     # solo el bloque de estadísticas de reducción
+mem pack compress < texto.txt       # comprime un texto suelto, sin retrieval ni presupuesto
+```
+
+`pack show`, `pack stats` y `pack compress` son *stateless*: no recuerdan nada entre invocaciones. Leen su entrada de un archivo o de stdin (`-`) — el mismo JSON que `pack build --json` produce.
+
+**Qué hace `BuildContextPack` (`application/usecases/build_context_pack.go`), en orden:**
+
+1. Busca memorias candidatas para `--task` con `MemoryRepo.Search`, acotado a `--max-items` (default interno 20 si no se pasa).
+2. Elimina duplicados reusando `DetectDuplicateGroups` — el mismo detector que ya usa `judge_memories` — pero limitado al subconjunto de candidatos de esta consulta, no a todo el proyecto.
+3. Clasifica cada item en crítico / relevante / opcional.
+4. Comprime lo no crítico con compresión estructural determinista (`adapters/secondary/compression/`, sin LLM): nunca toca código, URLs, rutas ni mensajes de error. `--no-compress` la apaga.
+5. Arma el paquete sin exceder `--max-tokens`. Si el contenido crítico por sí solo ya excede el presupuesto, devuelve `domain.ErrCriticalContextOverflow` en vez de un paquete parcial — nunca descarta contenido crítico en silencio.
+6. Si el proyecto usa Spec Kit y hay una feature activa (`.specify/feature.json`), suma requisitos/decisiones/tareas de **esa** feature — nunca mezcla otras. `--no-speckit` lo desactiva.
+
+Salida: Markdown con los items del paquete y un bloque de estadísticas (tokens antes/después, % de reducción, cuántos items quedaron en cada categoría). `--json` emite el `ContextPack` completo, el mismo formato que `pack show`/`pack stats` esperan como entrada.
+
+**Tools MCP (4, sumadas a las 10 de memoria + 5 de grafo de código = 19 en total):**
+
+| Tool | Input | Descripción |
+|---|---|---|
+| `pack_build` | task, max_tokens, project?, min_relevance?, max_items?, include_speckit? | Arma el ContextPack completo |
+| `pack_show` | pack | Re-renderiza en Markdown un ContextPack ya construido |
+| `pack_stats` | pack | Devuelve solo el bloque de estadísticas |
+| `pack_compress` | text | Comprime un texto suelto y reporta tokens antes/después |
+
+**Nota honesta sobre settings:** `.memory/settings.json` ya tiene 5 claves reservadas para esta feature (`context_default_budget`, `context_min_relevance`, `context_max_items`, `context_compression_disabled`, `context_dedup_disabled`, con defaults `4000` / `0.65` / `20` / `false` / `false`). Hoy **no** se leen desde `cmd_pack.go` ni desde el handler MCP — verificado en el código, no en el spec: `--max-tokens` y `--min-relevance` son siempre explícitos por invocación, y el tope de 20 candidatos sin `--max-items` viene de una constante separada (`defaultCandidateLimit`) que solo *coincide* en valor con `context_max_items`, no está enlazada a él. Quedan como el contrato para una CLI/TUI de configuración futura (`mem settings --context-*`), todavía sin construir.
+
+Aditivo: no cambia el comportamiento de `get_context`/`search_memories`/`mem context` si no se invoca `mem pack`/`pack_build` explícitamente.
 
 ## Instalador universal de consola (`scripts/install.sh`, `scripts/install.ps1`)
 

@@ -13,10 +13,11 @@ automática con OpenCode y Claude Code.
 6. [Solución de Problemas](#6-solución-de-problemas)
 7. [Memory Protocol](#7-memory-protocol)
 8. [Mantenimiento de Memoria](#8-mantenimiento-de-memoria)
-9. [Registro Multi-Agente (detalle completo)](#9-registro-multi-agente-detalle-completo)
-10. [Seguridad](#10-seguridad)
-11. [Stack Técnico](#11-stack-técnico)
-12. [Portabilidad](#12-portabilidad)
+9. [Optimización de Contexto (mem pack)](#9-optimización-de-contexto-mem-pack)
+10. [Registro Multi-Agente (detalle completo)](#10-registro-multi-agente-detalle-completo)
+11. [Seguridad](#11-seguridad)
+12. [Stack Técnico](#12-stack-técnico)
+13. [Portabilidad](#13-portabilidad)
 
 ---
 
@@ -423,6 +424,59 @@ que lo edite manualmente si instaló el agente Codex.
 Ver también [contracts/cli-tui-contracts.md](../specs/003-memory-maintenance/contracts/cli-tui-contracts.md)
 para el detalle completo de flags y comportamiento.
 
+## 9. Optimización de Contexto (mem pack)
+
+`mem context` te da todo el historial del proyecto. `mem pack` te da solo lo
+que hace falta para una tarea concreta, sin pasarte de un presupuesto de
+tokens explícito. Son dos herramientas distintas para dos preguntas
+distintas: "¿qué pasó en este proyecto?" vs. "¿qué necesito saber para hacer
+X, en no más de N tokens?".
+
+```bash
+# Armar un paquete de contexto para una tarea, con presupuesto de 4000 tokens
+./mem pack build --task "arreglar el bug de login" --max-tokens 4000
+
+# Guardarlo como JSON para reusarlo (pack show/stats lo leen de ahí)
+./mem pack build --task "arreglar el bug de login" --max-tokens 4000 --json > paquete.json
+./mem pack show  < paquete.json     # re-renderiza el paquete en Markdown
+./mem pack stats < paquete.json     # solo el resumen de reducción (tokens antes/después)
+
+# Comprimir un texto suelto (sin buscar memorias ni aplicar presupuesto)
+./mem pack compress < notas.txt
+```
+
+Qué hace `mem pack build`: busca memorias relevantes a la tarea, descarta las
+que son casi duplicadas de otra ya incluida, comprime lo que no es crítico
+(sin tocar código, URLs, rutas ni mensajes de error) y arma el paquete final
+sin exceder `--max-tokens`. Si lo que es realmente crítico para la tarea ya
+excede ese presupuesto por sí solo, el comando falla con un error explícito
+en vez de devolverte un paquete incompleto sin avisar — así nunca crees que
+tienes todo el contexto crítico cuando en realidad falta parte.
+
+Flags de `pack build`:
+
+| Flag | Qué hace | Obligatorio |
+|---|---|---|
+| `--task` | Descripción de la tarea | Sí |
+| `--max-tokens` | Presupuesto total de tokens | Sí |
+| `--project` | Proyecto objetivo (default: el actual) | No |
+| `--min-relevance` | Relevancia mínima 0–1 para incluir un candidato | No |
+| `--max-items` | Tope de candidatos antes de rankear | No |
+| `--no-compress` | Desactiva la compresión del contenido no crítico | No |
+| `--no-speckit` | No incluye artefactos de Spec Kit de la feature activa | No |
+| `--json` | Emite el paquete completo en JSON, en vez de Markdown | No |
+
+Disponible también vía MCP (`pack_build`, `pack_show`, `pack_stats`,
+`pack_compress`) para que el agente lo pida él mismo dentro de la
+conversación, sin pasar por la terminal.
+
+> `.memory/settings.json` ya reserva claves para esta feature
+> (`context_default_budget`, `context_min_relevance`, `context_max_items`,
+> `context_compression_disabled`, `context_dedup_disabled`), pero hoy la CLI y
+> el MCP no las leen — `--task`/`--max-tokens` son siempre explícitos por
+> invocación. Editarlas a mano en el JSON no cambia el comportamiento
+> todavía.
+
 ## Referencia Rápida
 
 ```bash
@@ -442,6 +496,10 @@ para el detalle completo de flags y comportamiento.
 ./mem export                          # Volcar memorias + relaciones a un JSON portable
 ./mem import backup.json              # Importarlas en otro proyecto/máquina (dedup)
 
+# Optimización de contexto
+./mem pack build --task "..." --max-tokens 4000   # Paquete de contexto acotado a una tarea
+./mem pack compress < texto.txt                   # Comprimir un texto suelto
+
 # Mantenimiento de memoria
 ./mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
 ./mem compact                     # Recuperar espacio en disco
@@ -459,7 +517,7 @@ Para más detalles técnicos, ver:
 
 ---
 
-## 9. Registro Multi-Agente (detalle completo)
+## 10. Registro Multi-Agente (detalle completo)
 
 Dos formas de configurar agentes, según si soportan registro MCP a nivel de usuario:
 
@@ -516,7 +574,7 @@ la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
 
 Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
 en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ver
-`gomemory` con 9 tools.
+`gomemory` con 19 tools.
 
 > Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
 > con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado
@@ -525,7 +583,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 ---
 
-## 10. Seguridad
+## 11. Seguridad
 
 - **Sin telemetría** — gomemory no envía datos a ningún servidor. Todo ocurre localmente.
 - **Binario autocontenido** — sin dependencias compartidas que puedan ser comprometidas.
@@ -535,7 +593,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 ---
 
-## 11. Stack Técnico
+## 12. Stack Técnico
 
 | Componente | Tecnología |
 |------------|------------|
@@ -549,7 +607,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 ---
 
-## 12. Portabilidad
+## 13. Portabilidad
 
 ```bash
 # Cross-compile sin toolchain adicional
