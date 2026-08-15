@@ -60,6 +60,24 @@ func TestParsePackBuildFlags_NoSpeckitDisablesInclusion(t *testing.T) {
 	}
 }
 
+func TestParsePackBuildFlags_NoCodeGraphDisablesInclusion(t *testing.T) {
+	req, _, err := cli.ParsePackBuildFlags([]string{"--task", "x", "--max-tokens", "10", "--no-code-graph"}, "proj")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if req.IncludeCodeGraph {
+		t.Fatal("--no-code-graph debería dejar IncludeCodeGraph=false")
+	}
+
+	reqDefault, _, err := cli.ParsePackBuildFlags([]string{"--task", "x", "--max-tokens", "10"}, "proj")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !reqDefault.IncludeCodeGraph {
+		t.Fatal("sin --no-code-graph, IncludeCodeGraph debería ser true por defecto (FR-007)")
+	}
+}
+
 func TestParsePackBuildFlags_JSONFlag(t *testing.T) {
 	_, asJSON, err := cli.ParsePackBuildFlags([]string{"--task", "x", "--max-tokens", "10", "--json"}, "proj")
 	if err != nil {

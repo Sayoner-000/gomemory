@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -204,11 +205,18 @@ func (p *Provider) ImpactFor(filepath string) (domain.CodeImpactAnnotation, bool
 	return domain.CodeImpactAnnotation{}, false
 }
 
-// resolveHotspotFiles completa CodeHotspot.File por cada hotspot, vía un
-// search_code por qualified_name (acotado a los hotspots ya condensados por
+// resolveHotspotFiles completa CodeHotspot.File por cada hotspot, vía
+// search_graph con qn_pattern (acotado a los hotspots ya condensados por
 // parseArchitecture, máx. maxHotspots). Best-effort: sin binario, sin
 // qualified_name conocido, o sin match → ese hotspot queda con File vacío y
 // se sigue con el resto. Muta hotspots in-place.
+//
+// Usa search_graph (coincidencia exacta por qualified_name vía regex
+// anclada), NO search_code: search_code es grep/BM25 de texto libre, y un
+// qualified_name completo (con puntos) como patrón no gana ningún ranking
+// exacto contra un repo real — verificado en vivo, el primer resultado era
+// ruido no relacionado al símbolo pedido. search_graph con qn_pattern sí
+// resuelve el símbolo exacto (mismo binario CLI, verificado en vivo).
 func (p *Provider) resolveHotspotFiles(ctx context.Context, project string, hotspots []domain.CodeHotspot, qualifiedNames map[string]string) {
 	if p.binPath == "" {
 		return
@@ -218,37 +226,42 @@ func (p *Provider) resolveHotspotFiles(ctx context.Context, project string, hots
 		if qn == "" {
 			continue
 		}
-		args, err := json.Marshal(map[string]any{"pattern": qn, "project": project, "regex": false, "limit": 5})
+		args, err := json.Marshal(map[string]any{
+			"qn_pattern": "^" + regexp.QuoteMeta(qn) + "$",
+			"project":    project,
+			"limit":      5,
+		})
 		if err != nil {
 			continue
 		}
-		out, err := p.runCLI(ctx, "search_code", string(args))
+		out, err := p.runCLI(ctx, "search_graph", string(args))
 		if err != nil {
 			continue
 		}
-		if file, ok := parseSearchCodeFile(out, qn); ok {
+		if file, ok := parseSearchGraphFile(out, qn); ok {
 			hotspots[i].File = file
 		}
 	}
 }
 
-// parseSearchCodeFile toma la salida de search_code y devuelve el "file" del
-// resultado cuyo qualified_name matchea exacto — search_code busca por texto
-// libre, así que puede traer más de un resultado; solo el match exacto es
+// parseSearchGraphFile toma la salida de search_graph y devuelve el
+// "file_path" del resultado cuyo qualified_name matchea exacto — qn_pattern
+// es una regex, así que puede traer más de un resultado (símbolos con el
+// mismo Name en otro paquete); solo el match exacto de qualified_name es
 // confiable para no anotar impacto sobre el archivo equivocado.
-func parseSearchCodeFile(out []byte, qualifiedName string) (string, bool) {
+func parseSearchGraphFile(out []byte, qualifiedName string) (string, bool) {
 	var resp struct {
 		Results []struct {
 			QualifiedName string `json:"qualified_name"`
-			File          string `json:"file"`
+			FilePath      string `json:"file_path"`
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(out, &resp); err != nil {
 		return "", false
 	}
 	for _, r := range resp.Results {
-		if r.QualifiedName == qualifiedName && r.File != "" {
-			return r.File, true
+		if r.QualifiedName == qualifiedName && r.FilePath != "" {
+			return r.FilePath, true
 		}
 	}
 	return "", false

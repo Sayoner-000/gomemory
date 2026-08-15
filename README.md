@@ -336,7 +336,6 @@ See [GitHub Issues](https://github.com/Sayoner-000/gomemory/issues) for current 
 
 **Author:** Sayoner ([@Sayoner-000](https://github.com/Sayoner-000))
 **License:** MIT · See [`LICENSE`](LICENSE)
-**Inspiration:** Inspired by the architecture of [Engram](https://github.com/Gentleman-Programming/engram).
 
 *Built with Go, SQLite and the [Model Context Protocol](https://modelcontextprotocol.io/).*
 

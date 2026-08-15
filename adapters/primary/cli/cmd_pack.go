@@ -48,6 +48,7 @@ func ParsePackBuildFlags(args []string, defaultProject string) (usecases.Context
 	maxItems := fs.Int("max-items", 0, "Tope de candidatos antes de rankear (default: settings)")
 	noCompress := fs.Bool("no-compress", false, "Desactivar compresión estructural (Compression=None)")
 	noSpeckit := fs.Bool("no-speckit", false, "No incluir artefactos de Spec Kit")
+	noCodeGraph := fs.Bool("no-code-graph", false, "Desactivar la señal de grafo de código externo")
 	asJSON := fs.Bool("json", false, "Emitir el ContextPack como JSON")
 
 	if err := fs.Parse(args); err != nil {
@@ -71,13 +72,14 @@ func ParsePackBuildFlags(args []string, defaultProject string) (usecases.Context
 	}
 
 	req := usecases.ContextRequest{
-		Task:           *task,
-		Project:        proj,
-		MaxTokens:      *maxTokens,
-		MinRelevance:   float32(*minRelevance),
-		MaxItems:       *maxItems,
-		IncludeSpecKit: !*noSpeckit,
-		Compression:    compressionLevel,
+		Task:             *task,
+		Project:          proj,
+		MaxTokens:        *maxTokens,
+		MinRelevance:     float32(*minRelevance),
+		MaxItems:         *maxItems,
+		IncludeSpecKit:   !*noSpeckit,
+		IncludeCodeGraph: !*noCodeGraph,
+		Compression:      compressionLevel,
 	}
 	return req, *asJSON, nil
 }
@@ -88,6 +90,7 @@ func cmdPackBuild(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 	req.Root = deps.Root
+	req.CodeProviders = deps.CodeProviders
 
 	pack, err := usecases.BuildContextPack(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader, req)
 	if err != nil {

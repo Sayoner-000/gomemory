@@ -464,11 +464,23 @@ Flags de `pack build`:
 | `--max-items` | Tope de candidatos antes de rankear | No |
 | `--no-compress` | Desactiva la compresión del contenido no crítico | No |
 | `--no-speckit` | No incluye artefactos de Spec Kit de la feature activa | No |
+| `--no-code-graph` | Desactiva la señal del grafo de código externo | No |
 | `--json` | Emite el paquete completo en JSON, en vez de Markdown | No |
 
 Disponible también vía MCP (`pack_build`, `pack_show`, `pack_stats`,
 `pack_compress`) para que el agente lo pida él mismo dentro de la
-conversación, sin pasar por la terminal.
+conversación, sin pasar por la terminal. La tool `pack_build` expone el
+mismo apagador como `no_code_graph` (booleano, no `include_code_graph` — el
+default siempre es "activado" salvo que el cliente lo desactive explícito).
+
+Si hay un proveedor de grafo de código externo configurado (`codebase-memory-mcp`
+u otro), `mem pack build` también lo consulta, con el mismo criterio
+de solo-snapshot-cacheado y degradación silenciosa que ya usa `mem context`:
+una memoria candidata cuyo archivo es un hotspot vigente sube de prioridad
+Optional a Relevant, y si sobra presupuesto puede aparecer un ítem compacto
+de arquitectura (mismos totales/clusters/hotspots que `mem context` ya
+muestra). Sin proveedor configurado, o con `--no-code-graph`/`no_code_graph`,
+el comportamiento es exactamente el de antes de esta señal.
 
 > `.memory/settings.json` ya reserva claves para esta feature
 > (`context_default_budget`, `context_min_relevance`, `context_max_items`,

@@ -141,9 +141,21 @@ func TestRefresh_SinBinario(t *testing.T) {
 // ─── Historia 1 (feature 010): anotación de impacto por archivo ──────────
 //
 // get_architecture NO expone "file" por hotspot (verificado contra el CLI
-// real: solo trae name/qualified_name/fan_in) — search_code sí lo expone,
-// casando por qualified_name. Por eso el archivo se resuelve aparte, no
-// leyendo un campo que la fixture real no tiene.
+// real: solo trae name/qualified_name/fan_in) — el archivo se resuelve
+// aparte, no leyendo un campo que la fixture real no tiene.
+//
+// Bug corregido (feature 018, causa raíz verificada en vivo): la resolución
+// usaba search_code (grep/BM25 de texto libre) pasándole el qualified_name
+// completo como pattern. Contra un repo real, ese texto largo con puntos no
+// gana ningún ranking de BM25 exacto — el primer resultado es ruido no
+// relacionado (confirmado con `codebase-memory-mcp cli search_code` en vivo:
+// el top-1 para el qualified_name de WriteFile fue un nodo Variable de un
+// fixture de testdata). search_graph con qn_pattern (regex anclada sobre
+// qualified_name) SÍ resuelve el símbolo exacto — confirmado en vivo, mismo
+// binario CLI. La comparación por igualdad exacta de qualified_name ya
+// existía y era correcta; el problema era el tool/pattern usado para pedir
+// candidatos, que nunca traía el resultado correcto entre el ruido de
+// search_code.
 
 func TestHotspotQualifiedNames_MatchesRealFixture(t *testing.T) {
 	out, err := os.ReadFile("testdata/get_architecture.json")
@@ -165,6 +177,41 @@ func TestHotspotQualifiedNames_Garbage(t *testing.T) {
 	qn := hotspotQualifiedNames([]byte("no es json"))
 	if len(qn) != 0 {
 		t.Fatalf("JSON inválido debería devolver mapa vacío, hubo %d entradas", len(qn))
+	}
+}
+
+// TestParseSearchGraphFile_MatchesRealFixture usa un fixture real de
+// search_graph (qn_pattern) con dos resultados: uno cuyo qualified_name
+// coincide exacto con el pedido, y otro que no (mismo Name "WriteFile", otro
+// símbolo). Solo el match exacto debe resolverse.
+func TestParseSearchGraphFile_MatchesRealFixture(t *testing.T) {
+	out, err := os.ReadFile("testdata/search_graph_writefile.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	qn := "Users-josegomezj-home-rcw-go_memory.application.ports.context_builder.ContextBuilder.WriteFile"
+	file, ok := parseSearchGraphFile(out, qn)
+	if !ok {
+		t.Fatal("esperaba resolver el archivo del match exacto")
+	}
+	if file != "application/ports/context_builder.go" {
+		t.Fatalf("file = %q, se esperaba %q", file, "application/ports/context_builder.go")
+	}
+}
+
+func TestParseSearchGraphFile_NoExactMatch(t *testing.T) {
+	out, err := os.ReadFile("testdata/search_graph_writefile.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := parseSearchGraphFile(out, "algo.que.no.existe.EnLaFixture"); ok {
+		t.Fatal("sin match exacto de qualified_name debería devolver false")
+	}
+}
+
+func TestParseSearchGraphFile_Garbage(t *testing.T) {
+	if _, ok := parseSearchGraphFile([]byte("no es json"), "cualquier.cosa"); ok {
+		t.Fatal("JSON inválido debería devolver false")
 	}
 }
 

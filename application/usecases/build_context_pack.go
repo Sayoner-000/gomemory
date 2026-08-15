@@ -29,6 +29,13 @@ type ContextRequest struct {
 	// IncludeSpecKit=true, para que SpecKitReader ubique .specify/feature.json
 	// y specs/<feature>/. Vacío si no se usa Spec Kit (feature 015, Historia 4).
 	Root string
+	// IncludeCodeGraph y CodeProviders (feature 018): señal opcional del grafo
+	// de código externo — boost de prioridad por hotspot y candidato de
+	// arquitectura compacto. CodeProviders vacío/nil o IncludeCodeGraph=false
+	// degrada en silencio a exactamente el comportamiento anterior a esta
+	// feature (FR-002, FR-009).
+	IncludeCodeGraph bool
+	CodeProviders    []ports.CodeGraphProvider
 }
 
 // BuildContextPack recupera memorias relevantes a Task dentro de Project,
@@ -96,6 +103,19 @@ func BuildContextPack(
 				items = append(items, skItems...)
 				retrieved += len(skItems)
 			}
+		}
+	}
+
+	// Grafo de código externo (feature 018): brazo extensor opcional, mismo
+	// contrato de no-bloqueo que ya usa build_context.go — solo lee snapshots
+	// ya cacheados, nunca invoca al proveedor en vivo. req.CodeProviders
+	// vacío/nil o IncludeCodeGraph=false degrada en silencio a exactamente el
+	// comportamiento anterior a esta feature (FR-002, FR-009).
+	if req.IncludeCodeGraph {
+		boostHotspotCandidates(items, req.CodeProviders)
+		if archCandidate, ok := codeGraphArchitectureCandidate(req.CodeProviders); ok {
+			items = append(items, archCandidate)
+			retrieved++
 		}
 	}
 
@@ -285,4 +305,57 @@ func specKitCandidates(ctx domain.SpecKitFeatureContext) []contextCandidate {
 	add("tasks", ctx.TaskDependencies, domain.PriorityRelevant, 0.5)
 
 	return out
+}
+
+// boostHotspotCandidates sube la prioridad de items[i] de PriorityOptional a
+// PriorityRelevant cuando items[i].source coincide con un hotspot vigente
+// según CUALQUIERA de los proveedores dados — mismo criterio que ya usa
+// build_context.go en "Memoria conectada a código activo" (itera todos los
+// proveedores, no solo el primero disponible; research.md §2, feature 018).
+// Nunca toca PriorityCritical y nunca baja una prioridad — la señal del
+// grafo de código solo puede ayudar (FR-004, research.md §6). Muta items
+// in-place, mismo patrón que el resto del ensamblado de candidatos en
+// BuildContextPack.
+// codeGraphArchitectureCandidate arma, como máximo, un contextCandidate con
+// el resumen compacto de arquitectura (formatCodeArchitecture,
+// build_context.go) del primer proveedor con snapshot disponible
+// (FirstAvailable — research.md §2, no itera todos como el boost de
+// hotspots, para no duplicar contenido dentro de un presupuesto acotado).
+// Segundo valor false si no hay ningún proveedor disponible: cero impacto,
+// no es un error (feature 018, Historia 2).
+func codeGraphArchitectureCandidate(providers []ports.CodeGraphProvider) (contextCandidate, bool) {
+	cp := FirstAvailable(providers)
+	if cp == nil {
+		return contextCandidate{}, false
+	}
+	snap := cp.Snapshot()
+	if !snap.Available || snap.Architecture == nil {
+		return contextCandidate{}, false
+	}
+	return contextCandidate{
+		id:         "codegraph:architecture",
+		content:    formatCodeArchitecture(snap),
+		source:     snap.Provider,
+		priority:   domain.PriorityOptional,
+		relevance:  1,
+		importance: 0.4,
+		confidence: 1,
+	}, true
+}
+
+func boostHotspotCandidates(items []contextCandidate, providers []ports.CodeGraphProvider) {
+	for i := range items {
+		if items[i].source == "" || items[i].priority != domain.PriorityOptional {
+			continue
+		}
+		for _, cp := range providers {
+			if cp == nil {
+				continue
+			}
+			if ann, ok := cp.ImpactFor(items[i].source); ok && ann.Hotspot {
+				items[i].priority = domain.PriorityRelevant
+				break
+			}
+		}
+	}
 }

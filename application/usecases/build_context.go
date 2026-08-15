@@ -27,6 +27,15 @@ func relTitle(titleByID map[int64]string, id int64) string {
 // gomemory guarda el PORQUÉ. Es agnóstico al agente: va en el contexto que
 // todos consumen (get_context / mem context), no en un hook de un agente.
 func writeCodeProviderSection(sb *strings.Builder, snap domain.CodeProviderSnapshot) {
+	sb.WriteString(formatCodeArchitecture(snap))
+}
+
+// formatCodeArchitecture arma el mismo resumen compacto que
+// writeCodeProviderSection embebe en get_context, como texto reusable —
+// feature 018 lo reusa también para el candidato de arquitectura de
+// BuildContextPack (mem pack build), en vez de duplicar el formato.
+func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
+	var sb strings.Builder
 	a := snap.Architecture
 	sb.WriteString(fmt.Sprintf("## Grafo de código externo (%s)\n\n", snap.Provider))
 	sb.WriteString(fmt.Sprintf("Grafo estructural indexado: %d nodos, %d relaciones.", a.TotalNodes, a.TotalEdges))
@@ -61,6 +70,7 @@ func writeCodeProviderSection(sb *strings.Builder, snap domain.CodeProviderSnaps
 		"llamadas, impacto de un diff) usa las tools del proveedor externo: search_graph, " +
 		"trace_path, query_graph, get_architecture, detect_changes. gomemory guarda el PORQUÉ " +
 		"(decisiones, sinapsis); el grafo externo responde el QUÉ/CÓMO del código.\n\n")
+	return sb.String()
 }
 
 func displayTitle(m domain.Memory) string {

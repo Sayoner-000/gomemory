@@ -361,19 +361,22 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		MinRelevance   float64 `json:"min_relevance,omitempty" jsonschema:"Relevancia mínima 0-1"`
 		MaxItems       int     `json:"max_items,omitempty" jsonschema:"Tope de candidatos antes de rankear"`
 		IncludeSpeckit bool    `json:"include_speckit,omitempty" jsonschema:"Incluir artefactos de Spec Kit de la feature activa"`
+		NoCodeGraph    bool    `json:"no_code_graph,omitempty" jsonschema:"Desactiva la señal de grafo de código externo para esta llamada"`
 	}) (*mcp.CallToolResult, any, error) {
 		proj := in.Project
 		if proj == "" {
 			proj = project
 		}
 		pack, err := usecases.BuildContextPack(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader, usecases.ContextRequest{
-			Task:           in.Task,
-			Project:        proj,
-			MaxTokens:      in.MaxTokens,
-			MinRelevance:   float32(in.MinRelevance),
-			MaxItems:       in.MaxItems,
-			IncludeSpecKit: in.IncludeSpeckit,
-			Root:           deps.Root,
+			Task:             in.Task,
+			Project:          proj,
+			MaxTokens:        in.MaxTokens,
+			MinRelevance:     float32(in.MinRelevance),
+			MaxItems:         in.MaxItems,
+			IncludeSpecKit:   in.IncludeSpeckit,
+			Root:             deps.Root,
+			IncludeCodeGraph: !in.NoCodeGraph,
+			CodeProviders:    deps.CodeProviders,
 		})
 		if err != nil {
 			return nil, nil, err

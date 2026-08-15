@@ -264,6 +264,20 @@ Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `dedup_windo
 
 El dominio del resumen compacto vive en `domain/code_provider.go` (`CodeProviderSnapshot`, `CodeArchitecture`: totales, lenguajes, clusters, hotspots).
 
+**Segundo consumidor: `BuildContextPack` / `mem pack build` (feature 018).** Hasta la
+feature 018, `CodeGraphProvider` solo lo consumía `build_context.go` (`mem context`).
+`application/usecases/build_context_pack.go` ahora también lo consulta, con el mismo
+contrato de solo-snapshot-cacheado: `boostHotspotCandidates` sube de `Optional` a
+`Relevant` la prioridad de un candidato cuyo `Filepath` es un hotspot vigente (mismo
+`ImpactFor`, iterando todos los proveedores como ya hacía la sección "🔥 Memoria
+conectada a código activo"), y `codeGraphArchitectureCandidate` puede agregar, como un
+candidato más sujeto a presupuesto, el mismo resumen compacto (`formatCodeArchitecture`,
+extraído de `writeCodeProviderSection` para no duplicar el formato entre los dos
+consumidores) del primer proveedor disponible (`FirstAvailable`). `ContextRequest` ganó
+`IncludeCodeGraph`/`CodeProviders`; `--no-code-graph` (CLI) y `no_code_graph` (tool MCP
+`pack_build`) lo desactivan por invocación — default activado en ambos, cero cambio de
+comportamiento sin proveedor configurado.
+
 #### Evolución del brazo extensor (feature 010): impacto, ADR y multi-proveedor
 
 Tres capacidades aditivas sobre la base anterior, todas opcionales y
