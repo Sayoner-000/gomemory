@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -498,8 +500,8 @@ func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 // sin tocar disco.
 type tuiSettingsStub struct{ data *ports.SettingsData }
 
-func (s tuiSettingsStub) Read(string) ports.SettingsData            { return *s.data }
-func (s tuiSettingsStub) Write(_ string, d ports.SettingsData) error { *s.data = d; return nil }
+func (s tuiSettingsStub) Read(string) ports.SettingsData              { return *s.data }
+func (s tuiSettingsStub) Write(_ string, d ports.SettingsData) error  { *s.data = d; return nil }
 func (s tuiSettingsStub) ApplyAutoApprove(string, ports.SettingsData) {}
 
 // TestConfigScreen_MuestraInterruptorDePlanificacionAtomica cubre FR-033: el
@@ -549,5 +551,282 @@ func TestConfigScreen_ToggleDePlanificacionAtomicaPersiste(t *testing.T) {
 	m2.configCursor = configRowAtomicPlan
 	if _, _ = m2.updateConfig(tea.KeyMsg{Type: tea.KeyEnter}); data.AtomicPlanDisabled {
 		t.Error("al confirmar de nuevo debe reactivarse")
+	}
+}
+
+// --- Feature 016: reindexado del grafo externo desde la TUI (US2) ---
+
+// fakeCodeIndexer implementa ports.CodeGraphProvider + ports.CodeGraphIndexer
+// (proveedor que SÍ soporta el reindexado explícito).
+type fakeCodeIndexer struct {
+	nodes, edges int
+	indexErr     error
+	indexCalls   int
+}
+
+func (f *fakeCodeIndexer) Name() string { return "fake-indexer" }
+func (f *fakeCodeIndexer) Snapshot() domain.CodeProviderSnapshot {
+	return domain.CodeProviderSnapshot{}
+}
+func (f *fakeCodeIndexer) MaybeRefresh() {}
+func (f *fakeCodeIndexer) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
+	return domain.CodeImpactAnnotation{}, false
+}
+func (f *fakeCodeIndexer) IndexRepository(context.Context, string) (int, int, error) {
+	f.indexCalls++
+	return f.nodes, f.edges, f.indexErr
+}
+
+// fakeCodeProviderNoIndexer implementa SOLO ports.CodeGraphProvider (sin
+// soporte de reindexado explícito) — su aserción a ports.CodeGraphIndexer
+// debe fallar de forma segura (ok=false, sin panic).
+type fakeCodeProviderNoIndexer struct{}
+
+func (f fakeCodeProviderNoIndexer) Name() string { return "fake-no-indexer" }
+func (f fakeCodeProviderNoIndexer) Snapshot() domain.CodeProviderSnapshot {
+	return domain.CodeProviderSnapshot{}
+}
+func (f fakeCodeProviderNoIndexer) MaybeRefresh() {}
+func (f fakeCodeProviderNoIndexer) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
+	return domain.CodeImpactAnnotation{}, false
+}
+
+func newConfigTestModel(cp ports.CodeGraphProvider, data *ports.SettingsData) model {
+	return model{
+		screen:           screenConfig,
+		settingsRepo:     tuiSettingsStub{data: data},
+		codeProvider:     cp,
+		editSettingInput: textinput.New(),
+		width:            100,
+		height:           40,
+		ready:            true,
+	}
+}
+
+func TestConfigView_ReindexLabel_SegunSoporteDeInterfaz(t *testing.T) {
+	data := &ports.SettingsData{}
+
+	withSupport := newConfigTestModel(&fakeCodeIndexer{}, data)
+	if view := withSupport.configView(); !strings.Contains(view, "Reindexar grafo externo (codebase-memory-mcp)") {
+		t.Errorf("esperaba label con soporte de interfaz; vista:\n%s", view)
+	}
+
+	withoutSupport := newConfigTestModel(fakeCodeProviderNoIndexer{}, data)
+	if view := withoutSupport.configView(); !strings.Contains(view, "Reindexar grafo externo: no disponible") {
+		t.Errorf("esperaba label sin soporte de interfaz; vista:\n%s", view)
+	}
+}
+
+func TestUpdateConfig_ReindexRow_SinSoporte_NoDisparaCmd(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := newConfigTestModel(fakeCodeProviderNoIndexer{}, data)
+	m.configCursor = configRowReindexGraph
+
+	updated, cmd := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatal("sin soporte de interfaz no debería disparar ningún tea.Cmd")
+	}
+	m2 := updated.(model)
+	if m2.statusMsg != "codebase-memory-mcp no disponible" {
+		t.Fatalf("statusMsg = %q", m2.statusMsg)
+	}
+}
+
+func TestUpdateConfig_ReindexRow_ConSoporte_DisparaCmd(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := newConfigTestModel(&fakeCodeIndexer{nodes: 10, edges: 20}, data)
+	m.configCursor = configRowReindexGraph
+
+	updated, cmd := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("con soporte de interfaz debería disparar un tea.Cmd")
+	}
+	m2 := updated.(model)
+	if !m2.reindexInProgress {
+		t.Fatal("esperaba reindexInProgress=true de inmediato, antes de que el Cmd resuelva")
+	}
+}
+
+func TestUpdateConfig_ReindexRow_YaEnCurso_NoDisparaSegundoCmd(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := newConfigTestModel(&fakeCodeIndexer{}, data)
+	m.configCursor = configRowReindexGraph
+	m.reindexInProgress = true
+
+	updated, cmd := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatal("con un reindexado ya en curso no debería dispararse un segundo tea.Cmd")
+	}
+	m2 := updated.(model)
+	if !strings.Contains(m2.statusMsg, "ya hay") && !strings.Contains(m2.statusMsg, "Ya hay") {
+		t.Fatalf("esperaba un statusMsg que deje claro que ya hay uno en curso, obtuve %q", m2.statusMsg)
+	}
+}
+
+func TestReindexExternalGraphCmd_PropagaResultado(t *testing.T) {
+	indexer := &fakeCodeIndexer{nodes: 42, edges: 84}
+	m := newConfigTestModel(indexer, &ports.SettingsData{})
+
+	msg := m.reindexExternalGraphCmd()()
+	done, ok := msg.(externalReindexDoneMsg)
+	if !ok {
+		t.Fatalf("esperaba externalReindexDoneMsg, obtuve %T", msg)
+	}
+	if done.nodes != 42 || done.edges != 84 || done.err != nil {
+		t.Fatalf("resultado inesperado: %+v", done)
+	}
+	if indexer.indexCalls != 1 {
+		t.Fatalf("esperaba exactamente 1 llamada a IndexRepository, hubo %d", indexer.indexCalls)
+	}
+}
+
+func TestUpdate_ExternalReindexDoneMsg_Exito(t *testing.T) {
+	m := newConfigTestModel(&fakeCodeIndexer{}, &ports.SettingsData{})
+	m.reindexInProgress = true
+
+	updated, _ := m.Update(externalReindexDoneMsg{nodes: 5, edges: 9})
+	m2 := updated.(model)
+	if m2.reindexInProgress {
+		t.Fatal("esperaba reindexInProgress=false tras el resultado")
+	}
+	if !strings.Contains(m2.statusMsg, "5 nodos") || !strings.Contains(m2.statusMsg, "9 aristas") {
+		t.Fatalf("statusMsg no refleja los conteos: %q", m2.statusMsg)
+	}
+}
+
+func TestUpdate_ExternalReindexDoneMsg_NoInstalado(t *testing.T) {
+	m := newConfigTestModel(fakeCodeProviderNoIndexer{}, &ports.SettingsData{})
+	m.reindexInProgress = true
+
+	updated, _ := m.Update(externalReindexDoneMsg{err: ports.ErrIndexerNotInstalled})
+	m2 := updated.(model)
+	if m2.reindexInProgress {
+		t.Fatal("esperaba reindexInProgress=false tras el resultado")
+	}
+	if m2.statusMsg != "codebase-memory-mcp no disponible" {
+		t.Fatalf("statusMsg = %q", m2.statusMsg)
+	}
+}
+
+// --- Feature 016: editar huella de contexto desde la TUI (US3) ---
+
+func TestUpdateConfig_EditBudgetRow_PrecargaValorActual(t *testing.T) {
+	data := &ports.SettingsData{Budget: 12345}
+	m := newConfigTestModel(nil, data)
+	m.configCursor = configRowEditBudget
+
+	updated, _ := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	m2 := updated.(model)
+	if m2.screen != screenEditSetting {
+		t.Fatalf("esperaba screenEditSetting, quedó en %v", m2.screen)
+	}
+	if got := m2.editSettingInput.Value(); got != strconv.Itoa(12345) {
+		t.Fatalf("esperaba input precargado con %q, obtuve %q", "12345", got)
+	}
+	if !m2.editSettingInput.Focused() {
+		t.Fatal("esperaba el input enfocado")
+	}
+}
+
+func typeInto(m model, s string) model {
+	for _, ch := range s {
+		updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m = updated.(model)
+	}
+	return m
+}
+
+func TestUpdateEditSetting_GuardaValorValido(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := newConfigTestModel(nil, data)
+	m.screen = screenEditSetting
+	m.editSettingField = editFieldBudget
+	m.editSettingInput.SetValue("")
+	m.editSettingInput.Focus()
+
+	m = typeInto(m, "999")
+	updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEnter})
+	m2 := updated.(model)
+
+	if m2.screen != screenConfig {
+		t.Fatalf("esperaba volver a screenConfig, quedó en %v", m2.screen)
+	}
+	if data.Budget != 999 {
+		t.Fatalf("esperaba Budget=999 persistido, obtuve %d", data.Budget)
+	}
+	if m2.editSettingErr != "" {
+		t.Fatalf("no esperaba error, obtuve %q", m2.editSettingErr)
+	}
+}
+
+func TestUpdateEditSetting_RechazaNoNumerico(t *testing.T) {
+	for _, raw := range []string{"", "abc", "3.5"} {
+		t.Run(raw, func(t *testing.T) {
+			data := &ports.SettingsData{Budget: 111}
+			m := newConfigTestModel(nil, data)
+			m.screen = screenEditSetting
+			m.editSettingField = editFieldBudget
+			m.editSettingInput.SetValue("")
+			m.editSettingInput.Focus()
+
+			m = typeInto(m, raw)
+			updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEnter})
+			m2 := updated.(model)
+
+			if m2.screen != screenEditSetting {
+				t.Fatalf("valor inválido %q no debería avanzar la pantalla, quedó en %v", raw, m2.screen)
+			}
+			if m2.editSettingErr == "" {
+				t.Fatalf("esperaba un mensaje de error para %q", raw)
+			}
+			if data.Budget != 111 {
+				t.Fatalf("no debería haberse guardado nada, Budget quedó en %d", data.Budget)
+			}
+		})
+	}
+}
+
+func TestUpdateEditSetting_PermiteCeroYNegativo(t *testing.T) {
+	for _, raw := range []string{"0", "-5"} {
+		t.Run(raw, func(t *testing.T) {
+			data := &ports.SettingsData{}
+			m := newConfigTestModel(nil, data)
+			m.screen = screenEditSetting
+			m.editSettingField = editFieldDedupDays
+			m.editSettingInput.SetValue("")
+			m.editSettingInput.Focus()
+
+			m = typeInto(m, raw)
+			updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEnter})
+			m2 := updated.(model)
+
+			want, _ := strconv.Atoi(raw)
+			if data.DedupWindowDays != want {
+				t.Fatalf("esperaba DedupWindowDays=%d, obtuve %d", want, data.DedupWindowDays)
+			}
+			if m2.screen != screenConfig {
+				t.Fatalf("esperaba volver a screenConfig, quedó en %v", m2.screen)
+			}
+		})
+	}
+}
+
+func TestUpdateEditSetting_Esc_CancelaSinGuardar(t *testing.T) {
+	data := &ports.SettingsData{CompactThreshold: 777}
+	m := newConfigTestModel(nil, data)
+	m.screen = screenEditSetting
+	m.editSettingField = editFieldCompactThreshold
+	m.editSettingInput.SetValue("")
+	m.editSettingInput.Focus()
+
+	m = typeInto(m, "1")
+	updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEsc})
+	m2 := updated.(model)
+
+	if m2.screen != screenConfig {
+		t.Fatalf("esperaba volver a screenConfig, quedó en %v", m2.screen)
+	}
+	if data.CompactThreshold != 777 {
+		t.Fatalf("Esc no debería guardar nada, CompactThreshold quedó en %d", data.CompactThreshold)
 	}
 }

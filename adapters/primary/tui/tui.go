@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +34,17 @@ const (
 	screenOptimizeDetail
 	screenOptimizeConfirm
 	screenOptimizeAllConfirm
+	screenEditSetting
+)
+
+// editSettingField identifica cuál de los tres ajustes de huella de contexto
+// está editando screenEditSetting (feature 016).
+type editSettingField int
+
+const (
+	editFieldBudget editSettingField = iota
+	editFieldCompactThreshold
+	editFieldDedupDays
 )
 
 const gcDefaultOlderThanDays = 90
@@ -315,6 +329,16 @@ type model struct {
 	importPath   textinput.Model
 	importErr    string
 
+	// Reindexado del grafo externo (feature 016, US2).
+	reindexInProgress bool
+
+	// Edición de huella de contexto (feature 016, US3): una sola pantalla
+	// (screenEditSetting) reutilizada por los 3 ajustes, parametrizada por
+	// editSettingField — mismo molde de "un solo input a la vez" que screenImport.
+	editSettingField editSettingField
+	editSettingInput textinput.Model
+	editSettingErr   string
+
 	// Optimizar memorias (detección de duplicados) — ver detect_duplicates.go.
 	dupGroups       []usecases.DuplicateGroup
 	dupCursor       int             // cursor sobre la lista de grupos (screenOptimize)
@@ -381,6 +405,11 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	fi.CharLimit = 80
 	fi.Width = 40
 
+	es := textinput.New()
+	es.Placeholder = "valor entero"
+	es.CharLimit = 20
+	es.Width = 20
+
 	settings := settingsRepo.Read(root)
 
 	var stats ports.StorageStats
@@ -389,27 +418,28 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	}
 
 	return model{
-		memRepo:         memRepo,
-		relRepo:         relRepo,
-		settingsRepo:    settingsRepo,
-		maintenanceRepo: maintenanceRepo,
-		codeProvider:    codeProvider,
-		root:            root,
-		project:         project,
-		screen:          screenList,
-		memories:        mems,
-		filtered:        mems,
-		filterInput:     fi,
-		autoApprove:     settings.AutoApprove,
-		saveTitle:       ti,
-		saveType:        ty,
-		saveContent:     tc,
-		saveFilepath:    tf,
-		stats:           stats,
-		maintConfirm:    mc,
-		importPath:      ip,
-		dupConfirm:      dc,
-		dupExclude:      make(map[int64]bool),
+		memRepo:          memRepo,
+		relRepo:          relRepo,
+		settingsRepo:     settingsRepo,
+		maintenanceRepo:  maintenanceRepo,
+		codeProvider:     codeProvider,
+		root:             root,
+		project:          project,
+		screen:           screenList,
+		memories:         mems,
+		filtered:         mems,
+		filterInput:      fi,
+		autoApprove:      settings.AutoApprove,
+		saveTitle:        ti,
+		saveType:         ty,
+		saveContent:      tc,
+		saveFilepath:     tf,
+		stats:            stats,
+		maintConfirm:     mc,
+		importPath:       ip,
+		editSettingInput: es,
+		dupConfirm:       dc,
+		dupExclude:       make(map[int64]bool),
 	}
 }
 
@@ -427,6 +457,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
+		return m, nil
+
+	case externalReindexDoneMsg:
+		m.reindexInProgress = false
+		switch {
+		case msg.err == nil:
+			m.statusMsg = fmt.Sprintf("Grafo externo reindexado: %d nodos, %d aristas", msg.nodes, msg.edges)
+		case errors.Is(msg.err, ports.ErrIndexerNotInstalled):
+			m.statusMsg = "codebase-memory-mcp no disponible"
+		default:
+			m.statusMsg = fmt.Sprintf("⚠️ grafo externo: %v", msg.err)
+		}
+		m.statusTimer = 80
 		return m, nil
 
 	case tea.KeyMsg:
@@ -462,6 +505,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenOptimizeAllConfirm {
 			return m.updateOptimizeAllConfirm(msg)
+		}
+		if m.screen == screenEditSetting {
+			return m.updateEditSetting(msg)
 		}
 		return m.updateList(msg)
 	}
@@ -702,8 +748,47 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // en silencio.
 const configRowAtomicPlan = 6
 
+// configRowReindexGraph es la fila que dispara el reindexado del grafo
+// externo (feature 016, US2) — equivalente en la TUI a `mem index`. Las filas
+// nuevas se agregan siempre al FINAL del menú, nunca insertadas en medio, para
+// no invalidar configRowAtomicPlan/configOptions ya referenciadas por nombre
+// en los tests existentes.
+const configRowReindexGraph = configRowAtomicPlan + 1
+
+// configRowEditBudget/EditCompactThreshold/EditDedupDays son las 3 filas que
+// abren screenEditSetting para editar la huella de contexto (feature 016, US3).
+const (
+	configRowEditBudget           = configRowReindexGraph + 1
+	configRowEditCompactThreshold = configRowEditBudget + 1
+	configRowEditDedupDays        = configRowEditCompactThreshold + 1
+)
+
 // configOptions es el número de filas del menú de configuración.
-const configOptions = configRowAtomicPlan + 1
+const configOptions = configRowEditDedupDays + 1
+
+// externalReindexDoneMsg es el mensaje de resultado del primer tea.Cmd
+// asíncrono real de esta TUI (feature 016, US2): IndexRepository puede tardar
+// minutos, así que corre en background vía reindexExternalGraphCmd() y
+// reporta su resultado por este mensaje en vez de bloquear Update().
+type externalReindexDoneMsg struct {
+	nodes, edges int
+	err          error
+}
+
+// reindexExternalGraphCmd dispara el reindexado bloqueante del proveedor
+// externo fuera del bucle de eventos de Bubble Tea. Si m.codeProvider no
+// soporta ports.CodeGraphIndexer, resuelve de inmediato con el sentinel de
+// "no instalado" — misma semántica que el CLI (indexExternalGraph).
+func (m model) reindexExternalGraphCmd() tea.Cmd {
+	return func() tea.Msg {
+		indexer, ok := m.codeProvider.(ports.CodeGraphIndexer)
+		if !ok {
+			return externalReindexDoneMsg{err: ports.ErrIndexerNotInstalled}
+		}
+		nodes, edges, err := indexer.IndexRepository(context.Background(), "full")
+		return externalReindexDoneMsg{nodes: nodes, edges: edges, err: err}
+	}
+}
 
 // atomicPlanScope indica si la planificación atómica también está habilitada en
 // el ámbito de usuario, para que la persona vea desde dónde le llega la
@@ -726,6 +811,7 @@ func atomicPlanScope() string {
 }
 
 func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg.String() {
 	case "esc", "q":
 		m.screen = screenList
@@ -816,9 +902,47 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Planificación atómica activada (el agente la carga al entrar en modo plan)"
 			}
 			m.statusTimer = 40
+
+		case configRowReindexGraph: // Reindexar grafo externo (feature 016, US2)
+			if _, ok := m.codeProvider.(ports.CodeGraphIndexer); !ok {
+				m.statusMsg = "codebase-memory-mcp no disponible"
+				m.statusTimer = 40
+			} else if m.reindexInProgress {
+				m.statusMsg = "Ya hay un reindexado del grafo externo en curso"
+				m.statusTimer = 40
+			} else {
+				m.reindexInProgress = true
+				m.statusMsg = "🔗 Indexando grafo externo... (puede tardar, no bloquea la TUI)"
+				m.statusTimer = 999
+				cmd = m.reindexExternalGraphCmd()
+			}
+
+		case configRowEditBudget:
+			s := m.settingsRepo.Read(m.root)
+			m.editSettingField = editFieldBudget
+			m.editSettingInput.SetValue(strconv.Itoa(s.Budget))
+			m.editSettingInput.Focus()
+			m.editSettingErr = ""
+			m.screen = screenEditSetting
+
+		case configRowEditCompactThreshold:
+			s := m.settingsRepo.Read(m.root)
+			m.editSettingField = editFieldCompactThreshold
+			m.editSettingInput.SetValue(strconv.Itoa(s.CompactThreshold))
+			m.editSettingInput.Focus()
+			m.editSettingErr = ""
+			m.screen = screenEditSetting
+
+		case configRowEditDedupDays:
+			s := m.settingsRepo.Read(m.root)
+			m.editSettingField = editFieldDedupDays
+			m.editSettingInput.SetValue(strconv.Itoa(s.DedupWindowDays))
+			m.editSettingInput.Focus()
+			m.editSettingErr = ""
+			m.screen = screenEditSetting
 		}
 	}
-	return m, nil
+	return m, cmd
 }
 
 // exportMemories vuelca las memorias + relaciones del proyecto a un JSON en la
@@ -838,6 +962,67 @@ func (m model) exportMemories() (string, int, int, error) {
 		return "", 0, 0, err
 	}
 	return path, len(bundle.Memories), len(bundle.Relations), nil
+}
+
+// ─── Edit setting screen (feature 016, US3) ──────────────────────────
+
+// editSettingLabel devuelve el nombre visible del ajuste que edita
+// screenEditSetting, usado en el título y en el mensaje de confirmación.
+func editSettingLabel(f editSettingField) string {
+	switch f {
+	case editFieldBudget:
+		return "Presupuesto get_context"
+	case editFieldCompactThreshold:
+		return "Umbral recordatorio compactación"
+	case editFieldDedupDays:
+		return "Ventana dedup por identidad"
+	default:
+		return ""
+	}
+}
+
+// updateEditSetting maneja screenEditSetting: Esc vuelve a Configuración sin
+// guardar; Enter valida con strconv.Atoi (vacío/no numérico/decimal → error,
+// permanece en la pantalla) y, si es válido, persiste el entero TAL CUAL
+// (positivo, cero o negativo — la normalización 0→default/negativo→opt-out ya
+// vive en ReadSettings, no aquí) vía settingsRepo.Write.
+func (m model) updateEditSetting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.screen = screenConfig
+		m.editSettingErr = ""
+		return m, nil
+
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "enter":
+		raw := strings.TrimSpace(m.editSettingInput.Value())
+		val, err := strconv.Atoi(raw)
+		if err != nil {
+			m.editSettingErr = "Debe ser un número entero"
+			return m, nil
+		}
+		s := m.settingsRepo.Read(m.root)
+		switch m.editSettingField {
+		case editFieldBudget:
+			s.Budget = val
+		case editFieldCompactThreshold:
+			s.CompactThreshold = val
+		case editFieldDedupDays:
+			s.DedupWindowDays = val
+		}
+		m.settingsRepo.Write(m.root, s)
+		m.statusMsg = fmt.Sprintf("%s actualizado: %d", editSettingLabel(m.editSettingField), val)
+		m.statusTimer = 40
+		m.editSettingErr = ""
+		m.screen = screenConfig
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.editSettingInput, cmd = m.editSettingInput.Update(msg)
+	return m, cmd
 }
 
 // ─── Import screen ──────────────────────────────────────────────────
@@ -1394,6 +1579,8 @@ func (m model) View() string {
 		return m.optimizeConfirmView()
 	case screenOptimizeAllConfirm:
 		return m.optimizeAllConfirmView()
+	case screenEditSetting:
+		return m.editSettingView()
 	}
 	return ""
 }
@@ -1632,8 +1819,8 @@ func (m model) configView() string {
 	}
 	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Binario: "+bin) + "\n\n")
 
-	// Huella de contexto (feature 008): tunables de solo lectura. Se editan en
-	// .memory/settings.json (budget / compact_threshold / dedup_window_days).
+	// Huella de contexto (feature 008): resumen de solo lectura; editable
+	// desde el menú de abajo (feature 016, US3), sin salir de la TUI.
 	b.WriteString(sectionHeaderStyle.Render("  Huella de contexto"))
 	b.WriteString("\n")
 	budgetLabel := fmt.Sprintf("%d caracteres", s.Budget)
@@ -1651,9 +1838,22 @@ func (m model) configView() string {
 	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Presupuesto get_context: "+budgetLabel) + "\n")
 	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Umbral recordatorio compactación: "+threshLabel) + "\n")
 	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Ventana dedup por identidad: "+dedupLabel) + "\n")
-	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    (editar en .memory/settings.json)") + "\n\n")
+	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    (editable desde el menú de abajo)") + "\n\n")
 
-	// Menú de acciones.
+	// Label de reindexado condicionado a si el proveedor soporta la interfaz
+	// (feature 016, US2) — si soporta la interfaz pero el binario no está
+	// instalado, eso se resuelve en runtime vía ErrIndexerNotInstalled, misma
+	// UX que el CLI (indexExternalGraph).
+	reindexLabel := "Reindexar grafo externo: no disponible"
+	if _, ok := m.codeProvider.(ports.CodeGraphIndexer); ok {
+		reindexLabel = "Reindexar grafo externo (codebase-memory-mcp)"
+	}
+	if m.reindexInProgress {
+		reindexLabel += " (en curso...)"
+	}
+
+	// Menú de acciones. Las filas nuevas se agregan SIEMPRE al final — ver
+	// nota en configRowReindexGraph/configRowAtomicPlan.
 	rows := []string{
 		"Grafo de código externo: " + onOff(!s.CodeGraphDisabled),
 		"Auto-approve MCP: " + onOff(s.AutoApprove),
@@ -1662,6 +1862,10 @@ func (m model) configView() string {
 		"Sinapsis automática: " + onOff(!s.SynapseDisabled),
 		"Brazo extensor spec-kit: " + onOff(!s.SpeckitContextDisabled),
 		"Planificación atómica: " + onOff(!s.AtomicPlanDisabled) + atomicPlanScope(),
+		reindexLabel,
+		"Editar presupuesto get_context: " + budgetLabel,
+		"Editar umbral recordatorio compactación: " + threshLabel,
+		"Editar ventana dedup por identidad: " + dedupLabel,
 	}
 	for i, label := range rows {
 		if i == m.configCursor {
@@ -1699,6 +1903,29 @@ func (m model) importView() string {
 	}
 
 	b.WriteString(helpStyle.Render("  enter importar  ·  esc volver"))
+	return appStyle.Render(b.String())
+}
+
+// editSettingView es el molde de importView() (un solo input a la vez)
+// reutilizado para los 3 ajustes de huella de contexto (feature 016, US3).
+func (m model) editSettingView() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("Editar: " + editSettingLabel(m.editSettingField)))
+	b.WriteString("\n")
+	b.WriteString(subtitleStyle.Render("Entero: positivo, 0 (valor por defecto) o negativo (desactiva el límite)"))
+	b.WriteString("\n\n")
+	b.WriteString(formLabel.Render("Nuevo valor:"))
+	b.WriteString("\n")
+	b.WriteString(m.editSettingInput.View())
+	b.WriteString("\n\n")
+
+	if m.editSettingErr != "" {
+		b.WriteString(errorStyle.Render("✕ " + m.editSettingErr))
+		b.WriteString("\n")
+	}
+
+	b.WriteString(helpStyle.Render("  enter guardar  ·  esc cancelar"))
 	return appStyle.Render(b.String())
 }
 

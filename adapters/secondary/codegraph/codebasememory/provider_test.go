@@ -3,11 +3,13 @@ package codebasememory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"mem/application/ports"
 	"mem/domain"
 )
 
@@ -281,5 +283,40 @@ func TestUpdateDocument_SinBinario(t *testing.T) {
 	p := &Provider{root: realRoot, memDir: t.TempDir(), binPath: ""}
 	if err := p.UpdateDocument(context.Background(), "## PURPOSE\n"); err == nil {
 		t.Fatal("sin binario, UpdateDocument debería devolver error")
+	}
+}
+
+// ─── Feature 016: reindexado del grafo externo (ports.CodeGraphIndexer) ──
+
+func TestParseIndexRepositoryResponse_Fixture(t *testing.T) {
+	out, err := os.ReadFile("testdata/index_repository.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes, edges, ok := parseIndexRepositoryResponse(out)
+	if !ok {
+		t.Fatal("parse falló sobre fixture real")
+	}
+	if nodes == 0 || edges == 0 {
+		t.Fatalf("nodes/edges vacíos: nodes=%d edges=%d", nodes, edges)
+	}
+}
+
+func TestParseIndexRepositoryResponse_Garbage(t *testing.T) {
+	if _, _, ok := parseIndexRepositoryResponse([]byte("no es json")); ok {
+		t.Fatal("JSON inválido debería devolver ok=false")
+	}
+}
+
+func TestIndexRepository_SinBinario(t *testing.T) {
+	// Mismo patrón que TestGetDocument_SinBinario/TestUpdateDocument_SinBinario:
+	// binPath vacío es la condición real de "sin binario" (ver New()). Un
+	// binOverride absoluto pero inexistente NO produce binPath=="" — New() lo
+	// usa tal cual sin verificar que exista — así que fallaría con un error de
+	// exec distinto al sentinel, no con ErrIndexerNotInstalled.
+	p := &Provider{root: realRoot, memDir: t.TempDir(), binPath: ""}
+	_, _, err := p.IndexRepository(context.Background(), "full")
+	if !errors.Is(err, ports.ErrIndexerNotInstalled) {
+		t.Fatalf("esperaba ports.ErrIndexerNotInstalled, obtuve %v", err)
 	}
 }

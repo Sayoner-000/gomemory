@@ -35,6 +35,7 @@ import (
 var (
 	_ ports.CodeGraphProvider = (*Provider)(nil)
 	_ ports.ADRSyncProvider   = (*Provider)(nil)
+	_ ports.CodeGraphIndexer  = (*Provider)(nil)
 )
 
 const (
@@ -47,6 +48,9 @@ const (
 	probeTimeout = 2 * time.Second
 	// snapshotTTL: pasado este tiempo, MaybeRefresh dispara un refresco.
 	snapshotTTL = 60 * time.Second
+	// indexTimeout acota IndexRepository (feature 016): un reindexado completo
+	// puede tardar minutos, a diferencia de probeTimeout (sondeos del hot path).
+	indexTimeout = 10 * time.Minute
 
 	maxClusters = 6
 	maxHotspots = 6
@@ -330,10 +334,55 @@ func hotspotQualifiedNames(out []byte) map[string]string {
 }
 
 func (p *Provider) runCLI(ctx context.Context, tool, argsJSON string) ([]byte, error) {
-	cctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	return p.runCLIWithTimeout(ctx, probeTimeout, tool, argsJSON)
+}
+
+// runCLIWithTimeout es el helper parametrizable del que runCLI (probeTimeout,
+// hot path) e IndexRepository (indexTimeout, comando explícito) derivan —
+// evita duplicar la construcción del exec.CommandContext.
+func (p *Provider) runCLIWithTimeout(ctx context.Context, timeout time.Duration, tool, argsJSON string) ([]byte, error) {
+	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	// stdout lleva el JSON; stderr lleva la línea de log del proveedor.
 	return exec.CommandContext(cctx, p.binPath, "cli", tool, argsJSON).Output()
+}
+
+// IndexRepository dispara `cli index_repository {"repo_path":root,"mode":mode}`
+// contra el proveedor externo. Implementa ports.CodeGraphIndexer. A
+// diferencia de Snapshot/MaybeRefresh/ImpactFor (contrato de no-bloqueo del
+// paquete), SÍ bloquea. No llama a resolveProject: index_repository registra
+// el proyecto como efecto del propio indexado, incluida la primera vez.
+func (p *Provider) IndexRepository(ctx context.Context, mode string) (nodes, edges int, err error) {
+	if p.binPath == "" {
+		return 0, 0, ports.ErrIndexerNotInstalled
+	}
+	args, err := json.Marshal(map[string]string{"repo_path": p.root, "mode": mode})
+	if err != nil {
+		return 0, 0, err
+	}
+	out, err := p.runCLIWithTimeout(ctx, indexTimeout, "index_repository", string(args))
+	if err != nil {
+		return 0, 0, fmt.Errorf("index_repository: %w", err)
+	}
+	n, e, ok := parseIndexRepositoryResponse(out)
+	if !ok {
+		return 0, 0, fmt.Errorf("index_repository: respuesta inesperada: %s", out)
+	}
+	return n, e, nil
+}
+
+// parseIndexRepositoryResponse extrae nodes/edges de la respuesta de
+// index_repository (forma real verificada en vivo, ver
+// testdata/index_repository.json).
+func parseIndexRepositoryResponse(out []byte) (nodes, edges int, ok bool) {
+	var resp struct {
+		Nodes int `json:"nodes"`
+		Edges int `json:"edges"`
+	}
+	if err := json.Unmarshal(out, &resp); err != nil {
+		return 0, 0, false
+	}
+	return resp.Nodes, resp.Edges, true
 }
 
 func (p *Provider) resolveProject(ctx context.Context) (string, bool) {
