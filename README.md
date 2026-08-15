@@ -179,6 +179,10 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 ## MCP Tools
 
+19 tools across three groups (`domain/mcp_tools.go` is the single source of truth).
+
+**Memory (10)**
+
 | Tool | Description |
 | :--- | :--- |
 | `save_memory` | Store structured project memory |
@@ -192,28 +196,61 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 | `forget_memory` | Remove a memory |
 | `judge_memories` | Resolve conflicting memories |
 
+**Code graph (5)** — gomemory's own Go symbol graph, no external dependency
+
+| Tool | Description |
+| :--- | :--- |
+| `index_project` | Index (or re-index) the project's Go code into the symbol graph |
+| `graph_status` | Show indexed graph size: files, symbols, relationships, top packages |
+| `search_code` | Search code symbols by name, signature, or package |
+| `get_symbol` | Get a symbol's definition plus its direct callers/callees |
+| `list_dependencies` | Walk a symbol's dependency graph (calls or imports) up to a given depth |
+
+**Context Optimization Engine (4)** — `mem pack`, builds a token-budgeted `ContextPack`
+
+| Tool | Description |
+| :--- | :--- |
+| `pack_build` | Build a `ContextPack`: retrieve, dedupe, prioritize, compress, and fit a token budget |
+| `pack_show` | Re-render an already-built `ContextPack` as readable Markdown |
+| `pack_stats` | Return only the reduction-stats block of an already-built `ContextPack` |
+| `pack_compress` | Deterministically compress arbitrary text (no retrieval/budget), report token cost |
+
 **Resources:** `mem://context` · `mem://memory/{id}`
 
 ## CLI
 
 ```
 mem
-├── save          Save a memory manually
-├── search        Search project memory
-├── list          List recent memories
-├── context       Show current context
-├── plan-context  Atomic planning context
-├── capture       Guided memory form
-├── project       Show project info
-├── index         Index project code graph
-├── export        Export memories to JSON
-├── import        Import memories from JSON
-├── update        Update the binary
-├── uninstall     Remove gomemory
-├── purge         Delete memories
-├── gc / compact  Cleanup and optimize
-├── settings      Configure gomemory
-└── help          Show help
+├── save              Save a memory manually
+├── capture           Guided memory form (What/Why/Where/Learned)
+├── search            Search project memory
+├── list / log        List recent memories
+├── forget            Delete a memory by ID
+├── compare / judge   Record a verdict between two memories, or list verdicts
+├── context           Show current context (get_context)
+├── plan-context      Atomic planning context (for plan mode)
+├── pack build        Build a token-budgeted ContextPack for a task
+├── pack show         Re-render an already-built ContextPack
+├── pack stats        Reduction stats of an already-built ContextPack
+├── pack compress     Deterministic compression of arbitrary text
+├── project           Show current project info
+├── index             Index the project's Go code graph (+ external graph, --skip-graph to opt out)
+├── session start/end Open/close a working session
+├── export / import   Portable JSON bundle (backup/restore, cross-machine)
+├── purge / gc         Delete memories / retention-based cleanup
+├── compact           Reclaim SQLite space (no data loss)
+├── adr-sync status   Inspect ADR sync state with the external code-graph provider
+├── install           Install gomemory into a project
+├── setup <agent>     Install the hooks/plugin for opencode | claude-code
+├── setup-mcp         Register MCP tools for all 6 supported agents
+├── uninstall         Fully remove gomemory from a project
+├── settings          View/change auto-approve and other toggles
+├── update            Update the binary
+├── mcp               Run the MCP server over stdio
+├── hook <event>      Agent hook entrypoint (internal, invoked by Claude Code/OpenCode)
+├── wrap <cmd>        Run a command, then prompt to save a memory about it
+├── tui               Open the interactive terminal UI explicitly
+└── help              Show help
 ```
 
 Run `mem help` for the complete command reference.
@@ -250,6 +287,10 @@ Main settings (via `mem settings` or the interactive TUI):
 | `dedup_window_days` | `7` | Deduplication window |
 | `synapse_disabled` | `false` | Disable automatic memory relationships |
 | `atomic_plan_disabled` | `false` | Disable atomic planning |
+| `code_graph_disabled` | `false` | Disable the optional external code-graph provider entirely |
+| `code_graph_providers` | *(none)* | Ordered list of external code-graph provider commands (priority fallback) |
+| `code_impact_annotation_disabled` | `false` | Disable annotating saved memories with code-graph hotspot impact |
+| `adr_sync_enabled` | `false` | Opt-in bidirectional sync of architecture memories with the external provider's ADR document |
 
 See [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) for all configuration options.
 

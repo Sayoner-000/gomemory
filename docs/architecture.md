@@ -94,35 +94,53 @@ os.Args → infrastructure/main.go → NewContainer() → cli.Run(cmd, args, dep
 
 ### 2. TUI (`adapters/primary/tui/tui.go`)
 
-Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea) + [Lipgloss](https://github.com/charmbracelet/lipgloss) + [Bubbles](https://github.com/charmbracelet/bubbles).
+Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea) + [Lipgloss](https://github.com/charmbracelet/lipgloss) + [Bubbles](https://github.com/charmbracelet/bubbles). Ha crecido de 3 pantallas (versión original) a 11, acompañando cada feature que le agregó una acción interactiva propia — el modelo real hoy es bastante más grande que el diagrama original de este documento sugería.
 
 **Estados (screens):**
-- `screenList` — listado de memorias agrupadas por tipo (arquitectura, decisión, patrón, bugfix, learning, discovery), con cursor de navegación y búsqueda en vivo
-- `screenDetail` — vista detalle de una memoria seleccionada con tipo, fecha, archivo relacionado y sesión
+- `screenList` — listado de memorias agrupadas por tipo, con cursor de navegación y búsqueda en vivo (filtro por título/tipo/contenido)
+- `screenDetail` — vista detalle de una memoria seleccionada
 - `screenSave` — formulario multi-campo (título, tipo, contenido, archivo) con validación
+- `screenMaintenance` / `screenMaintenanceConfirm` — acciones de mantenimiento (purge/gc, §14) con confirmación explícita
+- `screenConfig` — pantalla de Configuración: auto-approve, modo plan atómico, "Reindexar grafo externo" (feature 016), y edición de los 3 ajustes de huella de contexto
+- `screenEditSetting` — una sola pantalla reutilizada por los 3 ajustes editables de huella de contexto (`budget`/`compact_threshold`/`dedup_window_days`), parametrizada por `editSettingField` (feature 016)
+- `screenImport` — importar un bundle JSON portable (`mem import`) desde la TUI
+- `screenOptimize` / `screenOptimizeDetail` / `screenOptimizeConfirm` / `screenOptimizeAllConfirm` — detección de memorias casi-duplicadas (`usecases.DetectProjectDuplicates`) con revisión por grupo y borrado confirmado, uno por uno o en bloque
 
-**Arquitectura del modelo:**
+**Arquitectura del modelo (agrupada por concern, no exhaustiva campo a campo):**
 
 ```
 model
-├── memRepo, sessRepo, root, project  ← contexto de la persistencia
-├── screen                        ← estado actual (list/detail/save)
-├── memories / cursor             ← lista completa con cursor de navegación
-├── searching / search            ← búsqueda en vivo (filtrado por título/tipo/contenido)
-├── selected                      ← memoria seleccionada para detalle
-└── save{Title,Type,Content,Filepath}  ← formulario con 4 campos + focus
+├── memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project  ← contexto/puertos
+├── screen                                    ← estado actual (una de las 11 screens de arriba)
+├── filterInput, filtering, filtered, listCursor  ← búsqueda en vivo sobre la lista
+├── selected, autoApprove, statusMsg, statusTimer ← detalle + feedback transitorio
+├── save{Title,Type,Content,Filepath,Focus,Err,d} ← formulario de screenSave
+├── stats, maintCursor, maintAction, maintConfirm, maintErr  ← screenMaintenance*
+├── configCursor, importPath, importErr        ← screenConfig / screenImport
+├── reindexInProgress                          ← guardia de concurrencia del reindexado externo (feature 016)
+├── editSettingField, editSettingInput, editSettingErr  ← screenEditSetting (feature 016)
+├── dupGroups, dupCursor, dupGroupIdx, dupKeepIdx, dupMemberCursor, dupExclude, dupConfirm, dupErr  ← screenOptimize*
+└── width, height, ready                       ← layout responsivo
 ```
 
-**Atajos de teclado:**
+**Atajos de teclado (pantalla de lista, nivel superior):**
 | Tecla | Acción |
 |---|---|
 | `↑↓` o `jk` | Navegar |
 | `Enter` | Ver detalle |
 | `s` | Guardar nueva memoria |
 | `/` | Activar/desactivar búsqueda en vivo |
-| `Tab` / `↑↓` | Cambiar campo en formulario |
+| `a` | Alternar auto-approve de tools MCP |
+| `m` | Ir a Mantenimiento (purge/gc, requiere `maintenanceRepo`) |
+| `c` | Ir a Configuración |
+| `o` | Ir a Optimizar (detección de duplicados) |
+| `Tab` / `↑↓` | Cambiar campo en formularios |
 | `Esc` | Volver / cancelar / salir de búsqueda |
 | `q` / `Ctrl+C` | Salir |
+
+Cada pantalla adicional (Mantenimiento, Configuración, Optimizar, Importar,
+Editar ajuste) tiene sus propios atajos contextuales — no repetidos aquí; ver
+sus respectivas `*View()` en `tui.go` para el detalle exacto.
 
 **Visual:**
 - Memorias agrupadas por tipo con cabeceras (ej. "▲ Arquitectura (3)")
@@ -262,6 +280,8 @@ Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `dedup_windo
 - **Agnóstico al agente:** vive en el binario `mem`; el bloque va en `get_context`, que todos los agentes consumen.
 - **Memoria conectada a código activo, recalculada en vivo (v1.23.0).** Además del resumen estructural, `Build()` cruza el `Filepath` de cada memoria contra `ImpactFor(filepath)` de cada proveedor **en cada llamada** (mismo contrato de no-bloqueo: solo lee el snapshot cacheado). Las que resuelven a un hotspot vigente aparecen en la sección `🔥 Memoria conectada a código activo`, ordenadas por fan-in. A diferencia de `annotateImpact` (que anota el `content` una única vez, al guardar, y queda congelado), esta relación se re-evalúa contra el snapshot vigente en cada `get_context` — si el código se reindexa y cambian los hotspots, la relevancia se actualiza sola sin tocar la memoria guardada.
 
+  **Bug corregido (v2.6.0):** desde que se implementó (v1.22.0/v1.23.0), `CodeHotspot.File` nunca quedaba resuelto en ningún proyecto real — `resolveHotspotFiles` (`adapters/secondary/codegraph/codebasememory/provider.go`) usaba `search_code` (grep/BM25 de texto libre) con el `qualified_name` completo como patrón, que nunca gana el ranking contra un repo real. Tanto esta sección como `annotateImpact` (anotación al guardar) dependían de ese campo, así que ninguna de las dos había funcionado nunca en producción. Fix: `search_graph` con `qn_pattern` (regex anclada, coincidencia exacta) — verificado en vivo, 6/6 hotspots resueltos. Es un mecanismo best-effort con timeout corto por símbolo (`probeTimeout=2s`); bajo carga del sistema puede haber misses puntuales, que se autocorrigen en el siguiente refresh (TTL 60s).
+
 El dominio del resumen compacto vive en `domain/code_provider.go` (`CodeProviderSnapshot`, `CodeArchitecture`: totales, lenguajes, clusters, hotspots).
 
 **Segundo consumidor: `BuildContextPack` / `mem pack build` (feature 018).** Hasta la
@@ -277,6 +297,20 @@ consumidores) del primer proveedor disponible (`FirstAvailable`). `ContextReques
 `IncludeCodeGraph`/`CodeProviders`; `--no-code-graph` (CLI) y `no_code_graph` (tool MCP
 `pack_build`) lo desactivan por invocación — default activado en ambos, cero cambio de
 comportamiento sin proveedor configurado.
+
+**Reindexado dual desde un solo comando (feature 016, v2.5.0).** `mem index` indexaba
+solo el grafo propio (Go, `go/parser`); el grafo externo requería invocarse a mano por
+separado. Ahora, tras el indexado nativo, `mem index` dispara también el reindexado del
+proveedor externo (`ports.CodeGraphIndexer`, implementado por
+`codebasememory.Provider.IndexRepository`) — salvo `--skip-graph`. Nunca hace fallar el
+comando si el proveedor no está instalado o el reindexado externo falla: solo
+informa/advierte, exit code `0` (el indexado nativo, que sí importa para el resto de
+gomemory, ya tuvo éxito). La TUI tiene la misma acción en la pantalla de Configuración
+("Reindexar grafo externo"), como primer `tea.Cmd` asíncrono real de esta interfaz — no
+bloquea mientras corre, con guardia (`reindexInProgress`) contra disparos concurrentes.
+Misma feature agregó la edición interactiva de los 3 ajustes de huella de contexto
+(`budget`/`compact_threshold`/`dedup_window_days`) desde la pantalla de Configuración,
+sin salir a editar `.memory/settings.json` a mano (ver §2, TUI).
 
 #### Evolución del brazo extensor (feature 010): impacto, ADR y multi-proveedor
 

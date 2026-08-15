@@ -13,11 +13,12 @@ automática con OpenCode y Claude Code.
 6. [Solución de Problemas](#6-solución-de-problemas)
 7. [Memory Protocol](#7-memory-protocol)
 8. [Mantenimiento de Memoria](#8-mantenimiento-de-memoria)
-9. [Optimización de Contexto (mem pack)](#9-optimización-de-contexto-mem-pack)
-10. [Registro Multi-Agente (detalle completo)](#10-registro-multi-agente-detalle-completo)
-11. [Seguridad](#11-seguridad)
-12. [Stack Técnico](#12-stack-técnico)
-13. [Portabilidad](#13-portabilidad)
+9. [Grafo de Código (mem index)](#9-grafo-de-código-mem-index)
+10. [Optimización de Contexto (mem pack)](#10-optimización-de-contexto-mem-pack)
+11. [Registro Multi-Agente (detalle completo)](#11-registro-multi-agente-detalle-completo)
+12. [Seguridad](#12-seguridad)
+13. [Stack Técnico](#13-stack-técnico)
+14. [Portabilidad](#14-portabilidad)
 
 ---
 
@@ -330,8 +331,9 @@ supera el umbral, el hook sugiere de forma **neutral** compactar el contexto
 ### Huella de contexto (tunables)
 
 Para bajar el costo de tokens de la sesión, gomemory emite lo mínimo desde el
-inicio. Ajustable en `.memory/settings.json` (también visible en la TUI, tecla de
-configuración):
+inicio. Ajustable en `.memory/settings.json`, o directamente desde la TUI
+(pantalla de Configuración): los tres valores son editables ahí, sin salir a
+editar el JSON a mano.
 
 | Clave | Efecto | Default |
 |-------|--------|---------|
@@ -424,7 +426,43 @@ que lo edite manualmente si instaló el agente Codex.
 Ver también [contracts/cli-tui-contracts.md](../specs/003-memory-maintenance/contracts/cli-tui-contracts.md)
 para el detalle completo de flags y comportamiento.
 
-## 9. Optimización de Contexto (mem pack)
+## 9. Grafo de Código (`mem index`)
+
+```bash
+./mem index                 # Indexa el código Go propio (símbolos: archivos, paquetes, funciones, métodos, tipos, llamadas)
+./mem index --force          # Reindexado completo, ignora el cache incremental
+./mem index --skip-graph     # Solo el grafo propio — no dispara el reindexado del proveedor externo
+```
+
+`mem index` construye el grafo de símbolos **propio** de gomemory (Go puro, vía
+`go/parser`, sin dependencias externas), que alimentan las tools MCP
+`search_code`/`get_symbol`/`list_dependencies`/`graph_status`. Tras el indexado
+nativo, si hay un proveedor **externo** de grafo de código configurado
+(`codebase-memory-mcp` u otro, multi-lenguaje — ver abajo), también dispara su
+reindexado, salvo que se pase `--skip-graph`. Nunca hace fallar el comando si
+el proveedor externo no está instalado o el reindexado externo falla: solo
+informa o advierte, y el exit code permanece `0` (el indexado nativo, que sí
+importa para el resto de gomemory, ya tuvo éxito).
+
+Misma acción disponible en la TUI: pantalla de Configuración → "Reindexar
+grafo externo" — corre en segundo plano (no bloquea la interfaz) y tiene una
+guardia contra disparos concurrentes.
+
+**Proveedor externo (opcional, "brazo extensor"):** si hay un binario CLI de
+grafo de código externo instalado, gomemory lo usa para enriquecer `mem
+context` (sección "Grafo de código externo" + "🔥 Memoria conectada a código
+activo") y `mem pack build` (§10) con clusters, hotspots y anotación de impacto
+al guardar — todo opcional, con degradación silenciosa si no hay proveedor.
+Ajustes relevantes (`mem settings` o `.memory/settings.json`):
+
+| Ajuste | Default | Qué hace |
+| :--- | :--- | :--- |
+| `code_graph_disabled` | `false` | Desactiva el proveedor externo por completo |
+| `code_graph_providers` | *(ninguno)* | Lista ordenada de comandos de proveedor (fallback por prioridad) |
+| `code_impact_annotation_disabled` | `false` | Desactiva la anotación de impacto (`[impacto: X es hotspot...]`) al guardar una memoria con `--filepath` |
+| `adr_sync_enabled` | `false` | Sincronización bidireccional (opt-in) de memorias de arquitectura con el documento ADR del proveedor — ver `mem adr-sync status` |
+
+## 10. Optimización de Contexto (mem pack)
 
 `mem context` te da todo el historial del proyecto. `mem pack` te da solo lo
 que hace falta para una tarea concreta, sin pasarte de un presupuesto de
@@ -529,7 +567,7 @@ Para más detalles técnicos, ver:
 
 ---
 
-## 10. Registro Multi-Agente (detalle completo)
+## 11. Registro Multi-Agente (detalle completo)
 
 Dos formas de configurar agentes, según si soportan registro MCP a nivel de usuario:
 
@@ -595,7 +633,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 ---
 
-## 11. Seguridad
+## 12. Seguridad
 
 - **Sin telemetría** — gomemory no envía datos a ningún servidor. Todo ocurre localmente.
 - **Binario autocontenido** — sin dependencias compartidas que puedan ser comprometidas.
@@ -605,7 +643,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 ---
 
-## 12. Stack Técnico
+## 13. Stack Técnico
 
 | Componente | Tecnología |
 |------------|------------|
@@ -619,7 +657,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 ---
 
-## 13. Portabilidad
+## 14. Portabilidad
 
 ```bash
 # Cross-compile sin toolchain adicional
