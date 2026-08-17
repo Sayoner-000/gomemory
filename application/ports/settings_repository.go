@@ -39,6 +39,11 @@ type SettingsData struct {
 	// 013, historia 4): get_plan_context deja de emitir método y contexto.
 	// Ausente/false = activada, mismo patrón opt-out que SpeckitContextDisabled.
 	AtomicPlanDisabled bool `json:"atomic_plan_disabled,omitempty"`
+	// PlanGuardDisabled apaga la exigencia de forma del plan (feature 019,
+	// historia 1): `mem hook plan-guard` deja de evaluar y devolver planes sin
+	// forma de árbol, permitiendo siempre. Ausente/false = activada, mismo
+	// patrón opt-out que AtomicPlanDisabled.
+	PlanGuardDisabled bool `json:"plan_guard_disabled,omitempty"`
 	// ContextDefaultBudget es el presupuesto de tokens por defecto para
 	// `mem pack build` cuando el ajuste se consulta programáticamente (el CLI
 	// exige --max-tokens explícito). Ausente/0 = default de fábrica; negativo

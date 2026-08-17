@@ -245,6 +245,7 @@ mem
 ├── setup-mcp         Register MCP tools for all 6 supported agents
 ├── uninstall         Fully remove gomemory from a project
 ├── settings          View/change auto-approve and other toggles
+├── doctor            Coverage report of atomic plan mode channels (--json, --strict)
 ├── update            Update the binary
 ├── mcp               Run the MCP server over stdio
 ├── hook <event>      Agent hook entrypoint (internal, invoked by Claude Code/OpenCode)
@@ -287,6 +288,7 @@ Main settings (via `mem settings` or the interactive TUI):
 | `dedup_window_days` | `7` | Deduplication window |
 | `synapse_disabled` | `false` | Disable automatic memory relationships |
 | `atomic_plan_disabled` | `false` | Disable atomic planning |
+| `plan_guard_disabled` | `false` | Disable the deterministic plan-shape guard (`mem hook plan-guard`) — see [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) |
 | `code_graph_disabled` | `false` | Disable the optional external code-graph provider entirely |
 | `code_graph_providers` | *(none)* | Ordered list of external code-graph provider commands (priority fallback) |
 | `code_impact_annotation_disabled` | `false` | Disable annotating saved memories with code-graph hotspot impact |
@@ -344,6 +346,7 @@ For security details and limitations, see [`docs/MANUAL.md`](docs/MANUAL.md).
 | [`docs/MANUAL.md`](docs/MANUAL.md) | Complete user guide: multi-agent, troubleshooting, security, portability |
 | [`docs/architecture.md`](docs/architecture.md) | Internal architecture deep dive |
 | [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Memory protocol technical reference |
+| [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Agent-agnostic contract for the atomic plan mode — implement it for any agent gomemory doesn't know yet |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute |
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community guidelines |
 

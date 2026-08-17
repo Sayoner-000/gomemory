@@ -763,8 +763,13 @@ const (
 	configRowEditDedupDays        = configRowEditCompactThreshold + 1
 )
 
+// configRowPlanGuard es la fila del interruptor de la exigencia de forma del
+// plan (feature 019, Historia 1): PlanGuardDisabled. Añadida al final, como
+// exige la convención de configRowReindexGraph/configRowAtomicPlan.
+const configRowPlanGuard = configRowEditDedupDays + 1
+
 // configOptions es el número de filas del menú de configuración.
-const configOptions = configRowEditDedupDays + 1
+const configOptions = configRowPlanGuard + 1
 
 // externalReindexDoneMsg es el mensaje de resultado del primer tea.Cmd
 // asíncrono real de esta TUI (feature 016, US2): IndexRepository puede tardar
@@ -900,6 +905,17 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Planificación atómica desactivada en este proyecto"
 			} else {
 				m.statusMsg = "Planificación atómica activada (el agente la carga al entrar en modo plan)"
+			}
+			m.statusTimer = 40
+
+		case configRowPlanGuard: // Toggle exigencia de forma del plan (feature 019)
+			s := m.settingsRepo.Read(m.root)
+			s.PlanGuardDisabled = !s.PlanGuardDisabled
+			m.settingsRepo.Write(m.root, s)
+			if s.PlanGuardDisabled {
+				m.statusMsg = "Exigencia de forma del plan desactivada (todo plan se permite)"
+			} else {
+				m.statusMsg = "Exigencia de forma del plan activada (un plan sin árbol se devuelve)"
 			}
 			m.statusTimer = 40
 
@@ -1866,6 +1882,7 @@ func (m model) configView() string {
 		"Editar presupuesto get_context: " + budgetLabel,
 		"Editar umbral recordatorio compactación: " + threshLabel,
 		"Editar ventana dedup por identidad: " + dedupLabel,
+		"Exigencia de forma del plan: " + onOff(!s.PlanGuardDisabled),
 	}
 	for i, label := range rows {
 		if i == m.configCursor {

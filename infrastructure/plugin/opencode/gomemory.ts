@@ -286,11 +286,12 @@ and ${T_PACK_STATS} reformat/report on an already-built pack; ${T_PACK_COMPRESS}
 compresses arbitrary text on its own, no retrieval involved.
 
 EXTERNAL CODE GRAPH: if the codebase-memory-mcp MCP server is connected, use it
-ALWAYS for code exploration — regardless of the task: chat, plan, summary,
-whatever — instead of reading files by hand: ${T_EXT_SEARCH_GRAPH},
+ALWAYS for code exploration instead of reading files by hand: ${T_EXT_SEARCH_GRAPH},
 ${T_EXT_TRACE_PATH}, ${T_EXT_GET_CODE_SNIPPET}, ${T_EXT_QUERY_GRAPH},
-${T_EXT_GET_ARCHITECTURE}, ${T_EXT_SEARCH_CODE}. If it is not connected, this
-guidance does not apply.
+${T_EXT_GET_ARCHITECTURE}, ${T_EXT_SEARCH_CODE}. Use the graph's tools to
+explore; use the atomic task tree to deliver a plan. What you find with the
+graph feeds the tree's leaves. If it is not connected, this guidance does not
+apply.
 
 SESSION CLOSE: before saying "done", call ${T_END_SESSION}(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;

@@ -261,8 +261,18 @@ func runIn(dir, bin string, args ...string) error {
 }
 
 const integrationMarker = "## Memoria Persistente"
-const integrationVersionMarker = "<!-- gomemory-protocol-v7 -->"
+// integrationVersionMarker es un alias local de domain.ProtocolVersionMarker
+// (feature 019): la fuente única vive en domain/protocol.go para que este
+// instalador y el inspector de cobertura (adapters/primary/setup) nunca
+// puedan divergir sobre cuál es la versión vigente del bloque de protocolo.
+const integrationVersionMarker = domain.ProtocolVersionMarker
 const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
+
+// integrationEndMarker delimita el final del bloque de protocolo desde la
+// versión v8 (feature 019, FR-015). Los bloques v1..v7 no lo llevan: para
+// esos, protocolEnd aplica la regla de límite de data-model.md §6 (siguiente
+// encabezado de nivel 2 tras el propio título del bloque, o EOF).
+const integrationEndMarker = "<!-- gomemory-protocol-end -->"
 
 // TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
 // y constitución). Lo inyecta infrastructure/main.go vía go:embed. Si es nil
@@ -301,10 +311,20 @@ func composeAgentFile(existing, preamble, integration string) (string, bool) {
 	}
 
 	// 2. Protocolo de memoria (versionado). Reemplaza bloques de cualquier
-	// versión anterior si existen (ver protocolStart).
+	// versión anterior si existen (ver protocolStart/protocolEnd), preservando
+	// TODO el contenido ajeno que quede antes y después del bloque viejo
+	// (feature 019, FR-015 — antes de esto, out[:idx] + integration descartaba
+	// sin avisar cualquier cosa que la persona tuviera después del bloque).
 	if !strings.Contains(out, integrationVersionMarker) {
 		if idx := protocolStart(out); idx != -1 {
-			out = strings.TrimRight(out[:idx], "\n") + "\n" + integration
+			end := protocolEnd(out, idx)
+			before := strings.TrimRight(out[:idx], "\n")
+			after := strings.TrimLeft(out[end:], "\n")
+			if after != "" {
+				out = before + "\n" + integration + "\n" + after
+			} else {
+				out = before + "\n" + integration
+			}
 		} else {
 			out = strings.TrimRight(out, "\n") + "\n" + integration
 		}
@@ -318,7 +338,7 @@ func composeAgentFile(existing, preamble, integration string) (string, bool) {
 // importar el número de versión (v1, v2, v3...), para poder ubicar el
 // comienzo real del bloque instalado aunque sea de una versión anterior a
 // integrationVersionMarker.
-var versionMarkerPattern = regexp.MustCompile(`<!-- gomemory-protocol-v\d+ -->`)
+var versionMarkerPattern = domain.ProtocolVersionPattern
 
 // protocolStart devuelve el índice donde empieza el bloque del protocolo de
 // memoria: el marcador de versión (de la versión que esté instalada, para no
@@ -329,6 +349,55 @@ func protocolStart(content string) int {
 		return loc[0]
 	}
 	return strings.Index(content, integrationMarker)
+}
+
+// legacyH2Pattern reconoce un encabezado de nivel 2 al inicio de línea, para
+// ubicar dónde termina un bloque de protocolo legado (sin marcador de fin).
+var legacyH2Pattern = regexp.MustCompile(`(?m)^## `)
+
+// protocolEnd devuelve el índice (offset en bytes de content) donde termina
+// el bloque de protocolo que arranca en start (el valor de protocolStart), de
+// modo que content[end:] sea exactamente el contenido posterior que pertenece
+// a la persona (data-model.md §6, feature 019).
+//
+//   - Bloque v8+: termina justo después de integrationEndMarker (consumiendo
+//     su salto de línea final, si lo hay).
+//   - Bloque legado (v1..v7, sin marcador de fin): el marcador de versión va
+//     seguido, en la línea siguiente y sin salto de línea en medio
+//     (buildIntegrationBlock), del título propio del bloque (nivel 2). El
+//     contenido ajeno empieza recién en el PRÓXIMO encabezado de nivel 2
+//     después de ese título — no en el propio título, que es parte del
+//     bloque — o al final del archivo si no hay ninguno.
+//
+// Ante cualquier forma inesperada (el marcador es la última línea, o el
+// título propio es la última línea) se corta en el final del archivo: es
+// preferible arrastrar una línea extra del bloque viejo a devorar contenido
+// de la persona por error.
+func protocolEnd(content string, start int) int {
+	if loc := strings.Index(content[start:], integrationEndMarker); loc != -1 {
+		end := start + loc + len(integrationEndMarker)
+		if end < len(content) && content[end] == '\n' {
+			end++
+		}
+		return end
+	}
+
+	firstNL := strings.IndexByte(content[start:], '\n')
+	if firstNL == -1 {
+		return len(content)
+	}
+	afterMarker := start + firstNL + 1
+
+	secondNL := strings.IndexByte(content[afterMarker:], '\n')
+	if secondNL == -1 {
+		return len(content)
+	}
+	afterOwnHeading := afterMarker + secondNL + 1
+
+	if loc := legacyH2Pattern.FindStringIndex(content[afterOwnHeading:]); loc != nil {
+		return afterOwnHeading + loc[0]
+	}
+	return len(content)
 }
 
 func buildIntegrationBlock() string {
@@ -355,8 +424,10 @@ func buildIntegrationBlock() string {
 		"Grafo de código propio del proyecto: " + bt + strings.Join(domain.MCPCodeTools, bt+", "+bt) + bt + ".",
 		"",
 		"Si el servidor MCP " + bt + "codebase-memory-mcp" + bt + " está conectado, úsalo SIEMPRE para " +
-			"exploración de código, independientemente de la tarea (chat, plan, resumen): " +
+			"exploración de código en vez de leer archivos a mano: " +
 			bt + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, bt+", "+bt) + bt + ". " +
+			"Para explorar el código usa las herramientas del grafo; para entregar un plan usa el árbol " +
+			"de tareas atómicas. Lo que descubras con el grafo alimenta las hojas del árbol. " +
 			"Si no está conectado, esta guía no aplica — no hay nada que invocar.",
 		"",
 		"Si el MCP no está disponible en el agente actual, usa el CLI equivalente:",
@@ -403,6 +474,7 @@ func buildIntegrationBlock() string {
 		"- " + bt + "search_memories(query)" + bt + " (o " + bt + `./mem search "tema"` + bt + ") cuando el usuario pregunte por trabajo previo",
 		"- " + bt + "./mem" + bt + " abre la TUI interactiva",
 		"",
+		integrationEndMarker,
 	}
 	return strings.Join(lines, "\n")
 }

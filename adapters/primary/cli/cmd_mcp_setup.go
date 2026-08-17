@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"mem/adapters/primary/setup"
+	"mem/domain"
 )
 
 // globalScopeAgents son los agentes que soportan registrar gomemory una sola
@@ -150,6 +151,27 @@ func runGlobalScopeSetup(agentList []string) {
 		}
 		if runGlobalScopeAgent(agent, ref) {
 			generated++
+		}
+	}
+
+	// Hooks del modo plan atómico en ámbito de usuario (feature 019, Historia
+	// 4): independiente de si el registro MCP tuvo éxito (no depende de que
+	// el CLI `claude` esté en PATH), recorre los agentes del registro de
+	// capacidades que declaren ámbito de usuario y les escribe los hooks —
+	// mismo mecanismo, misma idempotencia, que el ámbito de proyecto. Sin
+	// esto, "habilitar una vez" solo cubría el texto, nunca el determinismo
+	// de la Historia 1 (research.md §7).
+	if home, homeErr := os.UserHomeDir(); homeErr == nil {
+		for _, agent := range domain.KnownAgents {
+			if agent.Name != "claude" || !agent.Scopes[domain.ScopeUser] {
+				continue
+			}
+			agentRef := setup.AgentRef{HookCommand: ref.HookCommand, MCPCommand: ref.MCPCommand, MCPArgs: ref.MCPArgs}
+			if err := setup.WriteClaudeHooksGlobal(home, agentRef); err != nil {
+				fmt.Printf("  ⚠️  hooks de modo plan (scope global, claude): %v\n", err)
+			} else {
+				fmt.Printf("  ✅ hooks de modo plan: %s\n", filepath.Join(home, ".claude", "settings.json"))
+			}
 		}
 	}
 

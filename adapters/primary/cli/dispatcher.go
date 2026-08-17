@@ -55,6 +55,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdList(deps, args)
 	case "settings":
 		CmdSettings(deps, args)
+	case "doctor":
+		CmdDoctor(deps, args)
 	case "adr-sync":
 		CmdADRSync(deps, args)
 	case "purge":

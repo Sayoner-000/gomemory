@@ -725,7 +725,56 @@ mem install /ruta/a/proyecto
        └─ codex → ~/.codex/config.toml (tabla por proyecto)
 ```
 
-El contenido inyectado se versiona con marcadores HTML para upgrades idempotentes: si una instalación previa dejó un bloque viejo (sin el marcador de versión vigente), `mem install` lo reemplaza en lugar de duplicarlo. Tanto el preámbulo de reglas como la constitución viven embebidos en el binario (`infrastructure/templates/`, `go:embed`), así que `mem install` no depende de archivos presentes en disco ni del `cwd`.
+El contenido inyectado se versiona con marcadores HTML para upgrades idempotentes: si una instalación previa dejó un bloque viejo (sin el marcador de versión vigente), `mem install` lo reemplaza en lugar de duplicarlo — desde la feature 019, el bloque nuevo (v8+) lleva también un marcador de **fin** explícito (`<!-- gomemory-protocol-end -->`); los bloques legados sin ese marcador se acotan hasta el siguiente encabezado de nivel 2 o EOF (`protocolEnd`, `cmd_install.go`), para no arrastrarse el contenido propio de la persona que viniera después del bloque. Tanto el preámbulo de reglas como la constitución viven embebidos en el binario (`infrastructure/templates/`, `go:embed`), así que `mem install` no depende de archivos presentes en disco ni del `cwd`.
+
+## Modo Plan Determinista (feature 019)
+
+El modo plan atómico (feature 013) se apoyaba enteramente en texto de protocolo: el agente *podía*
+seguirlo, pero nada lo obligaba. La feature 019 añade una capa determinista encima, definida como un
+**contrato neutral de agente** — nunca en el formato de uno concreto (`specs/019-deterministic-plan-trigger/contracts/agent-integration.md`,
+publicado también en [`docs/AGENT-INTEGRATION.md`](./AGENT-INTEGRATION.md)).
+
+### Dos hooks nuevos
+
+| Hook | Evento (Claude Code) | Momento | Mejor esfuerzo / determinista |
+| :--- | :--- | :--- | :--- |
+| `mem hook plan-guard` | `PreToolUse(ExitPlanMode)` | Antes de presentar el plan | **Determinista** — puede devolver el plan |
+| `mem hook plan-entered` | `PostToolUse(EnterPlanMode)` | Al entrar en modo plan | Mejor esfuerzo — inyecta método + historial |
+
+`plan-guard` evalúa la forma del plan con `domain.EvaluatePlanShape` (función pura: `ShapeOK` /
+`ShapeMissing` / `ShapeNotApplicable`, sesgada a permitir) y consulta el estado de episodio
+(`adapters/primary/cli/plan_episode.go`, un marcador de archivo bajo `.memory/`, sin SQL — el
+presupuesto es < 50ms). `plan-entered` ajusta el documento al presupuesto del canal con
+`domain.AdjustPlanDocumentToBudget` (método completo siempre, historial recortado con lo que quede,
+puntero a `get_plan_context()` si algo se omitió).
+
+### Traductor de dialectos (`adapters/primary/cli/hook_dialect.go`)
+
+El motor de decisión no sabe nada de agentes concretos. `hook_dialect.go` traduce el mismo veredicto a
+cuatro formas — `neutral` (default: código de salida + stderr), `json`, `claude`
+(`hookSpecificOutput.permissionDecision`), `text` — detectando el dialecto por la forma del payload o
+forzándolo con `--emit`. Esta separación es deliberada: si el dialecto de Claude Code se filtrara al
+paquete `domain`, el siguiente agente heredaría su forma — la misma asimetría que esta feature vino a
+corregir.
+
+### Registro único de capacidades (`domain/agents.go`)
+
+`domain.KnownAgents` es la única fuente sobre qué agente soporta qué: nivel 1 (`AgentLevelGuard`),
+nivel 2 (`AgentLevelEntry`), nivel 3 (`AgentLevelTextFloor`, obligatorio). OpenCode no declara el
+nivel 1 (su ciclo no ofrece un punto de decisión antes de presentar el plan) — esa ausencia se declara
+explícitamente vía `AgentCapability.GuardUnavailableReason`, nunca se omite en silencio. Un agente
+ausente del registro no queda sin soporte: si invoca el contrato neutral, obtiene la garantía igual.
+
+### `mem doctor` y la relación de solo lectura con el brazo extensor
+
+`mem doctor [--json] [--strict]` (`adapters/primary/cli/cmd_doctor.go`) compone un
+`domain.CoverageReport` a partir de `ports.ActivationInspector`
+(`adapters/primary/setup/activation_inspect.go`), que recorre `domain.KnownAgents` por ámbito
+(proyecto/usuario) y reporta el estado de cada canal (`ok` / `outdated` / `duplicated` / `missing` /
+`not_applicable`). Los canales del brazo extensor de grafo de código (`ArmCodegraph`) son de **solo
+lectura**: el inspector los detecta (hooks `cbm-*` en `~/.claude/settings.json`) y los reporta, nunca
+los escribe ni los corrige; si el brazo extensor no está instalado, sus canales se omiten del reporte
+sin ningún aviso.
 
 ## Modelo de Datos
 

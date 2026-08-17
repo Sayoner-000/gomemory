@@ -37,20 +37,55 @@ type hookReg struct {
 // startup/resume/clear cargan la sesión y su contexto; compact re-inyecta la
 // recuperación DESPUÉS de compactar (sobrevive a la compactación, a diferencia
 // del antiguo PreCompact, ya retirado del registro).
-var claudeHookEvents = map[string][]hookReg{
-	"SessionStart": {
-		{matcher: "startup|resume|clear", sub: "session-start"},
-		{matcher: "compact", sub: "post-compact"},
-	},
-	"UserPromptSubmit": {{matcher: "", sub: "user-prompt-submit"}},
-	"SessionEnd":       {{matcher: "", sub: "session-end"}},
-	"Stop":             {{matcher: "", sub: "turn-end"}},
-	"SubagentStart":    {{matcher: "", sub: "subagent-start"}},
-	"SubagentStop":     {{matcher: "", sub: "subagent-stop"}},
-	// PostToolUse(ExitPlanMode): captura determinista de las decisiones al aprobar
-	// un plan. Un turno de plan mode no toca archivos ni corre comandos, así que el
-	// checkpoint de Stop/turn-end lo descarta por vacío; este hook lo cubre.
-	"PostToolUse": {{matcher: "ExitPlanMode", sub: "plan-approved"}},
+//
+// Se construye con buildClaudeHookEvents() en vez de un literal fijo: las
+// entradas del modo plan atómico (feature 019) se derivan del registro único
+// de capacidades (domain.KnownAgents) para que el nivel declarado ahí sea la
+// única fuente de verdad — ver buildClaudeHookEvents.
+var claudeHookEvents = buildClaudeHookEvents()
+
+// buildClaudeHookEvents arma el mapa de eventos de Claude Code. Las entradas
+// que no dependen de una capacidad concreta del modo plan atómico van fijas;
+// PreToolUse(ExitPlanMode) → plan-guard se añade SOLO si domain.KnownAgents
+// declara AgentLevelGuard para "claude" (feature 019, FR-A4): si ese nivel se
+// retirara del registro algún día, este archivo no necesitaría tocarse.
+func buildClaudeHookEvents() map[string][]hookReg {
+	events := map[string][]hookReg{
+		"SessionStart": {
+			{matcher: "startup|resume|clear", sub: "session-start"},
+			{matcher: "compact", sub: "post-compact"},
+		},
+		"UserPromptSubmit": {{matcher: "", sub: "user-prompt-submit"}},
+		"SessionEnd":       {{matcher: "", sub: "session-end"}},
+		"Stop":             {{matcher: "", sub: "turn-end"}},
+		"SubagentStart":    {{matcher: "", sub: "subagent-start"}},
+		"SubagentStop":     {{matcher: "", sub: "subagent-stop"}},
+		// PostToolUse(ExitPlanMode): captura determinista de las decisiones al
+		// aprobar un plan. Un turno de plan mode no toca archivos ni corre
+		// comandos, así que el checkpoint de Stop/turn-end lo descarta por
+		// vacío; este hook lo cubre.
+		"PostToolUse": {{matcher: "ExitPlanMode", sub: "plan-approved"}},
+	}
+
+	// PreToolUse(ExitPlanMode) → plan-guard: el borde de salida determinista
+	// del modo plan atómico (feature 019, Historia 1). Dispara ANTES de que
+	// el plan llegue a la persona, para poder devolverlo si no tiene forma de
+	// árbol (contracts/hook-plan-guard.md).
+	if claude, ok := domain.AgentByName("claude"); ok && claude.HasLevel(domain.AgentLevelGuard) {
+		events["PreToolUse"] = []hookReg{{matcher: "ExitPlanMode", sub: "plan-guard"}}
+	}
+
+	// PostToolUse(EnterPlanMode) → plan-entered: el borde de entrada, mejor
+	// esfuerzo (feature 019, Historia 2). Verificado en vivo (T001-T004,
+	// specs/019-deterministic-plan-trigger/research.md) que este evento
+	// acepta hookSpecificOutput.additionalContext en esta versión de Claude
+	// Code.
+	if claude, ok := domain.AgentByName("claude"); ok && claude.HasLevel(domain.AgentLevelEntry) {
+		events["PostToolUse"] = append(events["PostToolUse"],
+			hookReg{matcher: "EnterPlanMode", sub: "plan-entered"})
+	}
+
+	return events
 }
 
 func InstallClaudeCode(root string, ref AgentRef) error {
@@ -283,6 +318,19 @@ func writeMCPConfig(mcpPath string, ref AgentRef) error {
 	return nil
 }
 
+// WriteClaudeHooksGlobal escribe los hooks del modo plan atómico (y el resto
+// de hooks de gomemory) en <home>/.claude/settings.json — el ámbito de
+// USUARIO, no de proyecto (feature 019, Historia 4). Antes de esta feature,
+// el ámbito global registraba el servidor MCP y el texto de instrucciones,
+// pero nunca los hooks (research.md §7): un proyecto nuevo sin instalación
+// propia tenía el texto del protocolo pero no el determinismo de la
+// Historia 1. Envoltorio delgado sobre writeClaudeHooks — misma idempotencia
+// y preservación de entradas ajenas que el ámbito de proyecto, porque es
+// literalmente la misma función.
+func WriteClaudeHooksGlobal(home string, ref AgentRef) error {
+	return writeClaudeHooks(home, ref)
+}
+
 // writeClaudeHooks escribe los hooks de gomemory en .claude/settings.json en el
 // formato objeto que espera Claude Code, usando `mem hook <evento>` (portable).
 // Antes de añadir, elimina cualquier entrada previa de gomemory (incluidas las
@@ -388,6 +436,8 @@ func hookCommandIsGomemory(cmd string) bool {
 		strings.Contains(cmd, "hook subagent-start") ||
 		strings.Contains(cmd, "hook subagent-stop") ||
 		strings.Contains(cmd, "hook plan-approved") ||
+		strings.Contains(cmd, "hook plan-guard") ||
+		strings.Contains(cmd, "hook plan-entered") ||
 		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
 		strings.Contains(cmd, "plugins/gomemory")
 }

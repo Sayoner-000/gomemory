@@ -554,6 +554,31 @@ func TestConfigScreen_ToggleDePlanificacionAtomicaPersiste(t *testing.T) {
 	}
 }
 
+// TestConfigScreen_TogglePlanGuardPersiste cubre T063 (feature 019, Historia
+// 1): el interruptor de la exigencia de forma del plan en la pantalla de
+// configuración, mismo patrón que el de planificación atómica.
+func TestConfigScreen_TogglePlanGuardPersiste(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := model{
+		screen:       screenConfig,
+		settingsRepo: tuiSettingsStub{data: data},
+		configCursor: configRowPlanGuard,
+		width:        100,
+		height:       40,
+	}
+
+	updated, _ := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	if !data.PlanGuardDisabled {
+		t.Error("al confirmar sobre el interruptor debe quedar desactivada")
+	}
+
+	m2 := updated.(model)
+	m2.configCursor = configRowPlanGuard
+	if _, _ = m2.updateConfig(tea.KeyMsg{Type: tea.KeyEnter}); data.PlanGuardDisabled {
+		t.Error("al confirmar de nuevo debe reactivarse")
+	}
+}
+
 // --- Feature 016: reindexado del grafo externo desde la TUI (US2) ---
 
 // fakeCodeIndexer implementa ports.CodeGraphProvider + ports.CodeGraphIndexer

@@ -19,6 +19,7 @@ automática con OpenCode y Claude Code.
 12. [Seguridad](#12-seguridad)
 13. [Stack Técnico](#13-stack-técnico)
 14. [Portabilidad](#14-portabilidad)
+15. [Modo Plan Determinista (mem doctor)](#15-modo-plan-determinista-mem-doctor)
 
 ---
 
@@ -671,6 +672,57 @@ GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe ./infrastructure/
 - Timestamps UTC-5 independientes de la zona horaria local
 - Las configuraciones MCP usan rutas absolutas — regenera con `setup-mcp`
   después de mover el proyecto
+
+---
+
+## 15. Modo Plan Determinista (`mem doctor`)
+
+Desde la feature 019, entrar en modo plan tiene una garantía **determinista**, no solo un texto de
+protocolo que el agente puede o no seguir: si el agente presenta un plan para una solicitud no
+trivial y ese plan no tiene forma de árbol de tareas atómicas, el sistema lo **devuelve** con el
+motivo antes de que llegue a la persona.
+
+### El guard de forma del plan
+
+```bash
+mem hook plan-guard        # invocado por el agente antes de presentar el plan
+```
+
+- Una sola devolución por episodio de plan — nunca bloquea dos veces.
+- Nunca se activa sobre solicitudes triviales de un solo paso.
+- Apagable desde la configuración: `plan_guard_disabled` en `.memory/settings.json`, o el
+  interruptor "Exigencia de forma del plan" en la TUI (`mem` → Configuración).
+- Sesgado a permitir: ante cualquier duda, deja pasar el plan.
+
+Ver [`docs/AGENT-INTEGRATION.md`](./AGENT-INTEGRATION.md) para el contrato completo (los tres
+niveles de garantía y los cuatro dialectos de salida — `neutral`, `json`, `claude`, `text`), pensado
+para que cualquier agente, incluso uno que gomemory no conozca, pueda implementarlo.
+
+### `mem doctor` — reporte de cobertura
+
+```bash
+mem doctor                 # reporte legible
+mem doctor --json          # salida estable, para scripts
+mem doctor --strict        # exit != 0 si hay canales rotos (uso en CI)
+```
+
+Recorre, por agente y por ámbito (proyecto/usuario), los canales del modo plan atómico —guard de
+forma, contexto al entrar, recordatorio por turno, instrucciones— y los del brazo extensor de grafo
+de código (de solo lectura: `mem doctor` nunca lo escribe ni lo corrige). Reporta cada canal como
+`ok`, `outdated`, `duplicated`, `missing` o `not_applicable` (agente no instalado, o no soporta ese
+tipo de canal — nunca se usa para ocultar un canal roto). Un canal `not_applicable` con motivo es una
+**degradación declarada**, no un problema; `outdated`, `duplicated` y `missing` sí cuentan para
+`--strict`.
+
+### Habilitar una sola vez para todos los proyectos
+
+```bash
+mem setup-mcp --scope global --agents claude,codex,opencode
+```
+
+Desde esta feature, el ámbito global también escribe los hooks del modo plan (antes solo registraba
+el servidor MCP y el texto de instrucciones) — un proyecto nuevo, sin instalación propia, queda
+cubierto igual.
 
 ### Export / Import de memorias (portable, cross-OS)
 

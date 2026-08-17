@@ -100,9 +100,14 @@ func TestHookMarkerResetsPerSession(t *testing.T) {
 		t.Fatalf("marker debía existir tras el primer prompt: %v", err)
 	}
 
+	// Desde la feature 019 (Historia 2), el segundo prompt SÍ puede llevar
+	// additionalContext: el recordatorio de modo plan de una línea se emite en
+	// cada turno (FR-003), a diferencia del bootstrap completo. Lo que este
+	// test protege es que el BOOTSTRAP (ToolSearch + memoryProtocolReminder)
+	// no se reinyecte — eso sigue gateado por el marker.
 	second := runHook(t, bin, target, "user-prompt-submit")
-	if bytes.Contains([]byte(second), []byte("additionalContext")) {
-		t.Fatalf("segundo prompt de la misma sesión NO debía re-inyectar, got: %s", second)
+	if bytes.Contains([]byte(second), []byte("PRIMERA ACCIÓN")) {
+		t.Fatalf("segundo prompt de la misma sesión NO debía reinyectar el bootstrap completo, got: %s", second)
 	}
 
 	// Sesión 2: session-start debe resetear el marker.

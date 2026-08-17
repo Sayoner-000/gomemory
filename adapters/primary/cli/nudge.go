@@ -22,6 +22,29 @@ const saveNudgeMessage = `RECORDATORIO DE MEMORIA: pasaron más de 15 minutos de
 	`estableciste una convención, llama a save_memory ahora. Si no hay nada relevante que guardar, ` +
 	`ignora este recordatorio.`
 
+// planModeReminderMessage es el recordatorio de una línea del modo plan
+// atómico (feature 019, Historia 2): cubre a los agentes sin señal de
+// entrada observable (mejor esfuerzo del borde de entrada) y refuerza a los
+// que sí la tienen, sin competir con las directivas del brazo extensor de
+// grafo de código — nombra el grafo como el instrumento de exploración, no
+// como un mandato rival (research.md §10, INV-5).
+const planModeReminderMessage = "Si vas a entrar en modo plan (o la tarea pide un plan/enfoque antes de tocar código), " +
+	"llama a get_plan_context() ANTES de redactar: trae el método de descomposición atómica y el " +
+	"historial del proyecto. Usa el grafo de código para explorar y el árbol de tareas atómicas para " +
+	"presentar el resultado."
+
+// computePlanModeReminder decide si el turno debe llevar el recordatorio de
+// modo plan. A diferencia de computeSaveNudge, NO tiene debounce: se emite en
+// CADA turno mientras la planificación atómica esté activa (FR-003, FR-006) —
+// el coste es una sola línea, y la garantía que sostiene es "en cualquier
+// punto de la sesión", no "de vez en cuando".
+func computePlanModeReminder(atomicPlanDisabled bool) (string, bool) {
+	if atomicPlanDisabled {
+		return "", false
+	}
+	return planModeReminderMessage, true
+}
+
 // nudgeStatePath es el marcador de debounce: guarda el epoch del último
 // recordatorio emitido para no repetirlo dentro del período de enfriamiento.
 func nudgeStatePath(deps *Deps, root string) string {

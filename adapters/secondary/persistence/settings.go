@@ -58,6 +58,11 @@ type Settings struct {
 	// bool JSON no distingue "ausente" de "false", y la funcionalidad debe
 	// quedar ON sin que el usuario tenga que optar por ella.
 	AtomicPlanDisabled bool `json:"atomic_plan_disabled,omitempty"`
+	// PlanGuardDisabled apaga la exigencia de forma del plan (feature 019):
+	// `mem hook plan-guard` deja de evaluar y devolver planes sin forma de
+	// árbol, permitiendo siempre. Ausente/false = activada, mismo patrón
+	// opt-out que AtomicPlanDisabled.
+	PlanGuardDisabled bool `json:"plan_guard_disabled,omitempty"`
 	// ContextDefaultBudget/ContextMinRelevance/ContextMaxItems/
 	// ContextCompressionDisabled/ContextDedupDisabled: ajustes de
 	// BuildContextPack (feature 015). Mismo patrón que Budget/CompactThreshold

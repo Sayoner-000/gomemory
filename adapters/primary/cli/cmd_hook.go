@@ -59,6 +59,10 @@ func CmdHook(deps *Deps, args []string) {
 		hookSubagentStop(deps)
 	case "plan-approved":
 		hookPlanApproved(deps)
+	case "plan-guard":
+		hookPlanGuard(deps, args[1:])
+	case "plan-entered":
+		hookPlanEntered(deps, args[1:])
 	case "prompt":
 		hookPrompt(deps)
 	default:
@@ -73,6 +77,15 @@ func CmdHook(deps *Deps, args []string) {
 // inyectarse una vez por sesión, no una sola vez en toda la vida del proyecto.
 func sessionMarkerPath(deps *Deps, root string) string {
 	return filepath.Join(root, deps.ProjectRepo.MemDir(), ".session-tools-injected")
+}
+
+// planEnteredMarkerPath marca si el documento completo de plan-entered
+// (feature 019, Historia 2) ya se emitió en la sesión actual (FR-008:
+// reentrar en modo plan no debe repetir el bloque completo). Se borra en los
+// mismos puntos que sessionMarkerPath — sesión nueva o tras compactar — para
+// que "una vez por sesión" sea consistente con el bootstrap de ToolSearch.
+func planEnteredMarkerPath(deps *Deps, root string) string {
+	return filepath.Join(root, deps.ProjectRepo.MemDir(), ".plan-entered-emitted")
 }
 
 // hookSessionStart inicia (si no existe) la sesión activa e inyecta el
@@ -91,6 +104,7 @@ func hookSessionStart(deps *Deps) {
 	// Nueva sesión: el recordatorio del protocolo debe volver a inyectarse en
 	// el primer prompt (best-effort; si no existe, os.Remove no falla nada).
 	os.Remove(sessionMarkerPath(deps, root))
+	os.Remove(planEnteredMarkerPath(deps, root))
 
 	if ctx, err := deps.ContextBuilder.Build(); err == nil && ctx != "" {
 		fmt.Print(ctx)
@@ -169,6 +183,7 @@ func hookPreCompact(deps *Deps) {
 func hookPostCompact(deps *Deps) {
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		os.Remove(sessionMarkerPath(deps, root))
+		os.Remove(planEnteredMarkerPath(deps, root))
 		footprintReset(root)                      // tras compactar, la huella cuenta desde cero
 		os.Remove(preferenceNudgeStatePath(root)) // el refuerzo también arranca de cero
 	}
@@ -221,11 +236,22 @@ func hookUserPromptSubmit(deps *Deps) {
 		// dirigido al agente ("llama a save_memory ahora") — con systemMessage
 		// el agente jamás lo veía, así que el recordatorio de guardado nunca
 		// llegaba a aplicarse, solo se mostraba en la UI del usuario.
+		var parts []string
 		if msg, ok := computeSaveNudge(deps, root, project); ok {
+			parts = append(parts, msg)
+		}
+		// Recordatorio de modo plan (feature 019, Historia 2): en CADA turno,
+		// sin debounce — es el camino que cubre a los agentes sin señal de
+		// entrada observable, y refuerza a los que sí la tienen.
+		if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok {
+			parts = append(parts, msg)
+		}
+
+		if len(parts) > 0 {
 			data, _ := json.Marshal(map[string]any{
 				"hookSpecificOutput": map[string]any{
 					"hookEventName":     "UserPromptSubmit",
-					"additionalContext": msg,
+					"additionalContext": strings.Join(parts, "\n\n"),
 				},
 			})
 			fmt.Print(string(data))
@@ -292,6 +318,9 @@ func hookNudge(deps *Deps) {
 
 	var parts []string
 	if msg, ok := computeSaveNudge(deps, root, project); ok {
+		parts = append(parts, msg)
+	}
+	if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok {
 		parts = append(parts, msg)
 	}
 
@@ -437,6 +466,12 @@ func hookPlanApproved(deps *Deps) {
 		os.Exit(0)
 	}
 	project := deps.ProjectRepo.Key(root)
+
+	// Cierra el episodio de plan (feature 019, data-model.md §2): aprobar
+	// el plan reinicia el contador de devoluciones de plan-guard, sin
+	// importar si el resto de este hook logra extraer texto o guardar
+	// memoria — la aprobación en sí misma es la señal de cierre.
+	planEpisodeReset(root)
 
 	payload := readHookStdin()
 	if payload == nil {
@@ -664,6 +699,145 @@ func readHookStdin() map[string]any {
 	return payload
 }
 
+// readHookStdinRaw lee el payload crudo de stdin sin exigir que sea JSON
+// válido: a diferencia de readHookStdin, plan-guard y plan-entered aceptan
+// texto plano como forma válida de plan (contracts/agent-integration.md,
+// «Entrada»). Devuelve nil si no hay datos en pipe (ejecución manual en
+// terminal), igual que readHookStdin.
+func readHookStdinRaw() []byte {
+	stat, err := os.Stdin.Stat()
+	if err != nil || (stat.Mode()&os.ModeCharDevice) != 0 {
+		return nil
+	}
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+// emitHookOutput escribe la salida ya traducida a un dialecto (hook_dialect.go)
+// y termina el proceso con su código de salida. Punto único de salida para
+// plan-guard y plan-entered, para que ningún camino olvide escribir a la
+// corriente correcta.
+func emitHookOutput(out hookRenderedOutput) {
+	if out.stdout != "" {
+		fmt.Print(out.stdout)
+	}
+	if out.stderr != "" {
+		fmt.Fprint(os.Stderr, out.stderr)
+	}
+	os.Exit(out.exitCode)
+}
+
+// planGuardDenialReason redacta el motivo de una devolución de plan-guard:
+// qué falta, qué hacer, y el aviso de que no se repetirá
+// (contracts/hook-plan-guard.md, «Requisitos del motivo»).
+func planGuardDenialReason() string {
+	return "El plan no cumple el contrato de forma del proyecto: falta el árbol de tareas atómicas. " +
+		"Cada hoja debe ser un verbo + objeto con un resultado verificable " +
+		"(`[1.1] verbo + objeto → resultado`). Llama a get_plan_context() si necesitas el método y " +
+		"el historial, y presenta el plan otra vez. Este aviso se emite una sola vez por plan."
+}
+
+// hookPlanGuard implementa `mem hook plan-guard`: el borde de salida
+// determinista del modo plan atómico (feature 019, Historia 1). Evalúa la
+// forma del plan y, si claramente no cumple el contrato de árbol, lo
+// devuelve con el motivo — como máximo una vez por episodio (plan_episode.go),
+// nunca sobre planes triviales (domain.EvaluatePlanShape), apagable
+// (PlanGuardDisabled), y siempre sesgado a permitir ante la duda
+// (contracts/hook-plan-guard.md). La salida se traduce al dialecto que
+// corresponda (hook_dialect.go) — el motor de decisión de aquí no sabe nada
+// de agentes concretos.
+func hookPlanGuard(deps *Deps, args []string) {
+	raw := readHookStdinRaw()
+	payload, plan := parseHookPayload(raw)
+	dialect := detectDialect(payload, emitFlagValue(args))
+
+	permit := func() {
+		emitHookOutput(renderGuardDecision(dialect, planGuardDecision{}))
+	}
+
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		permit()
+	}
+	if deps.SettingsRepo.Read(root).PlanGuardDisabled {
+		permit()
+	}
+	if planEpisodeDenied(root) {
+		permit()
+	}
+	if domain.EvaluatePlanShape(plan) != domain.ShapeMissing {
+		permit()
+	}
+
+	planEpisodeMarkDenied(root)
+	emitHookOutput(renderGuardDecision(dialect, planGuardDecision{deny: true, reason: planGuardDenialReason()}))
+}
+
+// defaultPlanEnteredBudget es el tope aplicado por defecto al documento de
+// plan-entered: 9500 caracteres, con margen de 500 sobre el tope documentado
+// de 10000 para salidas de hook (contracts/hook-plan-entered.md, «Presupuesto
+// del canal»). Ajustable con --budget para canales con otro límite.
+const defaultPlanEnteredBudget = 9500
+
+// planEnteredShortReminder es lo que se emite en la segunda invocación de la
+// misma sesión en adelante (FR-008): no repite el bloque completo, solo
+// recuerda el método y cómo recuperarlo.
+const planEnteredShortReminder = "Modo plan: aplica el método de descomposición atómica ya cargado esta sesión. " +
+	"Si necesitas el método completo y el historial de nuevo, llama a get_plan_context()."
+
+// hookPlanEntered implementa `mem hook plan-entered`: el borde de entrada al
+// modo plan atómico (feature 019, Historia 2 — mejor esfuerzo). Pone a
+// disposición del agente el método de descomposición y el historial del
+// proyecto, ajustados al presupuesto del canal (domain.AdjustPlanDocumentToBudget),
+// y reinicia el episodio de plan (entrar en modo plan abre un episodio
+// nuevo). Respeta el mismo gate que `mem plan-context`/get_plan_context
+// (AtomicPlanDisabled, feature 013): degradar en silencio ante cualquier
+// circunstancia ambiental (FR-009).
+func hookPlanEntered(deps *Deps, args []string) {
+	raw := readHookStdinRaw()
+	payload, _ := parseHookPayload(raw)
+	dialect := detectDialect(payload, emitFlagValue(args))
+
+	silence := func() {
+		emitHookOutput(renderEnteredDocument(dialect, ""))
+	}
+
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		silence()
+	}
+	if deps.SettingsRepo.Read(root).AtomicPlanDisabled {
+		silence()
+	}
+
+	planEpisodeReset(root) // entrar en modo plan abre un episodio nuevo
+
+	marker := planEnteredMarkerPath(deps, root)
+	if _, statErr := os.Stat(marker); statErr == nil {
+		// Ya se emitió el documento completo esta sesión (FR-008): un
+		// recordatorio corto basta, sin volver a saturar la conversación.
+		emitHookOutput(renderEnteredDocument(dialect, planEnteredShortReminder))
+	}
+	_ = os.MkdirAll(filepath.Dir(marker), 0o755)
+	_ = os.WriteFile(marker, []byte("1"), 0o644)
+
+	context, err := deps.ContextBuilder.Build()
+	if err != nil {
+		context = ""
+	}
+
+	budget := defaultPlanEnteredBudget
+	if b := budgetFlagValue(args); b > 0 {
+		budget = b
+	}
+	doc := domain.AdjustPlanDocumentToBudget(planMethod, context, budget)
+
+	emitHookOutput(renderEnteredDocument(dialect, doc))
+}
+
 const compactionRecoveryInstructions = `**TRAS LA COMPACTACIÓN — PRIMERA ACCIÓN REQUERIDA**
 
 1. Llama a end_session() con un resumen de en qué estábamos trabajando,
@@ -747,6 +921,7 @@ IMPORTANTE — no confundir sistemas: este proyecto usa EXCLUSIVAMENTE las tools
 	`NO aplica aquí — ignóralo por completo en este proyecto y no lo consultes ni escribas en él.
 
 GRAFO DE CÓDIGO EXTERNO: si el servidor MCP codebase-memory-mcp está conectado, úsalo SIEMPRE ` +
-	`para exploración de código —independientemente de la tarea: chat, plan, resumen, lo que sea— ` +
-	`en vez de leer archivos a mano: ` + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, ", ") + `. ` +
-	`Si no está conectado, esta guía no aplica.`
+	`para exploración de código en vez de leer archivos a mano: ` +
+	strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, ", ") + `. Para explorar el código usa las ` +
+	`herramientas del grafo; para entregar un plan usa el árbol de tareas atómicas. Lo que descubras ` +
+	`con el grafo alimenta las hojas del árbol. Si no está conectado, esta guía no aplica.`
