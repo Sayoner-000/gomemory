@@ -16,3 +16,4 @@ opencode.json
 *.test
 *.out
 *.exe
+/dist/
