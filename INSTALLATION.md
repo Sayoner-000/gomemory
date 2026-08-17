@@ -1,4 +1,4 @@
-# Instalación de gomemory v1.12.0
+# Instalación de gomemory v2.7.0
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 
@@ -19,7 +19,7 @@ curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts
 irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
 ```
 
-Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=v1.6.0` para fijar versión,
+Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=v2.7.0` para fijar versión,
 `GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino.
 
 Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`.
@@ -40,6 +40,12 @@ usuario, disponible automáticamente en cualquier proyecto:
 mem setup-mcp --scope global --agents claude,codex,opencode
 ```
 
+- Para Claude Code, este mismo comando también escribe los hooks del modo
+  plan atómico determinista en `~/.claude/settings.json` (guard + entry +
+  recordatorio de texto) — no es solo el registro del servidor MCP. Verifica
+  la cobertura con `mem doctor` (sección **3. Verificar**) o consulta
+  [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) para el detalle
+  por canal.
 - Para OpenCode, este mismo comando instala también el plugin
   (`~/.config/opencode/plugins/gomemory.ts`) además de registrar el MCP en
   `~/.config/opencode/opencode.json` — no hace falta un paso aparte.
@@ -129,6 +135,19 @@ go test ./... -v
 ```
 
 Todos los tests deben pasar.
+
+Tras registrar gomemory (sección **0.1** o **4**), verifica la cobertura de
+activación con:
+
+```bash
+mem doctor                 # reporte legible
+mem doctor --json          # salida estable, para scripts
+mem doctor --strict        # exit != 0 si hay canales rotos (uso en CI)
+```
+
+Reporta cada canal (hooks, MCP, texto) como `ok`, `broken` o `not_applicable`
+por agente y ámbito — es la forma más rápida de confirmar que la instalación
+quedó completa sin tener que inspeccionar `~/.claude/settings.json` a mano.
 
 ---
 
@@ -251,6 +270,9 @@ Herramientas MCP disponibles:
 | `start_session` | Iniciar sesión de trabajo |
 | `end_session` | Finalizar sesión con resumen |
 | `get_context` | Obtener contexto completo del proyecto |
+| `get_plan_context` | Método de descomposición atómica + historial, para modo plan |
+| `search_code` / `get_symbol` / `list_dependencies` / `graph_status` / `index_project` | Grafo de código propio del proyecto |
+| `pack_build` / `pack_show` / `pack_compress` / `pack_stats` | Optimización de contexto (ContextPack) |
 
 Configuración multi-agente automática:
 
@@ -289,15 +311,31 @@ Configuración multi-agente automática:
 
 ## 8. Actualizar
 
+Si instalaste con el binario (sección **0**), autoactualiza desde los releases
+de GitHub sin clonar ni compilar:
+
+```bash
+mem update --check   # muestra versión actual vs. disponible, sin instalar
+mem update            # descarga e instala la última versión (o --version vX.Y.Z)
+```
+
+`mem update` reemplaza el binario actual en su propia ubicación. Si instalaste
+con `mem install` (pack por proyecto) o los plugins de la sección **5**,
+reinstala tras actualizar solo si hubo cambios en esas partes:
+
+```bash
+./mem setup opencode
+./mem setup claude-code
+```
+
+Si en cambio compilaste desde el fuente (secciones 1–2), el flujo sigue siendo
+manual:
+
 ```bash
 cd gomemory
 git pull
 go build -o mem ./infrastructure/
-# Reemplazar el binario en cada proyecto donde esté instalado
 cp mem /ruta/a/tu/proyecto/mem
-# Reinstalar plugins si hubo cambios
-./mem setup opencode
-./mem setup claude-code
 ```
 
 ---

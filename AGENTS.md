@@ -138,12 +138,21 @@ y SIEMPRE ACTIVO — no esperes a que el usuario lo pida explícitamente.
 - `get_context()` — contexto completo del proyecto en markdown
 - `get_plan_context()` — método de descomposición atómica + historial, para modo plan
 
+Optimización de contexto (ContextPack): `pack_build`, `pack_show`, `pack_compress`, `pack_stats`.
+
 Grafo de código propio del proyecto: `search_code`, `get_symbol`, `list_dependencies`, `graph_status`, `index_project`.
 
 Si el servidor MCP `codebase-memory-mcp` está conectado, úsalo SIEMPRE para exploración de código, independientemente de la tarea (chat, plan, resumen): `search_graph`, `trace_path`, `get_code_snippet`, `query_graph`, `get_architecture`, `search_code`. Si no está conectado, esta guía no aplica — no hay nada que invocar.
 
 Si el MCP no está disponible en el agente actual, usa el CLI equivalente:
 `./mem save -t "título" -y tipo "contenido"`, `./mem search "tema"`, `./mem context`, `./mem plan-context`, `./mem session start|end`, `./mem forget <id>`, `./mem judge -r <veredicto> -m "razón" <id1> <id2>`.
+
+### Diagnóstico: `mem doctor`
+`./mem doctor [--json] [--strict]` reporta el estado de cobertura de la activación
+determinista del modo plan atómico (canales guard/entry/text_floor por agente y
+ámbito). Útil para verificar que la instalación quedó completa tras `mem install`
+o `mem setup-mcp`. Detalle del contrato en
+[`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md).
 
 ### GUARDAR PROACTIVAMENTE — no esperes a que el usuario lo pida
 Llama a `save_memory` (o `./mem save`) INMEDIATAMENTE después de:
