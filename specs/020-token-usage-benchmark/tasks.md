@@ -225,7 +225,7 @@ ningún cuerpo, que el protocolo va completo, y medir la diferencia contra el mo
 - [X] T070 [P] Actualizar `AGENTS.md` e `INSTALLATION.md` con lo mismo — quedaron fuera de la sincronización de documentación anterior, así que conviene revisarlos con atención
 - [X] T071 [P] Publicar una copia de `contracts/usage-report.md` fuera de `specs/`, en `docs/`, para que cualquier consumidor lea el contrato sin leer el código
 - [X] T072 Marcar en `specs/017-context-snapshot-tui/spec.md` la trazabilidad definitiva: sus FR-001 a FR-008 quedaron cubiertos por FR-018 a FR-025 de esta feature
-- [ ] T073 ⚠ **No atómica**: publicar el release v2.8.0 en el remoto `github` (no `origin`). La versión, el momento y el remoto los decide el usuario y exigen su confirmación explícita. Sin trailer de coautoría en el commit
+- [X] T073 ⚠ **No atómica**: publicar el release v2.8.0 en el remoto `github` (no `origin`). La versión, el momento y el remoto los decide el usuario y exigen su confirmación explícita. Sin trailer de coautoría en el commit
 
 ---
 
