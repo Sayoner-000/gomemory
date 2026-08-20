@@ -11,6 +11,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-19_tools-blueviolet)](https://modelcontextprotocol.io/)
+[![TUI](https://img.shields.io/badge/TUI-bubbletea_v2-FF6B9D?logo=charmbracelet&logoColor=white)](https://github.com/charmbracelet/bubbletea)
 
 gomemory gives AI coding agents persistent memory across sessions.
 It stores project context, architectural decisions, bug fixes, learnings and checkpoints in a local SQLite database — so your agent can remember what happened, why it happened, and what was decided without polluting your repository with memory files.
@@ -149,6 +150,9 @@ Memory stays local. Sensitive information is automatically redacted (AWS credent
 ```
 <private>This information should never be persisted.</private>
 ```
+
+**Interactive TUI**
+Full terminal UI built with [bubbletea v2](https://github.com/charmbracelet/bubbletea) — navigate memories, view token usage reports (`u` key), and manage settings with a Matrix-inspired color palette.
 
 **Automatic checkpoints**
 With Claude Code and OpenCode, active turns are captured automatically as checkpoints without consuming additional agent tokens.
