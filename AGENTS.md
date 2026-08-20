@@ -154,6 +154,15 @@ determinista del modo plan atómico (canales guard/entry/text_floor por agente y
 o `mem setup-mcp`. Detalle del contrato en
 [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md).
 
+### Benchmark de tokens: `mem usage`
+`./mem usage [--session ID|--all] [--json]` reporta, con datos medidos (no
+estimados), cuánto ahorró gomemory al emitir contexto en la sesión: línea base,
+emitido, ahorro y desglose por operación y por canal. `--json` es la forma que
+manda para cualquier consumidor automatizado — contrato completo en
+[`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md). `./mem
+consolidate [--apply]` funde memorias redundantes (clave de tópico + actividad
+duplicada); sin `--apply` solo previsualiza.
+
 ### GUARDAR PROACTIVAMENTE — no esperes a que el usuario lo pida
 Llama a `save_memory` (o `./mem save`) INMEDIATAMENTE después de:
 - Una decisión técnica o de arquitectura

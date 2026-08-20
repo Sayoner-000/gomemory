@@ -17,7 +17,13 @@ func LaunchTUI(deps *Deps) {
 
 	project := deps.ProjectRepo.Key(root)
 
-	if err := tui.Run(deps.MemoryRepo, deps.RelationRepo, deps.SettingsRepo, deps.MaintenanceRepo, deps.TUIProvider, root, project); err != nil {
+	if err := tui.Run(deps.MemoryRepo, deps.RelationRepo, deps.SettingsRepo, deps.MaintenanceRepo, deps.TUIProvider, root, project, tui.UsageDeps{
+		SessionRepo:   deps.SessionRepo,
+		UsageRepo:     deps.UsageRepo,
+		TokenCounter:  deps.TokenCounter,
+		Compressor:    deps.Compressor,
+		SpecKitReader: deps.SpecKitReader,
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "Error en TUI: %v\n", err)
 		os.Exit(1)
 	}
@@ -55,6 +61,7 @@ Uso:
   mem project                      Detectar proyecto actual y mostrar información
 
   mem context [-w|--write]         Mostrar contexto de memoria
+  mem get <id>                     Obtener el detalle de una memoria por ID (drill-down, feature 020)
   mem plan-context                 Método de planificación atómica + contexto (modo plan)
   mem search <query>               Buscar en la memoria
   mem install [dir]                Instalar gomemory en un proyecto
@@ -87,6 +94,11 @@ Uso:
     --older-than-days N  Umbral de retención (default: 90)
     --yes                Omitir el prompt de confirmación
   mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)
+  mem consolidate [--apply]        Fundir memorias redundantes (topic_key + actividad duplicada)
+                                    Sin --apply solo previsualiza (nada se modifica)
+  mem usage [--session ID|--all] [--json]
+                                    Cuántos tokens ahorró gomemory al emitir contexto (medido)
+  mem doctor                       Diagnóstico del estado de la integración
   mem tui                          Abrir interfaz TUI explícitamente
   mem update [--check] [--version vX.Y.Z]
                                     Actualizar el binario y refrescar la integración del proyecto

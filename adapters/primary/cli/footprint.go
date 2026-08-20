@@ -177,3 +177,68 @@ func computePreferenceReinforcement(deps *Deps, root, project string, threshold 
 	}
 	return b.String(), true
 }
+
+// recordUsage registra una emisión medida (feature 020), convirtiendo
+// caracteres a tokens con deps.TokenCounter. Nil-safe: sin UsageRecorder o sin
+// TokenCounter, no hace nada — ningún emisor debe verificar esto por su
+// cuenta.
+func recordUsage(deps *Deps, operation string, rawChars, emittedChars int) {
+	if deps == nil || deps.UsageRecorder == nil || deps.TokenCounter == nil {
+		return
+	}
+	raw := deps.TokenCounter.Count(strings.Repeat("x", rawChars))
+	emitted := deps.TokenCounter.Count(strings.Repeat("x", emittedChars))
+	deps.UsageRecorder.Record(operation, raw, emitted)
+}
+
+// rawCharsOf suma el contenido íntegro (sin acotar) de un lote de memorias:
+// es la línea base de las tools de divulgación progresiva (search_memories,
+// list_memories), que solo emiten un extracto acotado por resultado.
+// rawCharsOf es la línea base de search_memories/list_memories: emittedChars
+// (lo que realmente salió, extracto ya incluido) más lo que domain.Extract
+// cortó de cada memoria frente a su contenido íntegro. NUNCA la suma cruda de
+// contenido: esa suma no incluye el envoltorio de la línea renderizada
+// (id/tipo/título/formato), así que para memorias cortas —sin nada que
+// truncar— podía terminar por DEBAJO de lo emitido, violando la invariante
+// baseline >= emitted (bug real encontrado en TestMCPServer_SearchAndList_
+// RecordUsage: baseline=32 < emitted=40 antes de este fix). Mismo patrón
+// "raw = final + descartado" que Builder.discardedChars en build_context.go.
+func rawCharsOf(mems []domain.Memory, emittedChars int) int {
+	discarded := 0
+	for _, m := range mems {
+		extract := domain.Extract(m.Content, memListExtractChars)
+		if cut := len(m.Content) - len(extract); cut > 0 {
+			discarded += cut
+		}
+	}
+	return emittedChars + discarded
+}
+
+// selfReportingTools son las tools MCP que YA registran su propio uso dentro
+// del handler (o, para get_context, dentro del Builder concreto que
+// container.go cablea) — el middleware de respaldo del canal "mcp" las salta
+// para no contarlas dos veces (feature 020).
+var selfReportingTools = map[string]bool{
+	"search_memories": true,
+	"list_memories":   true,
+	"get_context":     true,
+	"pack_build":      true,
+	"pack_compress":   true,
+}
+
+// toolOperation traduce el nombre de una tool MCP a la operación de dominio
+// que representa (feature 020, FR-003): el dominio no conoce el vocabulario
+// de ningún canal. Un nombre no listado aquí —incluidas las tools futuras—
+// cae en domain.OpOther, que es un valor legítimo, no un error.
+func toolOperation(toolName string) string {
+	switch toolName {
+	case "save_memory":
+		return domain.OpSaveMemory
+	case "get_memory":
+		return domain.OpGetMemory
+	case "get_plan_context":
+		return domain.OpPlanContext
+	default:
+		return domain.OpOther
+	}
+}

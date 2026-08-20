@@ -180,6 +180,8 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		ContextMaxItems:              s.ContextMaxItems,
 		ContextCompressionDisabled:   s.ContextCompressionDisabled,
 		ContextDedupDisabled:         s.ContextDedupDisabled,
+		UsageWindowTokens:            s.UsageWindowTokens,
+		ContextIndexMode:             s.ContextIndexMode,
 	}
 }
 
@@ -204,6 +206,8 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		ContextMaxItems:              s.ContextMaxItems,
 		ContextCompressionDisabled:   s.ContextCompressionDisabled,
 		ContextDedupDisabled:         s.ContextDedupDisabled,
+		UsageWindowTokens:            s.UsageWindowTokens,
+		ContextIndexMode:             s.ContextIndexMode,
 	})
 }
 

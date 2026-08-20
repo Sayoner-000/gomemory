@@ -57,6 +57,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdSettings(deps, args)
 	case "doctor":
 		CmdDoctor(deps, args)
+	case "usage":
+		CmdUsage(deps, args)
 	case "adr-sync":
 		CmdADRSync(deps, args)
 	case "purge":
@@ -65,6 +67,10 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdCompact(deps, args)
 	case "gc":
 		CmdGC(deps, args)
+	case "consolidate":
+		CmdConsolidate(deps, args)
+	case "get":
+		CmdGet(deps, args)
 	case "export":
 		CmdExport(deps, args)
 	case "import":

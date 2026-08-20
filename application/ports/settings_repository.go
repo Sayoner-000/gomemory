@@ -65,6 +65,17 @@ type SettingsData struct {
 	// ContextDedupDisabled apaga la deduplicación de BuildContextPack.
 	// Ausente/false = activada (feature 015).
 	ContextDedupDisabled bool `json:"context_dedup_disabled,omitempty"`
+	// UsageWindowTokens es la ventana de referencia (en tokens) contra la que
+	// `mem usage` expresa el ahorro como porcentaje. Ausente/0 = sin ventana:
+	// esa línea del reporte no se muestra. Es un valor que PROVEE el usuario,
+	// nunca una lectura ni un default que presuma la ventana de ningún agente
+	// concreto (feature 020, FR-014).
+	UsageWindowTokens int `json:"usage_window_tokens,omitempty"`
+	// ContextIndexMode activa la emisión de contexto en modo índice: protocolo
+	// íntegro + una línea por memoria (id, tipo, título), detalle bajo demanda
+	// con get_memory(id). Ausente/false = modo completo, el comportamiento
+	// actual (feature 020, FR-034).
+	ContextIndexMode bool `json:"context_index_mode,omitempty"`
 }
 
 type SettingsRepository interface {

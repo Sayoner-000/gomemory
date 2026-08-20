@@ -74,6 +74,14 @@ type Settings struct {
 	ContextMaxItems            int     `json:"context_max_items,omitempty"`
 	ContextCompressionDisabled bool    `json:"context_compression_disabled,omitempty"`
 	ContextDedupDisabled       bool    `json:"context_dedup_disabled,omitempty"`
+	// UsageWindowTokens: ventana de referencia (tokens) para `mem usage`.
+	// Ausente/0 = SIN ventana — a diferencia de Budget/ContextDefaultBudget,
+	// 0 NO se normaliza a ningún default: ningún valor por defecto puede
+	// corresponder a la ventana de un agente concreto (feature 020, FR-014).
+	UsageWindowTokens int `json:"usage_window_tokens,omitempty"`
+	// ContextIndexMode: emisión de contexto en modo índice. Ausente/false =
+	// modo completo, el comportamiento actual (feature 020, FR-034).
+	ContextIndexMode bool `json:"context_index_mode,omitempty"`
 }
 
 // Defaults de la huella de contexto (feature 008). En CARACTERES emitidos salvo

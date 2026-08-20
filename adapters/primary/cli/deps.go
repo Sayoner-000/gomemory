@@ -38,4 +38,7 @@ type Deps struct {
 	Compressor    ports.Compressor
 	TokenCounter  ports.TokenCounter
 	SpecKitReader ports.SpecKitReader
+	// UsageRepo/UsageRecorder (feature 020): opcionales, admiten nil.
+	UsageRepo     ports.UsageRepository
+	UsageRecorder ports.UsageRecorder
 }

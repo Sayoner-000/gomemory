@@ -195,7 +195,19 @@ func migrate(db *sql.DB) error {
 	);
 	CREATE UNIQUE INDEX IF NOT EXISTS idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL;
 	CREATE UNIQUE INDEX IF NOT EXISTS idx_adr_sync_block ON adr_sync_records(project, provider, block_key);
-	`, Now, Now, Now, Now, Now, Now, Now)
+	CREATE TABLE IF NOT EXISTS usage_records (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		session_id TEXT,
+		operation TEXT NOT NULL,
+		channel TEXT NOT NULL,
+		baseline_tokens INTEGER NOT NULL DEFAULT 0,
+		emitted_tokens INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL DEFAULT (%s)
+	);
+	CREATE INDEX IF NOT EXISTS idx_usage_project_session ON usage_records(project, session_id);
+	CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_records(created_at DESC);
+	`, Now, Now, Now, Now, Now, Now, Now, Now)
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}

@@ -177,6 +177,9 @@ mem import    # → import with dedup, preserving timestamps and relationships
 **Automatic backups**
 Local snapshots are created at session end. Do not synchronize `mem.db` directly — SQLite uses WAL mode and partial synchronization can corrupt the database. Use the exported JSON backup instead.
 
+**Measured token usage**
+`mem usage` reports how many tokens a session's emissions actually cost versus what they would have cost unoptimized — baseline, emitted, and the saved delta, broken down by operation and by channel (MCP, CLI, TUI). Figures are measured with a neutral approximate counter, comparable against themselves (before/after, percentages), never against any provider's billing. An optional reference-window setting (off by default) adds an estimated "footprint avoided" percentage, clearly labeled as an estimate. The same report is available from the interactive UI (`u` key), alongside an on-demand context-optimization snapshot for a specific task. See [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) for the machine-readable contract (`mem usage --json`).
+
 ## MCP Tools
 
 19 tools across three groups (`domain/mcp_tools.go` is the single source of truth).
@@ -238,6 +241,9 @@ mem
 ├── session start/end Open/close a working session
 ├── export / import   Portable JSON bundle (backup/restore, cross-machine)
 ├── purge / gc         Delete memories / retention-based cleanup
+├── consolidate        Merge redundant memories (shared topic key + duplicate activity logs)
+├── get <id>           Retrieve a memory's full detail by ID
+├── usage              Measured token benchmark: baseline/emitted/saved per session (--json, --all)
 ├── compact           Reclaim SQLite space (no data loss)
 ├── adr-sync status   Inspect ADR sync state with the external code-graph provider
 ├── install           Install gomemory into a project

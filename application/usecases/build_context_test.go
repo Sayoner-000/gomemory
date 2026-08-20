@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"mem/adapters/secondary/persistence"
+	"mem/adapters/secondary/tokens"
 	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
@@ -357,4 +358,235 @@ func TestBuild_HotCodeSection_AusenteSinMatchNiProveedor(t *testing.T) {
 			t.Fatalf("sin CodeProviders no debe aparecer la sección, got:\n%s", out)
 		}
 	})
+}
+
+// fakeUsageRecorder implementa ports.UsageRecorder para inspeccionar qué
+// registró Build() sin pasar por ningún canal real (MCP, CLI o TUI) — cubre
+// la corrección V1 del agnosticismo (research.md §1): el registro nace en el
+// caso de uso, no en un adaptador de protocolo concreto.
+type fakeUsageRecorder struct {
+	calls []struct {
+		operation string
+		baseline  int
+		emitted   int
+	}
+}
+
+func (f *fakeUsageRecorder) Record(operation string, baselineTokens, emittedTokens int) {
+	f.calls = append(f.calls, struct {
+		operation string
+		baseline  int
+		emitted   int
+	}{operation, baselineTokens, emittedTokens})
+}
+
+func TestBuild_TightBudget_RecordsBaselineGreaterThanEmitted(t *testing.T) {
+	root := t.TempDir()
+	db, _ := persistence.Init(root)
+	defer db.Close()
+	memRepo := persistence.NewMemoryRepository(db)
+
+	// Contenido largo a propósito: debe superar entryExtractChars (200) para
+	// forzar la truncación en acota(), y el conjunto debe superar el
+	// presupuesto para forzar además el descarte en fits().
+	long := strings.Repeat("contenido largo de sobra para forzar el truncado del extracto. ", 20)
+	for i := 0; i < 6; i++ {
+		memRepo.Insert(&domain.Memory{
+			Project: "proj", Type: domain.Decision,
+			Title: fmt.Sprintf("decisión %d", i), Content: long,
+		})
+	}
+
+	rec := &fakeUsageRecorder{}
+	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	builder.Budget = 600 // deliberadamente bajo: fuerza truncación Y descarte
+	builder.Recorder = rec
+	builder.Counter = tokens.ApproximateTokenCounter{}
+
+	if _, err := builder.Build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if len(rec.calls) != 1 {
+		t.Fatalf("se esperaba exactamente 1 registro (sin pasar por MCP/CLI/TUI), got %d", len(rec.calls))
+	}
+	call := rec.calls[0]
+	if call.operation != domain.OpBuildContext {
+		t.Fatalf("operation = %q, want %q", call.operation, domain.OpBuildContext)
+	}
+	if call.baseline <= call.emitted {
+		t.Fatalf("con Budget bajo, baseline (%d) debe ser mayor que emitted (%d)", call.baseline, call.emitted)
+	}
+}
+
+func TestBuild_UnlimitedBudget_BaselineNeverBelowEmitted(t *testing.T) {
+	root := t.TempDir()
+	db, _ := persistence.Init(root)
+	defer db.Close()
+	memRepo := persistence.NewMemoryRepository(db)
+	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "d", Content: "contenido corto"})
+
+	rec := &fakeUsageRecorder{}
+	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	// Budget <= 0 = sin límite (comportamiento histórico): nada se descarta,
+	// así que baseline no puede quedar por debajo de lo emitido (invariante
+	// I1 de data-model.md).
+	builder.Recorder = rec
+	builder.Counter = tokens.ApproximateTokenCounter{}
+
+	if _, err := builder.Build(); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if len(rec.calls) != 1 {
+		t.Fatalf("se esperaba 1 registro, got %d", len(rec.calls))
+	}
+	if rec.calls[0].baseline < rec.calls[0].emitted {
+		t.Fatalf("baseline (%d) nunca puede ser menor que emitted (%d)", rec.calls[0].baseline, rec.calls[0].emitted)
+	}
+}
+
+func TestBuild_NilRecorder_DoesNotPanic(t *testing.T) {
+	root := t.TempDir()
+	db, _ := persistence.Init(root)
+	defer db.Close()
+	memRepo := persistence.NewMemoryRepository(db)
+
+	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	// Recorder deliberadamente sin asignar (nil): debe seguir funcionando
+	// exactamente igual, sin medición.
+	if _, err := builder.Build(); err != nil {
+		t.Fatalf("build con Recorder nil no debe fallar: %v", err)
+	}
+}
+
+// TestBuild_IndexMode_NoBodiesButAllIDsPresent cubre SC-009: en modo índice
+// la salida contiene todos los identificadores de las memorias seleccionadas
+// y NINGÚN cuerpo de memoria.
+func TestBuild_IndexMode_NoBodiesButAllIDsPresent(t *testing.T) {
+	root := t.TempDir()
+	db, _ := persistence.Init(root)
+	defer db.Close()
+	memRepo := persistence.NewMemoryRepository(db)
+
+	secretBody := "CONTENIDO-SECRETO-QUE-NO-DEBE-APARECER-JAMAS-EN-MODO-INDICE"
+	id1, _ := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "decisión uno", Content: secretBody})
+	id2, _ := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "bug dos", Content: secretBody})
+
+	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	builder.IndexMode = true
+
+	out, err := builder.Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if strings.Contains(out, secretBody) {
+		t.Fatalf("modo índice no debe emitir NINGÚN cuerpo de memoria, pero apareció el contenido:\n%s", out)
+	}
+	if !strings.Contains(out, fmt.Sprintf("get_memory %d", id1)) {
+		t.Fatalf("falta el identificador de la memoria %d en el índice:\n%s", id1, out)
+	}
+	if !strings.Contains(out, fmt.Sprintf("get_memory %d", id2)) {
+		t.Fatalf("falta el identificador de la memoria %d en el índice:\n%s", id2, out)
+	}
+	if !strings.Contains(out, "decisión uno") || !strings.Contains(out, "bug dos") {
+		t.Fatalf("el índice debe conservar el título de cada memoria:\n%s", out)
+	}
+}
+
+// TestBuild_IndexMode_StructureUnaffectedOutsideContent cubre FR-032: el
+// protocolo/estructura que Build() ya emite fuera del contenido de cada
+// memoria (encabezados de sección, conflictos, sinapsis) nunca se recorta en
+// modo índice — solo el CUERPO de cada memoria colapsa a un puntero.
+func TestBuild_IndexMode_StructureUnaffectedOutsideContent(t *testing.T) {
+	root := t.TempDir()
+	db, _ := persistence.Init(root)
+	defer db.Close()
+	memRepo := persistence.NewMemoryRepository(db)
+	relRepo := persistence.NewRelationRepository(db)
+
+	idA, _ := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "usa Redis para cache", Content: "..."})
+	idB, _ := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "usa Memcached para cache", Content: "..."})
+	if _, _, err := usecases.RecordVerdict(relRepo, "proj", idA, idB, domain.ConflictsWith, 0.9, "se contradicen"); err != nil {
+		t.Fatalf("record verdict: %v", err)
+	}
+
+	full := usecases.New(memRepo, persistence.NewSessionRepository(db), relRepo, root, "proj")
+	full.IndexMode = false
+	outFull, err := full.Build()
+	if err != nil {
+		t.Fatalf("build (completo): %v", err)
+	}
+
+	idx := usecases.New(memRepo, persistence.NewSessionRepository(db), relRepo, root, "proj")
+	idx.IndexMode = true
+	outIdx, err := idx.Build()
+	if err != nil {
+		t.Fatalf("build (índice): %v", err)
+	}
+
+	for _, want := range []string{
+		"## Decisiones Técnicas",
+		"## ⚠ Conflictos sin resolver",
+		"usa Redis para cache",
+		"usa Memcached para cache",
+	} {
+		if !strings.Contains(outFull, want) {
+			t.Fatalf("fixture inválida: %q no aparece en el modo completo", want)
+		}
+		if !strings.Contains(outIdx, want) {
+			t.Fatalf("la estructura %q debe sobrevivir intacta en modo índice, got:\n%s", want, outIdx)
+		}
+	}
+}
+
+// TestBuild_IndexMode_ReversibleToIdenticalOutput cubre SC-010: activar y
+// desactivar el modo índice devuelve la emisión a un resultado idéntico al
+// de partida.
+func TestBuild_IndexMode_ReversibleToIdenticalOutput(t *testing.T) {
+	root := t.TempDir()
+	db, _ := persistence.Init(root)
+	defer db.Close()
+	memRepo := persistence.NewMemoryRepository(db)
+	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Learning, Title: "algo", Content: "contenido de prueba"})
+
+	before := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	outBefore, err := before.Build()
+	if err != nil {
+		t.Fatalf("build antes: %v", err)
+	}
+
+	toggled := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	toggled.IndexMode = true
+	if _, err := toggled.Build(); err != nil {
+		t.Fatalf("build en modo índice: %v", err)
+	}
+	toggled.IndexMode = false
+	outAfter, err := toggled.Build()
+	if err != nil {
+		t.Fatalf("build tras desactivar el modo índice: %v", err)
+	}
+
+	if outBefore != outAfter {
+		t.Fatalf("activar y desactivar el modo índice debe devolver una emisión idéntica.\nantes:\n%s\ndespués:\n%s", outBefore, outAfter)
+	}
+}
+
+func TestBuild_IndexMode_EmptyProject_ExplicitEmptyIndex(t *testing.T) {
+	root := t.TempDir()
+	db, _ := persistence.Init(root)
+	defer db.Close()
+	memRepo := persistence.NewMemoryRepository(db)
+
+	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
+	builder.IndexMode = true
+
+	out, err := builder.Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(out), "índice vacío") && !strings.Contains(strings.ToLower(out), "sin memorias") {
+		t.Fatalf("sin memorias, el modo índice debe declararlo explícitamente, got:\n%s", out)
+	}
 }

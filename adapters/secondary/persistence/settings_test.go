@@ -334,3 +334,58 @@ func TestSettingsRepository_PlanGuardDisabled_RoundTrip(t *testing.T) {
 		t.Errorf("tras el round-trip PlanGuardDisabled = %v, se esperaba true", got)
 	}
 }
+
+// TestReadSettings_UsageWindowTokens_AbsentDefaultsToZero cubre FR-014 de la
+// feature 020: a diferencia de Budget/ContextDefaultBudget, 0 NO se normaliza
+// a ningún valor por defecto — "sin ventana" es el comportamiento deseado, no
+// un hueco que rellenar, porque ningún default puede presumir la ventana de
+// un agente concreto.
+func TestReadSettings_UsageWindowTokens_AbsentDefaultsToZero(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{})
+
+	if got := ReadSettings(root).UsageWindowTokens; got != 0 {
+		t.Errorf("UsageWindowTokens = %d, se esperaba 0 (sin ventana)", got)
+	}
+}
+
+func TestReadSettings_UsageWindowTokens_ExplicitValueIsRespected(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{"usage_window_tokens": 200000})
+
+	if got := ReadSettings(root).UsageWindowTokens; got != 200000 {
+		t.Errorf("UsageWindowTokens = %d, se esperaba 200000", got)
+	}
+}
+
+func TestReadSettings_ContextIndexMode_AbsentIsFalse(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{})
+
+	if got := ReadSettings(root).ContextIndexMode; got {
+		t.Errorf("ContextIndexMode = %v, se esperaba false (modo completo, comportamiento actual)", got)
+	}
+}
+
+// TestSettingsRepository_UsageWindowTokens_RoundTrip verifica que el ajuste
+// sobrevive el mapeo persistence.Settings <-> ports.SettingsData, igual que
+// TestSettingsRepository_PlanGuardDisabled_RoundTrip para PlanGuardDisabled.
+func TestSettingsRepository_UsageWindowTokens_RoundTrip(t *testing.T) {
+	root := t.TempDir()
+	repo := NewSettingsRepository()
+
+	s := repo.Read(root)
+	s.UsageWindowTokens = 150000
+	s.ContextIndexMode = true
+	if err := repo.Write(root, s); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	got := repo.Read(root)
+	if got.UsageWindowTokens != 150000 {
+		t.Errorf("tras el round-trip UsageWindowTokens = %d, se esperaba 150000", got.UsageWindowTokens)
+	}
+	if !got.ContextIndexMode {
+		t.Errorf("tras el round-trip ContextIndexMode = %v, se esperaba true", got.ContextIndexMode)
+	}
+}

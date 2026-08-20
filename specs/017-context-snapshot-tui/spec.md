@@ -4,7 +4,12 @@
 
 **Created**: 2026-08-15
 
-**Status**: Draft
+**Status**: Superseded by 020-token-usage-benchmark
+
+> Superada el 2026-08-20 por la feature 020: su alcance se absorbe íntegro como segunda
+> sección (Snapshot) de la pantalla de uso, junto al benchmark de tokens por sesión, para no
+> construir dos pantallas que muestran la misma medición. Todos sus requisitos funcionales
+> (FR-001 a FR-008), incluido el de no persistir snapshots, se conservan en la spec 020.
 
 **Input**: User description: "Pantalla de snapshot de optimización de contexto en la TUI (Retrieval → Compression → Token Budget): el usuario quiere, desde la interfaz interactiva, escribir una tarea y un presupuesto de tokens, disparar el mismo proceso de optimización de contexto que ya existe (selección de memorias relevantes, compresión, ajuste al presupuesto), y ver el resultado — tokens antes/después, % de reducción, conteo de elementos por importancia — para esa tarea puntual, sin histórico acumulado entre sesiones."
 

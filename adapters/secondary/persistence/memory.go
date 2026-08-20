@@ -524,7 +524,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), created_at, updated_at
 		 FROM memories WHERE project = ? ORDER BY id ASC`,
 		project,
 	)
@@ -538,7 +538,7 @@ func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 		var m domain.Memory
 		var memType string
 		if err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.OriginPrompt, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
 		m.Type = domain.MemoryType(memType)

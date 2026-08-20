@@ -11,6 +11,7 @@ import (
 	"mem/adapters/secondary/persistence"
 	"mem/adapters/secondary/speckit"
 	"mem/adapters/secondary/tokens"
+	"mem/adapters/secondary/usage"
 	"mem/application/ports"
 	"mem/application/usecases"
 )
@@ -33,9 +34,19 @@ type Container struct {
 	Compressor      ports.Compressor
 	TokenCounter    ports.TokenCounter
 	SpecKitReader   ports.SpecKitReader
+	// UsageRepo/UsageRecorder (feature 020): opcionales — admiten nil sin que
+	// ningún emisor se entere. La etiqueta de canal viaja SOLO en la
+	// construcción de UsageRecorder (research.md §1); este es el ÚNICO lugar
+	// del proyecto donde se nombra un canal.
+	UsageRepo     ports.UsageRepository
+	UsageRecorder ports.UsageRecorder
 }
 
-func NewContainer(root string) (*Container, error) {
+// NewContainer construye el composition root. channel es la etiqueta del
+// canal por el que este proceso emite ("mcp", "cli" o "tui") — un dato de
+// construcción, no una autorización: un valor no reconocido se acepta igual
+// (feature 020, FR-004).
+func NewContainer(root, channel string) (*Container, error) {
 	db, err := persistence.Open(root)
 	if err != nil {
 		return nil, err
@@ -60,6 +71,9 @@ func NewContainer(root string) (*Container, error) {
 	// Presupuesto de contexto (feature 008): techo blando de get_context para no
 	// inflar la ventana del agente. Normalizado en ReadSettings (default si 0).
 	contextBuilder.Budget = settings.Budget
+	// Modo índice (feature 020, fase C): ausente/false = modo completo, el
+	// comportamiento histórico (FR-034).
+	contextBuilder.IndexMode = settings.ContextIndexMode
 	// Proveedor(es) EXTERNO(s) de grafo, opcionales y agnósticos al agente.
 	// Enchufable por settings (code_graph_disabled / code_graph_command). Si está
 	// deshabilitado, el binario no está o el repo no está indexado: degrada en
@@ -98,6 +112,24 @@ func NewContainer(root string) (*Container, error) {
 	persistence.SetAdrSyncEnabled(settings.AdrSyncEnabled)
 	persistence.SetADRSync(adrSyncProvider, adrSyncRepo)
 
+	// Registro de uso (feature 020): el repositorio y el grabador son
+	// opcionales en toda dependencia que los reciba. sessRepo.Active se
+	// resuelve EN EL MOMENTO de registrar (no aquí), porque la sesión puede
+	// empezar después de construir el Container.
+	usageRepo := persistence.NewUsageRepository(db)
+	usageRecorder := usage.NewRecorder(usageRepo, project, channel, func() string {
+		if sess, _ := sessRepo.Active(project); sess != nil {
+			return sess.ID
+		}
+		return ""
+	})
+	// get_context es el único emisor que va DENTRO de Build() (T027):
+	// ports.ContextBuilder solo expone Build()/WriteFile(), así que el
+	// registro vive en el propio Builder concreto, no en un método nuevo del
+	// puerto.
+	contextBuilder.Counter = tokens.ApproximateTokenCounter{}
+	contextBuilder.Recorder = usageRecorder
+
 	c := &Container{
 		Root:    root,
 		Project: project,
@@ -115,6 +147,8 @@ func NewContainer(root string) (*Container, error) {
 		Compressor:      compression.StructuralCompressor{},
 		TokenCounter:    tokens.ApproximateTokenCounter{},
 		SpecKitReader:   speckit.Reader{},
+		UsageRepo:       usageRepo,
+		UsageRecorder:   usageRecorder,
 	}
 	if settings.AdrSyncEnabled {
 		c.ADRSyncProvider = adrSyncProvider
@@ -145,6 +179,8 @@ func (c *Container) ToDeps() *cli.Deps {
 		Compressor:      c.Compressor,
 		TokenCounter:    c.TokenCounter,
 		SpecKitReader:   c.SpecKitReader,
+		UsageRepo:       c.UsageRepo,
+		UsageRecorder:   c.UsageRecorder,
 	}
 }
 
@@ -184,7 +220,13 @@ func buildCodeProviders(root string, settings persistence.Settings) []ports.Code
 }
 
 func (c *Container) RunTUI() error {
-	return tui.Run(c.MemoryRepo, c.RelationRepo, c.SettingsRepo, c.MaintenanceRepo, c.tuiProvider(), c.Root, c.Project)
+	return tui.Run(c.MemoryRepo, c.RelationRepo, c.SettingsRepo, c.MaintenanceRepo, c.tuiProvider(), c.Root, c.Project, tui.UsageDeps{
+		SessionRepo:   c.SessionRepo,
+		UsageRepo:     c.UsageRepo,
+		TokenCounter:  c.TokenCounter,
+		Compressor:    c.Compressor,
+		SpecKitReader: c.SpecKitReader,
+	})
 }
 
 func isMockMode() bool {

@@ -35,6 +35,10 @@ const (
 	screenOptimizeConfirm
 	screenOptimizeAllConfirm
 	screenEditSetting
+	// screenUsage se añade AL FINAL, por la convención de este enum (feature
+	// 020): benchmark de tokens por sesión (mem usage) + snapshot puntual,
+	// absorbe la spec 017.
+	screenUsage
 )
 
 // editSettingField identifica cuál de los tres ajustes de huella de contexto
@@ -49,7 +53,7 @@ const (
 
 const gcDefaultOlderThanDays = 90
 
-var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection"}
+var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection", "Consolidar (topic_key + actividad duplicada)"}
 
 // ─── Styles ───────────────────────────────────────────────────────
 
@@ -321,9 +325,13 @@ type model struct {
 
 	stats        ports.StorageStats
 	maintCursor  int
-	maintAction  string // "purge" o "gc"
+	maintAction  string // "purge", "gc" o "consolidate" (feature 020, T057)
 	maintConfirm textinput.Model
 	maintErr     string
+	// consolidationPreview cachea la previsualización calculada al elegir
+	// "Consolidar" en la pantalla de mantenimiento, para no recalcularla al
+	// renderizar la confirmación.
+	consolidationPreview usecases.ConsolidationReport
 
 	configCursor int
 	importPath   textinput.Model
@@ -349,18 +357,57 @@ type model struct {
 	dupConfirm      textinput.Model // input "si" para confirmar el borrado del grupo
 	dupErr          string
 
+	// Uso (feature 020): pantalla `screenUsage`, absorbe la spec 017.
+	// sessionRepo/usageRepo/tokenCounter/compressor/specKitReader son
+	// opcionales (nil-safe) — sin ellos la pantalla degrada mostrando lo que
+	// puede. schemaTokens/schemaOperations del reporte quedan SIEMPRE en cero
+	// aquí: medirlos exige levantar el servidor MCP real (measurePublishedSchemas
+	// vive en adapters/primary/cli, que ya importa este paquete para lanzar la
+	// TUI — importarlo de vuelta crearía un ciclo entre dos adaptadores
+	// primarios). La sección [1] sigue coincidiendo cifra por cifra con
+	// `mem usage` en todo lo demás: ambos llaman a la misma
+	// usecases.BuildUsageReport con los mismos argumentos.
+	sessionRepo   ports.SessionRepository
+	usageRepo     ports.UsageRepository
+	tokenCounter  ports.TokenCounter
+	compressor    ports.Compressor
+	specKitReader ports.SpecKitReader
+
+	usageReport domain.UsageReport
+	usageScope  string // "session" | "all" | "empty" — vocabulario de contracts/usage-report.md
+
+	// Snapshot puntual (sección [2], FR-018..FR-025): efímero, no persiste
+	// entre visitas a la pantalla (FR-023).
+	usageTaskInput   textinput.Model
+	usageBudgetInput textinput.Model
+	usageFocus       int // 0=tarea, 1=presupuesto
+	usageSnapshot    *domain.ContextPack
+	usageSnapshotErr string
+
 	width  int
 	height int
 	ready  bool
 }
 
-func Run(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string) error {
-	p := tea.NewProgram(initialModel(memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project), tea.WithAltScreen())
+// UsageDeps son las dependencias de la pantalla de uso (feature 020),
+// agrupadas aparte para no seguir alargando la firma posicional de Run — son
+// opcionales en su totalidad: con el valor cero, la pantalla degrada
+// mostrando lo que puede (nil-safe, mismo criterio que el resto del modelo).
+type UsageDeps struct {
+	SessionRepo   ports.SessionRepository
+	UsageRepo     ports.UsageRepository
+	TokenCounter  ports.TokenCounter
+	Compressor    ports.Compressor
+	SpecKitReader ports.SpecKitReader
+}
+
+func Run(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string, usageDeps UsageDeps) error {
+	p := tea.NewProgram(initialModel(memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project, usageDeps), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
 
-func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string) model {
+func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string, usageDeps UsageDeps) model {
 	mems, _ := memRepo.List(project, 200)
 
 	ti := textinput.New()
@@ -410,6 +457,16 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	es.CharLimit = 20
 	es.Width = 20
 
+	ut := textinput.New()
+	ut.Placeholder = "descripción de la tarea"
+	ut.CharLimit = 200
+	ut.Width = 50
+
+	ub := textinput.New()
+	ub.Placeholder = "presupuesto en tokens, p. ej. 4000"
+	ub.CharLimit = 10
+	ub.Width = 20
+
 	settings := settingsRepo.Read(root)
 
 	var stats ports.StorageStats
@@ -440,6 +497,14 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		editSettingInput: es,
 		dupConfirm:       dc,
 		dupExclude:       make(map[int64]bool),
+
+		sessionRepo:      usageDeps.SessionRepo,
+		usageRepo:        usageDeps.UsageRepo,
+		tokenCounter:     usageDeps.TokenCounter,
+		compressor:       usageDeps.Compressor,
+		specKitReader:    usageDeps.SpecKitReader,
+		usageTaskInput:   ut,
+		usageBudgetInput: ub,
 	}
 }
 
@@ -508,6 +573,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenEditSetting {
 			return m.updateEditSetting(msg)
+		}
+		if m.screen == screenUsage {
+			return m.updateUsage(msg)
 		}
 		return m.updateList(msg)
 	}
@@ -607,6 +675,18 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.dupErr = ""
 			m.dupGroups, _ = usecases.DetectProjectDuplicates(m.memRepo, m.project)
 		}
+
+	case "u":
+		if m.ready {
+			m.screen = screenUsage
+			m.usageReport, m.usageScope = m.buildUsageReport()
+			m.usageSnapshot = nil
+			m.usageSnapshotErr = ""
+			m.usageTaskInput.SetValue("")
+			m.usageBudgetInput.SetValue("")
+			m.usageFocus = 0
+			m.updateUsageFocus()
+		}
 	}
 
 	return m, nil
@@ -691,6 +771,26 @@ func (m model) updateMaintenance(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.maintConfirm.Focus()
 			m.maintErr = ""
 			m.screen = screenMaintenanceConfirm
+
+		case 3: // Consolidar (feature 020, fase B): previsualiza primero,
+			// como exige FR-027 — la operación es irreversible.
+			preview, err := usecases.ConsolidateMemories(m.memRepo, m.project, false)
+			if err != nil {
+				m.statusMsg = fmt.Sprintf("Error al previsualizar consolidación: %v", err)
+				m.statusTimer = 30
+				return m, nil
+			}
+			if len(preview.Groups) == 0 {
+				m.statusMsg = "No hay memorias consolidables (ningún grupo por topic_key ni por actividad duplicada)"
+				m.statusTimer = 30
+				return m, nil
+			}
+			m.consolidationPreview = preview
+			m.maintAction = "consolidate"
+			m.maintConfirm.SetValue("")
+			m.maintConfirm.Focus()
+			m.maintErr = ""
+			m.screen = screenMaintenanceConfirm
 		}
 	}
 	return m, nil
@@ -710,6 +810,22 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		typed := strings.TrimSpace(m.maintConfirm.Value())
 		if typed != m.project {
 			m.maintErr = "El nombre no coincide. No se eliminó nada."
+			return m, nil
+		}
+
+		if m.maintAction == "consolidate" {
+			report, err := usecases.ConsolidateMemories(m.memRepo, m.project, true)
+			if err != nil {
+				m.statusMsg = fmt.Sprintf("Error al consolidar: %v", err)
+			} else {
+				m.statusMsg = fmt.Sprintf("Consolidación: %d grupo(s), %d fila(s) fundida(s)", len(report.Groups), report.DeletedCount)
+				m.memories, _ = m.memRepo.List(m.project, 200)
+				m.applyFilter()
+				m.stats, _ = m.maintenanceRepo.Stats(m.project)
+			}
+			m.statusTimer = 30
+			m.maintErr = ""
+			m.screen = screenMaintenance
 			return m, nil
 		}
 
@@ -1597,6 +1713,8 @@ func (m model) View() string {
 		return m.optimizeAllConfirmView()
 	case screenEditSetting:
 		return m.editSettingView()
+	case screenUsage:
+		return m.usageView()
 	}
 	return ""
 }
@@ -1618,7 +1736,7 @@ func (m model) listView() string {
 	}
 
 	// Footer
-	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  q salir")
+	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  u uso  ·  q salir")
 	if status := m.statusLine(); status != "" {
 		footer = status + "\n" + footer
 	}
@@ -1769,15 +1887,25 @@ func (m model) maintenanceConfirmView() string {
 	var b strings.Builder
 
 	actionLabel := "Purgar"
-	if m.maintAction == "gc" {
+	switch m.maintAction {
+	case "gc":
 		actionLabel = "Garbage Collection"
+	case "consolidate":
+		actionLabel = "Consolidar"
 	}
 
 	b.WriteString(titleStyle.Render(actionLabel))
 	b.WriteString("\n")
-	b.WriteString(dangerStyle.Render(
-		fmt.Sprintf("Esto eliminará memorias del proyecto %q permanentemente.", m.project),
-	))
+	if m.maintAction == "consolidate" {
+		b.WriteString(dangerStyle.Render(fmt.Sprintf(
+			"Esto fundirá %d grupo(s) en su fila más reciente y eliminará %d fila(s) redundante(s) del proyecto %q. Ningún contenido se pierde: se fusiona antes de eliminar.",
+			len(m.consolidationPreview.Groups), m.consolidationPreview.DeletedCount, m.project,
+		)))
+	} else {
+		b.WriteString(dangerStyle.Render(
+			fmt.Sprintf("Esto eliminará memorias del proyecto %q permanentemente.", m.project),
+		))
+	}
 	b.WriteString("\n\n")
 	b.WriteString(formLabel.Render("Escribe el nombre del proyecto para confirmar:"))
 	b.WriteString("\n")

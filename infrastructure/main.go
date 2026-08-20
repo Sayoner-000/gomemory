@@ -100,7 +100,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		container, err := NewContainer(root)
+		container, err := NewContainer(root, "tui")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error al abrir TUI: %v\n", err)
 			os.Exit(1)
@@ -120,7 +120,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	container, err := NewContainer(root)
+	container, err := NewContainer(root, channelForCommand(os.Args[1]))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error al inicializar: %v\n", err)
 		os.Exit(1)
@@ -150,4 +150,19 @@ func resolveRootForCommand(command string, args []string) (string, error) {
 		}
 	}
 	return persistence.FindRoot()
+}
+
+// channelForCommand traduce el subcomando invocado a la etiqueta de canal que
+// se fija en NewContainer (feature 020). Es una traducción de hecho, no una
+// lista cerrada: un subcomando no listado aquí simplemente cae en "cli", que
+// es correcto — la etiqueta es descriptiva, no una autorización (FR-004).
+func channelForCommand(command string) string {
+	switch command {
+	case "mcp":
+		return "mcp"
+	case "tui":
+		return "tui"
+	default:
+		return "cli"
+	}
 }

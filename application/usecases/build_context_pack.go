@@ -36,6 +36,11 @@ type ContextRequest struct {
 	// feature (FR-002, FR-009).
 	IncludeCodeGraph bool
 	CodeProviders    []ports.CodeGraphProvider
+	// Recorder (feature 020): opcional, admite nil. BuildContextPack ya
+	// calcula RawTokens/FinalTokens en pack.Stats — este campo solo decide si
+	// esas cifras, además de quedar en el ContextPack devuelto, se persisten
+	// como registro de uso.
+	Recorder ports.UsageRecorder
 }
 
 // BuildContextPack recupera memorias relevantes a Task dentro de Project,
@@ -207,6 +212,10 @@ func BuildContextPack(
 	pack.Stats.FinalTokens = pack.TokenCount
 	pack.Stats.SavedTokens = pack.RawTokenCount - pack.TokenCount
 	pack.Stats.CompressionRatio = pack.CompressionRate
+
+	if req.Recorder != nil {
+		req.Recorder.Record(domain.OpBuildPack, pack.Stats.RawTokens, pack.Stats.FinalTokens)
+	}
 
 	return pack, nil
 }

@@ -305,6 +305,9 @@ Configuración multi-agente automática:
 
 # Contexto completo
 ./mem context --write    # genera .memory/context.md
+
+# Cuánto ahorra gomemory al emitir contexto (datos medidos, no estimados)
+./mem usage
 ```
 
 ---

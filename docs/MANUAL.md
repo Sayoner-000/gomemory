@@ -20,6 +20,7 @@ automática con OpenCode y Claude Code.
 13. [Stack Técnico](#13-stack-técnico)
 14. [Portabilidad](#14-portabilidad)
 15. [Modo Plan Determinista (mem doctor)](#15-modo-plan-determinista-mem-doctor)
+16. [Benchmark de tokens (mem usage)](#16-benchmark-de-tokens-mem-usage)
 
 ---
 
@@ -750,3 +751,57 @@ proyecto a otro** (o entre máquinas con distinto S.O.), usa el bundle JSON:
 - **También desde la TUI:** tecla `c` → *Configuración* → *Exportar memorias* /
   *Importar memorias*. Esa misma pantalla muestra el estado del grafo de código
   externo y permite alternar el toggle sin salir a la línea de comandos.
+
+## 16. Benchmark de tokens (`mem usage`)
+
+`mem usage` responde, con datos medidos y no con intuición, cuánto ahorra `gomemory` al emitir
+contexto en la sesión actual.
+
+```bash
+mem usage                    # sesión activa (o la más reciente con registros, o vacío)
+mem usage --session <id>     # una sesión concreta
+mem usage --all              # acumulado de todas las sesiones del proyecto
+mem usage --json             # forma legible por máquina — el contrato que manda
+```
+
+Cada llamada que emite contexto (`mem context`, `search_memories`, `list_memories`, `mem pack
+build/compress`, y cualquier otra operación por cualquier canal) queda registrada con la línea base
+(lo que habría costado sin optimizar) y lo efectivamente emitido. El reporte muestra llamadas,
+línea base, emitido, ahorro absoluto y porcentaje de reducción, con desglose por operación y por
+canal (`mcp`, `cli`, `tui`).
+
+**Honestidad de la medición:** la cabecera del reporte declara que el conteo es una aproximación
+neutral (~4 caracteres por token), no el tokenizador de ningún proveedor — las cifras son
+comparables contra sí mismas, no contra la facturación de nadie. Por defecto, todo lo que se
+muestra está **medido**. Si se configura una ventana de referencia (`usage_window_tokens` en
+`.memory/settings.json`, `0` = sin ventana por defecto), aparece una línea adicional rotulada
+explícitamente `(estimado)` con el ahorro como porcentaje de esa ventana.
+
+Contrato completo de la salida `--json`: [`docs/USAGE-REPORT-CONTRACT.md`](./USAGE-REPORT-CONTRACT.md).
+
+**También desde la TUI:** tecla `u` desde la lista principal. La pantalla tiene dos secciones: la
+[1] muestra el mismo reporte que `mem usage` para la sesión activa; la [2] deja escribir una tarea
+y un presupuesto y calcular un snapshot puntual de optimización de contexto (motor compartido con
+`mem pack build`), que no se conserva entre visitas a la pantalla.
+
+### Consolidar memorias redundantes (`mem consolidate`)
+
+```bash
+mem consolidate            # previsualiza qué se fundiría (nada se modifica)
+mem consolidate --apply    # aplica de verdad
+```
+
+Funde en una sola fila los grupos de memorias redundantes de un proyecto — por clave de tópico
+compartida y por registros automáticos de actividad con contenido idéntico — sin perder ningún
+contenido (los textos distintos de un grupo se conservan fusionados en la fila que queda). Es
+irreversible: por eso previsualiza por defecto. También disponible en la TUI: pantalla de
+*Mantenimiento* → *Consolidar*.
+
+### Detalle de una memoria por ID (`mem get`)
+
+```bash
+mem get <id>
+```
+
+Recupera el detalle completo de una memoria por su identificador — el mismo mecanismo de
+drill-down que la tool MCP `get_memory`, disponible también desde la línea de comandos.

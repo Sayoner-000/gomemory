@@ -106,6 +106,30 @@ type Builder struct {
 	// dejan de crecer al acercarse al techo; protocolo (lo añade el llamador) y
 	// conflictos NUNCA se recortan. La contabilidad es en bytes emitidos.
 	Budget int
+	// discardedChars acumula, en CARACTERES, todo lo que acota()/fits() cortan
+	// del contenido íntegro (feature 020). La línea base se deriva al final de
+	// Build() como discardedChars + len(salida): así rawChars >= finalChars se
+	// cumple SIEMPRE por construcción, incluso sin presupuesto (Budget<=0,
+	// donde nada se descarta y raw==final) — no por sumar el contenido íntegro
+	// de cada memoria, que podría contradecir la invariante cuando el
+	// documento final lleva envoltorio (encabezados, viñetas) más grande que
+	// el contenido crudo de una entrada corta.
+	discardedChars int
+	// Counter convierte caracteres a tokens al reportar. Opcional: sin él,
+	// Build() no puede convertir y no reporta (nil-safe, igual que Recorder).
+	Counter ports.TokenCounter
+	// Recorder es el grabador de uso (feature 020, ports.UsageRecorder).
+	// Opcional: con nil, Build() no registra nada y funciona exactamente
+	// igual — mismo patrón nil-safe que Graph/CodeProviders.
+	Recorder ports.UsageRecorder
+	// IndexMode (feature 020, fase C): cuando está activo, el CUERPO de cada
+	// memoria colapsa a un puntero `get_memory <id>` — nunca se emite
+	// contenido, en ningún punto de Build(). El resto de la estructura
+	// (encabezados de sección, conflictos, sinapsis, resumen de grafo de
+	// código) no pasa por acota() y por tanto queda intacta en ambos modos
+	// (FR-032). Valor por defecto false = modo completo, el comportamiento
+	// histórico (FR-034).
+	IndexMode bool
 }
 
 const (
@@ -120,11 +144,23 @@ const (
 // y el contenido excede el extracto, lo trunca y adjunta el puntero al detalle.
 // Sin techo (Budget<=0) devuelve el contenido íntegro.
 func (b *Builder) acota(m domain.Memory) string {
+	if b.IndexMode {
+		// Índice puro: nunca contenido, con independencia del presupuesto.
+		// Cuenta como línea base completa (nada se descarta silenciosamente:
+		// se sabe exactamente lo que se dejó fuera).
+		b.discardedChars += len(m.Content)
+		return fmt.Sprintf("→ `get_memory %d`", m.ID)
+	}
 	if b.Budget <= 0 {
 		return m.Content
 	}
 	ex := domain.Extract(m.Content, entryExtractChars)
 	if ex != strings.TrimSpace(m.Content) {
+		// El punto de descarte 1/2 (feature 020, research.md §2): lo cortado
+		// del contenido íntegro por el extracto de 200 caracteres.
+		if cut := len(m.Content) - len(ex); cut > 0 {
+			b.discardedChars += cut
+		}
 		return fmt.Sprintf("%s → `get_memory %d`", ex, m.ID)
 	}
 	return ex
@@ -136,7 +172,13 @@ func (b *Builder) fits(sb *strings.Builder, n int) bool {
 	if b.Budget <= 0 {
 		return true
 	}
-	return sb.Len()+n <= b.Budget-budgetReserve
+	if sb.Len()+n <= b.Budget-budgetReserve {
+		return true
+	}
+	// El punto de descarte 2/2 (feature 020, research.md §2): lo que no cupo
+	// no se emite, pero cuenta como línea base — es justo lo que se ahorró.
+	b.discardedChars += n
+	return false
 }
 
 func New(lister ports.MemoryLister, session ports.SessionQuerier, relations ports.RelationLister, root, project string) *Builder {
@@ -151,6 +193,14 @@ func (b *Builder) Build() (string, error) {
 
 	var sb strings.Builder
 	sb.WriteString("# Memoria del Proyecto\n\n")
+
+	if b.IndexMode && len(mems) == 0 {
+		// Índice vacío EXPLÍCITO (feature 020, caso borde de la spec): sin
+		// memorias, ninguna sección de tipo aparecería igualmente en modo
+		// completo — esta línea es lo único que distingue "vacío a
+		// propósito" de "una sección ausente por error".
+		sb.WriteString("_Índice vacío: no hay memorias en este proyecto._\n\n")
+	}
 
 	byType := make(map[domain.MemoryType][]domain.Memory)
 	titleByID := make(map[int64]string, len(mems))
@@ -300,7 +350,18 @@ func (b *Builder) Build() (string, error) {
 		sb.WriteString("## Actividad Reciente (auto)\n\n")
 		for i, m := range checkpoints {
 			if i >= 5 {
+				// Tercer punto de descarte (feature 020, research.md §2): el
+				// mayor de los tres — descarta hasta 75 de 80 registros de
+				// actividad cargados, sin pasar nunca por acota() ni fits().
+				for _, rest := range checkpoints[i:] {
+					b.discardedChars += len(rest.Content)
+				}
 				break
+			}
+			if b.IndexMode {
+				b.discardedChars += len(m.Content)
+				sb.WriteString(fmt.Sprintf("- %s → `get_memory %d`\n", displayTitle(m), m.ID))
+				continue
 			}
 			sb.WriteString(fmt.Sprintf("- %s\n", m.Content))
 		}
@@ -418,7 +479,27 @@ func (b *Builder) Build() (string, error) {
 		sb.WriteString("\n")
 	}
 
-	return sb.String(), nil
+	output := sb.String()
+
+	// Registro de uso (feature 020): raw = final + lo descartado, así que
+	// raw >= final se cumple SIEMPRE, incluso en modo sin presupuesto (nada
+	// descartado ⇒ raw == final). El registro ocurre DENTRO de Build() —no se
+	// amplía ports.ContextBuilder, que solo expone Build()/WriteFile()— y es
+	// nil-safe: sin Counter o sin Recorder, no se registra nada.
+	if b.Recorder != nil && b.Counter != nil {
+		finalTokens := b.Counter.Count(output)
+		// El puerto ports.TokenCounter solo expone Count(text string): para
+		// mantener el cómputo desacoplado de cualquier adaptador concreto (no
+		// se puede importar tokens.ApproximateTokenCounter desde aquí sin
+		// violar la arquitectura hexagonal), se cuenta un texto sintético de
+		// la longitud correcta en vez de reimplementar la fórmula del
+		// adaptador — funciona para cualquier implementación determinista en
+		// función del largo del texto, que es el único contrato del puerto.
+		rawTokens := b.Counter.Count(strings.Repeat("x", b.discardedChars+len(output)))
+		b.Recorder.Record(domain.OpBuildContext, rawTokens, finalTokens)
+	}
+
+	return output, nil
 }
 
 func (b *Builder) WriteFile() error {

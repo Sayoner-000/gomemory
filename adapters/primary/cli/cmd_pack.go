@@ -91,6 +91,7 @@ func cmdPackBuild(deps *Deps, args []string) {
 	}
 	req.Root = deps.Root
 	req.CodeProviders = deps.CodeProviders
+	req.Recorder = deps.UsageRecorder
 
 	pack, err := usecases.BuildContextPack(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader, req)
 	if err != nil {
@@ -192,6 +193,9 @@ func cmdPackCompress(deps *Deps, args []string) {
 	result, err := CompressText(deps.Compressor, string(raw))
 	if err != nil {
 		fail("comprimir: %v", err)
+	}
+	if deps.UsageRecorder != nil {
+		deps.UsageRecorder.Record(domain.OpCompressPack, result.RawTokens, result.Tokens)
 	}
 
 	os.Stdout.WriteString(result.Content)

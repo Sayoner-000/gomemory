@@ -24,6 +24,28 @@ func CmdMCP(deps *Deps, args []string) {
 	root := deps.Root
 	project := deps.Project
 
+	server := newMCPServer(deps, root, project)
+
+	// Auto-start session on MCP server start (best-effort, no debe romper el server)
+	if active, _ := deps.SessionRepo.Active(project); active == nil {
+		if sess, err := deps.SessionRepo.Start(project); err == nil {
+			footprintReset(root)                      // sesión nueva ⇒ huella desde cero
+			os.Remove(preferenceNudgeStatePath(root)) // idem para el refuerzo de preferencias
+			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
+		}
+	}
+
+	log.Printf("MCP server iniciado para proyecto '%s'", project)
+	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+		log.Fatalf("Server error: %v", err)
+	}
+}
+
+// newMCPServer construye el servidor MCP con sus tools, recursos y
+// middlewares — extraído de CmdMCP para que measurePublishedSchemas y los
+// tests puedan levantar el servidor real sobre un transporte en memoria sin
+// pasar por stdio (feature 020, research.md §3).
+func newMCPServer(deps *Deps, root, project string) *mcp.Server {
 	// Instructions viaja en la respuesta initialize del MCP: el protocolo de
 	// memoria queda disponible para cualquier cliente MCP compatible sin
 	// depender de un AGENTS.md/CLAUDE.md por proyecto (necesario sobre todo en
@@ -53,19 +75,32 @@ func CmdMCP(deps *Deps, args []string) {
 		}
 	})
 
-	// Auto-start session on MCP server start (best-effort, no debe romper el server)
-	if active, _ := deps.SessionRepo.Active(project); active == nil {
-		if sess, err := deps.SessionRepo.Start(project); err == nil {
-			footprintReset(root)                      // sesión nueva ⇒ huella desde cero
-			os.Remove(preferenceNudgeStatePath(root)) // idem para el refuerzo de preferencias
-			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
+	// Registro de uso — canal "mcp" (feature 020, FR-005): respaldo para las
+	// operaciones que NO optimizan y por tanto no llaman a recordUsage por su
+	// cuenta. Sin este respaldo, el porcentaje de reducción del reporte se
+	// calcularía solo sobre el subconjunto que sí recorta, sesgado al alza.
+	// selfReportingTools son las que YA se registran dentro de su propio
+	// handler (o, para get_context, dentro del Builder concreto que
+	// container.go cablea) — este middleware las salta para no contarlas dos
+	// veces.
+	server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			res, err := next(ctx, method, req)
+			if err == nil && method == "tools/call" {
+				// El middleware ve los params SIN parsear (CallToolParamsRaw,
+				// no CallToolParams): el SDK los decodifica al tipo propio de
+				// cada tool más adentro, dentro de AddTool. Name es lo único
+				// que necesitamos aquí.
+				if params, ok := req.GetParams().(*mcp.CallToolParamsRaw); ok && !selfReportingTools[params.Name] {
+					n := callToolResultTextLen(res)
+					recordUsage(deps, toolOperation(params.Name), n, n)
+				}
+			}
+			return res, err
 		}
-	}
+	})
 
-	log.Printf("MCP server iniciado para proyecto '%s'", project)
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
-		log.Fatalf("Server error: %v", err)
-	}
+	return server
 }
 
 func registerTools(server *mcp.Server, deps *Deps, project string) {
@@ -126,8 +161,10 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 				Content: []mcp.Content{&mcp.TextContent{Text: "Sin resultados para: " + in.Query}},
 			}, nil, nil
 		}
+		out := renderSearchResults(mems)
+		recordUsage(deps, domain.OpSearchMemories, rawCharsOf(mems, len(out)), len(out))
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: renderSearchResults(mems)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: out}},
 		}, nil, nil
 	})
 
@@ -150,8 +187,10 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 				Content: []mcp.Content{&mcp.TextContent{Text: "No hay memorias guardadas."}},
 			}, nil, nil
 		}
+		out := renderMemoryList(mems)
+		recordUsage(deps, domain.OpListMemories, rawCharsOf(mems, len(out)), len(out))
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: renderMemoryList(mems)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: out}},
 		}, nil, nil
 	})
 
@@ -377,6 +416,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			Root:             deps.Root,
 			IncludeCodeGraph: !in.NoCodeGraph,
 			CodeProviders:    deps.CodeProviders,
+			Recorder:         deps.UsageRecorder,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -421,6 +461,9 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		result, err := CompressText(deps.Compressor, in.Text)
 		if err != nil {
 			return nil, nil, err
+		}
+		if deps.UsageRecorder != nil {
+			deps.UsageRecorder.Record(domain.OpCompressPack, result.RawTokens, result.Tokens)
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: result.Content}},
