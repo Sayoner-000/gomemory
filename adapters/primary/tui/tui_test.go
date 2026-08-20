@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	"github.com/charmbracelet/x/ansi"
 
 	"mem/application/ports"
 	"mem/domain"
@@ -30,7 +30,7 @@ func manyMemories(n int) []domain.Memory {
 func newTestModel(mems []domain.Memory, height int) model {
 	fi := textinput.New()
 	fi.Placeholder = "buscar..."
-	fi.Width = 40
+	fi.SetWidth(40)
 
 	return model{
 		project:     "demo",
@@ -77,7 +77,7 @@ func TestFilterWorksCorrectly(t *testing.T) {
 	m := newTestModel(mems, 20)
 
 	// Activar filtro
-	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	mm, _ := m.updateList(keyMsg("/"))
 	m = mm.(model)
 	if !m.filtering {
 		t.Fatal("esperaba que filtering sea true tras presionar /")
@@ -85,7 +85,7 @@ func TestFilterWorksCorrectly(t *testing.T) {
 
 	// Escribir texto de filtro
 	for _, ch := range "único" {
-		mm, _ = m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		mm, _ = m.updateList(keyMsg(string(ch)))
 		m = mm.(model)
 	}
 
@@ -99,14 +99,14 @@ func TestFilterEscapeRestores(t *testing.T) {
 	mems := manyMemories(10)
 	m := newTestModel(mems, 20)
 
-	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	mm, _ := m.updateList(keyMsg("/"))
 	m = mm.(model)
 	for _, ch := range "algo" {
-		mm, _ = m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		mm, _ = m.updateList(keyMsg(string(ch)))
 		m = mm.(model)
 	}
 
-	mm, _ = m.updateList(tea.KeyMsg{Type: tea.KeyEsc})
+	mm, _ = m.updateList(keyMsg("esc"))
 	m = mm.(model)
 
 	if m.filtering {
@@ -204,7 +204,7 @@ func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 		dupExclude: make(map[int64]bool),
 	}
 
-	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	mm, _ := m.updateList(keyMsg("o"))
 	m = mm.(model)
 	if m.screen != screenOptimize {
 		t.Fatalf("esperaba screenOptimize, quedó en %v", m.screen)
@@ -216,28 +216,28 @@ func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 		t.Fatalf("esperaba grupo de 2 memorias, obtuve %d", len(m.dupGroups[0].Memories))
 	}
 
-	mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyEnter})
+	mm, _ = m.updateOptimize(keyMsg("enter"))
 	m = mm.(model)
 	if m.screen != screenOptimizeDetail {
 		t.Fatalf("esperaba screenOptimizeDetail, quedó en %v", m.screen)
 	}
 
-	mm, _ = m.updateOptimizeDetail(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	mm, _ = m.updateOptimizeDetail(keyMsg("c"))
 	m = mm.(model)
 	if m.screen != screenOptimizeConfirm {
 		t.Fatalf("esperaba screenOptimizeConfirm, quedó en %v", m.screen)
 	}
 
-	mm, _ = m.updateOptimizeConfirm(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	mm, _ = m.updateOptimizeConfirm(keyMsg("s"))
 	m = mm.(model)
-	mm, _ = m.updateOptimizeConfirm(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	mm, _ = m.updateOptimizeConfirm(keyMsg("i"))
 	m = mm.(model)
 	if got := m.dupConfirm.Value(); got != "si" {
 		t.Fatalf(`esperaba dupConfirm="si", obtuve %q`, got)
 	}
 
 	keepID := m.dupGroups[m.dupGroupIdx].Memories[m.dupKeepIdx].ID
-	mm, _ = m.updateOptimizeConfirm(tea.KeyMsg{Type: tea.KeyEnter})
+	mm, _ = m.updateOptimizeConfirm(keyMsg("enter"))
 	m = mm.(model)
 
 	if len(repo.deleted) != 1 {
@@ -270,21 +270,21 @@ func TestOptimizeDetail_SpaceExcludesFromDeletion(t *testing.T) {
 		dupExclude: make(map[int64]bool),
 	}
 
-	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	mm, _ := m.updateList(keyMsg("o"))
 	m = mm.(model)
-	mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyEnter})
+	mm, _ = m.updateOptimize(keyMsg("enter"))
 	m = mm.(model)
 
 	nonKeepIdx := 1 - m.dupKeepIdx
 	m.dupMemberCursor = nonKeepIdx
-	mm, _ = m.updateOptimizeDetail(tea.KeyMsg{Type: tea.KeySpace})
+	mm, _ = m.updateOptimizeDetail(keyMsg("space"))
 	m = mm.(model)
 
 	if m.deletionCandidates(m.dupGroups[m.dupGroupIdx]) != 0 {
 		t.Fatalf("tras excluir la única no-canónica, no debía quedar nada para borrar")
 	}
 
-	mm, _ = m.updateOptimizeDetail(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
+	mm, _ = m.updateOptimizeDetail(keyMsg("c"))
 	m = mm.(model)
 	if m.screen != screenOptimizeDetail {
 		t.Fatalf("con 0 candidatos a borrar, 'c' no debía avanzar a confirmar")
@@ -329,9 +329,9 @@ func TestOptimizeDetailViewFitsTerminalHeight(t *testing.T) {
 		dupExclude: make(map[int64]bool),
 	}
 
-	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	mm, _ := m.updateList(keyMsg("o"))
 	m = mm.(model)
-	mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyEnter})
+	mm, _ = m.updateOptimize(keyMsg("enter"))
 	m = mm.(model)
 
 	out := m.optimizeDetailView()
@@ -357,9 +357,9 @@ func TestOptimizeDetailViewKeepsCursorVisible(t *testing.T) {
 			dupExclude: make(map[int64]bool),
 		}
 
-		mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+		mm, _ := m.updateList(keyMsg("o"))
 		m = mm.(model)
-		mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyEnter})
+		mm, _ = m.updateOptimize(keyMsg("enter"))
 		m = mm.(model)
 		m.dupMemberCursor = cursor
 
@@ -452,13 +452,13 @@ func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 		dupExclude: make(map[int64]bool),
 	}
 
-	mm, _ := m.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	mm, _ := m.updateList(keyMsg("o"))
 	m = mm.(model)
 	if len(m.dupGroups) != 2 {
 		t.Fatalf("esperaba 2 grupos de duplicados, obtuve %d", len(m.dupGroups))
 	}
 
-	mm, _ = m.updateOptimize(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	mm, _ = m.updateOptimize(keyMsg("a"))
 	m = mm.(model)
 	if m.screen != screenOptimizeAllConfirm {
 		t.Fatalf("esperaba screenOptimizeAllConfirm, quedó en %v", m.screen)
@@ -470,12 +470,12 @@ func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 		keepIDs[g.SuggestedKeepID] = true
 	}
 
-	mm, _ = m.updateOptimizeAllConfirm(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	mm, _ = m.updateOptimizeAllConfirm(keyMsg("s"))
 	m = mm.(model)
-	mm, _ = m.updateOptimizeAllConfirm(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	mm, _ = m.updateOptimizeAllConfirm(keyMsg("i"))
 	m = mm.(model)
 
-	mm, _ = m.updateOptimizeAllConfirm(tea.KeyMsg{Type: tea.KeyEnter})
+	mm, _ = m.updateOptimizeAllConfirm(keyMsg("enter"))
 	m = mm.(model)
 
 	if len(repo.deleted) != wantDeleted {
@@ -516,7 +516,12 @@ func TestConfigScreen_MuestraInterruptorDePlanificacionAtomica(t *testing.T) {
 		ready:        true,
 	}
 
-	view := m.View()
+	// bubbletea v2 / lipgloss v2 ya no degradan el color en Render(): el
+	// texto sale siempre con los códigos ANSI del estilo aplicado (la
+	// degradación por perfil de terminal ocurre en el renderer real del
+	// Program, no en la cadena). Se despoja el ANSI para comparar el
+	// contenido semántico, igual que veía la pantalla en v1 bajo test.
+	view := ansi.Strip(m.renderView())
 	if !strings.Contains(view, "Planificación atómica") {
 		t.Errorf("la pantalla de configuración debe mostrar el interruptor; vista:\n%s", view)
 	}
@@ -525,7 +530,7 @@ func TestConfigScreen_MuestraInterruptorDePlanificacionAtomica(t *testing.T) {
 	}
 
 	data.AtomicPlanDisabled = true
-	if view := m.View(); !strings.Contains(view, "Planificación atómica: OFF") {
+	if view := ansi.Strip(m.renderView()); !strings.Contains(view, "Planificación atómica: OFF") {
 		t.Error("con atomic_plan_disabled=true debe verse como OFF")
 	}
 }
@@ -542,14 +547,14 @@ func TestConfigScreen_ToggleDePlanificacionAtomicaPersiste(t *testing.T) {
 		height:       40,
 	}
 
-	updated, _ := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.updateConfig(keyMsg("enter"))
 	if !data.AtomicPlanDisabled {
 		t.Error("al confirmar sobre el interruptor debe quedar desactivada")
 	}
 
 	m2 := updated.(model)
 	m2.configCursor = configRowAtomicPlan
-	if _, _ = m2.updateConfig(tea.KeyMsg{Type: tea.KeyEnter}); data.AtomicPlanDisabled {
+	if _, _ = m2.updateConfig(keyMsg("enter")); data.AtomicPlanDisabled {
 		t.Error("al confirmar de nuevo debe reactivarse")
 	}
 }
@@ -567,14 +572,14 @@ func TestConfigScreen_TogglePlanGuardPersiste(t *testing.T) {
 		height:       40,
 	}
 
-	updated, _ := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.updateConfig(keyMsg("enter"))
 	if !data.PlanGuardDisabled {
 		t.Error("al confirmar sobre el interruptor debe quedar desactivada")
 	}
 
 	m2 := updated.(model)
 	m2.configCursor = configRowPlanGuard
-	if _, _ = m2.updateConfig(tea.KeyMsg{Type: tea.KeyEnter}); data.PlanGuardDisabled {
+	if _, _ = m2.updateConfig(keyMsg("enter")); data.PlanGuardDisabled {
 		t.Error("al confirmar de nuevo debe reactivarse")
 	}
 }
@@ -647,7 +652,7 @@ func TestUpdateConfig_ReindexRow_SinSoporte_NoDisparaCmd(t *testing.T) {
 	m := newConfigTestModel(fakeCodeProviderNoIndexer{}, data)
 	m.configCursor = configRowReindexGraph
 
-	updated, cmd := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := m.updateConfig(keyMsg("enter"))
 	if cmd != nil {
 		t.Fatal("sin soporte de interfaz no debería disparar ningún tea.Cmd")
 	}
@@ -662,7 +667,7 @@ func TestUpdateConfig_ReindexRow_ConSoporte_DisparaCmd(t *testing.T) {
 	m := newConfigTestModel(&fakeCodeIndexer{nodes: 10, edges: 20}, data)
 	m.configCursor = configRowReindexGraph
 
-	updated, cmd := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := m.updateConfig(keyMsg("enter"))
 	if cmd == nil {
 		t.Fatal("con soporte de interfaz debería disparar un tea.Cmd")
 	}
@@ -678,7 +683,7 @@ func TestUpdateConfig_ReindexRow_YaEnCurso_NoDisparaSegundoCmd(t *testing.T) {
 	m.configCursor = configRowReindexGraph
 	m.reindexInProgress = true
 
-	updated, cmd := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := m.updateConfig(keyMsg("enter"))
 	if cmd != nil {
 		t.Fatal("con un reindexado ya en curso no debería dispararse un segundo tea.Cmd")
 	}
@@ -740,7 +745,7 @@ func TestUpdateConfig_EditBudgetRow_PrecargaValorActual(t *testing.T) {
 	m := newConfigTestModel(nil, data)
 	m.configCursor = configRowEditBudget
 
-	updated, _ := m.updateConfig(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.updateConfig(keyMsg("enter"))
 	m2 := updated.(model)
 	if m2.screen != screenEditSetting {
 		t.Fatalf("esperaba screenEditSetting, quedó en %v", m2.screen)
@@ -755,7 +760,7 @@ func TestUpdateConfig_EditBudgetRow_PrecargaValorActual(t *testing.T) {
 
 func typeInto(m model, s string) model {
 	for _, ch := range s {
-		updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		updated, _ := m.updateEditSetting(keyMsg(string(ch)))
 		m = updated.(model)
 	}
 	return m
@@ -770,7 +775,7 @@ func TestUpdateEditSetting_GuardaValorValido(t *testing.T) {
 	m.editSettingInput.Focus()
 
 	m = typeInto(m, "999")
-	updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.updateEditSetting(keyMsg("enter"))
 	m2 := updated.(model)
 
 	if m2.screen != screenConfig {
@@ -795,7 +800,7 @@ func TestUpdateEditSetting_RechazaNoNumerico(t *testing.T) {
 			m.editSettingInput.Focus()
 
 			m = typeInto(m, raw)
-			updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEnter})
+			updated, _ := m.updateEditSetting(keyMsg("enter"))
 			m2 := updated.(model)
 
 			if m2.screen != screenEditSetting {
@@ -822,7 +827,7 @@ func TestUpdateEditSetting_PermiteCeroYNegativo(t *testing.T) {
 			m.editSettingInput.Focus()
 
 			m = typeInto(m, raw)
-			updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEnter})
+			updated, _ := m.updateEditSetting(keyMsg("enter"))
 			m2 := updated.(model)
 
 			want, _ := strconv.Atoi(raw)
@@ -845,7 +850,7 @@ func TestUpdateEditSetting_Esc_CancelaSinGuardar(t *testing.T) {
 	m.editSettingInput.Focus()
 
 	m = typeInto(m, "1")
-	updated, _ := m.updateEditSetting(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ := m.updateEditSetting(keyMsg("esc"))
 	m2 := updated.(model)
 
 	if m2.screen != screenConfig {

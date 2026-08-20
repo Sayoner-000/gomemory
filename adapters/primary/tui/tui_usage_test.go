@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
@@ -27,16 +27,22 @@ func insertRawTopicDup(t *testing.T, db *sql.DB, project, topicKey, content stri
 	}
 }
 
+// keyMsg construye un tea.KeyMsg sintético para tests. bubbletea v2 sustituyó
+// el enum tea.KeyType por tea.Key{Code, Text, ...}; msg.String() sigue siendo
+// el criterio de comparación estable que usa el resto del paquete.
 func keyMsg(key string) tea.KeyMsg {
 	switch key {
 	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEsc}
+		return tea.KeyPressMsg{Code: tea.KeyEsc}
 	case "enter":
-		return tea.KeyMsg{Type: tea.KeyEnter}
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
 	case "tab":
-		return tea.KeyMsg{Type: tea.KeyTab}
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "space":
+		return tea.KeyPressMsg{Code: tea.KeySpace}
 	default:
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+		r := []rune(key)
+		return tea.KeyPressMsg{Code: r[0], Text: string(r[0])}
 	}
 }
 

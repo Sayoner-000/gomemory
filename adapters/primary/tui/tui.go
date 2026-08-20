@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/dustin/go-humanize"
 
 	"mem/application/ports"
@@ -54,172 +54,6 @@ const (
 const gcDefaultOlderThanDays = 90
 
 var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection", "Consolidar (topic_key + actividad duplicada)"}
-
-// ─── Styles ───────────────────────────────────────────────────────
-
-var (
-	faint     = lipgloss.AdaptiveColor{Light: "#A1A1AA", Dark: "#52525B"}
-	highlight = lipgloss.AdaptiveColor{Light: "#7C3AED", Dark: "#A78BFA"}
-	green     = lipgloss.AdaptiveColor{Light: "#059669", Dark: "#34D399"}
-	red       = lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#F87171"}
-	blue      = lipgloss.AdaptiveColor{Light: "#2563EB", Dark: "#60A5FA"}
-	yellow    = lipgloss.AdaptiveColor{Light: "#D97706", Dark: "#FBBF24"}
-	cyan      = lipgloss.AdaptiveColor{Light: "#0891B2", Dark: "#22D3EE"}
-	pink      = lipgloss.AdaptiveColor{Light: "#DB2777", Dark: "#F472B6"}
-	gray      = lipgloss.AdaptiveColor{Light: "#E4E4E7", Dark: "#27272A"}
-	white     = lipgloss.AdaptiveColor{Light: "#18181B", Dark: "#FAFAFA"}
-	bg        = lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#18181B"}
-)
-
-func typeColor(t string) lipgloss.TerminalColor {
-	switch t {
-	case string(domain.Architecture):
-		return highlight
-	case string(domain.Decision):
-		return green
-	case string(domain.Bugfix):
-		return red
-	case string(domain.Pattern):
-		return blue
-	case string(domain.Learning):
-		return yellow
-	case string(domain.Discovery):
-		return cyan
-	case string(domain.Preference):
-		return pink
-	default:
-		return faint
-	}
-}
-
-func typeIcon(t string) string {
-	switch t {
-	case string(domain.Architecture):
-		return "▲"
-	case string(domain.Decision):
-		return "◆"
-	case string(domain.Bugfix):
-		return "✕"
-	case string(domain.Pattern):
-		return "■"
-	case string(domain.Learning):
-		return "●"
-	case string(domain.Discovery):
-		return "◇"
-	case string(domain.Preference):
-		return "♥"
-	default:
-		return "●"
-	}
-}
-
-func typeLabel(t string) string {
-	switch t {
-	case string(domain.Architecture):
-		return "Arquitectura"
-	case string(domain.Decision):
-		return "Decisión"
-	case string(domain.Bugfix):
-		return "Bugfix"
-	case string(domain.Pattern):
-		return "Patrón"
-	case string(domain.Learning):
-		return "Aprendizaje"
-	case string(domain.Discovery):
-		return "Hallazgo"
-	case string(domain.Preference):
-		return "Preferencia"
-	default:
-		return t
-	}
-}
-
-var (
-	appStyle = lipgloss.NewStyle().
-			Padding(1, 2)
-
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(highlight).
-			MarginBottom(1)
-
-	subtitleStyle = lipgloss.NewStyle().
-			Foreground(faint).
-			Italic(true)
-
-	groupHeaderStyle = lipgloss.NewStyle().
-				Foreground(faint).
-				Padding(0, 1).
-				MarginTop(1).
-				MarginBottom(1)
-
-	typeTag = func(t string) string {
-		return lipgloss.NewStyle().
-			Background(typeColor(t)).
-			Foreground(white).
-			Padding(0, 1).
-			Bold(true).
-			Render(typeIcon(t) + " " + typeLabel(t))
-	}
-
-	itemNormal = lipgloss.NewStyle().
-			Padding(0, 2)
-
-	itemSelected = lipgloss.NewStyle().
-			Padding(0, 2).
-			Background(gray).
-			Foreground(white)
-
-	itemContent = lipgloss.NewStyle().
-			Foreground(faint).
-			Padding(0, 2).
-			MaxWidth(80)
-
-	detailBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(highlight).
-			Padding(1, 2)
-
-	listBorder = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(highlight).
-			Padding(0, 1)
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(faint).
-			PaddingTop(1).
-			BorderTop(true).
-			BorderStyle(lipgloss.NormalBorder())
-
-	formStyle = lipgloss.NewStyle().
-			MarginTop(1)
-
-	formLabel = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(highlight).
-			MarginRight(1)
-
-	formInput = lipgloss.NewStyle().
-			MarginBottom(1)
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(red).
-			Bold(true)
-
-	dangerStyle = lipgloss.NewStyle().
-			Foreground(red).
-			Bold(true)
-
-	backHintStyle = lipgloss.NewStyle().
-			Foreground(faint)
-
-	sectionHeaderStyle = lipgloss.NewStyle().
-				Bold(true)
-
-	statusLineStyle = lipgloss.NewStyle().
-			Foreground(faint).
-			Italic(true)
-)
 
 // backHint es el encabezado corto que usan las pantallas de detalle para
 // indicar cómo volver, reemplazando el bloque repetido en detailView y
@@ -402,7 +236,7 @@ type UsageDeps struct {
 }
 
 func Run(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string, usageDeps UsageDeps) error {
-	p := tea.NewProgram(initialModel(memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project, usageDeps), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project, usageDeps))
 	_, err := p.Run()
 	return err
 }
@@ -413,59 +247,59 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	ti := textinput.New()
 	ti.Placeholder = "Título (opcional)"
 	ti.CharLimit = 120
-	ti.Width = 50
+	ti.SetWidth(50)
 
 	ty := textinput.New()
 	ty.Placeholder = "learning, decision, architecture, bugfix, pattern, discovery, preference"
 	ty.CharLimit = 20
-	ty.Width = 50
+	ty.SetWidth(50)
 	ty.SetValue("learning")
 
 	tc := textinput.New()
 	tc.Placeholder = "¿Qué aprendiste o decidiste?"
 	tc.CharLimit = 500
-	tc.Width = 50
+	tc.SetWidth(50)
 	tc.Focus()
 
 	tf := textinput.New()
 	tf.Placeholder = "Archivo relacionado (opcional)"
 	tf.CharLimit = 200
-	tf.Width = 50
+	tf.SetWidth(50)
 
 	mc := textinput.New()
 	mc.Placeholder = "nombre del proyecto"
 	mc.CharLimit = 200
-	mc.Width = 50
+	mc.SetWidth(50)
 
 	ip := textinput.New()
 	ip.Placeholder = "ruta al archivo .json a importar"
 	ip.CharLimit = 400
-	ip.Width = 50
+	ip.SetWidth(50)
 
 	dc := textinput.New()
 	dc.Placeholder = `escribe "si"`
 	dc.CharLimit = 10
-	dc.Width = 20
+	dc.SetWidth(20)
 
 	fi := textinput.New()
 	fi.Placeholder = "buscar..."
 	fi.CharLimit = 80
-	fi.Width = 40
+	fi.SetWidth(40)
 
 	es := textinput.New()
 	es.Placeholder = "valor entero"
 	es.CharLimit = 20
-	es.Width = 20
+	es.SetWidth(20)
 
 	ut := textinput.New()
 	ut.Placeholder = "descripción de la tarea"
 	ut.CharLimit = 200
-	ut.Width = 50
+	ut.SetWidth(50)
 
 	ub := textinput.New()
 	ub.Placeholder = "presupuesto en tokens, p. ej. 4000"
 	ub.CharLimit = 10
-	ub.Width = 20
+	ub.SetWidth(20)
 
 	settings := settingsRepo.Read(root)
 
@@ -1280,7 +1114,7 @@ func (m model) updateOptimizeDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		m.dupKeepIdx = m.dupMemberCursor
 
-	case " ":
+	case "space":
 		id := group.Memories[m.dupMemberCursor].ID
 		if m.dupMemberCursor != m.dupKeepIdx {
 			m.dupExclude[id] = !m.dupExclude[id]
@@ -1683,7 +1517,16 @@ func (m model) saveAndReturn() (tea.Model, tea.Cmd) {
 
 // ─── View ──────────────────────────────────────────────────────────
 
-func (m model) View() string {
+// View satisface tea.Model. bubbletea v2 cambió la firma de string a
+// tea.View (tea.WithAltScreen() ya no existe como ProgramOption; el alt
+// screen ahora se declara por-view aquí).
+func (m model) View() tea.View {
+	v := tea.NewView(m.renderView())
+	v.AltScreen = true
+	return v
+}
+
+func (m model) renderView() string {
 	if !m.ready {
 		return ""
 	}
