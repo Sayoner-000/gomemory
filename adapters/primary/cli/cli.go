@@ -77,6 +77,15 @@ Uso:
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]
                                     Ver o cambiar auto-approve de las tools MCP
+  mem docs [list]                  Documentos fijados del proyecto (reglas de trabajo, constitución)
+    show|export <alias> [-o f]      Ver o exportar el contenido vigente (sin -o: stdout limpio)
+    export --all -o <dir>           Exportar todo el catálogo a un directorio
+    import <alias> <archivo>        Reemplazar el contenido desde un archivo
+    import --topic <clave> <arch>   Importar a cualquier clave, dentro o fuera del catálogo
+    reset <alias>                   Restaurar el contenido por defecto
+  mem constitution [--sync]        Ver la constitución vigente (atajo de docs show constitution)
+                                    --sync la refleja en .specify/memory/constitution.md si hay spec-kit
+  mem rules                        Ver las reglas de trabajo vigentes (atajo de docs show rules)
   mem export [--out <archivo>]     Exportar memorias + relaciones a un JSON portable (cross-OS)
                                     (default gomemory-export-<proyecto>-<YYYYMMDD>.json)
   mem import <archivo>             Importar un bundle al proyecto actual (append con dedup por

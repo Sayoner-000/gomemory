@@ -10,8 +10,10 @@ import (
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/setup"
+	"mem/adapters/primary/tui"
 	"mem/adapters/secondary/codegraph/codebasememory"
 	"mem/adapters/secondary/persistence"
+	"mem/domain"
 )
 
 // bootstrapDeps construye Deps para comandos que no requieren un proyecto
@@ -41,6 +43,19 @@ func init() {
 	if data, err := templatesFS.ReadFile("templates/atomic-plan-method.md"); err == nil {
 		cli.SetPlanMethod(string(data))
 	}
+
+	// Contenidos por defecto de los documentos fijados (feature 021). La TUI
+	// necesita la plantilla para dos cosas: derivar el estado (por defecto vs
+	// personalizado) y poder restaurar. Se inyectan aquí, en el composition
+	// root, porque es el único lugar con acceso al sistema de archivos
+	// embebido; una plantilla ausente degrada con gracia.
+	docTemplates := map[string]string{}
+	for _, d := range domain.PinnedDocs {
+		if data, err := templatesFS.ReadFile("templates/" + d.Template); err == nil {
+			docTemplates[d.Template] = string(data)
+		}
+	}
+	tui.DocTemplates = docTemplates
 }
 
 // rootIndependentCommands no requieren un .memory/ preexistente: ellos mismos

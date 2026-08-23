@@ -279,3 +279,63 @@ func TestActivationInspect_CodegraphAusenteSeOmite(t *testing.T) {
 		}
 	}
 }
+
+// TestActivationInspect_InstruccionesDeProyectoNoAplican cubre FR-028 (feature
+// 021). Desde que `mem install` dejó de escribir el bloque de protocolo en
+// archivos del proyecto, reportar su ausencia como `missing` sería una FALSA
+// alarma: el protocolo llega igual, en la respuesta initialize del MCP.
+//
+// El matiz importa: `not_applicable` sustituye a `missing`, no a `outdated`.
+// Un archivo legado que SÍ conserva un bloque viejo se sigue reportando como
+// desactualizado, porque eso es información verdadera sobre un duplicado
+// obsoleto que conviene limpiar (ver TestActivationInspect con marcador v6).
+func TestActivationInspect_InstruccionesDeProyectoNoAplican(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir() // proyecto limpio: sin AGENTS.md ni CLAUDE.md
+
+	inspector := NewActivationInspector()
+	channels := inspector.Inspect(root)
+
+	encontrado := false
+	for _, c := range channels {
+		if c.Kind != domain.KindInstructions || c.Scope != domain.ScopeProject {
+			continue
+		}
+		encontrado = true
+		if c.State == domain.StateMissing {
+			t.Errorf("%s: instrucciones de proyecto reportadas como missing; es una falsa alarma desde que el protocolo viaja en el MCP", c.Agent)
+		}
+		if c.State != domain.StateNotApplicable {
+			t.Errorf("%s: estado = %v, esperaba not_applicable", c.Agent, c.State)
+		}
+		if c.Detail == "" {
+			t.Errorf("%s: not_applicable debe declarar su motivo", c.Agent)
+		}
+	}
+	if !encontrado {
+		t.Fatal("no se encontró ningún canal instructions de ámbito proyecto")
+	}
+}
+
+// TestActivationInspect_InstruccionesDeUsuarioSiguenEvaluandose: el ámbito de
+// USUARIO no cambia. `setup-mcp --scope global` sigue escribiendo ahí y su
+// ausencia sigue siendo una falta real que el informe debe señalar (FR-029).
+func TestActivationInspect_InstruccionesDeUsuarioSiguenEvaluandose(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+
+	inspector := NewActivationInspector()
+	channels := inspector.Inspect(root)
+
+	for _, c := range channels {
+		if c.Kind == domain.KindInstructions && c.Scope == domain.ScopeUser {
+			if c.State == domain.StateNotApplicable {
+				t.Errorf("%s: el ámbito de usuario no puede volverse not_applicable: ahí sí se escribe", c.Agent)
+			}
+			return
+		}
+	}
+	t.Fatal("no se encontró ningún canal instructions de ámbito usuario")
+}

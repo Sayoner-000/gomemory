@@ -49,10 +49,22 @@ mem setup claude-code   # (opcional) registra los hooks de Claude Code
 mem --help
 ```
 
-`mem install .` configura el **MCP** de los 6 agentes y escribe el "pack de
-trabajo" en `AGENTS.md`/`CLAUDE.md` (reglas de trabajo + orquestación + Memory
-Protocol) más la constitución (`speckit-constitution-gen.md`). Los **hooks** de
-cada agente se registran aparte con `mem setup claude-code` / `mem setup opencode`.
+`mem install .` configura el **MCP** de los agentes y **siembra dos memorias**
+en el proyecto: las *reglas de trabajo* y la *constitución*. Desde v2.9 no
+escribe ningún archivo de instrucciones en el repositorio — el protocolo ya viaja
+en la respuesta `initialize` del servidor MCP, y duplicarlo en `AGENTS.md` solo
+gastaba contexto. Si encuentra artefactos de instalaciones anteriores
+(`AGENTS.md`, `CLAUDE.md`, `speckit-constitution-gen.md`, `.windsurf/`,
+`.cline/`) los retira, respaldando los archivos de instrucciones en
+`.memory/backups/agent-files/` antes de borrarlos.
+
+Las reglas llegan al agente **íntegras** en cada `get_context()`; la constitución
+se consulta bajo demanda con `mem constitution` o el atajo `/constitution`.
+Ambas son del equipo, no de la herramienta: `mem docs` las exporta, importa y
+restaura (ver *Documentos fijados*).
+
+Los **hooks** de cada agente se registran aparte con `mem setup claude-code` /
+`mem setup opencode`.
 
 ### Opción B — Desde el fuente
 
@@ -286,13 +298,11 @@ guardar, buscar y cerrar sesión de memoria.
 
 - **Con plugin (OpenCode, Claude Code)**: se inyecta automáticamente en el
   system prompt — no requiere configuración adicional.
-- **Sin plugin (Cursor, Windsurf, Cline, Codex)**: `mem setup-mcp` solo
-  registra el servidor MCP, no inyecta el protocolo por sí solo. La fuente de
-  verdad es el bloque que `mem install` agrega a `AGENTS.md`/`CLAUDE.md` (y
-  `.cursorrules`/`.windsurfrules` si existen) — ese bloque es el que le indica
-  al agente cuándo usar `save_memory`, `search_memories`, etc. Sin ese
-  archivo leído por el agente, las tools MCP existen pero nadie las invoca
-  proactivamente.
+- **Sin plugin (Cursor, Windsurf, Cline, Codex)**: el servidor MCP entrega el
+  protocolo en la respuesta `initialize`, así que cualquier cliente MCP lo
+  recibe sin archivos en el repositorio. Para el ámbito de usuario,
+  `mem setup-mcp --scope global` sigue escribiendo el bloque en el archivo de
+  instrucciones de cada agente.
 
 ### Save Triggers
 
@@ -370,6 +380,69 @@ diferencia de la anotación estática que se pega al `content` al guardar
 (ver "Anotación de impacto al guardar" en el README), esta relación se
 recalcula contra el snapshot vigente del grafo — si el código se reindexa y
 cambian los hotspots, la relevancia se actualiza sola.
+
+---
+
+## 7bis. Documentos fijados: reglas y constitución
+
+gomemory siembra dos memorias la primera vez que se usa en un proyecto:
+
+| Alias | Documento | Tipo | Cómo llega al agente |
+|---|---|---|---|
+| `rules` | Reglas de trabajo | `preference` | **Íntegra** en cada `get_context()`, en su propia sección |
+| `constitution` | Constitución técnica | `architecture` | Bajo demanda: `mem constitution` o `/constitution` |
+
+La diferencia es deliberada. Las reglas de trabajo dicen *cuándo* planificar,
+*cómo* verificar y *cómo* tratar un bug: hacen falta en cada sesión, así que son
+la única excepción declarada al recorte por presupuesto de `get_context()`. La
+constitución dice *cómo* escribir código: son cientos de líneas que no tiene
+sentido pagar en cada arranque.
+
+### El contenido es del equipo, no de la herramienta
+
+Lo que gomemory trae es un **punto de partida**, no doctrina. Sin una vía cómoda
+de reemplazo, sembrar reglas convertiría a la herramienta en autora de las normas
+del equipo — y la memoria dejaría de ser un contenedor neutral.
+
+```bash
+mem docs list                                  # qué hay y en qué estado
+mem docs export rules -o reglas.md             # exportar el contenido vigente
+$EDITOR reglas.md
+mem docs import rules reglas.md                # aplicar el del equipo
+mem docs reset rules                           # volver al de por defecto
+```
+
+`mem docs list` distingue tres estados, derivados comparando con la plantilla
+embebida: `sin sembrar`, `por defecto` y `personalizado` (con su fecha).
+
+Lo mismo desde la TUI: `mem` → pantalla de configuración → `Actualizar Reglas IA`
+o `Actualizar Constitución`, con **ver, exportar, importar y restaurar**. Las
+mismas cuatro operaciones por las dos superficies.
+
+### Garantías
+
+- **Una semilla existente nunca se sobrescribe.** Reinstalar o actualizar no
+  pisa lo que el equipo puso, ni con una plantilla más nueva del binario.
+- **Importar no publica nada fuera.** Ni sinapsis automáticas ni exportación al
+  ADR externo, aunque `adr_sync_enabled` esté activo.
+- **La depuración de secretos sigue activa.** Un token pegado por error en el
+  archivo importado no se persiste.
+- **Un import fallido no destruye nada.** Contenido vacío o ilegible se rechaza
+  con su motivo y el documento anterior queda intacto.
+
+### Más allá del catálogo
+
+El catálogo es una comodidad, no un límite. Para cualquier otro documento:
+
+```bash
+mem docs import --topic "equipo:runbook" runbook.md
+```
+
+### Relación con `mem export` / `mem import`
+
+No se solapan y ambos siguen disponibles: `mem export` vuelca **toda** la memoria
+y sus relaciones en un JSON para moverla entre proyectos o máquinas; `mem docs
+export` saca **un** documento en texto plano para editarlo a mano.
 
 ---
 
@@ -583,14 +656,18 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 
 **Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor/Windsurf/Cline (sin registro global conocido), opcional para Claude/Codex/OpenCode:
 
-| Agente | Config MCP | `AGENTS.md`/`CLAUDE.md` (refuerzo opcional) | Hooks |
-|--------|-----------|---------------------------------------------|-------|
-| **Claude Code** | `.mcp.json` | Sí, si se instaló con `mem install` | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
-| **OpenCode** | `opencode.json` | Sí, si se instaló con `mem install` | `plugin/opencode/gomemory.ts` (auto-inicio, ya es global) |
-| **Cursor** | `.cursor/mcp.json` | — | — |
-| **Windsurf** | `.windsurf/mcp.json` | — | — |
-| **Cline** | `.cline/mcp.json` | — | — |
-| **Codex** | `~/.codex/config.toml` (tabla por proyecto, `gomemory_<proyecto>`) | Sí, si se instaló con `mem install` | SessionStart |
+| Agente | Config MCP | ¿Lo configura `mem install`? | Hooks |
+|--------|-----------|------------------------------|-------|
+| **Claude Code** | `.mcp.json` | Sí | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
+| **OpenCode** | `opencode.json` | Sí | `plugin/opencode/gomemory.ts` (auto-inicio, ya es global) |
+| **Cursor** | `.cursor/mcp.json` | Sí | — |
+| **Codex** | `~/.codex/config.toml` (tabla por proyecto, `gomemory_<proyecto>`) | Sí | SessionStart |
+| **Windsurf** | `.windsurf/mcp_config.json` | No — solo con `mem setup-mcp --agents windsurf` | — |
+| **Cline** | `.cline/mcp_settings.json` | No — solo con `mem setup-mcp --agents cline` | — |
+
+> Windsurf y Cline salieron de la instalación automática en v2.9: creaban una
+> carpeta en la raíz de **todo** proyecto para alojar un único JSON. Siguen
+> soportados por la vía explícita.
 
 > Los hooks son subcomandos del binario (`mem hook <evento>`), no scripts shell:
 > no dependen de `bash`/`curl` ni de un servidor HTTP, y corren igual en Windows.
@@ -598,12 +675,11 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 > Regla de oro: un hook nunca aborta el arranque del agente — ante cualquier
 > error sale silencioso con código 0.
 >
-> El protocolo de memoria (cuándo guardar, buscar, cerrar sesión) ya no depende
-> de `AGENTS.md`/`CLAUDE.md`: el servidor `mem mcp` lo declara él mismo en
+> El protocolo de memoria (cuándo guardar, buscar, cerrar sesión) no depende de
+> ningún archivo del repositorio: el servidor `mem mcp` lo declara en
 > `initialize.instructions`, en la descripción de cada tool, y embebido en la
-> respuesta de `get_context` — funciona igual con solo el MCP conectado, sin
-> `mem install` ni archivos en el repo. El bloque en `AGENTS.md`/`CLAUDE.md`
-> queda como refuerzo, no como requisito.
+> respuesta de `get_context`. Desde v2.9 `mem install` ya **no** escribe el
+> bloque en `AGENTS.md`/`CLAUDE.md` — era una segunda copia del mismo texto.
 
 ### Configuración Manual MCP
 

@@ -39,6 +39,9 @@ const (
 	// 020): benchmark de tokens por sesión (mem usage) + snapshot puntual,
 	// absorbe la spec 017.
 	screenUsage
+	// screenDocs (feature 021): administración de documentos fijados — ver,
+	// exportar, importar y restaurar las reglas de trabajo y la constitución.
+	screenDocs
 )
 
 // editSettingField identifica cuál de los tres ajustes de huella de contexto
@@ -171,6 +174,17 @@ type model struct {
 	importPath   textinput.Model
 	importErr    string
 
+	// Documentos fijados (feature 021). docTemplates lo inyecta quien construye
+	// la TUI: el contenido por defecto vive embebido en el binario, y esta capa
+	// no debe leerlo por su cuenta.
+	docIndex        int
+	docPath         textinput.Model
+	docErr          string
+	docVista        string
+	docPendiente    docAction
+	docConfirmReset bool
+	docTemplates    map[string]string
+
 	// Reindexado del grafo externo (feature 016, US2).
 	reindexInProgress bool
 
@@ -276,6 +290,11 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	ip.CharLimit = 400
 	ip.SetWidth(50)
 
+	dp := textinput.New()
+	dp.Placeholder = "/ruta/al/documento.md"
+	dp.CharLimit = 400
+	dp.SetWidth(60)
+
 	dc := textinput.New()
 	dc.Placeholder = `escribe "si"`
 	dc.CharLimit = 10
@@ -328,6 +347,8 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		stats:            stats,
 		maintConfirm:     mc,
 		importPath:       ip,
+		docPath:          dp,
+		docTemplates:     DocTemplates,
 		editSettingInput: es,
 		dupConfirm:       dc,
 		dupExclude:       make(map[int64]bool),
@@ -389,6 +410,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.screen == screenConfig {
 			return m.updateConfig(msg)
+		}
+		if m.screen == screenDocs {
+			return m.updateDocs(msg)
 		}
 		if m.screen == screenImport {
 			return m.updateImport(msg)
@@ -718,8 +742,14 @@ const (
 // exige la convención de configRowReindexGraph/configRowAtomicPlan.
 const configRowPlanGuard = configRowEditDedupDays + 1
 
+// configRowDocsBase es la primera de las filas de documentos fijados (feature
+// 021). Se GENERAN recorriendo domain.PinnedDocs en vez de enumerarse: añadir un
+// documento al catálogo no debe exigir tocar la TUI. Van al final del menú, como
+// exige la convención de configRowReindexGraph.
+const configRowDocsBase = configRowPlanGuard + 1
+
 // configOptions es el número de filas del menú de configuración.
-const configOptions = configRowPlanGuard + 1
+var configOptions = configRowDocsBase + len(domain.PinnedDocs)
 
 // externalReindexDoneMsg es el mensaje de resultado del primer tea.Cmd
 // asíncrono real de esta TUI (feature 016, US2): IndexRepository puede tardar
@@ -906,6 +936,19 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.editSettingInput.Focus()
 			m.editSettingErr = ""
 			m.screen = screenEditSetting
+
+		default:
+			// Filas de documentos fijados (feature 021): se resuelven por
+			// posición dentro del catálogo, no con un case por documento.
+			// Añadir uno nuevo al catálogo no debe tocar este switch.
+			if i := m.configCursor - configRowDocsBase; i >= 0 && i < len(domain.PinnedDocs) {
+				m.docIndex = i
+				m.docVista = ""
+				m.docErr = ""
+				m.docPendiente = docActionNinguna
+				m.docConfirmReset = false
+				m.screen = screenDocs
+			}
 		}
 	}
 	return m, cmd
@@ -1544,6 +1587,8 @@ func (m model) renderView() string {
 		return m.maintenanceConfirmView()
 	case screenConfig:
 		return m.configView()
+	case screenDocs:
+		return m.docsView()
 	case screenImport:
 		return m.importView()
 	case screenOptimize:
@@ -1854,6 +1899,12 @@ func (m model) configView() string {
 		"Editar umbral recordatorio compactación: " + threshLabel,
 		"Editar ventana dedup por identidad: " + dedupLabel,
 		"Exigencia de forma del plan: " + onOff(!s.PlanGuardDisabled),
+	}
+	// Documentos fijados: una fila por entrada del catálogo, con su estado a la
+	// vista para saber de un vistazo si el contenido es el del equipo o el que
+	// trae la herramienta.
+	for _, d := range domain.PinnedDocs {
+		rows = append(rows, fmt.Sprintf("Actualizar %s: %s", d.Label, m.docEstado(d).State))
 	}
 	for i, label := range rows {
 		if i == m.configCursor {

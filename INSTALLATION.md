@@ -61,10 +61,13 @@ mem setup-mcp --scope global --agents claude,codex,opencode
   nivel de usuario conocido — siguen requiriendo `mem setup-mcp --scope
   project --agents cursor,windsurf,cline --target <dir>` por repositorio.
 - El protocolo de memoria (cuándo guardar, buscar y cerrar sesión) no depende
-  de `AGENTS.md`/`CLAUDE.md`: el propio servidor `mem mcp` lo declara en
+  de ningún archivo del repositorio: el propio servidor `mem mcp` lo declara en
   `initialize.instructions`, en la descripción de cada tool, y embebido en la
-  respuesta de `get_context` — funciona igual con solo este registro global,
-  sin `mem install` ni archivos en el repo (ver `docs/MEMORY-PROTOCOL.md`).
+  respuesta de `get_context` — funciona con solo este registro global, sin
+  `mem install` (ver `docs/MEMORY-PROTOCOL.md`).
+- Desde v2.9, `mem install` **no genera ningún archivo de instrucciones**. Las
+  reglas de trabajo y la constitución se siembran como memorias, llegan solas en
+  `get_context()` y se administran con `mem docs`.
 
 Si `mem setup-mcp --scope global` reporta una colisión de nombre (ya existe
 una entrada `gomemory` global de otra herramienta), resuélvela manualmente
@@ -158,8 +161,8 @@ quedó completa sin tener que inspeccionar `~/.claude/settings.json` a mano.
 > Cursor, Windsurf y Cline, la sección 0.1 ya cubre el registro MCP por
 > proyecto con `mem setup-mcp --scope project --agents cursor,windsurf,cline
 > --target <dir>` — este paso (`mem install`) ya NO es necesario para ningún
-> agente, es un pack completo opcional (binario copiado + `AGENTS.md`/`CLAUDE.md`
-> generados + constitución) si lo prefieres sobre el registro MCP a secas.
+> agente: es un pack opcional (binario copiado + configuración MCP + hooks +
+> siembra de reglas y constitución) si lo prefieres sobre el registro MCP a secas.
 
 ```bash
 # Desde el directorio de gomemory
@@ -170,18 +173,37 @@ Esto crea automáticamente en el proyecto destino:
 
 ```
 proyecto/
-├── .memory/               # Base de datos SQLite (gitignorada)
-│   ├── mem.db
-│   └── context.md
-├── AGENTS.md              # Instrucciones de integración
-├── CLAUDE.md              # Instrucciones para Claude Code
-├── opencode.json           # MCP para OpenCode
+├── .memory/               # Estado por proyecto (gitignorado)
+│   ├── settings.json
+│   ├── context.md
+│   └── backups/agent-files/   # Solo si había AGENTS.md/CLAUDE.md que retirar
+├── opencode.json          # MCP para OpenCode
 ├── .mcp.json              # MCP para Claude
 ├── .cursor/mcp.json       # MCP para Cursor
-├── .windsurf/mcp_config.json
-├── .cline/mcp_settings.json
+├── .claude/               # Plugin, hooks y skills (incluye /constitution)
+├── .opencode/commands/    # Comandos nativos (incluye constitution)
 ├── mem                    # Binario (gitignorado)
 └── .gitignore
+```
+
+Y siembra en la memoria del proyecto las **reglas de trabajo** y la
+**constitución**. Desde v2.9 no se genera `AGENTS.md`, `CLAUDE.md` ni
+`speckit-constitution-gen.md`: el protocolo ya viaja en la respuesta
+`initialize` del MCP, y duplicarlo en un archivo solo gastaba contexto. Si el
+proyecto arrastra esos artefactos de una instalación anterior, la instalación
+los retira — respaldando los archivos de instrucciones en
+`.memory/backups/agent-files/` antes de borrarlos.
+
+`.windsurf/` y `.cline/` tampoco se crean ya: se configuran con
+`mem setup-mcp --agents windsurf,cline` cuando se piden.
+
+Para poner las reglas de tu equipo:
+
+```bash
+./mem docs export rules -o reglas.md   # exportar las vigentes
+# editar reglas.md
+./mem docs import rules reglas.md      # aplicarlas
+./mem docs list                        # ver el estado de cada documento
 ```
 
 ---

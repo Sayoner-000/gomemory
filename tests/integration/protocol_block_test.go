@@ -8,71 +8,122 @@ import (
 	"testing"
 )
 
-// TestInstallPreservesContentAroundLegacyProtocolBlock cubre FR-015 (feature
-// 019): actualizar el bloque de protocolo a la versión vigente DEBE preservar
-// íntegro el contenido propio de la persona, tanto el anterior como el
-// POSTERIOR al bloque, y no debe dejar restos de la versión vieja. Antes de
-// esta feature, composeAgentFile hacía out[:idx] + integration, descartando
-// todo lo que viniera después del bloque legado (sin marcador de fin,
-// cmd_install.go: protocolStart/composeAgentFile).
-func TestInstallPreservesContentAroundLegacyProtocolBlock(t *testing.T) {
+// Este archivo verificaba antes TestInstallPreservesContentAroundLegacyProtocolBlock:
+// que actualizar el bloque de protocolo dentro de AGENTS.md/CLAUDE.md preservara
+// el contenido propio de la persona alrededor.
+//
+// La feature 021 retiró ese comportamiento a propósito: `mem install` ya no
+// escribe el bloque de protocolo en archivos del proyecto, porque el servidor
+// MCP lo entrega verbatim en la respuesta initialize (cmd_mcp.go, ServerOptions.
+// Instructions). El archivo era una SEGUNDA copia del mismo texto.
+//
+// composeAgentFile/protocolStart/protocolEnd siguen existiendo y con sus tests
+// propios (cmd_install_protocol_test.go): las usa `setup-mcp --scope global`
+// para el ámbito de USUARIO, que esta feature no toca.
+//
+// Lo que se verifica ahora es el comportamiento nuevo: retirada con respaldo.
+
+func runInstallEn(t *testing.T, bin, target string) string {
+	t.Helper()
+	cmd := exec.Command(bin, "install", target)
+	cmd.Dir = target
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("mem install: %v\n%s", err, out)
+	}
+	return string(out)
+}
+
+// TestInstallEliminaArchivosDeAgenteYRespalda cubre FR-016/FR-017: retirar los
+// archivos de instrucciones es una operación destructiva autorizada, y el
+// respaldo previo es lo que la hace responsable.
+func TestInstallEliminaArchivosDeAgenteYRespalda(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
-	const before = "# Mis notas\nTexto propio ANTES del bloque.\n"
-	const legacyBlock = "<!-- gomemory-protocol-v6 -->\n" +
-		"## Memoria Persistente (`mem`) — Protocolo Activo\n\n" +
-		"contenido viejo del bloque, versión anterior a la vigente.\n\n" +
-		"### Una subsección legada\ndetalle que debe desaparecer tras actualizar.\n"
-	const after = "\n## Mis reglas personales\nTexto propio DESPUÉS del bloque. NO DEBE PERDERSE.\n"
-
-	claudePath := filepath.Join(target, "CLAUDE.md")
-	if err := os.WriteFile(claudePath, []byte(before+legacyBlock+after), 0644); err != nil {
-		t.Fatalf("seed CLAUDE.md: %v", err)
-	}
-
-	runInstall := func() string {
-		t.Helper()
-		cmd := exec.Command(bin, "install", target)
-		cmd.Dir = target
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("mem install: %v\n%s", err, out)
+	const propio = "# Mis notas\n\nTexto propio que escribí yo y no debe evaporarse.\n"
+	for _, nombre := range []string{"AGENTS.md", "CLAUDE.md"} {
+		if err := os.WriteFile(filepath.Join(target, nombre), []byte(propio+nombre), 0644); err != nil {
+			t.Fatalf("preparar %s: %v", nombre, err)
 		}
-		data, err := os.ReadFile(claudePath)
-		if err != nil {
-			t.Fatalf("read CLAUDE.md: %v", err)
+	}
+
+	out := runInstallEn(t, bin, target)
+
+	for _, nombre := range []string{"AGENTS.md", "CLAUDE.md"} {
+		if _, err := os.Stat(filepath.Join(target, nombre)); err == nil {
+			t.Errorf("%s sigue en la raíz tras instalar", nombre)
 		}
-		return string(data)
+		respaldo := filepath.Join(target, ".memory", "backups", "agent-files", nombre)
+		datos, err := os.ReadFile(respaldo)
+		if err != nil {
+			t.Fatalf("falta el respaldo de %s en %s: %v", nombre, respaldo, err)
+		}
+		if !strings.Contains(string(datos), "Texto propio que escribí yo") {
+			t.Errorf("el respaldo de %s no conserva el contenido original", nombre)
+		}
 	}
 
-	got := runInstall()
+	if !strings.Contains(out, "backups") {
+		t.Errorf("la instalación debe informar dónde quedaron los respaldos.\nSalida:\n%s", out)
+	}
+}
 
-	if !strings.Contains(got, "Texto propio ANTES del bloque.") {
-		t.Error("el contenido ANTERIOR al bloque se perdió")
-	}
-	if !strings.Contains(got, "Texto propio DESPUÉS del bloque. NO DEBE PERDERSE.") {
-		t.Error("el contenido POSTERIOR al bloque se perdió — este es el bug que esta feature corrige")
-	}
-	if !strings.Contains(got, "## Mis reglas personales") {
-		t.Error("el encabezado propio posterior al bloque se perdió")
-	}
-	if strings.Contains(got, "gomemory-protocol-v6") {
-		t.Error("no debe quedar ningún resto del marcador de la versión vieja")
-	}
-	if strings.Contains(got, "contenido viejo del bloque") {
-		t.Error("no debe quedar contenido del bloque legado tras actualizar")
-	}
-	if strings.Count(got, "## Memoria Persistente") != 1 {
-		t.Errorf("el bloque de protocolo debe aparecer exactamente una vez, apareció %d",
-			strings.Count(got, "## Memoria Persistente"))
-	}
+// TestInstallNoGeneraArtefactos cubre FR-011/FR-012/FR-013 y el escenario §2
+// del quickstart: la razón de ser de la feature.
+func TestInstallNoGeneraArtefactos(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := dirDeProyecto(t)
 
-	// Idempotencia: reinstalar sobre el resultado ya actualizado no debe
-	// volver a tocar el archivo (mismo criterio que
-	// TestWriteClaudeHooksIsIdempotent para los hooks).
-	second := runInstall()
-	if got != second {
-		t.Error("reinstalar sobre un archivo ya actualizado no debe modificarlo (idempotencia)")
+	runInstallEn(t, bin, target)
+
+	prohibidos := []string{
+		"AGENTS.md", "CLAUDE.md", "CLAUDE.txt",
+		"speckit-constitution-gen.md",
+		".windsurf", ".cline",
+	}
+	for _, artefacto := range prohibidos {
+		if _, err := os.Stat(filepath.Join(target, artefacto)); err == nil {
+			t.Errorf("mem install creó %q en la raíz del proyecto", artefacto)
+		}
+	}
+}
+
+// TestInstallEsIdempotente: una segunda pasada no reintroduce nada ni vuelve a
+// informar respaldos que ya no existen.
+func TestInstallEsIdempotente(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := dirDeProyecto(t)
+
+	runInstallEn(t, bin, target)
+	out := runInstallEn(t, bin, target)
+
+	if strings.Contains(out, "respaldado") {
+		t.Errorf("la segunda instalación informó respaldos sin haber nada que respaldar.\nSalida:\n%s", out)
+	}
+	for _, artefacto := range []string{"AGENTS.md", "CLAUDE.md", "speckit-constitution-gen.md"} {
+		if _, err := os.Stat(filepath.Join(target, artefacto)); err == nil {
+			t.Errorf("la segunda instalación reintrodujo %q", artefacto)
+		}
+	}
+}
+
+// TestInstallMensajeFinal cubre FR-014: el mensaje debe explicar dónde viven
+// ahora las reglas, y no referirse a archivos que ya no se generan.
+func TestInstallMensajeFinal(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := dirDeProyecto(t)
+
+	out := runInstallEn(t, bin, target)
+
+	for _, esperado := range []string{"get_context()", "/constitution"} {
+		if !strings.Contains(out, esperado) {
+			t.Errorf("el mensaje final debe mencionar %q.\nSalida:\n%s", esperado, out)
+		}
+	}
+	for _, obsoleto := range []string{"al leer AGENTS.md", "setup-mcp --scope global"} {
+		if strings.Contains(out, obsoleto) {
+			t.Errorf("el mensaje final sigue mencionando %q, que ya no aplica", obsoleto)
+		}
 	}
 }

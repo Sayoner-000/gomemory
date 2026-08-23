@@ -57,6 +57,14 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdSettings(deps, args)
 	case "doctor":
 		CmdDoctor(deps, args)
+	case "docs":
+		CmdDocs(deps, args)
+	case "seed":
+		CmdSeed(deps, args)
+	case "constitution":
+		CmdConstitution(deps, args)
+	case "rules":
+		CmdRules(deps, args)
 	case "usage":
 		CmdUsage(deps, args)
 	case "adr-sync":

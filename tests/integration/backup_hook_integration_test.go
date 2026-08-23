@@ -15,7 +15,7 @@ import (
 // un snapshot exportable, sin que el usuario invoque `mem export` a mano.
 func TestHookSessionEndCreatesBackupSnapshot(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)
@@ -62,7 +62,7 @@ func TestHookSessionEndCreatesBackupSnapshot(t *testing.T) {
 // sale temprano antes de llegar al punto donde se dispara el snapshot.
 func TestHookSessionEndWithoutActiveSessionSkipsBackup(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)

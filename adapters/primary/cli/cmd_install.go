@@ -90,6 +90,18 @@ func CmdInstall(deps *Deps, args []string) {
 		}
 	}
 
+	// 2b. Sembrar las memorias por defecto (feature 021): las reglas de trabajo
+	// y la constitución viven en la memoria, no en archivos del repositorio.
+	// Nunca pisa una semilla existente — en cuanto existe, es de la persona.
+	//
+	// Va por SUBPROCESO con cwd en el destino, igual que el paso 2 hace con
+	// `init`. No es un rodeo: `install` está en rootIndependentCommands y se
+	// despacha sin contenedor, así que su Deps no trae MemoryRepo; y el destino
+	// puede ser un proyecto distinto del directorio actual, con su propio store.
+	if err := runIn(target, destBin, "seed"); err != nil {
+		fmt.Printf("  ⚠️  No se pudieron sembrar las memorias por defecto: %v\n", err)
+	}
+
 	// 3. Update .gitignore
 	gitignore := filepath.Join(target, ".gitignore")
 	content := ""
@@ -114,63 +126,22 @@ func CmdInstall(deps *Deps, args []string) {
 		fmt.Printf("  ✅ .gitignore actualizado\n")
 	}
 
-	// 4. Update AGENTS.md or CLAUDE.md (preámbulo de reglas + protocolo de memoria)
-	preamble := embeddedTemplate("agent-preamble.md")
-	integrationBlock := buildIntegrationBlock()
+	// 3b. Retirar los artefactos de instalaciones anteriores (feature 021, US3).
+	// Va DESPUÉS de la siembra a propósito: si sembrar fallara, los archivos
+	// legados siguen en su sitio y la persona no se queda sin las reglas ni en
+	// la memoria ni en el repositorio.
+	cleanupLegacyArtifacts(target, deps.ProjectRepo.MemDir())
 
-	agentFiles := []string{"AGENTS.md", "CLAUDE.md", "CLAUDE.txt", ".cursorrules", ".windsurfrules"}
-	updated := false
-	found := 0
-
-	for _, fname := range agentFiles {
-		fpath := filepath.Join(target, fname)
-		if _, err := os.Stat(fpath); err != nil {
-			continue
-		}
-		found++
-		data, _ := os.ReadFile(fpath)
-		newContent, changed := composeAgentFile(string(data), preamble, integrationBlock)
-		if !changed {
-			continue
-		}
-		if err := os.WriteFile(fpath, []byte(newContent), 0644); err != nil {
-			continue
-		}
-		fmt.Printf("  ✅ %s actualizado (reglas de trabajo + protocolo de memoria)\n", fname)
-		updated = true
-	}
-
-	if found > 0 && !updated {
-		fmt.Printf("  ✅ Integración ya presente en AGENTS.md/CLAUDE.md\n")
-	}
-	if found == 0 {
-		created := 0
-		for _, fname := range []string{"AGENTS.md", "CLAUDE.md"} {
-			dst := filepath.Join(target, fname)
-			if err := os.WriteFile(dst, []byte(defaultAgentFile(fname, preamble)), 0644); err != nil {
-				continue
-			}
-			fmt.Printf("  ✅ %s creado (reglas de trabajo + protocolo de memoria)\n", fname)
-			created++
-		}
-		if created == 0 {
-			fmt.Printf("  ⚠️  No se pudo crear AGENTS.md/CLAUDE.md en el proyecto destino.\n")
-		}
-	}
-
-	// 4b. Copiar la constitución del proyecto (parte del "pack" de trabajo).
-	if consti := embeddedTemplate("speckit-constitution-gen.md"); consti != "" {
-		cpath := filepath.Join(target, "speckit-constitution-gen.md")
-		if _, err := os.Stat(cpath); err != nil {
-			if err := os.WriteFile(cpath, []byte(consti), 0644); err != nil {
-				fmt.Printf("  ⚠️  Error al copiar la constitución: %v\n", err)
-			} else {
-				fmt.Printf("  ✅ Constitución copiada a %s\n", cpath)
-			}
-		} else {
-			fmt.Printf("  ✅ Constitución ya presente, no se sobrescribe\n")
-		}
-	}
+	// Los pasos 4 (AGENTS.md/CLAUDE.md) y 4b (copia de la constitución) se
+	// retiraron en la feature 021. El bloque de protocolo que se escribía en
+	// esos archivos era una SEGUNDA copia del texto que el agente ya recibe en
+	// la respuesta initialize del MCP (ver cmd_mcp.go, ServerOptions.Instructions),
+	// y la constitución copiada eran 635 líneas congeladas que divergían de la
+	// fuente en cuanto alguien editaba una de las dos. Ambas viven ahora como
+	// memorias semilla (paso 2b) y se administran con `mem docs`.
+	//
+	// composeAgentFile/protocolStart/protocolEnd NO se eliminaron: las usa
+	// `setup-mcp --scope global` para el ámbito de USUARIO, que sigue vigente.
 
 	// 4c. Distribuir el brazo extensor gomemory-context (spec 011/012):
 	// no-op silencioso si el proyecto destino no tiene spec-kit (.specify/
@@ -186,6 +157,16 @@ func CmdInstall(deps *Deps, args []string) {
 		fmt.Printf("  ⚠️  Error al distribuir el método de planificación atómica: %v\n", err)
 	} else if PlanMethod() != "" {
 		fmt.Printf("  ✅ Método de planificación atómica distribuido (claude-code, opencode)\n")
+	}
+
+	// 4e. Envoltorio nativo de la constitución (feature 021, FR-027). Capa
+	// OPCIONAL, mismo criterio que 4d: siempre queda `mem constitution`, así
+	// que un fallo aquí nunca bloquea la instalación. El envoltorio NO lleva
+	// copia del texto — resuelve desde la memoria en cada invocación.
+	if err := setup.InstallConstitutionWrappers(target); err != nil {
+		fmt.Printf("  ⚠️  Error al distribuir el envoltorio de la constitución: %v\n", err)
+	} else {
+		fmt.Printf("  ✅ Envoltorio /constitution distribuido (claude-code, opencode)\n")
 	}
 
 	// 5. MCP server config + plugins/hooks for all agents.
@@ -206,9 +187,11 @@ func CmdInstall(deps *Deps, args []string) {
 		fmt.Printf("  ⚠️  claude-code: %v\n", err)
 	}
 	setupCursor(target)
-	setupWindsurf(target)
-	setupCline(target)
 	setupCodex(target)
+	// windsurf y cline se retiraron de la instalación automática (feature 021):
+	// creaban .windsurf/ y .cline/ en la raíz de TODO proyecto para alojar un
+	// único JSON de configuración. Siguen soportados por la vía explícita:
+	// `mem setup-mcp --agents windsurf,cline`.
 
 	// 6. Apply autoApprove settings if configured
 	settings := deps.SettingsRepo.Read(target)
@@ -224,12 +207,12 @@ func CmdInstall(deps *Deps, args []string) {
 	fmt.Println("   ./mem            # Abrir TUI")
 	fmt.Println("   ./mem --help     # Ver todos los comandos")
 	fmt.Println()
-	fmt.Println("   Y el agente AI usará la memoria automáticamente al leer AGENTS.md.")
+	fmt.Println("   Las reglas de trabajo y la constitución quedaron guardadas en la memoria del")
+	fmt.Println("   proyecto: el agente recibe las reglas automáticamente en get_context() y aplica")
+	fmt.Println("   la constitución con /constitution. Ya no se generan archivos de instrucciones.")
 	fmt.Println()
-	fmt.Println("   💡 Desde v1.9, gomemory ya no necesita instalarse por proyecto para")
-	fmt.Println("      Claude Code/Codex/OpenCode: 'mem setup-mcp --scope global --agents claude,codex,opencode'")
-	fmt.Println("      registra el MCP una sola vez para todos tus proyectos, y el store de")
-	fmt.Println("      memoria se crea solo al primer uso (mem save/mem mcp), sin 'mem install'.")
+	fmt.Println("   Para poner las de tu equipo:  ./mem docs export rules -o reglas.md")
+	fmt.Println("                                 ./mem docs import rules reglas.md")
 }
 
 func copyFile(src, dst string) error {
@@ -477,20 +460,4 @@ func buildIntegrationBlock() string {
 		integrationEndMarker,
 	}
 	return strings.Join(lines, "\n")
-}
-
-// defaultAgentFile genera un AGENTS.md/CLAUDE.md universal desde cero,
-// sin depender del cwd: el protocolo vive en el binario vía
-// buildIntegrationBlock() y el preámbulo de reglas vía go:embed (templates/).
-func defaultAgentFile(fname, preamble string) string {
-	title := "# Instrucciones para agentes AI"
-	if fname == "CLAUDE.md" {
-		title = "# Instrucciones para Claude Code"
-	}
-	content := title + "\n"
-	if preamble != "" {
-		content += strings.TrimRight(preamble, "\n") + "\n"
-	}
-	content += buildIntegrationBlock()
-	return content
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -36,7 +37,36 @@ func SecondsSinceLastSave(db *sql.DB, project string) (int64, bool, error) {
 	return int64(secs.Float64), true, nil
 }
 
+// insertOpts modula los CANALES LATERALES de una inserción. No toca la
+// depuración de secretos ni la deduplicación: esas son garantías del guardado,
+// no efectos opcionales (feature 021, data-model.md §3bis).
+type insertOpts struct {
+	// inerte omite formSynapse y exportToADR. Lo usan la siembra, la
+	// importación y la restauración de documentos fijados: una semilla no nace
+	// del trabajo de una sesión (no hay co-activación que enlazar) ni es una
+	// decisión de arquitectura recién tomada que merezca anunciarse fuera.
+	//
+	// Sin esto, sembrar la constitución —tipo Architecture, exportable según
+	// adrSectionForType— habría publicado el documento entero en el ADR externo
+	// de quien tuviera adr_sync_enabled=true, síncrono y sin pedirlo
+	// (research.md §R4).
+	inerte bool
+}
+
+// InsertMemory guarda una memoria por la vía normal, con todos sus efectos.
 func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
+	return insertMemory(db, m, insertOpts{})
+}
+
+// InsertSeedMemory guarda una memoria por la vía INERTE: sin sinapsis
+// automática y sin publicación al proveedor externo de ADR, ni siquiera con la
+// sincronización activada. Conserva la depuración de secretos y el upsert por
+// clave de tópico.
+func InsertSeedMemory(db *sql.DB, m *domain.Memory) (int64, error) {
+	return insertMemory(db, m, insertOpts{inerte: true})
+}
+
+func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) {
 	title := domain.RedactSecrets(domain.RedactPrivate(m.Title))
 	content := domain.RedactSecrets(domain.RedactPrivate(m.Content))
 	if strings.TrimSpace(content) == "" {
@@ -81,7 +111,9 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 		if err := tx.Commit(); err != nil {
 			return 0, fmt.Errorf("commit dedup: %w", err)
 		}
-		exportToADR(m.Project, m.Type, title, content, existingID)
+		if !opts.inerte {
+			exportToADR(m.Project, m.Type, title, content, existingID)
+		}
 		return existingID, nil
 	}
 
@@ -103,10 +135,13 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	}
 
 	// --- Fuera de la transacción: operaciones best-effort / externas ---
-	if synapseEnabled {
-		formSynapse(db, m.Project, m.SessionID, id)
+	// Ambas son canales laterales: la vía inerte los omite por completo.
+	if !opts.inerte {
+		if synapseEnabled {
+			formSynapse(db, m.Project, m.SessionID, id)
+		}
+		exportToADR(m.Project, m.Type, title, content, id)
 	}
-	exportToADR(m.Project, m.Type, title, content, id)
 	return id, nil
 }
 
@@ -464,6 +499,41 @@ func GetMemoryByID(db *sql.DB, project string, id int64) (*domain.Memory, error)
 // exportToADR (mismo criterio "sin efectos en cadena" que ImportMemory) —
 // usado por ImportADRs para reflejar un bloque de ADR actualizado sobre la
 // memoria ya importada, sin reexportarla de vuelta al proveedor.
+// GetMemoryByTopicKey resuelve una memoria por su clave de tópico dentro de un
+// proyecto. Devuelve (nil, nil) cuando no existe: "no encontrado" no es un
+// error, según la regla explícita de la constitución.
+//
+// Existe para que la presencia de una memoria fijada NO dependa de la ventana
+// de recencia de ListMemories (feature 021, FR-031). La semilla se crea una vez
+// al principio de la vida del proyecto; con los checkpoints automáticos
+// generándose por turno, cien turnos bastarían para enterrarla y que la sección
+// de reglas desapareciera del contexto sin error y sin aviso.
+func GetMemoryByTopicKey(db *sql.DB, project, topicKey string) (*domain.Memory, error) {
+	tk := strings.TrimSpace(topicKey)
+	if tk == "" {
+		return nil, nil
+	}
+
+	var m domain.Memory
+	var memType string
+	err := db.QueryRow(
+		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''),
+		        created_at, updated_at
+		 FROM memories WHERE project = ? AND topic_key = ? ORDER BY id DESC LIMIT ?`,
+		project, tk, 1,
+	).Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title, &m.Content,
+		&m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get memory by topic key: %w", err)
+	}
+	m.Type = domain.MemoryType(memType)
+	return &m, nil
+}
+
 func UpdateMemoryContent(db *sql.DB, project string, id int64, title, content string) error {
 	redTitle := domain.RedactSecrets(domain.RedactPrivate(title))
 	redContent := domain.RedactSecrets(domain.RedactPrivate(content))
@@ -489,9 +559,16 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 	if limit <= 0 || limit > 200 {
 		limit = 20
 	}
+	// topic_key SÍ viaja en esta proyección (feature 021, FR-030). Antes no lo
+	// hacía —a diferencia de ListAllMemories, su hermana— y TopicKey llegaba
+	// siempre vacío a todo consumidor de esta vía: el constructor de contexto,
+	// la tool MCP list_memories y la TUI. El defecto era latente porque nadie lo
+	// leía por aquí (ConsolidateMemories agrupa por topic_key pero usa ListAll);
+	// la sección de reglas fijadas es el primer consumidor real.
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''),
+		        created_at, updated_at
 		 FROM memories WHERE project = ? ORDER BY created_at DESC LIMIT ?`,
 		project, limit,
 	)
@@ -505,7 +582,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 		var m domain.Memory
 		var memType string
 		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.OriginPrompt, &m.CreatedAt, &m.UpdatedAt)
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}

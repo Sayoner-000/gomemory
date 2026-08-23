@@ -5,6 +5,84 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.9.0] - 2026-08-23
+
+### Added
+
+- **Seeded memories for work rules and the constitution.** The first time
+  gomemory is used in a project — either through `mem install` or the first
+  start of the MCP server — it seeds two memories: the *work rules* (as a
+  `preference`) and the *constitution* (as an `architecture` decision). The
+  work rules are emitted **in full** in every `get_context()`, in a section of
+  their own; they are the only declared exception to the context budget, the
+  same treatment unresolved conflicts already had. The constitution is looked
+  up on demand instead, so it never costs hundreds of lines per session.
+- **`mem docs`** — manage pinned documents: `list`, `show`, `export`, `import`
+  and `reset`. What ships with the tool is a **starting point, not doctrine**:
+  without a comfortable way to replace it, seeding rules would turn gomemory
+  into the author of a team's standards. `mem docs list` derives each
+  document's state (`sin sembrar`, `por defecto`, `personalizado`) by comparing
+  against the embedded template, so nothing extra is stored. `--topic` imports
+  into any topic key, inside or outside the catalog.
+- **Pinned documents in the interactive UI** — the configuration screen gained
+  one row per catalogued document (`Actualizar Reglas IA`, `Actualizar
+  Constitución`), each opening a screen with view, export, import and restore.
+  A contract test checks that both surfaces offer the same operations, so they
+  cannot drift apart.
+- **`mem constitution [--sync]` and `mem rules`** — shortcuts over
+  `mem docs show`. `--sync` mirrors the constitution into
+  `.specify/memory/constitution.md` when the project uses spec-kit, and never
+  creates that structure when it does not.
+- **`/constitution` wrapper** for Claude Code and OpenCode. It carries no copy
+  of the text: it resolves the constitution from memory at invocation time,
+  which is exactly the mistake the removed install step used to make.
+- **`mem seed`** — reseeds the default memories. `mem install` invokes it as a
+  subprocess in the target directory.
+
+### Changed
+
+- **`mem install` no longer writes instruction files.** `AGENTS.md`,
+  `CLAUDE.md` and `speckit-constitution-gen.md` are no longer generated: the
+  protocol block was a second copy of the text the MCP server already delivers
+  in its `initialize` response, and the copied constitution froze in place and
+  diverged from its source as soon as either was edited.
+- **Windsurf and Cline left automatic installation.** They created a folder in
+  the root of *every* project to hold a single JSON file. Still supported
+  explicitly via `mem setup-mcp --agents windsurf,cline`.
+- **Legacy artifacts are removed on install and update.** Instruction files are
+  **backed up** to `.memory/backups/agent-files/` before being deleted, and if
+  the backup cannot be written the original is kept. MCP configs only lose
+  their `gomemory` entry: other servers survive, and a JSON that cannot be
+  parsed is left untouched.
+- **Activation report**: project-scope instruction channels are reported as
+  *not applicable*, with the reason, instead of *missing*. A legacy file that
+  still holds an old block is still reported as outdated — that is true
+  information about a stale duplicate, not a false alarm.
+
+### Fixed
+
+- **`ListMemories` did not return `topic_key`.** Unlike its sibling
+  `ListAllMemories`, the query left the column out of its projection, so
+  `TopicKey` reached every consumer of that path empty — the context builder,
+  the `list_memories` MCP tool, the UI — with no error and no warning.
+- **Seeding could publish the constitution to an external ADR document.**
+  `architecture` maps to an exportable section, so with `adr_sync_enabled=true`
+  installing would have pushed the whole document to the user's external ADR,
+  synchronously and unrequested. Seeding, importing and restoring now use an
+  inert insert path that skips automatic synapses and external publication.
+  Secret redaction stays active on that path — it is a security defense, not a
+  side channel.
+- **A pinned memory could silently vanish from the context.** Its presence
+  depended on the recency window of the memory list; with checkpoints generated
+  every turn, it would eventually be buried with no error. It is now resolved by
+  topic key, independently of recency.
+- **`mem docs export <alias> -o <file>` wrote to stdout and left the file
+  empty.** Go's flag parser stops at the first positional argument, so a flag
+  placed after the alias was never read. Both orders work now.
+- **Flaky integration tests.** A detached background process writing a graph
+  snapshot into `.memory/` raced the temporary-directory cleanup, failing a
+  different test roughly one run in four without any assertion failing.
+
 ## [2.8.0] - 2026-08-20
 
 ### Added

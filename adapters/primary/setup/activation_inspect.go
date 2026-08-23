@@ -59,7 +59,7 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 	if scope == domain.ScopeUser {
 		instructionsDir = userInstructionsDir(agent.Name, dir)
 	}
-	out = append(out, a.inspectInstructions(agent, instructionsDir, scope))
+	out = append(out, a.inspectInstructions(agent, instructionsDir, scope, scope == domain.ScopeProject))
 
 	if agent.HasLevel(domain.AgentLevelGuard) {
 		out = append(out, a.inspectClaudeHook(agent, dir, scope, domain.KindPlanGuard, "PreToolUse", "ExitPlanMode", "hook plan-guard"))
@@ -191,9 +191,20 @@ func readSettingsAtomicPlanDisabled(dir string) bool {
 	return parsed.AtomicPlanDisabled
 }
 
-// inspectInstructions busca, entre los archivos de instrucciones
-// reconocidos en dir, el bloque de protocolo y reporta su versión.
-func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, dir string, scope domain.AgentScope) domain.ActivationChannel {
+// inspectInstructions busca, entre los archivos de instrucciones reconocidos en
+// dir, el bloque de protocolo y reporta su versión.
+//
+// opcional cambia SOLO el veredicto de la ausencia (feature 021, FR-028): desde
+// que `mem install` dejó de escribir el bloque en archivos del proyecto, no
+// encontrarlo en ámbito de PROYECTO ya no es una falta —el protocolo llega en la
+// respuesta initialize del MCP— sino un canal que no aplica.
+//
+// El matiz importa y es deliberado: un archivo legado que TODAVÍA conserva un
+// bloque de una versión anterior se sigue reportando como desactualizado. Eso no
+// es falsa alarma sino información verdadera sobre un duplicado obsoleto que
+// conviene retirar; la limpieza del instalador se encarga de que deje de
+// ocurrir.
+func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, dir string, scope domain.AgentScope, opcional bool) domain.ActivationChannel {
 	ch := domain.ActivationChannel{Arm: domain.ArmGomemory, Agent: agent.Name, Scope: scope, Kind: domain.KindInstructions}
 
 	for _, fname := range claudeAgentFiles {
@@ -216,6 +227,11 @@ func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, 
 		return ch
 	}
 
+	if opcional {
+		ch.State = domain.StateNotApplicable
+		ch.Detail = "el protocolo viaja en las Instructions del MCP; gomemory ya no escribe archivos de instrucciones en el proyecto"
+		return ch
+	}
 	ch.State = domain.StateMissing
 	ch.Detail = "ningún archivo de instrucciones con el bloque de protocolo en " + dir
 	return ch

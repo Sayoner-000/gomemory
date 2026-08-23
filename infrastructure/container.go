@@ -68,6 +68,13 @@ func NewContainer(root, channel string) (*Container, error) {
 	persistence.SetSynapseEnabled(!settings.SynapseDisabled)
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
 	contextBuilder.Graph = codeGraphRepo
+	// Resolución por clave de tópico (feature 021): habilita la sección de
+	// reglas fijadas. Se obtiene por aserción de tipo —mismo patrón que
+	// adrSyncProvider más abajo— para no ensanchar ports.MemoryRepository con
+	// una capacidad que solo necesitan el contexto y los documentos fijados.
+	if topics, ok := memRepo.(ports.MemoryTopicQuerier); ok {
+		contextBuilder.Topics = topics
+	}
 	// Presupuesto de contexto (feature 008): techo blando de get_context para no
 	// inflar la ventana del agente. Normalizado en ReadSettings (default si 0).
 	contextBuilder.Budget = settings.Budget

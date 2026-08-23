@@ -8,43 +8,23 @@ import (
 	"testing"
 )
 
-// TestIntegrationBlock_GrafoYArbolSecuenciados cubre research.md §10 (feature
-// 019): el bloque de protocolo instalado ya no reclama el modo plan como
-// mandato rival del grafo de código ("independientemente de la tarea: chat,
-// plan, resumen") — los enuncia como pasos complementarios de una misma
-// instrucción, y el grafo queda nombrado como el instrumento de exploración
-// del plan (INV-5: nunca como una degradación del papel del grafo).
-func TestIntegrationBlock_GrafoYArbolSecuenciados(t *testing.T) {
-	bin := buildPlanGuardBinary(t)
-	target := t.TempDir()
-
-	cmd := exec.Command(bin, "install", target)
-	cmd.Dir = target
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("mem install: %v\n%s", err, out)
-	}
-
-	var content string
-	for _, fname := range []string{"CLAUDE.md", "AGENTS.md"} {
-		data, err := os.ReadFile(filepath.Join(target, fname))
-		if err == nil {
-			content += string(data)
-		}
-	}
-	if content == "" {
-		t.Fatal("no se encontró ningún archivo de instrucciones instalado")
-	}
-
-	if strings.Contains(content, "independientemente de la tarea (chat, plan, resumen)") {
-		t.Error("el párrafo del grafo no debe reclamar el modo plan como mandato rival")
-	}
-	if !strings.Contains(content, "árbol de tareas atómicas") {
-		t.Error("debe mencionar el árbol de tareas atómicas como la forma de la salida del plan")
-	}
-	if !strings.Contains(content, "alimenta") {
-		t.Error("debe indicar que lo explorado con el grafo alimenta las hojas del árbol")
-	}
-}
+// TestIntegrationBlock_GrafoYArbolSecuenciados verificaba la redacción del
+// bloque de protocolo leyéndolo del CLAUDE.md/AGENTS.md que `mem install`
+// escribía en el proyecto. La feature 021 retiró esa escritura: el bloque era
+// una SEGUNDA copia del texto que el servidor MCP ya entrega en la respuesta
+// initialize, y el archivo solo gastaba contexto y ensuciaba el repositorio.
+//
+// La cobertura NO se perdió. Las tres aserciones de redacción que hacía —que el
+// párrafo del grafo no reclame el modo plan como mandato rival, que nombre el
+// árbol de tareas atómicas, y que declare que lo explorado alimenta sus hojas—
+// se comprueban sobre el canal que hoy es el único para ámbito de proyecto, en
+// TestMCPInstructions_GrafoYArbolSecuenciados, justo debajo. Se añadió allí la
+// tercera aserción, que solo vivía aquí.
+//
+// El texto es el mismo objeto en ambos casos: buildIntegrationBlock() alimenta
+// tanto ServerOptions.Instructions como el ámbito de USUARIO que sigue
+// escribiendo `setup-mcp --scope global`. La forma del bloque tiene además sus
+// tests unitarios propios en cmd_install_protocol_test.go, intactos.
 
 // TestMCPInstructions_GrafoYArbolSecuenciados cubre la misma redacción
 // compuesta en el segundo canal de texto: las instrucciones que expone el
@@ -72,5 +52,9 @@ func TestMCPInstructions_GrafoYArbolSecuenciados(t *testing.T) {
 	}
 	if !strings.Contains(content, "árbol de tareas atómicas") {
 		t.Error("debe mencionar el árbol de tareas atómicas")
+	}
+	// Heredada del test del archivo instalado, retirado por la feature 021.
+	if !strings.Contains(content, "alimenta") {
+		t.Error("debe indicar que lo explorado con el grafo alimenta las hojas del árbol")
 	}
 }

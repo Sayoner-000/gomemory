@@ -702,7 +702,10 @@ mem install /ruta/a/proyecto
   │
   ├─ 3. Actualizar .gitignore (añade .memory/ y /mem)
   │
-  ├─ 4. AGENTS.md, CLAUDE.md, .cursorrules, .windsurfrules — el "pack" de trabajo
+  ├─ 2b. SeedDefaults → siembra las memorias de reglas y constitución (v2.9)
+  ├─ 3b. cleanupLegacyArtifacts → retira AGENTS.md/CLAUDE.md (con respaldo),
+  │      speckit-constitution-gen.md y las carpetas .windsurf/.cline
+  ├─ 4. (retirado en v2.9) AGENTS.md/CLAUDE.md — era copia del bloque MCP
   │    ├─ No existen → se crean con [reglas de trabajo] + [protocolo de memoria]
   │    ├─ Existen sin integración → inyecta el preámbulo de reglas ANTES del
   │    │                            bloque ## Memoria Persistente (idempotente)
@@ -712,7 +715,8 @@ mem install /ruta/a/proyecto
   │         · Protocolo: buildIntegrationBlock(), marcador
   │           <!-- gomemory-protocol-v2 -->
   │
-  ├─ 4b. Constitución → copia templates/speckit-constitution-gen.md a la raíz
+  ├─ 4b. (retirado en v2.9) copia de la constitución — vive en la memoria
+  ├─ 4e. InstallConstitutionWrappers → /constitution para claude-code y opencode
   │      del proyecto (solo si no existe; nunca sobrescribe)
   │
   └─ 5. MCP server config para TODOS los agentes (NO instala hooks/plugins;
@@ -970,7 +974,7 @@ datos se resuelve solo. Una variable opcional:
 
 6. **Multi-agente MCP**: `setup-mcp` configura opencode, Claude, Cursor, Windsurf, Cline y Codex desde un solo comando. Cada función de setup es idempotente. El `cwd` real del proceso que lanza `mem mcp` no es confiable entre agentes, así que la raíz del proyecto se pasa explícita vía `--root` en `args` (ver sección "El flag `--root`").
 
-7. **Triple vía de integración**: MCP nativo (`initialize.instructions` + descripciones de tools + `get_context` embebido en `cmd_mcp.go` — funciona en cualquier agente/scope, sin archivos en el repo) + plugin/hooks (ciclo de vida completo para OpenCode/Claude Code) + AGENTS.md/CLAUDE.md (refuerzo opcional vía `mem install`). Ver `docs/MEMORY-PROTOCOL.md` para el detalle de cada capa.
+7. **Triple vía de integración**: MCP nativo (`initialize.instructions` + descripciones de tools + `get_context` embebido en `cmd_mcp.go` — funciona en cualquier agente/scope, sin archivos en el repo) + plugin/hooks (ciclo de vida completo para OpenCode/Claude Code) + archivos de instrucciones de **ámbito usuario** (`mem setup-mcp --scope global`). Desde v2.9 el ámbito de proyecto ya no escribe archivos: era una segunda copia del bloque que el MCP ya entrega. Ver `docs/MEMORY-PROTOCOL.md`.
 
 8. **AlphaScreen en TUI**: Bubbletea usa pantalla alternativa (`tea.WithAltScreen()`) para no ensuciar el historial.
 
@@ -1176,7 +1180,8 @@ gomemory/
 │   │       └── skills/
 │   └── templates/                   #   Templates embebidos (go:embed)
 │       ├── agent-preamble.md        #     Reglas de trabajo + orquestación + tareas
-│       └── speckit-constitution-gen.md  # Constitución copiada por `mem install`
+│       └── speckit-constitution-gen.md  # Contenido por defecto de la constitución
+│                                        # (se siembra en la memoria, ya no se copia)
 │
 ├── tests/                           # Tests
 │   ├── contract/

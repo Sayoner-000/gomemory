@@ -58,6 +58,37 @@ func repoRoot(t *testing.T) string {
 	return filepath.Join(wd, "..", "..")
 }
 
+// dirDeProyecto devuelve un directorio temporal para usar como raíz de un
+// proyecto de prueba, con limpieza BEST-EFFORT.
+//
+// Existe para cerrar una carrera real, y benigna, que hacía fallar tests al
+// azar sin que ninguna aserción fallara: al invocar el binario, el proveedor de
+// grafo lanza `mem code-refresh` como proceso DESACOPLADO
+// (codebasememory.Provider.MaybeRefresh) que escribe el snapshot dentro de
+// `.memory/` de forma asíncrona. Si el test termina antes que ese hijo, la
+// escritura compite con la limpieza y t.TempDir() aborta el test con
+// "TempDir RemoveAll cleanup: directory not empty" — un test distinto cada vez,
+// ~1 de cada 4 corridas.
+//
+// La escritura tardía no es un defecto del producto: el refresco en segundo
+// plano es deliberado y no debe bloquear el hot path. Lo inadecuado era que la
+// limpieza del directorio temporal tratara esa carrera como un fallo del test.
+// Con os.RemoveAll ignorando el error, el sistema operativo se encarga del
+// resto y la aserción del test vuelve a ser lo único que decide si pasa.
+//
+// Se descartó apagar el grafo con code_graph_disabled=true: cambia el texto que
+// los hooks emiten (la lista de tools del grafo) y rompería
+// TestHookSubagentStart_BootstrapVaEnAdditionalContext, que sí lo ejerce.
+func dirDeProyecto(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "gomemory-proyecto-*")
+	if err != nil {
+		t.Fatalf("crear directorio de proyecto: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 func runHook(t *testing.T, bin, dir, event string) string {
 	t.Helper()
 	cmd := exec.Command(bin, "hook", event)
@@ -77,7 +108,7 @@ func runHook(t *testing.T, bin, dir, event string) string {
 // resetea, así que debe re-inyectarse en el primer prompt de CADA sesión.
 func TestHookMarkerResetsPerSession(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)
@@ -127,7 +158,7 @@ func TestHookMarkerResetsPerSession(t *testing.T) {
 // intermedio no debe dejar el recordatorio inyectado para siempre).
 func TestHookSessionEndResetsMarker(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)
@@ -162,7 +193,7 @@ func TestHookSessionEndResetsMarker(t *testing.T) {
 // usuario. Este test falla si el bootstrap vuelve a viajar por ese campo.
 func TestHookUserPromptSubmit_BootstrapVaEnAdditionalContext(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)
@@ -202,7 +233,7 @@ func TestHookUserPromptSubmit_BootstrapVaEnAdditionalContext(t *testing.T) {
 // systemMessage.
 func TestHookUserPromptSubmit_NudgeDeGuardadoVaEnAdditionalContext(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)
@@ -253,7 +284,7 @@ func TestHookUserPromptSubmit_NudgeDeGuardadoVaEnAdditionalContext(t *testing.T)
 // principal haya corrido ese hook en este processo de test.
 func TestHookSubagentStart_BootstrapVaEnAdditionalContext(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)
@@ -297,7 +328,7 @@ func TestHookSubagentStart_BootstrapVaEnAdditionalContext(t *testing.T) {
 // ahora también los incluye.
 func TestHookNudge_IncluyeCompactNudge(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatalf("ensure dir: %v", err)

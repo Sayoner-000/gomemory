@@ -19,7 +19,7 @@ import (
 // "no existe .memory en <dir> (ejecuta 'mem init' primero)".
 func TestMCPStartsWithoutPriorInstall(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir() // deliberadamente SIN persistence.EnsureDir/Init previo
+	target := dirDeProyecto(t) // deliberadamente SIN persistence.EnsureDir/Init previo
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -48,7 +48,7 @@ func TestMCPStartsWithoutPriorInstall(t *testing.T) {
 // `mem init` previo — el store global se crea de forma perezosa.
 func TestSaveAndSearchWithoutPriorInit(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	gitInit := exec.Command("git", "init", "-q")
 	gitInit.Dir = target
@@ -83,7 +83,7 @@ func TestSaveAndSearchWithoutPriorInit(t *testing.T) {
 // AGENTS.md/CLAUDE.md — el store de datos vive fuera del árbol del proyecto.
 func TestNoRepoFilesCreated(t *testing.T) {
 	bin := buildMemBinary(t)
-	target := t.TempDir()
+	target := dirDeProyecto(t)
 
 	save := exec.Command(bin, "save", "-t", "prueba footprint", "-y", "decision", "contenido")
 	save.Dir = target
@@ -91,7 +91,13 @@ func TestNoRepoFilesCreated(t *testing.T) {
 		t.Fatalf("mem save: %v\n%s", err, out)
 	}
 
-	for _, artifact := range []string{".mcp.json", "mem", "AGENTS.md", "CLAUDE.md"} {
+	// Ampliado por la feature 021: la lista incluye ahora la copia de la
+	// constitución y las carpetas de agentes que el instalador dejaba caer en
+	// la raíz. `mem save` nunca debió crear ninguno de estos.
+	for _, artifact := range []string{
+		".mcp.json", "mem", "AGENTS.md", "CLAUDE.md", "CLAUDE.txt",
+		"speckit-constitution-gen.md", ".windsurf", ".cline",
+	} {
 		if _, err := os.Stat(filepath.Join(target, artifact)); err == nil {
 			t.Fatalf("no debió crearse %q dentro del repo (SC-003)", artifact)
 		}

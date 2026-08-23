@@ -19,6 +19,17 @@ func (r *MemoryRepository) Insert(m *domain.Memory) (int64, error) {
 	return InsertMemory(r.db, m)
 }
 
+// InsertSeed implementa ports.MemorySeeder: inserción por la vía inerte, para
+// semillas y documentos fijados (feature 021).
+func (r *MemoryRepository) InsertSeed(m *domain.Memory) (int64, error) {
+	return InsertSeedMemory(r.db, m)
+}
+
+// ByTopicKey implementa ports.MemoryTopicQuerier.
+func (r *MemoryRepository) ByTopicKey(project, topicKey string) (*domain.Memory, error) {
+	return GetMemoryByTopicKey(r.db, project, topicKey)
+}
+
 func (r *MemoryRepository) Get(project string, id int64) (*domain.Memory, error) {
 	return GetMemoryByID(r.db, project, id)
 }

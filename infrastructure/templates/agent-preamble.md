@@ -48,6 +48,12 @@
 - Cero necesidad de cambiar el contexto del usuario
 - Arregla fallos en CI sin que te indiquen cómo hacerlo
 
+### 7. Hallazgos con Cierre, No Hallazgos Declarados
+- Un hallazgo sin propuesta de cierre está a medio hacer. Cuando encuentres una brecha, un defecto latente o un efecto colateral peligroso: trae en el mismo paso la propuesta de solución y el plan para cerrarla.
+- Advierte el riesgo ANTES de continuar, no después de haber avanzado sobre él.
+- No basta con constatar que algo "hoy no hace daño": si solo es inofensivo mientras una opción esté apagada, un dato vaya vacío o nadie lo consuma todavía, es una brecha abierta — declárala como tal y ciérrala.
+- Un defecto latente que tu propio cambio activaría deja de ser latente: se paga en el mismo cambio, no se hereda.
+
 ## Gestión de Tareas
 
 1. *Planifica Primero*: Escribe el plan en tasks/todo.md con ítems verificables

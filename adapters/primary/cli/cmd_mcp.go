@@ -35,6 +35,17 @@ func CmdMCP(deps *Deps, args []string) {
 		}
 	}
 
+	// Siembra oportunista (feature 021): desde v1.9 el MCP puede registrarse en
+	// ámbito global y muchos proyectos nunca ejecutan `mem install`. Este es el
+	// otro punto de entrada que hace cierta la promesa de que las reglas y la
+	// constitución "se agregan solas". Best-effort, igual que el auto-arranque
+	// de sesión de arriba: nunca impide servir.
+	if created, err := seedProject(deps, project); err != nil {
+		log.Printf("Siembra de memorias por defecto incompleta: %v", err)
+	} else if len(created) > 0 {
+		log.Printf("Sembradas %d memoria(s) por defecto para el proyecto '%s'", len(created), project)
+	}
+
 	log.Printf("MCP server iniciado para proyecto '%s'", project)
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatalf("Server error: %v", err)

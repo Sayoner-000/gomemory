@@ -122,6 +122,16 @@ type Builder struct {
 	// Opcional: con nil, Build() no registra nada y funciona exactamente
 	// igual — mismo patrón nil-safe que Graph/CodeProviders.
 	Recorder ports.UsageRecorder
+	// Topics resuelve memorias por su clave de tópico (feature 021). Opcional y
+	// nil-safe, igual que Graph/Counter/Recorder: sin él, la sección de reglas
+	// fijadas simplemente no se emite.
+	//
+	// Es un fetch DEDICADO y no una búsqueda dentro de mems a propósito: la
+	// lista viene acotada por recencia, y la semilla —creada una sola vez al
+	// principio de la vida del proyecto— quedaría enterrada bajo los
+	// checkpoints automáticos, desapareciendo del contexto sin error ni aviso
+	// (feature 021, FR-031).
+	Topics ports.MemoryTopicQuerier
 	// IndexMode (feature 020, fase C): cuando está activo, el CUERPO de cada
 	// memoria colapsa a un puntero `get_memory <id>` — nunca se emite
 	// contenido, en ningún punto de Build(). El resto de la estructura
@@ -139,6 +149,32 @@ const (
 	// que la salida total no supere Budget.
 	budgetReserve = 300
 )
+
+// reglasFijadas resuelve la memoria de reglas de trabajo por su clave de
+// tópico. Devuelve nil —sin error— cuando no hay colaborador o no hay semilla:
+// la ausencia de la sección es un estado válido, no un fallo.
+func (b *Builder) reglasFijadas() *domain.Memory {
+	if b.Topics == nil {
+		return nil
+	}
+	m, err := b.Topics.ByTopicKey(b.Project, domain.TopicWorkRules)
+	if err != nil || m == nil {
+		return nil
+	}
+	return m
+}
+
+// cuerpoFijado emite el contenido de una memoria fijada: íntegro en modo
+// completo, colapsado a puntero en modo índice. La contabilidad de la feature
+// 020 se mantiene por construcción — lo que se emite entero no incrementa
+// discardedChars, y la línea base sigue siendo discardedChars + len(salida).
+func (b *Builder) cuerpoFijado(m domain.Memory) string {
+	if b.IndexMode {
+		b.discardedChars += len(m.Content)
+		return fmt.Sprintf("→ `get_memory %d`", m.ID)
+	}
+	return strings.TrimRight(m.Content, "\n")
+}
 
 // acota devuelve el contenido de la memoria acotado al presupuesto: si hay techo
 // y el contenido excede el extracto, lo trunca y adjunta el puntero al detalle.
@@ -193,6 +229,22 @@ func (b *Builder) Build() (string, error) {
 
 	var sb strings.Builder
 	sb.WriteString("# Memoria del Proyecto\n\n")
+
+	// Reglas de trabajo fijadas (feature 021, FR-007/FR-008): se emiten ÍNTEGRAS,
+	// sin pasar por acota() ni fits(). Es una excepción declarada al presupuesto,
+	// la misma que ya tienen los conflictos sin resolver y el bloque de protocolo
+	// (ver el comentario del campo Budget): unas reglas recortadas a 200
+	// caracteres con un puntero no las aplicaría nadie, que es justo el fallo que
+	// esta sección existe para evitar.
+	//
+	// En IndexMode sí colapsan: ese modo es un índice PURO por contrato (feature
+	// 020, FR-032) y acota() lo resuelve antes de mirar el presupuesto.
+	pinnedRules := b.reglasFijadas()
+	if pinnedRules != nil {
+		sb.WriteString("## Reglas de trabajo (memoria fijada)\n\n")
+		sb.WriteString(b.cuerpoFijado(*pinnedRules))
+		sb.WriteString("\n\n")
+	}
 
 	if b.IndexMode && len(mems) == 0 {
 		// Índice vacío EXPLÍCITO (feature 020, caso borde de la spec): sin
@@ -251,6 +303,13 @@ func (b *Builder) Build() (string, error) {
 	if prefs, ok := byType[domain.Preference]; ok && b.fits(&sb, 40) {
 		sb.WriteString("## Preferencias del Usuario\n\n")
 		for i, m := range prefs {
+			// La semilla de reglas ya se emitió íntegra en su propia sección
+			// (FR-009). Repetirla aquí recortada sería emitir el mismo texto
+			// dos veces. Esta comparación EXIGE que ListMemories proyecte
+			// topic_key (FR-030): con la columna ausente daba siempre falso.
+			if pinnedRules != nil && m.ID == pinnedRules.ID {
+				continue
+			}
 			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
 			if !b.fits(&sb, len(line)) {
 				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(prefs)-i))

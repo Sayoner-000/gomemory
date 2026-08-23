@@ -244,13 +244,18 @@ mem
 ├── index             Index the project's Go code graph (+ external graph, --skip-graph to opt out)
 ├── session start/end Open/close a working session
 ├── export / import   Portable JSON bundle (backup/restore, cross-machine)
+├── docs              Pinned docs: list | show | export | import | reset
+│                     Work rules and constitution live in memory, not in repo files.
+│                     Ships defaults, not doctrine — swap in your team's own.
+├── constitution      Show the project's current constitution (--sync writes spec-kit's file)
+├── rules             Show the project's current work rules
 ├── purge / gc         Delete memories / retention-based cleanup
 ├── consolidate        Merge redundant memories (shared topic key + duplicate activity logs)
 ├── get <id>           Retrieve a memory's full detail by ID
 ├── usage              Measured token benchmark: baseline/emitted/saved per session (--json, --all)
 ├── compact           Reclaim SQLite space (no data loss)
 ├── adr-sync status   Inspect ADR sync state with the external code-graph provider
-├── install           Install gomemory into a project
+├── install           Install gomemory into a project (no instruction files are generated)
 ├── setup <agent>     Install the hooks/plugin for opencode | claude-code
 ├── setup-mcp         Register MCP tools for all 6 supported agents
 ├── uninstall         Fully remove gomemory from a project
