@@ -27,6 +27,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
+      # La versión sale del TAG ({{.Version}}), no del código: un tag cortado
+      # antes del commit del bump ya no puede publicar binarios mal etiquetados.
+      - -X mem/version.Version={{.Version}}
 
 archives:
   - id: default
