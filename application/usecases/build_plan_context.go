@@ -1,10 +1,31 @@
 package usecases
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 
 	"mem/application/ports"
 )
+
+// HashDeContenido identifica un texto para poder reconocer si ya se entregó.
+//
+// Compara contenido, no significado: dos textos que dicen lo mismo con palabras
+// distintas no se consideran el mismo material. Es una limitación aceptada y
+// declarada, no un descuido — reconocer equivalencia semántica costaría mucho
+// más de lo que ahorraría.
+func HashDeContenido(s string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(s)))
+	return hex.EncodeToString(sum[:16])
+}
+
+// avisoDeSupresion explica por qué falta el historial y dónde está.
+//
+// Suprimir material sin decirlo dejaría al agente sin saber si el proyecto no
+// tiene historial o si simplemente no se le reenvió (FR-007).
+const avisoDeSupresion = "> El historial del proyecto ya está disponible en esta sesión: se entregó\n" +
+	"> al cargar el contexto y no se repite aquí. Si lo perdiste —por ejemplo tras\n" +
+	"> una compactación— vuelve a pedir el contexto del proyecto para recuperarlo."
 
 // PlanContext compone el documento que el agente recibe al entrar en modo plan
 // (feature 013): el método de descomposición atómica seguido del contexto
@@ -21,10 +42,13 @@ import (
 type PlanContext struct {
 	method  string
 	context ports.ContextBuilder
+	// log es opcional: sin él, el documento se entrega completo. Un proyecto
+	// sin sesión activa no debe perder contexto por una optimización.
+	log ports.DeliveryLog
 }
 
-func NewPlanContext(method string, context ports.ContextBuilder) *PlanContext {
-	return &PlanContext{method: method, context: context}
+func NewPlanContext(method string, context ports.ContextBuilder, log ports.DeliveryLog) *PlanContext {
+	return &PlanContext{method: method, context: context, log: log}
 }
 
 // Build devuelve el documento de planificación. Nunca falla por causas
@@ -53,6 +77,19 @@ func (p *PlanContext) Build(disabled bool) (string, error) {
 		context = ""
 	}
 	context = strings.TrimSpace(context)
+
+	// Si el contexto general ya entregó este mismo historial en esta sesión, se
+	// sustituye por el aviso: era la duplicación más cara medida en el proyecto,
+	// unos 6.100 tokens cobrados dos veces. Si cambió, o si no consta entrega
+	// previa, se entrega completo — la reducción nunca deja al agente sin
+	// contexto (FR-009).
+	if p.log != nil && context != "" {
+		actual := HashDeContenido(context)
+		if previo, ok := p.log.Last(ports.DeliveryContext); ok && previo == actual {
+			context = avisoDeSupresion
+		}
+		p.log.Record(ports.DeliveryPlanContext, actual)
+	}
 
 	switch {
 	case method == "":

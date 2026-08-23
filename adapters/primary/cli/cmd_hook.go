@@ -51,6 +51,10 @@ func CmdHook(deps *Deps, args []string) {
 		hookUserPromptSubmit(deps)
 	case "nudge":
 		hookNudge(deps)
+	case "channel-fired":
+		hookChannelActivity(deps, args[1:], "")
+	case "channel-error":
+		hookChannelActivity(deps, args[1:], firstOr(args, 4, "fallo sin descripción"))
 	case "turn-end":
 		hookTurnEnd(deps)
 	case "subagent-start":
@@ -925,3 +929,35 @@ GRAFO DE CÓDIGO EXTERNO: si el servidor MCP codebase-memory-mcp está conectado
 	strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, ", ") + `. Para explorar el código usa las ` +
 	`herramientas del grafo; para entregar un plan usa el árbol de tareas atómicas. Lo que descubras ` +
 	`con el grafo alimenta las hojas del árbol. Si no está conectado, esta guía no aplica.`
+
+// firstOr devuelve el argumento en la posición dada, o un valor por defecto.
+func firstOr(args []string, i int, def string) string {
+	if len(args) > i && strings.TrimSpace(args[i]) != "" {
+		return args[i]
+	}
+	return def
+}
+
+// hookChannelActivity anota que un canal se ejerció, o que falló al intentarlo.
+//
+// Existe para que el complemento de OpenCode deje rastro: sus rutas de error
+// absorbían el fallo en silencio, así que un cambio de interfaz del agente
+// dejaba la inyección muerta sin que nada lo reportara (feature 024, FR-012).
+//
+// Uso: mem hook channel-fired <agente> <ámbito> <canal>
+//
+//	mem hook channel-error <agente> <ámbito> <canal> <mensaje>
+//
+// Es fire-and-forget: nunca falla ni escribe en stdout. Un rastro que
+// interrumpiera el turno de quien trabaja sería peor que no tenerlo.
+func hookChannelActivity(deps *Deps, args []string, errMsg string) {
+	if deps.ChannelActivity == nil || len(args) < 3 {
+		return
+	}
+	agente, ambito, canal := args[0], args[1], args[2]
+	if errMsg != "" {
+		deps.ChannelActivity.RecordError(agente, ambito, canal, errMsg)
+		return
+	}
+	deps.ChannelActivity.RecordFired(agente, ambito, canal)
+}

@@ -27,7 +27,7 @@ const metodoDePrueba = "# Método de prueba\n\nContenido del método."
 
 func TestBuildPlanContext_RamaCompleta(t *testing.T) {
 	ctxb := &fakeContextBuilder{out: "# Memoria del Proyecto\n\nDecisiones previas."}
-	pc := NewPlanContext(metodoDePrueba, ctxb)
+	pc := NewPlanContext(metodoDePrueba, ctxb, nil)
 
 	got, err := pc.Build(false)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestBuildPlanContext_RamaCompleta(t *testing.T) {
 // llegando — es lo que mantiene la Historia 2 independiente de la Historia 1.
 func TestBuildPlanContext_RamaDegradada_SoloMetodo(t *testing.T) {
 	ctxb := &fakeContextBuilder{err: errors.New("memoria no inicializada")}
-	pc := NewPlanContext(metodoDePrueba, ctxb)
+	pc := NewPlanContext(metodoDePrueba, ctxb, nil)
 
 	got, err := pc.Build(false)
 	if err != nil {
@@ -64,7 +64,7 @@ func TestBuildPlanContext_RamaDegradada_SoloMetodo(t *testing.T) {
 // una preferencia, y debe silenciarlo todo — método incluido.
 func TestBuildPlanContext_RamaSilenciada_SalidaVacia(t *testing.T) {
 	ctxb := &fakeContextBuilder{out: "# Memoria del Proyecto\n\nDecisiones previas."}
-	pc := NewPlanContext(metodoDePrueba, ctxb)
+	pc := NewPlanContext(metodoDePrueba, ctxb, nil)
 
 	got, err := pc.Build(true)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestBuildPlanContext_RamaSilenciada_SalidaVacia(t *testing.T) {
 // reglas antes que el material.
 func TestBuildPlanContext_MetodoPrecedeAlContexto(t *testing.T) {
 	ctxb := &fakeContextBuilder{out: "# Memoria del Proyecto\n\nDecisiones previas."}
-	pc := NewPlanContext(metodoDePrueba, ctxb)
+	pc := NewPlanContext(metodoDePrueba, ctxb, nil)
 
 	got, err := pc.Build(false)
 	if err != nil {
@@ -105,7 +105,7 @@ func TestBuildPlanContext_MetodoPrecedeAlContexto(t *testing.T) {
 // contar todavía.
 func TestBuildPlanContext_ContextoVacioNoDejaSeccionHuerfana(t *testing.T) {
 	ctxb := &fakeContextBuilder{out: "   \n\n  "}
-	pc := NewPlanContext(metodoDePrueba, ctxb)
+	pc := NewPlanContext(metodoDePrueba, ctxb, nil)
 
 	got, err := pc.Build(false)
 	if err != nil {
@@ -120,7 +120,7 @@ func TestBuildPlanContext_ContextoVacioNoDejaSeccionHuerfana(t *testing.T) {
 // pudo cargarse: se emite el contexto en vez de una salida rota.
 func TestBuildPlanContext_SinMetodo_EmiteSoloContexto(t *testing.T) {
 	ctxb := &fakeContextBuilder{out: "# Memoria del Proyecto\n\nDecisiones previas."}
-	pc := NewPlanContext("", ctxb)
+	pc := NewPlanContext("", ctxb, nil)
 
 	got, err := pc.Build(false)
 	if err != nil {

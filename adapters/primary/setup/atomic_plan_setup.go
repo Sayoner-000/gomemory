@@ -68,3 +68,23 @@ func InstallAtomicPlanWrappers(root, method string) error {
 	}
 	return nil
 }
+
+// GeneratedWrapperPaths devuelve las rutas relativas de todos los envoltorios
+// nativos que la instalación genera, por segmentos.
+//
+// Existe para que la desinstalación retire exactamente lo que la instalación
+// escribe, derivándolo de las mismas tablas en vez de una lista paralela. Sin
+// esto, los cuatro envoltorios sobrevivían a toda desinstalación: son archivos
+// generados por completo, en directorios que también contienen artefactos de
+// otras herramientas y de la persona, así que no se pueden retirar borrando el
+// directorio.
+func GeneratedWrapperPaths() [][]string {
+	var out [][]string
+	for _, w := range atomicPlanWrappers {
+		out = append(out, w.path)
+	}
+	for _, w := range constitutionWrappers {
+		out = append(out, w.path)
+	}
+	return out
+}

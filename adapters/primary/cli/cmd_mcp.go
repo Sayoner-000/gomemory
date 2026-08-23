@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"mem/application/ports"
 	"os"
 	"strings"
 
@@ -352,6 +353,13 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		output, err := deps.ContextBuilder.Build()
 		if err != nil {
 			return nil, nil, fmt.Errorf("generar contexto: %w", err)
+		}
+		// Se anota lo entregado para que get_plan_context no reenvíe el mismo
+		// historial en esta sesión (feature 023, FR-006). Es la ruta por la que
+		// el agente lo pide de verdad, así que sin esto la supresión no se
+		// aplicaría nunca en uso real.
+		if deps.DeliveryLog != nil {
+			deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + output}},

@@ -12,8 +12,11 @@
 // está disponible, los hooks degradan en silencio.
 import type { Plugin } from "@opencode-ai/plugin";
 
-// {{BIN_PATH}} lo sustituye el instalador por la referencia portable a `mem`
-// (normalmente "mem" en el PATH).
+// El instalador sustituye el marcador de la línea siguiente por la referencia
+// portable a `mem` (normalmente "mem" en el PATH). Este comentario no lo escribe
+// literalmente a propósito: la sustitución es un reemplazo de texto plano sobre
+// todo el archivo, así que un marcador dentro de un comentario también se
+// sustituye y deja el texto sin sentido en el plugin instalado.
 const BIN = "{{BIN_PATH}}";
 
 export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
@@ -106,8 +109,11 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       if (files.size === 0 && commands.length === 0) return;
 
       await memWithStdin(["hook", "turn-end"], JSON.stringify({ files: [...files], commands }));
-    } catch {
-      // best-effort: un checkpoint fallido nunca debe romper la sesión.
+    } catch (e) {
+      // best-effort: un checkpoint fallido nunca debe romper la sesión, pero
+      // ahora deja rastro. Absorber el fallo en silencio era lo que hacía
+      // indistinguible un canal roto de uno sano (feature 024, FR-012).
+      mem(["hook", "channel-error", "opencode", "user", "turn_reminder", String(e).slice(0, 200)]).catch(() => {});
     }
   };
 
@@ -148,6 +154,11 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // prompt de cada turno, para que el agente sepa que debe usar las tools y
     // arranque con la memoria previa cargada.
     "experimental.chat.system.transform": async (_input, output) => {
+      // Deja rastro de que este canal se ejerció. Sin él, un renombre de la
+      // operación por parte del agente dejaba la inyección muerta y el informe
+      // de estado seguía en verde, porque comprobaba que el archivo existiera
+      // y no que funcionara (feature 024, FR-009 y FR-012).
+      mem(["hook", "channel-fired", "opencode", "user", "plan_entry"]).catch(() => {});
       output.system.push(MEMORY_PROTOCOL);
       const ctx = await mem(["context"]);
       if (ctx) {

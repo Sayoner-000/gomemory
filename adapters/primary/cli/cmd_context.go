@@ -3,6 +3,8 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"mem/application/ports"
+	"mem/application/usecases"
 	"os"
 	"path/filepath"
 )
@@ -27,6 +29,11 @@ func CmdContext(deps *Deps, args []string) {
 		fmt.Printf("✓ Contexto escrito en %s\n", filepath.Join(root, deps.ProjectRepo.MemDir(), "context.md"))
 	} else {
 		output, err := deps.ContextBuilder.Build()
+		// Se anota lo entregado para que la operación de contexto para
+		// planificar no lo reenvíe en esta misma sesión (feature 023, FR-006).
+		if err == nil && deps.DeliveryLog != nil {
+			deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
+		}
 		if err != nil {
 			fail("generar contexto: %v", err)
 		}

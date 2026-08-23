@@ -61,6 +61,7 @@ func buildFakeInstall(t *testing.T, target string) {
 }
 
 func TestUninstallRemovesFullInstallation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // el alcance del test es el proyecto: el entorno de la persona queda fuera
 	target := t.TempDir()
 	buildFakeInstall(t, target)
 	deps := uninstallTestDeps()
@@ -97,6 +98,7 @@ func TestUninstallRemovesFullInstallation(t *testing.T) {
 }
 
 func TestUninstallDeletesAgentFileGeneratedEntirelyByInstall(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // el alcance del test es el proyecto: el entorno de la persona queda fuera
 	target := t.TempDir()
 	deps := uninstallTestDeps()
 
@@ -116,6 +118,7 @@ func TestUninstallDeletesAgentFileGeneratedEntirelyByInstall(t *testing.T) {
 }
 
 func TestUninstallCancelsWithoutConfirmation(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // el alcance del test es el proyecto: el entorno de la persona queda fuera
 	target := t.TempDir()
 	buildFakeInstall(t, target)
 	deps := uninstallTestDeps()
@@ -142,6 +145,7 @@ func TestUninstallCancelsWithoutConfirmation(t *testing.T) {
 }
 
 func TestUninstallReportsMissingComponentsWithoutFailing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // el alcance del test es el proyecto: el entorno de la persona queda fuera
 	target := t.TempDir()
 	deps := uninstallTestDeps()
 
@@ -155,6 +159,7 @@ func TestUninstallReportsMissingComponentsWithoutFailing(t *testing.T) {
 // y (b) el hook "Stop" (turn-end) no estaba en la lista de eventos limpiados,
 // así que sobrevivía a la desinstalación.
 func TestUninstallRemovesPermissionsAndStopHook(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // el alcance del test es el proyecto: el entorno de la persona queda fuera
 	target := t.TempDir()
 	deps := uninstallTestDeps()
 

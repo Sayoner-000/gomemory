@@ -26,6 +26,8 @@ type Container struct {
 	SettingsRepo    ports.SettingsRepository
 	ProjectRepo     ports.ProjectRepository
 	ContextBuilder  ports.ContextBuilder
+	DeliveryLog     ports.DeliveryLog
+	ChannelActivity ports.ChannelActivityLog
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
 	CodeProviders   []ports.CodeGraphProvider
@@ -147,6 +149,8 @@ func NewContainer(root, channel string) (*Container, error) {
 		SettingsRepo:    persistence.NewSettingsRepository(),
 		ProjectRepo:     persistence.NewProjectRepository(),
 		ContextBuilder:  contextBuilder,
+		DeliveryLog:     persistence.NewDeliveryLogRepository(db, project),
+		ChannelActivity: persistence.NewChannelActivityRepository(db, project),
 		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 		CodeGraphRepo:   codeGraphRepo,
 		CodeProviders:   codeProviders,
@@ -177,6 +181,8 @@ func (c *Container) ToDeps() *cli.Deps {
 		SettingsRepo:    c.SettingsRepo,
 		ProjectRepo:     c.ProjectRepo,
 		ContextBuilder:  c.ContextBuilder,
+		DeliveryLog:     c.DeliveryLog,
+		ChannelActivity: c.ChannelActivity,
 		MaintenanceRepo: c.MaintenanceRepo,
 		CodeGraphRepo:   c.CodeGraphRepo,
 		CodeProviders:   c.CodeProviders,

@@ -244,3 +244,79 @@ func cleanupLegacyOpenCodeConfig(legacyPath string) {
 	out, _ := json.MarshalIndent(legacy, "", "  ")
 	_ = os.WriteFile(legacyPath, out, 0644)
 }
+
+// RemoveOpenCodePermissions retira del opencode.json indicado los permisos que
+// writeOpenCodePermissions declara, y solo esos.
+//
+// Es la contraparte de RemoveClaudePermissions: lo que la instalación escribe
+// para un agente, la desinstalación lo retira para ese mismo agente. Sin esto,
+// `mem uninstall` dejaba en el proyecto permisos que referencian tools ya
+// desregistradas.
+//
+// Conservadora con lo ajeno: los permisos que la persona haya declarado por su
+// cuenta se conservan, y la clave "permission" solo desaparece si queda vacía.
+func RemoveOpenCodePermissions(root string) (changed bool, err error) {
+	cfgPath := filepath.Join(root, "opencode.json")
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return false, nil // sin opencode.json, nada que limpiar
+	}
+
+	cfg := map[string]interface{}{}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return false, nil // JSON inválido, se conserva sin tocar
+	}
+
+	perm, ok := cfg["permission"].(map[string]interface{})
+	if !ok {
+		return false, nil
+	}
+	for tool := range openCodeToolPermissions {
+		if _, tiene := perm[tool]; tiene {
+			delete(perm, tool)
+			changed = true
+		}
+	}
+	if !changed {
+		return false, nil
+	}
+	if len(perm) == 0 {
+		delete(cfg, "permission")
+	} else {
+		cfg["permission"] = perm
+	}
+
+	salida, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return false, fmt.Errorf("serializar %s: %w", cfgPath, err)
+	}
+	if err := os.WriteFile(cfgPath, salida, 0644); err != nil {
+		return false, fmt.Errorf("write %s: %w", cfgPath, err)
+	}
+	return true, nil
+}
+
+// OpenCodePluginPath devuelve la ruta del plugin de ámbito de usuario, o cadena
+// vacía si no está instalado.
+//
+// Devuelve la ruta en lugar de borrarla, y esa es la decisión que importa: una
+// desinstalación dirigida a un proyecto NO retira artefactos de ámbito de
+// usuario. El plugin vive en el HOME y lo comparten todos los proyectos, así que
+// borrarlo desde uno solo dejaría sin memoria a los demás. Es la misma política
+// que ya aplica ~/.codex/config.toml, que se informa en vez de tocarse.
+//
+// El plugin de Claude Code sí se elimina porque vive DENTRO del proyecto
+// (.claude/plugins/gomemory): no son casos comparables, y tratarlos como
+// simétricos fue lo que convirtió una prueba de integración inofensiva en una
+// que borraba el plugin real de quien ejecutara la batería.
+func OpenCodePluginPath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	ruta := filepath.Join(homeDir, ".config", "opencode", "plugins", "gomemory.ts")
+	if _, err := os.Stat(ruta); err != nil {
+		return ""
+	}
+	return ruta
+}

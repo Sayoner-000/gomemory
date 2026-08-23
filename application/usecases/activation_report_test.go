@@ -61,3 +61,37 @@ func TestBuildActivationReport_UnaFilaFicticiaAparece(t *testing.T) {
 		t.Fatal("un canal que el inspector reporte debe aparecer en el reporte sin tocar este caso de uso")
 	}
 }
+
+// TestBuildActivationReport_DegradacionesSinRepetir: una misma degradación
+// declarada en dos ámbitos es UNA degradación, no dos. `mem doctor` la
+// imprimía repetida porque la lista se construía por canal, y el texto de la
+// línea (agente + tipo + motivo) no distingue el ámbito.
+func TestBuildActivationReport_DegradacionesSinRepetir(t *testing.T) {
+	motivo := "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan"
+	inspector := &fakeInspector{channels: []domain.ActivationChannel{
+		{Agent: "opencode", Kind: domain.KindPlanGuard, Scope: domain.ScopeProject, State: domain.StateNotApplicable, Detail: motivo},
+		{Agent: "opencode", Kind: domain.KindPlanGuard, Scope: domain.ScopeUser, State: domain.StateNotApplicable, Detail: motivo},
+	}}
+
+	report := BuildActivationReport(inspector, "/tmp/proyecto")
+
+	if len(report.Degradations) != 1 {
+		t.Fatalf("esperaba 1 degradación, got %d: %v", len(report.Degradations), report.Degradations)
+	}
+}
+
+// TestBuildActivationReport_DegradacionesDistintasSeConservan: la deduplicación
+// no puede tragarse degradaciones que sí son distintas.
+func TestBuildActivationReport_DegradacionesDistintasSeConservan(t *testing.T) {
+	inspector := &fakeInspector{channels: []domain.ActivationChannel{
+		{Agent: "opencode", Kind: domain.KindPlanGuard, Scope: domain.ScopeProject, State: domain.StateNotApplicable, Detail: "motivo A"},
+		{Agent: "opencode", Kind: domain.KindPlanEntry, Scope: domain.ScopeProject, State: domain.StateNotApplicable, Detail: "motivo B"},
+		{Agent: "claude", Kind: domain.KindInstructions, Scope: domain.ScopeProject, State: domain.StateNotApplicable, Detail: "motivo C"},
+	}}
+
+	report := BuildActivationReport(inspector, "/tmp/proyecto")
+
+	if len(report.Degradations) != 3 {
+		t.Fatalf("esperaba 3 degradaciones distintas, got %d: %v", len(report.Degradations), report.Degradations)
+	}
+}

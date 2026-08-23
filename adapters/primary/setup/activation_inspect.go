@@ -17,9 +17,15 @@ type ActivationInspector struct{}
 
 func NewActivationInspector() *ActivationInspector { return &ActivationInspector{} }
 
-// claudeAgentFiles son los archivos de instrucciones que Claude Code
-// reconoce en un directorio dado, en el mismo orden que cmd_install.go.
-var claudeAgentFiles = []string{"AGENTS.md", "CLAUDE.md", "CLAUDE.txt", ".cursorrules", ".windsurfrules"}
+// agentInstructionFiles son los archivos de instrucciones que se inspeccionan
+// en un directorio dado, en el mismo orden que cmd_install.go.
+//
+// La lista es COMÚN a todos los agentes, no de Claude Code: `AGENTS.md` es el de
+// OpenCode (y el estándar que también leen Codex y Gemini), `CLAUDE.md` el de
+// Claude Code, y los dos `.*rules` son legados que solo se reportan si
+// conservan un bloque de una versión anterior. El nombre anterior sugería lo
+// contrario y hacía leer como sesgo lo que es una tabla compartida.
+var agentInstructionFiles = []string{"AGENTS.md", "CLAUDE.md", "CLAUDE.txt", ".cursorrules", ".windsurfrules"}
 
 // Inspect recorre domain.KnownAgents y devuelve un canal por combinación
 // agente/ámbito/tipo aplicable, más los canales de solo lectura del brazo
@@ -207,7 +213,7 @@ func readSettingsAtomicPlanDisabled(dir string) bool {
 func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, dir string, scope domain.AgentScope, opcional bool) domain.ActivationChannel {
 	ch := domain.ActivationChannel{Arm: domain.ArmGomemory, Agent: agent.Name, Scope: scope, Kind: domain.KindInstructions}
 
-	for _, fname := range claudeAgentFiles {
+	for _, fname := range agentInstructionFiles {
 		data, err := os.ReadFile(filepath.Join(dir, fname))
 		if err != nil {
 			continue

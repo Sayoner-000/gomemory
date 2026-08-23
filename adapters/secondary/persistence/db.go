@@ -122,6 +122,23 @@ func migrate(db *sql.DB) error {
 		created_at TEXT NOT NULL DEFAULT (%s),
 		ended_at TEXT
 	);
+	CREATE TABLE IF NOT EXISTS channel_activity (
+		project TEXT NOT NULL,
+		agent TEXT NOT NULL,
+		scope TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		fired_at TEXT,
+		last_error TEXT NOT NULL DEFAULT '',
+		last_error_at TEXT,
+		PRIMARY KEY (project, agent, scope, kind)
+	);
+	CREATE TABLE IF NOT EXISTS context_deliveries (
+		session_id TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		content_hash TEXT NOT NULL,
+		delivered_at TEXT NOT NULL DEFAULT (%s),
+		PRIMARY KEY (session_id, kind)
+	);
 	CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project);
 	CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
 	CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
@@ -207,7 +224,7 @@ func migrate(db *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_usage_project_session ON usage_records(project, session_id);
 	CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_records(created_at DESC);
-	`, Now, Now, Now, Now, Now, Now, Now, Now)
+	`, Now, Now, Now, Now, Now, Now, Now, Now, Now)
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}

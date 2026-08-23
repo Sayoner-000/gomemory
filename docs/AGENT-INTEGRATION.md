@@ -15,7 +15,7 @@ Un agente pide lo que puede sostener. Ninguno es obligatorio salvo el tercero.
 |---|---|---|
 | **1 — Garantía de forma** | Invocar un comando **antes** de mostrar el plan a la persona, y respetar la decisión que recibe | Un plan sin forma de árbol no llega a la persona |
 | **2 — Contexto al planificar** | Inyectar texto en el contexto del modelo al entrar en modo plan | Método de descomposición e historial disponibles antes de redactar |
-| **3 — Piso textual** | Leer un archivo de instrucciones del proyecto o del usuario | Protocolo, recordatorio por turno y envoltorio nativo |
+| **3 — Piso textual** | Recibir las instrucciones que el servidor MCP entrega al conectarse, o leer un archivo de instrucciones de nivel usuario | Protocolo, recordatorio por turno y envoltorio nativo |
 
 ## Nivel 1 — Garantía de forma
 
@@ -103,10 +103,22 @@ una línea en cada turno, que es lo que sostiene la cobertura mientras tanto.
 
 | Vía | Comando | Cuándo |
 |---|---|---|
-| Bloque de protocolo en el archivo de instrucciones | `mem install [dir]` | Una vez por proyecto |
+| Bloque de protocolo en `initialize.instructions` | `mem mcp` (el propio servidor) | En cada conexión, sin instalar nada |
 | Bloque de protocolo de nivel usuario | `mem setup-mcp --scope global` | Una vez por máquina |
 | Recordatorio por turno | `mem hook nudge` | En cada turno, si el agente puede inyectar texto |
 | Envoltorio nativo del método | lo escribe la instalación | Una vez, si el agente tiene formato propio de habilidad o comando |
+
+Desde la versión 2.9.0 no existe una vía de ámbito de proyecto: `mem install` ya no escribe
+`AGENTS.md` ni `CLAUDE.md` en el repositorio destino.
+
+El bloque que escribía en esos archivos era una segunda copia del que el servidor entrega en
+`initialize.instructions`. Mantener dos copias del mismo texto permitía que una quedara
+desactualizada respecto de la otra.
+
+El piso textual queda cubierto por dos vías. Un cliente MCP recibe el bloque al conectarse, sin
+instalar nada. Un agente que no habla MCP lo lee del archivo de instrucciones de nivel usuario.
+Por eso `mem doctor` reporta el canal de instrucciones de ámbito de proyecto como «no aplica»,
+con el motivo declarado, en lugar de como una falla.
 
 `mem hook nudge` existe precisamente para agentes sin el sistema de eventos de Claude Code: escribe en
 stdout el texto del turno (recordatorio de guardado, de compactación, de modo plan) o nada. Se invoca

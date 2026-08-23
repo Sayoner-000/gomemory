@@ -23,6 +23,14 @@ import (
 // ~/.config/opencode/opencode.json (scope usuario) con el opencode.json del
 // proyecto, mismo esquema "mcp". La limitación documentada en
 // specs/005-global-mcp-store/tasks.md T027 quedó obsoleta.
+// globalHookWriters asocia cada agente con el mecanismo que le escribe sus
+// hooks de ámbito de usuario. La correspondencia vive en una tabla y no fijada
+// en el flujo (FR-019): un agente sin entrada aquí simplemente no recibe hooks
+// globales, y eso es un dato consultable, no una omisión escondida en un if.
+var globalHookWriters = map[string]func(home string, ref setup.AgentRef) error{
+	"claude": setup.WriteClaudeHooksGlobal,
+}
+
 var globalScopeAgents = map[string]bool{
 	"claude":   true,
 	"codex":    true,
@@ -134,11 +142,13 @@ func runGlobalScopeSetup(agentList []string) {
 
 	ref := binRefFor(".")
 	generated := 0
+	solicitados := map[string]bool{}
 
 	for _, agent := range agentList {
 		agent = strings.TrimSpace(agent)
 		if agent == "all" {
 			for a := range globalScopeAgents {
+				solicitados[a] = true
 				if runGlobalScopeAgent(a, ref) {
 					generated++
 				}
@@ -149,6 +159,7 @@ func runGlobalScopeSetup(agentList []string) {
 			fmt.Printf("  ⚠️  %s no soporta --scope global (solo por proyecto): usa 'mem setup-mcp --scope project --agents %s --target <dir>'\n", agent, agent)
 			continue
 		}
+		solicitados[agent] = true
 		if runGlobalScopeAgent(agent, ref) {
 			generated++
 		}
@@ -161,14 +172,30 @@ func runGlobalScopeSetup(agentList []string) {
 	// mismo mecanismo, misma idempotencia, que el ámbito de proyecto. Sin
 	// esto, "habilitar una vez" solo cubría el texto, nunca el determinismo
 	// de la Historia 1 (research.md §7).
+	// Hooks del modo plan en ámbito de usuario, para los agentes SOLICITADOS.
+	//
+	// El bucle recorría el registro de capacidades pero fijaba el nombre de un
+	// agente e ignoraba la selección recibida: parecía genérico y no lo era.
+	// El efecto no era cosmético — creaba el directorio de configuración de un
+	// agente que nadie había pedido, y eso hacía que InstallAtomicPlanGlobal,
+	// que solo escribe donde el directorio ya existe, lo encontrara recién
+	// creado y añadiera dos artefactos más. Un filtro fijo en cascada hacia
+	// tres archivos ajenos a la petición.
+	//
+	// Ahora el despacho va por tabla: un agente con escritor de hooks de ámbito
+	// de usuario lo recibe si fue solicitado, y ninguno más.
 	if home, homeErr := os.UserHomeDir(); homeErr == nil {
 		for _, agent := range domain.KnownAgents {
-			if agent.Name != "claude" || !agent.Scopes[domain.ScopeUser] {
+			if !solicitados[agent.Name] || !agent.Scopes[domain.ScopeUser] {
 				continue
 			}
+			escribir, tiene := globalHookWriters[agent.Name]
+			if !tiene {
+				continue // sin mecanismo de hooks globales: declarado, no omitido
+			}
 			agentRef := setup.AgentRef{HookCommand: ref.HookCommand, MCPCommand: ref.MCPCommand, MCPArgs: ref.MCPArgs}
-			if err := setup.WriteClaudeHooksGlobal(home, agentRef); err != nil {
-				fmt.Printf("  ⚠️  hooks de modo plan (scope global, claude): %v\n", err)
+			if err := escribir(home, agentRef); err != nil {
+				fmt.Printf("  ⚠️  hooks de modo plan (scope global, %s): %v\n", agent.Name, err)
 			} else {
 				fmt.Printf("  ✅ hooks de modo plan: %s\n", filepath.Join(home, ".claude", "settings.json"))
 			}
@@ -612,3 +639,8 @@ func sanitizeTomlKey(s string) string {
 	}
 	return b.String()
 }
+
+// RunGlobalScopeSetupForTest expone el registro de ámbito global a los
+// contratos de tests/contract, que viven fuera del paquete. No añade
+// comportamiento: solo hace verificable el contrato C8.
+func RunGlobalScopeSetupForTest(agents []string) { runGlobalScopeSetup(agents) }

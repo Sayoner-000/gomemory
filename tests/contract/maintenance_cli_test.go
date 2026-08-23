@@ -190,6 +190,7 @@ func TestCmdCompactEndToEnd(t *testing.T) {
 }
 
 func TestCmdUninstallAcceptsYesFlagInAnyPosition(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // el alcance del test es el proyecto: el entorno de la persona queda fuera
 	deps := &cli.Deps{ProjectRepo: persistence.NewProjectRepository()}
 
 	for _, args := range [][]string{

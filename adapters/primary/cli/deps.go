@@ -11,12 +11,19 @@ type Deps struct {
 	Root    string
 	Project string
 
-	MemoryRepo      ports.MemoryRepository
-	SessionRepo     ports.SessionRepository
-	RelationRepo    ports.RelationRepository
-	SettingsRepo    ports.SettingsRepository
-	ProjectRepo     ports.ProjectRepository
-	ContextBuilder  ports.ContextBuilder
+	MemoryRepo     ports.MemoryRepository
+	SessionRepo    ports.SessionRepository
+	RelationRepo   ports.RelationRepository
+	SettingsRepo   ports.SettingsRepository
+	ProjectRepo    ports.ProjectRepository
+	ContextBuilder ports.ContextBuilder
+	// DeliveryLog registra qué material ya recibió el agente en la sesión en
+	// curso, para no reenviarlo. Puede ser nil: sin él, los casos de uso
+	// entregan el documento completo.
+	DeliveryLog ports.DeliveryLog
+	// ChannelActivity registra si cada canal de inyección sigue vivo. Puede
+	// ser nil: sin él, el informe no reporta vitalidad.
+	ChannelActivity ports.ChannelActivityLog
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
 	// CodeProviders son los proveedores EXTERNOS de grafo (opcionales). Los

@@ -35,11 +35,17 @@ func PlanMethod() string { return planMethod }
 // plan del agente (feature 013, FR-034).
 func CmdPlanContext(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("plan-context", flag.ContinueOnError)
+	// --full recupera el historial completo aunque ya se haya entregado en esta
+	// sesión (feature 023, FR-010). Existe para el caso en que la sesión perdió
+	// el material —una compactación, por ejemplo— y el registro sigue creyendo
+	// que el agente lo tiene: sin esta salida, la supresión lo dejaría sin
+	// contexto y creyendo que lo tiene.
+	full := fs.Bool("full", false, "Entrega el historial completo aunque ya se haya entregado en esta sesión")
 	if err := fs.Parse(args); err != nil {
 		return
 	}
 
-	out, err := buildPlanContextDoc(deps)
+	out, err := buildPlanContextDocFull(deps, *full)
 	if err != nil {
 		// Inalcanzable con la implementación actual (Build no propaga errores
 		// ambientales), pero si alguna vez lo hiciera, salir en silencio sigue
@@ -55,6 +61,16 @@ func CmdPlanContext(deps *Deps, args []string) {
 // buildPlanContextDoc arma el documento aplicando el gate de configuración.
 // Compartida por el comando y por la tool MCP para que ambos no puedan divergir.
 func buildPlanContextDoc(deps *Deps) (string, error) {
+	return buildPlanContextDocFull(deps, false)
+}
+
+// buildPlanContextDocFull arma el documento aplicando el gate de configuración.
+// Con full=true se ignora el registro de entregas y se devuelve todo.
+func buildPlanContextDocFull(deps *Deps, full bool) (string, error) {
 	disabled := deps.SettingsRepo.Read(deps.Root).AtomicPlanDisabled
-	return usecases.NewPlanContext(planMethod, deps.ContextBuilder).Build(disabled)
+	log := deps.DeliveryLog
+	if full {
+		log = nil // sin registro, el caso de uso entrega el documento completo
+	}
+	return usecases.NewPlanContext(planMethod, deps.ContextBuilder, log).Build(disabled)
 }
