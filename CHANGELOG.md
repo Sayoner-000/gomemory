@@ -5,6 +5,52 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.10.0] - 2026-08-23
+
+### La matriz de canales como fuente única
+
+Qué artefacto recibe cada agente estaba declarado en catorce tablas repartidas por el código, y solo tres se consultaban realmente: al cambiar un artefacto había que acordarse de editar todas, y el olvido de la mayoría producía los bugs recurrentes entre agentes.
+
+Ahora esa relación vive en una sola matriz (`domain/channel_matrix.go`) y los consumidores derivan de ella lo que necesitan. Un test de contrato verifica que cada agente con soporte tenga sus canales declarados y coherentes con lo que la instalación escribe.
+
+### Economía del contexto en plan-context
+
+La operación de contexto para planificar reenviaba íntegro el historial que la sesión ya había recibido por otro canal. Medido en este repositorio: el contexto de planificación pasó de 12.214 a 1.057 tokens (91 % menos), y el historial duplicado era de unos 11.156 tokens.
+
+Ahora cada entrega queda registrada por sesión y por canal. Una entrega posterior suprime el material ya enviado; una sesión nueva arranca con el historial completo porque no hereda ese registro.
+
+Si la sesión perdió el material —por una compactación, por ejemplo— y el registro sigue creyendo que el agente lo tiene, `mem plan-context --full` entrega el historial completo ignorando el registro.
+
+### Diagnóstico accionable en `mem doctor`
+
+El informe nombraba el archivo ausente y nada más: saber si el problema importaba y encontrar el comando correcto exigía conocer el sistema por dentro.
+
+Ahora, para cada canal roto, el informe describe qué deja de funcionar y propone el comando que lo restablece. Los remedios se agrupan cuando varios canales se corrigen con el mismo comando, para no sugerir ejecuciones repetidas. La salida `--json` entrega los mismos datos como campos (`efecto`, `remedio`, `remedio_advierte`).
+
+### Vitalidad de los canales
+
+El informe comprobaba que el artefacto existiera, pero un complemento presente cuyo agente renombró la operación que usa queda muerto con el archivo intacto: presencia y salud no son lo mismo.
+
+Ahora el sistema registra cuándo se ejerció cada canal por última vez y qué falló si algo falló:
+
+- El complemento de OpenCode anota cada ejercicio correcto (`mem hook channel-fired`) y cada fallo (`mem hook channel-error`) que antes absorbía en silencio.
+- Un test de contrato verifica que los hooks que registra el complemento siguen declarados en la interfaz publicada por OpenCode: si el agente renombra una operación, el fallo aparece en la batería de tests y no en la máquina de quien usa la herramienta.
+- El informe distingue un canal sin uso porque no hubo trabajo de uno que no responde habiéndolo: con sesiones recientes y sin actividad del canal, lo reporta como problema; sin sesiones, lo declara como degradación que no requiere acción.
+
+### Correcciones
+
+#### La desinstalación dejaba la configuración MCP de algunos agentes
+
+La lista de archivos de configuración MCP estaba escrita a mano y solo conocía el esquema de algunos agentes: la entrada de un agente con esquema propio sobrevivía a toda desinstalación, sin errores ni avisos.
+
+Ahora la lista se deriva de la matriz de canales, así que ya no pueden separarse. Los registros que pertenecen a la persona y no al proyecto —como `~/.codex/config.toml`— quedan fuera por diseño y el informe lo declara.
+
+#### `mem uninstall` no retiraba los artefactos de OpenCode
+
+La desinstalación retiraba la configuración de Claude pero dejaba intactos los permisos pre-aprobados que la instalación escribe en `opencode.json`.
+
+Ahora retira esos permisos con la misma simetría. El plugin de OpenCode no se elimina: reside en el HOME del usuario y lo comparten todos los proyectos.
+
 ## [2.9.0] - 2026-08-23
 
 ### Cambios en `mem install`, reglas y constitución
