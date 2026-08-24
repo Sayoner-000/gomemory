@@ -20,6 +20,7 @@ func TestEvaluateLiveness(t *testing.T) {
 		{"usado hace poco está sano", hace(2 * time.Hour), 5, LivenessOK},
 		{"sin uso pero sin sesiones es inactividad, no fallo", hace(30 * 24 * time.Hour), 0, LivenessIdle},
 		{"sin uso habiendo sesiones es fallo", hace(30 * 24 * time.Hour), 4, LivenessStale},
+		{"sesiones desconocidas no acusan deterioro", hace(30 * 24 * time.Hour), -1, LivenessIdle},
 		{"justo en el umbral sigue sano", hace(DefaultLivenessThreshold), 2, LivenessOK},
 	}
 	for _, c := range casos {

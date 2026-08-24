@@ -55,6 +55,12 @@ func EvaluateLiveness(fired time.Time, sessionsSince int, threshold time.Duratio
 	if inactivo <= threshold {
 		return LivenessOK, ""
 	}
+	// Sesiones desconocidas (consulta fallida): no hay evidencia de trabajo
+	// posterior, así que acusar deterioro sería inventar el dato que falta.
+	// La degradación honesta es la misma del caso sin sesiones.
+	if sessionsSince < 0 {
+		return LivenessIdle, fmt.Sprintf("sin uso desde %s; no se pudieron consultar las sesiones", fired.Format("2006-01-02"))
+	}
 	if sessionsSince == 0 {
 		return LivenessIdle, fmt.Sprintf("sin uso desde %s, pero tampoco ha habido sesiones", fired.Format("2006-01-02"))
 	}

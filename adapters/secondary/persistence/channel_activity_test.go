@@ -82,3 +82,17 @@ func TestSessionsSince(t *testing.T) {
 		t.Errorf("tras abrir una sesión esperaba 1, obtuve %d", n)
 	}
 }
+
+// TestSessionsSince_ErrorEsDesconocidoNoCero: una consulta fallida no puede
+// fingir "cero sesiones" — el informe confundiría un dato ausente con la
+// evidencia de que nadie trabajó (FR-011).
+func TestSessionsSince_ErrorEsDesconocidoNoCero(t *testing.T) {
+	db := openTestDB(t)
+	if err := db.Close(); err != nil {
+		t.Fatalf("cerrar: %v", err)
+	}
+
+	if n := SessionsSince(db, "p", time.Now().Add(-time.Hour)); n != -1 {
+		t.Fatalf("consulta sobre BD cerrada debía dar -1 (desconocido), dio %d", n)
+	}
+}

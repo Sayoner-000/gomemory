@@ -90,13 +90,16 @@ func LastChannelActivity(db *sql.DB, project, agent, scope, kind string) (Channe
 // Es lo que permite distinguir un canal inactivo porque nadie trabajó de uno
 // que no responde habiendo trabajo (FR-011). Sin este dato, una semana de
 // vacaciones se reportaría igual que un complemento roto.
+//
+// Devuelve -1 si la consulta falla: "cero sesiones" y "no se pudo saber" son
+// información distinta, y el informe no debe fingir un dato que no tiene.
 func SessionsSince(db *sql.DB, project string, since time.Time) int {
 	var n int
 	err := db.QueryRow(
 		`SELECT COUNT(*) FROM sessions WHERE project = ? AND created_at >= ?`,
 		project, since.Format("2006-01-02 15:04:05")).Scan(&n)
 	if err != nil {
-		return 0
+		return -1
 	}
 	return n
 }

@@ -22,15 +22,20 @@ const BIN = "{{BIN_PATH}}";
 export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   const root = directory;
 
-  // Ejecuta `mem <args>` en la raíz del proyecto y devuelve stdout (trim).
-  // Nunca lanza: ante cualquier fallo devuelve "" para no romper la sesión.
-  const mem = async (args: string[]): Promise<string> => {
+  // Ejecuta `mem <args>` en la raíz del proyecto. Devuelve null si el comando
+  // falló: "" puede ser una respuesta legítima y vacía —lo es la del nudge
+  // cuando no toca recordar—, así que solo null distingue el fallo.
+  const run = async (args: string[]): Promise<string | null> => {
     try {
       return (await $`${BIN} ${args}`.cwd(root).quiet().text()).trim();
     } catch {
-      return "";
+      return null;
     }
   };
+
+  // Igual que run, pero absorbe el fallo como cadena vacía: para las llamadas
+  // fire-and-forget el fallo no cambia el comportamiento de quien llama.
+  const mem = async (args: string[]): Promise<string> => (await run(args)) ?? "";
 
   // Igual que `mem`, pero pasando `input` por stdin (usado por turn-end para
   // mandar {files, commands} sin depender de un transcript en disco, a
@@ -160,16 +165,23 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       // y no que funcionara (feature 024, FR-009 y FR-012).
       mem(["hook", "channel-fired", "opencode", "user", "plan_entry"]).catch(() => {});
       output.system.push(MEMORY_PROTOCOL);
-      const ctx = await mem(["context"]);
-      if (ctx) {
+      // El contexto histórico es el corazón de este canal: si su lectura
+      // falla, no basta con inyectar menos. El fallo se anota para que la
+      // vitalidad distinga un canal sano de uno roto (feature 024, FR-012).
+      const ctx = await run(["context"]);
+      if (ctx === null) {
+        mem(["hook", "channel-error", "opencode", "user", "plan_entry", "el contexto histórico no pudo leerse"]).catch(() => {});
+      } else if (ctx.length > 0) {
         output.system.push("## Project Memory (gomemory)\n\n" + ctx);
       }
       // Recordatorio de guardado transversal: misma decisión (umbral + debounce)
       // que el hook de Claude Code, resuelta en Go. `mem hook nudge` devuelve el
       // texto solo cuando el agente lleva rato sin guardar nada real; si no toca,
       // devuelve "" y no se inyecta nada.
-      const nudge = await mem(["hook", "nudge"]);
-      if (nudge) {
+      const nudge = await run(["hook", "nudge"]);
+      if (nudge === null) {
+        mem(["hook", "channel-error", "opencode", "user", "plan_entry", "el recordatorio de guardado falló"]).catch(() => {});
+      } else if (nudge.length > 0) {
         output.system.push(nudge);
       }
     },

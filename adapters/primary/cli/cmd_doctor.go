@@ -222,8 +222,10 @@ func printDoctorLiveness(deps *Deps) {
 		if !ok && lastErr == "" && fired.IsZero() {
 			// Sin ningún registro: puede que este agente no se use aquí.
 			// Se consulta igual el número de sesiones para no callar un canal
-			// que nunca respondió habiendo trabajo.
-			if deps.ChannelActivity.SessionsSince(ahora.Add(-umbral)) == 0 {
+			// que nunca respondió habiendo trabajo. Un conteo desconocido
+			// (-1) tampoco alcanza para acusar: no hay evidencia en ninguna
+			// dirección.
+			if deps.ChannelActivity.SessionsSince(ahora.Add(-umbral)) <= 0 {
 				continue
 			}
 		}

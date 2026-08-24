@@ -15,5 +15,7 @@ type ChannelActivityLog interface {
 	Last(agent, scope, kind string) (fired time.Time, lastError string, ok bool)
 	// SessionsSince cuenta las sesiones abiertas desde un instante, para
 	// distinguir inactividad por falta de trabajo de un canal que no responde.
+	// Devuelve -1 si el conteo no pudo hacerse: "cero sesiones" y "dato
+	// desconocido" son información distinta y quien decide debe saberlo.
 	SessionsSince(since time.Time) int
 }
