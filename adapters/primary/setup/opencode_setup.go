@@ -12,15 +12,15 @@ func InstallOpenCode(root string, ref AgentRef) error {
 		return err
 	}
 
-	if err := WriteOpenCodeMCP(root, ref); err != nil {
+	// El registro del servidor y sus permisos viven en el scope usuario: una
+	// vez por máquina, en ~/.config/opencode/opencode.json. El archivo de
+	// proyecto solo duplicaba lo que el merge de OpenCode ya resuelve, así
+	// que install retira ese registro y deja el archivo únicamente si
+	// conserva configuración ajena a gomemory.
+	if err := registerOpenCodeGlobal(ref); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ opencode: MCP configurado en %s\n", filepath.Join(root, "opencode.json"))
-
-	if err := writeOpenCodePermissions(filepath.Join(root, "opencode.json")); err != nil {
-		return err
-	}
-	fmt.Printf("  ✅ opencode: tools MCP pre-aprobadas en %s\n", filepath.Join(root, "opencode.json"))
+	cleanupProjectOpenCodeRegistration(root)
 	return nil
 }
 
@@ -38,7 +38,13 @@ func InstallOpenCodeGlobal(ref AgentRef) error {
 	if err := installOpenCodePlugin("", ref); err != nil {
 		return err
 	}
+	return registerOpenCodeGlobal(ref)
+}
 
+// registerOpenCodeGlobal registra el servidor MCP de gomemory y sus permisos
+// en ~/.config/opencode/opencode.json. Idempotente: reejecutar no duplica
+// entradas ni toca la configuración ajena que el archivo conserve.
+func registerOpenCodeGlobal(ref AgentRef) error {
 	cfgPath, err := openCodeGlobalConfigPath()
 	if err != nil {
 		return err
@@ -46,13 +52,102 @@ func InstallOpenCodeGlobal(ref AgentRef) error {
 	if err := writeOpenCodeMCPFile(cfgPath, ref); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ opencode: MCP registrado en scope global (%s)\n", cfgPath)
+	fmt.Printf("  ✅ opencode: MCP registrado en scope usuario (%s)\n", cfgPath)
 
 	if err := writeOpenCodePermissions(cfgPath); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ opencode: tools MCP pre-aprobadas en scope global (%s)\n", cfgPath)
+	fmt.Printf("  ✅ opencode: tools MCP pre-aprobadas en scope usuario (%s)\n", cfgPath)
 	return nil
+}
+
+// OpenCodeGlobalRegistrationExists informa si ~/.config/opencode/opencode.json
+// registra ya el servidor gomemory. La consulta el inspector de activación:
+// desde que install dejó de escribir el registro por proyecto, esta es la
+// evidencia de que OpenCode tiene memoria disponible.
+func OpenCodeGlobalRegistrationExists() bool {
+	cfgPath, err := openCodeGlobalConfigPath()
+	if err != nil {
+		return false
+	}
+	data, _ := os.ReadFile(cfgPath)
+	if len(data) == 0 {
+		return false
+	}
+	var cfg struct {
+		MCP map[string]json.RawMessage `json:"mcp"`
+	}
+	if json.Unmarshal(data, &cfg) != nil {
+		return false
+	}
+	_, existe := cfg.MCP["gomemory"]
+	return existe
+}
+
+// cleanupProjectOpenCodeRegistration retira del opencode.json del proyecto el
+// registro del servidor y los permisos que instalaciones anteriores escribieron
+// ahí, ahora que la referencia vive en el scope usuario.
+//
+// Conservador con lo ajeno, con el mismo criterio que RemoveOpenCodePermissions:
+// solo se retiran las claves nuestras. Si tras retirarlas el archivo no conserva
+// nada más allá del $schema, se elimina; si conserva configuración propia de la
+// persona, se reescribe sin nuestras claves.
+func cleanupProjectOpenCodeRegistration(root string) {
+	cfgPath := filepath.Join(root, "opencode.json")
+	data, _ := os.ReadFile(cfgPath)
+	if len(data) == 0 {
+		return // sin archivo, nada que limpiar
+	}
+	var cfg map[string]interface{}
+	if json.Unmarshal(data, &cfg) != nil {
+		fmt.Println("  ℹ️  opencode.json: JSON ilegible, se conserva intacto")
+		return
+	}
+
+	cambios := false
+	if mcp, ok := cfg["mcp"].(map[string]interface{}); ok {
+		if _, ours := mcp["gomemory"]; ours {
+			delete(mcp, "gomemory")
+			cambios = true
+			if len(mcp) == 0 {
+				delete(cfg, "mcp")
+			}
+		}
+	}
+	if perm, ok := cfg["permission"].(map[string]interface{}); ok {
+		for tool := range openCodeToolPermissions {
+			if _, tiene := perm[tool]; tiene {
+				delete(perm, tool)
+				cambios = true
+			}
+		}
+		if len(perm) == 0 {
+			delete(cfg, "permission")
+		}
+	}
+	if !cambios {
+		return
+	}
+
+	restoAjeno := false
+	for k := range cfg {
+		if k != "$schema" {
+			restoAjeno = true
+			break
+		}
+	}
+	if restoAjeno {
+		out, err := json.MarshalIndent(cfg, "", "  ")
+		if err != nil {
+			return
+		}
+		_ = os.WriteFile(cfgPath, out, 0644)
+		fmt.Println("  🧹 opencode: registro de proyecto retirado de opencode.json (conserva configuración ajena)")
+		return
+	}
+	if err := os.Remove(cfgPath); err == nil {
+		fmt.Println("  🧹 opencode: opencode.json de proyecto retirado (la referencia vive en el scope usuario)")
+	}
 }
 
 // openCodeToolPermissions son los permisos que gomemory declara para sus tools

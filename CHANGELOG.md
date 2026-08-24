@@ -5,6 +5,18 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.10.2] - 2026-08-23
+
+### Cambios en `mem install`
+
+#### OpenCode registra su memoria en el scope usuario, ya no por proyecto
+
+El registro del servidor MCP y los permisos de las tools se escribían en el `opencode.json` de cada proyecto. Ese registro duplicaba lo que la configuración global del agente ya resuelve: OpenCode combina el nivel usuario con el de proyecto, y el plugin siempre se instala en el directorio global.
+
+Ahora `mem install` registra el servidor y sus permisos una sola vez en `~/.config/opencode/opencode.json`, y retira el registro que instalaciones anteriores dejaron en el proyecto. Si tras retirarlo el archivo solo conserva el `$schema`, se elimina. Si conserva configuración ajena a gomemory, se reescribe sin esas claves y permanece.
+
+`mem doctor` verifica la migración con un canal nuevo (`opencode · user · server_config`): se muestra en verde cuando el registro global existe y como problema con su remedio cuando falta. Antes, perder esa entrada no producía ningún síntoma.
+
 ## [2.10.1] - 2026-08-23
 
 ### Correcciones

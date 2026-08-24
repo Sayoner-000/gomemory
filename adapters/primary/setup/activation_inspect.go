@@ -126,7 +126,33 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 		Kind: domain.KindTurnReminder, State: state, Detail: detail,
 	})
 
+	if agent.Name == "opencode" && scope == domain.ScopeUser {
+		out = append(out, inspectOpenCodeServerConfig())
+	}
+
 	return out
+}
+
+// inspectOpenCodeServerConfig verifica que la configuración global del agente
+// (~/.config/opencode/opencode.json) registre el servidor gomemory.
+//
+// Desde que install dejó de escribir el registro por proyecto —solo duplicaba
+// lo que el merge de OpenCode ya resuelve— este canal es LA evidencia de que
+// el agente tiene memoria disponible. Sin él y sin plugin, OpenCode perdería
+// la memoria sin ningún síntoma.
+func inspectOpenCodeServerConfig() domain.ActivationChannel {
+	ch := domain.ActivationChannel{
+		Arm: domain.ArmGomemory, Agent: "opencode", Scope: domain.ScopeUser,
+		Kind: domain.KindServerConfig,
+	}
+	if OpenCodeGlobalRegistrationExists() {
+		ch.State = domain.StateOK
+		ch.Detail = "registro MCP global en ~/.config/opencode/opencode.json"
+		return ch
+	}
+	ch.State = domain.StateMissing
+	ch.Detail = "sin registro MCP global para gomemory"
+	return ch
 }
 
 // userInstructionsDir resuelve el subdirectorio real donde vive el archivo
