@@ -195,8 +195,13 @@ func dedupeStrings(in []string) []string {
 
 // canalesDeInyeccion son los canales cuya salud no se puede deducir de que el
 // artefacto exista: dependen de que el agente los invoque de verdad.
+//
+// claude deja rastro desde hookPlanEntered (su única puerta de plan_entry) y
+// opencode desde el complemento; sin esos rastros, un canal roto era
+// indistinguible de uno sano.
 var canalesDeInyeccion = []struct{ agent, scope, kind string }{
 	{"opencode", "user", "plan_entry"},
+	{"claude", "user", "plan_entry"},
 }
 
 // printDoctorLiveness reporta los canales que no responden.

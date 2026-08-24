@@ -5,6 +5,22 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [No liberado]
+
+### Correcciones
+
+#### La vitalidad de los canales era ciega para Claude Code
+
+El informe de vitalidad solo vigilaba el canal de entrada al plan de OpenCode: los hooks de Claude Code no dejaban rastro de actividad, así que un cambio silencioso del agente dejaba la inyección muerta y el informe seguía en verde.
+
+Ahora la entrada al plan registra el ejercicio del canal (`claude · user · plan_entry`), en paridad con lo que hace el complemento de OpenCode, y el informe vigila ambos agentes. Un canal que demostró funcionar y se apagó aparece como problema con su efecto y su remedio; uno que nunca se ejerció sigue sin alarmar, porque las sesiones no se atribuyen por agente.
+
+#### Salida doble y ruta inválida en la entrada al plan
+
+Ante un fallo al localizar el proyecto, o con el gate del plan atómico deshabilitado, el hook `plan-entered` continuaba ejecutándose después de emitir su salida de silencio: podía trabajar sobre una ruta inválida y, con el gate activo, emitía el documento vacío dos veces.
+
+Ahora cada salida temprana termina la ejecución del hook.
+
 ## [2.10.0] - 2026-08-23
 
 ### La matriz de canales como fuente única

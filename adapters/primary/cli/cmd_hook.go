@@ -800,6 +800,20 @@ const planEnteredShortReminder = "Modo plan: aplica el método de descomposició
 // nuevo). Respeta el mismo gate que `mem plan-context`/get_plan_context
 // (AtomicPlanDisabled, feature 013): degradar en silencio ante cualquier
 // circunstancia ambiental (FR-009).
+// recordPlanEntryActivity deja rastro de que el canal plan_entry de Claude se
+// ejerció, en paridad con lo que hace el complemento de OpenCode (feature 024,
+// FR-009). Este hook solo lo registra Claude Code, así que aquí es la única
+// puerta por donde ese canal demuestra vida. Se invoca antes de cualquier
+// salida temprana: aunque el gate esté deshabilitado, el canal sí fue llamado.
+// Es fire-and-forget: un rastro que abortara la entrada al plan sería peor que
+// no tenerlo.
+func recordPlanEntryActivity(deps *Deps) {
+	if deps == nil || deps.ChannelActivity == nil {
+		return
+	}
+	_ = deps.ChannelActivity.RecordFired("claude", "user", "plan_entry")
+}
+
 func hookPlanEntered(deps *Deps, args []string) {
 	raw := readHookStdinRaw()
 	payload, _ := parseHookPayload(raw)
@@ -809,12 +823,16 @@ func hookPlanEntered(deps *Deps, args []string) {
 		emitHookOutput(renderEnteredDocument(dialect, ""))
 	}
 
+	recordPlanEntryActivity(deps)
+
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
 		silence()
+		return
 	}
 	if deps.SettingsRepo.Read(root).AtomicPlanDisabled {
 		silence()
+		return
 	}
 
 	planEpisodeReset(root) // entrar en modo plan abre un episodio nuevo
