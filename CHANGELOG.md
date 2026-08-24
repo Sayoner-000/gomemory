@@ -5,6 +5,28 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.11.0] - 2026-08-24
+
+### Novedades
+
+#### Copiar, pegar y desplazar contenido en la TUI
+
+La TUI permite copiar la vista actual con `Ctrl+Y`. En el detalle de una memoria, la copia incluye el contenido completo aunque solo una parte esté visible. Los campos activos también reciben correctamente el contenido pegado, incluido el pegado entre corchetes del terminal.
+
+Los detalles extensos se pueden recorrer con las flechas, `j`/`k`, `PgUp`/`PgDn`, `Home`/`End` y `g`/`G`.
+
+### Correcciones
+
+#### Codex usa un único registro MCP global
+
+Las instalaciones anteriores creaban una tabla `gomemory_*` por proyecto y fijaban su directorio con `cwd`. Cuando ese directorio dejaba de existir, Codex intentaba iniciar el servidor desde una ruta inválida y mostraba `No such file or directory (os error 2)`.
+
+La instalación ahora migra esas tablas a un único registro `[mcp_servers.gomemory]`, ejecuta `mem mcp` sin depender del directorio de un proyecto y conserva intacta la configuración de otros servidores. Antes de reemplazar el archivo crea un respaldo, mantiene sus permisos y realiza una escritura atómica.
+
+#### Constitución predeterminada sin referencias específicas
+
+La constitución incluida por defecto ya no contiene el título ni la autoría asociados a una organización o persona. El contenido queda disponible como base agnóstica para cualquier proyecto compatible.
+
 ## [2.10.2] - 2026-08-23
 
 ### Cambios en `mem install`
