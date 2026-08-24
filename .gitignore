@@ -1,4 +1,5 @@
 /mem
+/.env
 .memory/
 .mcp.json
 .opencode.json
