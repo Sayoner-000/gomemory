@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -90,6 +92,25 @@ func TestPinnedDocByTopicKey(t *testing.T) {
 	}
 	if _, ok := PinnedDocByTopicKey("equipo:otro"); ok {
 		t.Error("una clave fuera del catálogo no debe resolver")
+	}
+}
+
+func TestConstitutionTemplateIsAgnostic(t *testing.T) {
+	path := filepath.Join("..", "infrastructure", "templates", "speckit-constitution-gen.md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("leer plantilla de constitución: %v", err)
+	}
+	for _, forbidden := range []string{
+		"Proyectos Speckit - GSGR",
+		"ecosistema Speckit",
+		"proyecto Kolmena Core",
+		"Jose Gomez",
+		"Jefe Automatización",
+	} {
+		if strings.Contains(string(content), forbidden) {
+			t.Errorf("la plantilla no debe identificar una persona u organización: contiene %q", forbidden)
+		}
 	}
 }
 

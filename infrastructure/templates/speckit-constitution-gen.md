@@ -1,4 +1,4 @@
-Esta constitución aplica a **todo proyecto nuevo** del ecosistema Speckit. Codifica las lecciones aprendidas del proyecto Kolmena Core y establece defaults técnicos, arquitectónicos y operativos. Cada proyecto puede _extender_ esta constitución, pero no _relajar_ sus reglas sin justificación explícita documentada en su propio `constitution.md`.
+Esta constitución aplica a **todo proyecto nuevo** y establece criterios técnicos, arquitectónicos y operativos reutilizables. Cada proyecto puede _extender_ esta constitución, pero no _relajar_ sus reglas sin justificación explícita documentada en su propio `constitution.md`.
 
 Aplica a proyectos en: **Python 3.12+**, **FastAPI**, **Go**, **Vite + TS/JS**, **SQLite**/PostgreSQL, y cualquier combinación de ellos.
 

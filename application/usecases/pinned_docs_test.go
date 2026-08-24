@@ -185,6 +185,26 @@ func TestImportPinnedDoc_IdenticoEsNoOp(t *testing.T) {
 	}
 }
 
+func TestResetPinnedDoc_RestauraSoloPorAccionExplicita(t *testing.T) {
+	_, topics, seeder := repoDocs(t)
+	doc, _ := domain.PinnedDocByAlias("constitution")
+
+	if _, err := usecases.ImportPinnedDoc(seeder, topics, "proj", doc.TopicKey, doc.Type, doc.Title, "CONSTITUCIÓN PERSONALIZADA"); err != nil {
+		t.Fatalf("importar personalización: %v", err)
+	}
+	if _, err := usecases.ResetPinnedDoc(seeder, topics, "proj", doc.TopicKey, doc.Type, doc.Title, "CONSTITUCIÓN BASE"); err != nil {
+		t.Fatalf("restaurar: %v", err)
+	}
+
+	got, err := topics.ByTopicKey("proj", doc.TopicKey)
+	if err != nil {
+		t.Fatalf("leer constitución: %v", err)
+	}
+	if got == nil || got.Content != "CONSTITUCIÓN BASE" {
+		t.Errorf("la restauración explícita debe aplicar la plantilla: %+v", got)
+	}
+}
+
 // TestImportPinnedDoc_ClaveFueraDelCatalogo cubre FR-042: el catálogo es una
 // comodidad, no un límite.
 func TestImportPinnedDoc_ClaveFueraDelCatalogo(t *testing.T) {
