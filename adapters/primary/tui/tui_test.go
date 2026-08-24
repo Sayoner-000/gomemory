@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"mem/application/ports"
@@ -398,6 +399,56 @@ func TestWindowLinesScrollIndicators(t *testing.T) {
 	}
 	if strings.Contains(out, "más abajo") {
 		t.Fatalf("no debería haber indicador '↓ más abajo' con cursor en la última línea")
+	}
+}
+
+func TestPasteMsgReachesFocusedInput(t *testing.T) {
+	m := newTestModel(nil, 20)
+	m.screen = screenSave
+	m.saveContent = textinput.New()
+	m.saveContent.Focus()
+
+	next, _ := m.Update(tea.PasteMsg{Content: "texto pegado agnóstico"})
+	got := next.(model).saveContent.Value()
+	if got != "texto pegado agnóstico" {
+		t.Fatalf("el mensaje de pegado no llegó al input activo: %q", got)
+	}
+}
+
+func TestDetailViewScrollsLongMemory(t *testing.T) {
+	contentLines := make([]string, 60)
+	for i := range contentLines {
+		contentLines[i] = fmt.Sprintf("línea larga %02d", i)
+	}
+	m := newTestModel(nil, 18)
+	m.screen = screenDetail
+	m.selected = domain.Memory{Title: "larga", Type: domain.Learning, Content: strings.Join(contentLines, "\n")}
+
+	first := ansi.Strip(m.detailView())
+	if !strings.Contains(first, "línea larga 00") || strings.Contains(first, "línea larga 59") {
+		t.Fatalf("la vista inicial no está acotada al comienzo:\n%s", first)
+	}
+	next, _ := m.updateDetail(keyMsg("G"))
+	m = next.(model)
+	last := ansi.Strip(m.detailView())
+	if !strings.Contains(last, "línea larga 59") || !strings.Contains(last, "más arriba") {
+		t.Fatalf("end no desplazó el detalle hasta el final:\n%s", last)
+	}
+}
+
+func TestCopyableTextIncludesFullMemoryDespiteScroll(t *testing.T) {
+	m := newTestModel(nil, 12)
+	m.screen = screenDetail
+	m.detailScroll = 40
+	m.selected = domain.Memory{
+		Title:   "memoria completa",
+		Type:    domain.Decision,
+		Content: "primera línea\n" + strings.Repeat("intermedia\n", 40) + "última línea",
+	}
+
+	got := m.copyableText()
+	if !strings.Contains(got, "primera línea") || !strings.Contains(got, "última línea") {
+		t.Fatalf("copiar debe incluir el contenido completo, no solo la ventana visible:\n%s", got)
 	}
 }
 

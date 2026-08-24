@@ -304,7 +304,7 @@ func (m model) docsView() string {
 	if m.docVista != "" {
 		b.WriteString(m.docVista)
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("  esc volver"))
+		b.WriteString(helpStyle.Render("  ctrl+y copiar  ·  esc volver"))
 		return appStyle.Render(b.String())
 	}
 

@@ -13,6 +13,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/dustin/go-humanize"
 
 	"mem/application/ports"
@@ -62,7 +63,7 @@ var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection", "
 // indicar cómo volver, reemplazando el bloque repetido en detailView y
 // optimizeDetailView.
 func backHint() string {
-	return backHintStyle.Render("  ← esc para volver")
+	return backHintStyle.Render("  ← esc para volver  ·  ↑/↓ scroll  ·  ctrl+y copiar")
 }
 
 // statusLine devuelve el mensaje de estado con timer activo (statusMsg +
@@ -147,10 +148,11 @@ type model struct {
 	filtered    []domain.Memory // memorias tras el filtro activo
 	listCursor  int             // índice seleccionado dentro de filtered
 
-	selected    domain.Memory
-	autoApprove bool
-	statusMsg   string
-	statusTimer int
+	selected     domain.Memory
+	detailScroll int
+	autoApprove  bool
+	statusMsg    string
+	statusTimer  int
 
 	saveTitle    textinput.Model
 	saveType     textinput.Model
@@ -396,6 +398,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.statusTimer > 0 {
 			m.statusTimer--
 		}
+		if msg.String() == "ctrl+y" {
+			content := m.copyableText()
+			if content == "" {
+				return m, nil
+			}
+			m.statusMsg = "Contenido copiado al portapapeles"
+			m.statusTimer = 40
+			return m, tea.SetClipboard(content)
+		}
 		if m.screen == screenSave {
 			return m.updateSave(msg)
 		}
@@ -437,8 +448,47 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.updateList(msg)
 	}
+	if next, cmd, ok := m.updateFocusedInput(msg); ok {
+		return next, cmd
+	}
 
 	return m, nil
+}
+
+// updateFocusedInput entrega también los mensajes asíncronos de pegado y
+// bracketed-paste al input activo. Antes solo se despachaban tea.KeyMsg: el
+// ctrl+v sí leía el portapapeles, pero su respuesta era descartada aquí.
+func (m model) updateFocusedInput(msg tea.Msg) (model, tea.Cmd, bool) {
+	var cmd tea.Cmd
+	switch {
+	case m.filterInput.Focused():
+		m.filterInput, cmd = m.filterInput.Update(msg)
+	case m.saveTitle.Focused():
+		m.saveTitle, cmd = m.saveTitle.Update(msg)
+	case m.saveType.Focused():
+		m.saveType, cmd = m.saveType.Update(msg)
+	case m.saveContent.Focused():
+		m.saveContent, cmd = m.saveContent.Update(msg)
+	case m.saveFilepath.Focused():
+		m.saveFilepath, cmd = m.saveFilepath.Update(msg)
+	case m.maintConfirm.Focused():
+		m.maintConfirm, cmd = m.maintConfirm.Update(msg)
+	case m.importPath.Focused():
+		m.importPath, cmd = m.importPath.Update(msg)
+	case m.docPath.Focused():
+		m.docPath, cmd = m.docPath.Update(msg)
+	case m.editSettingInput.Focused():
+		m.editSettingInput, cmd = m.editSettingInput.Update(msg)
+	case m.dupConfirm.Focused():
+		m.dupConfirm, cmd = m.dupConfirm.Update(msg)
+	case m.usageTaskInput.Focused():
+		m.usageTaskInput, cmd = m.usageTaskInput.Update(msg)
+	case m.usageBudgetInput.Focused():
+		m.usageBudgetInput, cmd = m.usageBudgetInput.Update(msg)
+	default:
+		return m, nil, false
+	}
+	return m, cmd, true
 }
 
 // ─── List screen ───────────────────────────────────────────────────
@@ -489,6 +539,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.listCursor >= 0 && m.listCursor < len(m.filtered) {
 			m.selected = m.filtered[m.listCursor]
+			m.detailScroll = 0
 			m.screen = screenDetail
 		}
 
@@ -582,8 +633,50 @@ func (m model) updateDetail(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q", "enter":
 		m.screen = screenList
+	case "j", "down":
+		if m.detailScroll < m.detailLastLine() {
+			m.detailScroll++
+		}
+	case "k", "up":
+		if m.detailScroll > 0 {
+			m.detailScroll--
+		}
+	case "pgdown", "ctrl+f":
+		m.detailScroll += max(1, m.detailBodyBudget()-2)
+		if m.detailScroll > m.detailLastLine() {
+			m.detailScroll = m.detailLastLine()
+		}
+	case "pgup", "ctrl+b":
+		m.detailScroll -= max(1, m.detailBodyBudget()-2)
+		if m.detailScroll < 0 {
+			m.detailScroll = 0
+		}
+	case "home", "g":
+		m.detailScroll = 0
+	case "end", "G":
+		m.detailScroll = m.detailLastLine()
 	}
 	return m, nil
+}
+
+func (m model) detailContentLines() []string {
+	width := m.width - 14
+	if width < 20 {
+		width = 20
+	}
+	return strings.Split(ansi.Wrap(m.selected.Content, width, ""), "\n")
+}
+
+func (m model) detailBodyBudget() int {
+	budget := m.height - 13
+	if budget < 3 {
+		return 3
+	}
+	return budget
+}
+
+func (m model) detailLastLine() int {
+	return max(0, len(m.detailContentLines())-1)
 }
 
 // ─── Maintenance screen ─────────────────────────────────────────────
@@ -1607,6 +1700,27 @@ func (m model) renderView() string {
 	return ""
 }
 
+func (m model) copyableText() string {
+	switch m.screen {
+	case screenDetail:
+		mem := m.selected
+		var b strings.Builder
+		fmt.Fprintf(&b, "%s\nTipo: %s\nFecha: %s\n\n%s", memoryDisplayTitle(mem), mem.Type, mem.CreatedAt, mem.Content)
+		if mem.Filepath != "" {
+			fmt.Fprintf(&b, "\n\nArchivo: %s", mem.Filepath)
+		}
+		if mem.SessionID != "" {
+			fmt.Fprintf(&b, "\nSesión: %s", mem.SessionID)
+		}
+		return b.String()
+	case screenDocs:
+		if m.docVista != "" {
+			return m.docVista
+		}
+	}
+	return strings.TrimSpace(ansi.Strip(m.renderView()))
+}
+
 func (m model) listView() string {
 	// Header con título y info
 	sizeInfo := ""
@@ -1624,7 +1738,7 @@ func (m model) listView() string {
 	}
 
 	// Footer
-	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  u uso  ·  q salir")
+	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  ctrl+y copiar  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  u uso  ·  q salir")
 	if status := m.statusLine(); status != "" {
 		footer = status + "\n" + footer
 	}
@@ -1920,7 +2034,7 @@ func (m model) configView() string {
 		b.WriteString(status)
 		b.WriteString("\n")
 	}
-	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter activar/ejecutar  ·  esc volver"))
+	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter activar/ejecutar  ·  ctrl+y copiar  ·  esc volver"))
 	return appStyle.Render(b.String())
 }
 
@@ -1971,6 +2085,11 @@ func (m model) editSettingView() string {
 func (m model) detailView() string {
 	mem := m.selected
 	var b strings.Builder
+	content := windowLines(m.detailContentLines(), m.detailScroll, m.detailBodyBudget())
+	sessionID := mem.SessionID
+	if len(sessionID) > 8 {
+		sessionID = sessionID[:8]
+	}
 
 	b.WriteString(backHint())
 	b.WriteString("\n\n")
@@ -1980,7 +2099,7 @@ func (m model) detailView() string {
 			"",
 			typeTag(string(mem.Type))+"  "+lipgloss.NewStyle().Foreground(faint).Render(mem.CreatedAt),
 			"",
-			mem.Content,
+			content,
 			func() string {
 				if mem.Filepath != "" {
 					return "\n" + lipgloss.NewStyle().Foreground(faint).Italic(true).Render("📁 "+mem.Filepath)
@@ -1989,7 +2108,7 @@ func (m model) detailView() string {
 			}(),
 			func() string {
 				if mem.SessionID != "" {
-					return "\n" + lipgloss.NewStyle().Foreground(faint).Render("Sesión: "+mem.SessionID[:8])
+					return "\n" + lipgloss.NewStyle().Foreground(faint).Render("Sesión: "+sessionID)
 				}
 				return ""
 			}(),
