@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -109,5 +110,149 @@ func TestSetupCodexGlobalIsIdempotent(t *testing.T) {
 	}
 	if strings.Count(string(data), "[mcp_servers.gomemory]") != 1 {
 		t.Fatalf("esperaba una sola tabla tras dos corridas, got:\n%s", string(data))
+	}
+}
+
+func TestMigrateLegacyCodexTablesPreservesForeignContent(t *testing.T) {
+	original := `# configuración de la persona
+[mcp_servers."gomemory_deleted"]
+command = "/tmp/deleted/mem"
+args = ["mcp", "--root", "/tmp/deleted"]
+cwd = "/tmp/deleted"
+
+[mcp_servers.foreign]
+command = "foreign-mcp"
+# comentario que debe conservarse
+
+[features]
+web_search = true
+`
+	want := `# configuración de la persona
+[mcp_servers.foreign]
+command = "foreign-mcp"
+# comentario que debe conservarse
+
+[features]
+web_search = true
+`
+
+	got, removed := migrateLegacyCodexTables(original)
+	if removed != 1 {
+		t.Fatalf("esperaba retirar una tabla legada, got %d", removed)
+	}
+	if got != want {
+		t.Fatalf("la migración alteró contenido ajeno:\n--- got ---\n%s\n--- want ---\n%s", got, want)
+	}
+}
+
+func TestSetupCodexGlobalMigratesLegacyTablesWithBackup(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(codexDir, "config.toml")
+	original := `[mcp_servers."gomemory_old"]
+command = "mem"
+args = ["mcp"]
+cwd = "/ruta/eliminada"
+
+[mcp_servers.foreign]
+command = "foreign"
+`
+	if err := os.WriteFile(cfgPath, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if !setupCodexGlobal(BinRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}) {
+		t.Fatal("la migración debía completarse")
+	}
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if strings.Contains(content, "gomemory_old") || strings.Contains(content, `cwd = "/ruta/eliminada"`) {
+		t.Fatalf("quedó configuración legada:\n%s", content)
+	}
+	if strings.Count(content, "[mcp_servers.gomemory]") != 1 || !strings.Contains(content, "[mcp_servers.foreign]") {
+		t.Fatalf("resultado inesperado:\n%s", content)
+	}
+	info, err := os.Stat(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0600 {
+		t.Fatalf("los permisos cambiaron: %o", info.Mode().Perm())
+	}
+	backups, err := filepath.Glob(cfgPath + ".gomemory-legacy-*.bak")
+	if err != nil || len(backups) != 1 {
+		t.Fatalf("esperaba un respaldo, got %v (err=%v)", backups, err)
+	}
+	backup, err := os.ReadFile(backups[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(backup) != original {
+		t.Fatal("el respaldo no contiene el archivo original exacto")
+	}
+}
+
+func TestSetupCodexGlobalMigratesEvenWhenGlobalTableExists(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cfgPath := filepath.Join(codexDir, "config.toml")
+	content := `[mcp_servers."gomemory"]
+command = "mem"
+args = ["mcp"]
+
+[mcp_servers.gomemory_stale]
+command = "mem"
+cwd = "/missing"
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	setupCodexGlobal(BinRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}})
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if strings.Contains(got, "gomemory_stale") {
+		t.Fatalf("la salida temprana dejó una tabla legada:\n%s", got)
+	}
+	if strings.Count(got, "gomemory\"]") != 1 {
+		t.Fatalf("la tabla global citada debía conservarse una sola vez:\n%s", got)
+	}
+}
+
+func TestSetupCodexGlobalSerializesConcurrentCalls(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	ref := BinRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			setupCodexGlobal(ref)
+		}()
+	}
+	wg.Wait()
+
+	data, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(data), "[mcp_servers.gomemory]") != 1 {
+		t.Fatalf("las llamadas concurrentes duplicaron la tabla:\n%s", string(data))
 	}
 }

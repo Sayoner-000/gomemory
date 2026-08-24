@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"mem/adapters/primary/setup"
 	"mem/domain"
@@ -36,6 +38,8 @@ var globalScopeAgents = map[string]bool{
 	"codex":    true,
 	"opencode": true,
 }
+
+var codexConfigMu sync.Mutex
 
 func CmdMCPSetup(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("setup-mcp", flag.ContinueOnError)
@@ -355,6 +359,9 @@ func readClaudeUserMCPEntry(name string) (*claudeMCPEntry, error) {
 // lance, así que una entrada por proyecto (el esquema anterior,
 // `gomemory_<key>` con `cwd` fijo) ya no es necesaria.
 func setupCodexGlobal(ref BinRef) bool {
+	codexConfigMu.Lock()
+	defer codexConfigMu.Unlock()
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Printf("  ⚠️  codex: no se pudo determinar el home: %v\n", err)
@@ -366,29 +373,164 @@ func setupCodexGlobal(ref BinRef) bool {
 		return false
 	}
 	cfgPath := filepath.Join(codexDir, "config.toml")
-	const tableHeader = `[mcp_servers.gomemory]`
 
-	if data, err := os.ReadFile(cfgPath); err == nil {
-		if strings.Contains(string(data), tableHeader) {
-			fmt.Println("  ✅ codex: ~/.codex/config.toml ya tiene el registro global de gomemory")
-			return true
+	data, readErr := os.ReadFile(cfgPath)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		fmt.Printf("  ⚠️  codex: error al leer config.toml: %v\n", readErr)
+		return false
+	}
+	original := string(data)
+	migrated, removed := migrateLegacyCodexTables(original)
+	if !hasCodexGlobalTable(migrated) {
+		if migrated != "" && !strings.HasSuffix(migrated, "\n") {
+			migrated += "\n"
 		}
+		migrated += fmt.Sprintf("\n[mcp_servers.gomemory]\ncommand = %q\nargs = [%q]\n", ref.MCPCommand, "mcp")
 	}
 
-	block := fmt.Sprintf("\n%s\ncommand = %q\nargs = [%q]\n", tableHeader, ref.MCPCommand, "mcp")
+	if migrated == original {
+		fmt.Println("  ✅ codex: ~/.codex/config.toml ya tiene el registro global de gomemory")
+		return true
+	}
 
-	f, err := os.OpenFile(cfgPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
+	mode := os.FileMode(0644)
+	if info, statErr := os.Stat(cfgPath); statErr == nil {
+		mode = info.Mode().Perm()
+	}
+	if removed > 0 {
+		backupPath, backupErr := backupCodexConfig(cfgPath, data, mode)
+		if backupErr != nil {
+			fmt.Printf("  ⚠️  codex: no se pudo respaldar config.toml; no se modifica: %v\n", backupErr)
+			return false
+		}
+		fmt.Printf("  ✅ codex: respaldo legado creado en %s\n", backupPath)
+	}
+
+	if err := writeFileAtomic(cfgPath, []byte(migrated), mode); err != nil {
 		fmt.Printf("  ⚠️  codex: error al escribir config.toml: %v\n", err)
 		return false
 	}
-	defer f.Close()
-	if _, err := f.WriteString(block); err != nil {
-		fmt.Printf("  ⚠️  codex: error al escribir config.toml: %v\n", err)
-		return false
+	if removed > 0 {
+		fmt.Printf("  ✅ codex: %d registro(s) gomemory_* legado(s) migrado(s)\n", removed)
 	}
 	fmt.Println("  ✅ codex: ~/.codex/config.toml actualizado con registro global (gomemory)")
 	return true
+}
+
+func migrateLegacyCodexTables(content string) (string, int) {
+	lines := strings.SplitAfter(content, "\n")
+	var out strings.Builder
+	dropping := false
+	removed := 0
+	for _, line := range lines {
+		if isTOMLTableHeader(line) {
+			dropping = isLegacyCodexTable(line)
+			if dropping {
+				removed++
+				continue
+			}
+		}
+		if !dropping {
+			out.WriteString(line)
+		}
+	}
+	return out.String(), removed
+}
+
+func isTOMLTableHeader(line string) bool {
+	line = strings.TrimSpace(line)
+	if comment := strings.IndexByte(line, '#'); comment >= 0 {
+		line = strings.TrimSpace(line[:comment])
+	}
+	return strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") && !strings.Contains(line, "=")
+}
+
+func codexTableKey(line string) string {
+	line = strings.TrimSpace(line)
+	if comment := strings.IndexByte(line, '#'); comment >= 0 {
+		line = strings.TrimSpace(line[:comment])
+	}
+	const prefix = "[mcp_servers."
+	if !strings.HasPrefix(line, prefix) || !strings.HasSuffix(line, "]") {
+		return ""
+	}
+	key := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, prefix), "]"))
+	if len(key) >= 2 && key[0] == '"' && key[len(key)-1] == '"' {
+		key = key[1 : len(key)-1]
+	}
+	return key
+}
+
+func isLegacyCodexTable(line string) bool {
+	key := codexTableKey(line)
+	return strings.HasPrefix(key, "gomemory_") || strings.HasPrefix(key, `"gomemory_`)
+}
+
+func hasCodexGlobalTable(content string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		if codexTableKey(line) == "gomemory" {
+			return true
+		}
+	}
+	return false
+}
+
+func backupCodexConfig(path string, data []byte, mode os.FileMode) (string, error) {
+	for attempt := 0; attempt < 10; attempt++ {
+		stamp := time.Now().UTC().Format("20060102T150405.000000000Z")
+		backupPath := fmt.Sprintf("%s.gomemory-legacy-%s.bak", path, stamp)
+		f, err := os.OpenFile(backupPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if os.IsExist(err) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		if _, err = f.Write(data); err == nil {
+			err = f.Sync()
+		}
+		closeErr := f.Close()
+		if err != nil {
+			return "", err
+		}
+		if closeErr != nil {
+			return "", closeErr
+		}
+		return backupPath, nil
+	}
+	return "", fmt.Errorf("no se pudo reservar un nombre único para el respaldo")
+}
+
+func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".config.toml.gomemory-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	committed := false
+	defer func() {
+		_ = tmp.Close()
+		if !committed {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if err := tmp.Chmod(mode); err != nil {
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 func setupOpenCode(root string) bool {
@@ -582,62 +724,8 @@ func setupCline(root string) bool {
 }
 
 func setupCodex(root string) bool {
-	ref := binRefFor(root)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Printf("  ⚠️  codex: no se pudo determinar el home: %v\n", err)
-		return false
-	}
-	codexDir := filepath.Join(homeDir, ".codex")
-	if err := os.MkdirAll(codexDir, 0755); err != nil {
-		fmt.Printf("  ⚠️  codex: error al crear %s: %v\n", codexDir, err)
-		return false
-	}
-	cfgPath := filepath.Join(codexDir, "config.toml")
-
-	key := sanitizeTomlKey(filepath.Base(root))
-	tableHeader := fmt.Sprintf(`[mcp_servers."gomemory_%s"]`, key)
-
-	if data, err := os.ReadFile(cfgPath); err == nil {
-		if strings.Contains(string(data), tableHeader) {
-			fmt.Println("  ✅ codex: ~/.codex/config.toml ya configurado para este proyecto")
-			return true
-		}
-	}
-
-	// ~/.codex/config.toml es un archivo global de la máquina (nunca se
-	// commitea), así que cwd=root es aceptable y necesario para ubicar el
-	// proyecto; el command se referencia de forma portable vía PATH.
-	block := fmt.Sprintf("\n%s\ncommand = %q\nargs = [%q]\ncwd = %q\n",
-		tableHeader, ref.MCPCommand, "mcp", root)
-
-	f, err := os.OpenFile(cfgPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Printf("  ⚠️  codex: error al escribir config.toml: %v\n", err)
-		return false
-	}
-	defer f.Close()
-	if _, err := f.WriteString(block); err != nil {
-		fmt.Printf("  ⚠️  codex: error al escribir config.toml: %v\n", err)
-		return false
-	}
-	fmt.Printf("  ✅ codex: ~/.codex/config.toml actualizado (tabla gomemory_%s)\n", key)
-	return true
-}
-
-func sanitizeTomlKey(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-		} else {
-			b.WriteRune('_')
-		}
-	}
-	if b.Len() == 0 {
-		return "project"
-	}
-	return b.String()
+	fmt.Println("  ℹ️  codex: el registro MCP es global; se reutiliza para todos los proyectos")
+	return setupCodexGlobal(binRefFor(root))
 }
 
 // RunGlobalScopeSetupForTest expone el registro de ámbito global a los
