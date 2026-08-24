@@ -5,6 +5,20 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.11.1] - 2026-08-24
+
+### Correcciones
+
+#### Constitución predeterminada completamente agnóstica
+
+La constitución ya no conserva referencias al ecosistema Speckit ni al proyecto Kolmena Core. Su texto inicial ahora describe criterios reutilizables para cualquier proyecto nuevo, sin atribuirlos a una organización, proyecto o persona.
+
+Una prueba protege la plantilla contra la reintroducción de esas referencias. Otra verifica que restaurar una constitución solo ocurre mediante una acción explícita, preservando las personalizaciones del equipo durante la instalación y la actualización.
+
+### Documentación y seguridad
+
+La mejora quedó formalizada en la especificación 025, con plan, contratos, modelo de datos, guía de validación y tareas convergidas con el código publicado. El archivo local `.env` se añade a las exclusiones de Git para impedir que una credencial de desarrollo se incorpore por accidente.
+
 ## [2.11.0] - 2026-08-24
 
 ### Novedades
