@@ -373,13 +373,31 @@ func setupCodexGlobal(ref BinRef) bool {
 		return false
 	}
 	cfgPath := filepath.Join(codexDir, "config.toml")
+	hooksPath := filepath.Join(codexDir, "hooks.json")
 
 	data, readErr := os.ReadFile(cfgPath)
 	if readErr != nil && !os.IsNotExist(readErr) {
 		fmt.Printf("  ⚠️  codex: error al leer config.toml: %v\n", readErr)
 		return false
 	}
+	originalData := append([]byte(nil), data...)
 	original := string(data)
+	hooksData, hooksReadErr := os.ReadFile(hooksPath)
+	hooksMigrated := 0
+	hooksConsolidated := false
+	if hooksReadErr == nil {
+		candidate, count, migrateErr := consolidateCodexHooks(data, hooksData)
+		if migrateErr != nil {
+			fmt.Printf("  ⚠️  codex: hooks.json no se migró; se conserva intacto: %v\n", migrateErr)
+		} else {
+			data = candidate
+			original = string(candidate)
+			hooksMigrated = count
+			hooksConsolidated = true
+		}
+	} else if !os.IsNotExist(hooksReadErr) {
+		fmt.Printf("  ⚠️  codex: error al leer hooks.json; se conserva intacto: %v\n", hooksReadErr)
+	}
 	migrated, removed := migrateLegacyCodexTables(original)
 	if !hasCodexGlobalTable(migrated) {
 		if migrated != "" && !strings.HasSuffix(migrated, "\n") {
@@ -388,7 +406,7 @@ func setupCodexGlobal(ref BinRef) bool {
 		migrated += fmt.Sprintf("\n[mcp_servers.gomemory]\ncommand = %q\nargs = [%q]\n", ref.MCPCommand, "mcp")
 	}
 
-	if migrated == original {
+	if migrated == string(originalData) && !hooksConsolidated {
 		fmt.Println("  ✅ codex: ~/.codex/config.toml ya tiene el registro global de gomemory")
 		return true
 	}
@@ -397,18 +415,39 @@ func setupCodexGlobal(ref BinRef) bool {
 	if info, statErr := os.Stat(cfgPath); statErr == nil {
 		mode = info.Mode().Perm()
 	}
-	if removed > 0 {
-		backupPath, backupErr := backupCodexConfig(cfgPath, data, mode)
+	if removed > 0 || hooksConsolidated {
+		backupPath, backupErr := backupCodexConfig(cfgPath, originalData, mode)
 		if backupErr != nil {
 			fmt.Printf("  ⚠️  codex: no se pudo respaldar config.toml; no se modifica: %v\n", backupErr)
 			return false
 		}
 		fmt.Printf("  ✅ codex: respaldo legado creado en %s\n", backupPath)
 	}
+	var hooksBackupPath string
+	if hooksConsolidated {
+		hooksMode := os.FileMode(0644)
+		if info, statErr := os.Stat(hooksPath); statErr == nil {
+			hooksMode = info.Mode().Perm()
+		}
+		var backupErr error
+		hooksBackupPath, backupErr = backupExistingFile(hooksPath, hooksData, hooksMode)
+		if backupErr != nil {
+			fmt.Printf("  ⚠️  codex: no se pudo respaldar hooks.json; no se modifica: %v\n", backupErr)
+			return false
+		}
+	}
 
 	if err := writeFileAtomic(cfgPath, []byte(migrated), mode); err != nil {
 		fmt.Printf("  ⚠️  codex: error al escribir config.toml: %v\n", err)
 		return false
+	}
+	if hooksBackupPath != "" {
+		if err := removeLegacyHooksJSON(hooksPath); err != nil {
+			_ = writeFileAtomic(cfgPath, originalData, mode)
+			fmt.Printf("  ⚠️  codex: no se pudo retirar hooks.json; config.toml fue restaurado: %v\n", err)
+			return false
+		}
+		fmt.Printf("  ✅ codex: hooks.json consolidado en config.toml (%d grupo(s) añadido(s)); respaldo en %s\n", hooksMigrated, hooksBackupPath)
 	}
 	if removed > 0 {
 		fmt.Printf("  ✅ codex: %d registro(s) gomemory_* legado(s) migrado(s)\n", removed)

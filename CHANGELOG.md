@@ -5,6 +5,22 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.12.0] - 2026-08-25
+
+### Novedades
+
+#### Codex consolida automáticamente sus hooks en una sola fuente
+
+`mem install` y `mem setup-mcp --scope global --agents codex` migran los hooks heredados de
+`~/.codex/hooks.json` a `~/.codex/config.toml`. La migración interpreta ambos formatos, conserva eventos, filtros,
+comandos, límites y campos compatibles, y elimina grupos semánticamente equivalentes sin distinguir entre GoMemory,
+Herdr u otros proveedores.
+
+Antes de modificar los archivos se crean respaldos recuperables. `hooks.json` solo se retira después de serializar y
+validar el TOML consolidado; si el JSON es inválido, permanece intacto y el registro MCP de GoMemory continúa por
+separado. Las referencias de confianza asociadas a posiciones anteriores se eliminan para que Codex vuelva a autorizar
+los hooks desde su ubicación vigente.
+
 ## [2.11.1] - 2026-08-24
 
 ### Correcciones
