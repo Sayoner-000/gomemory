@@ -5,6 +5,60 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.13.0] - 2026-08-25
+
+### Novedades
+
+#### Codex ejerce el ciclo de memoria, no solo lo consulta
+
+Hasta ahora Codex recibía el registro del servidor MCP y nada más: podía consultar la memoria si se le pedía, pero
+gomemory no inyectaba contexto al arrancar la sesión ni registraba la actividad al cerrar cada turno. `mem doctor`
+tampoco reportaba una sola de sus filas, así que el hueco no era visible: el diagnóstico cerraba con «Sin problemas»
+mientras el agente funcionaba con una fracción de sus canales.
+
+La instalación ahora registra en `~/.codex/config.toml` los enganches del ciclo —contexto al arrancar, recuperación
+tras compactar y registro de actividad al cerrar el turno— y escribe el bloque de protocolo en `~/.codex/AGENTS.md`.
+La escritura preserva íntegra la configuración ajena: solo se añaden los enganches que faltan, reinstalar no los
+duplica, y las referencias de confianza las genera Codex al autorizarlos. La bandera `[features] hooks` queda activa,
+sin la cual Codex ignoraría la sección entera.
+
+Codex aparece además en `mem doctor` con sus canales propios, y las dos capacidades que su ciclo no ofrece —los bordes
+de entrada y salida del modo plan— se reportan como degradaciones declaradas, con su motivo, en vez de desaparecer del
+informe.
+
+#### El diagnóstico distingue disponibilidad de ejercicio
+
+Un canal nuevo separa que un agente PUEDA consultar la memoria de que gomemory EJERZA su ciclo en él. Antes, un
+registro MCP presente bastaba para dar por sano a un agente que no recibía contexto ni generaba checkpoints.
+
+### Correcciones
+
+#### El contexto vuelve a caber en su presupuesto
+
+El registro automático de actividad era la única sección que no respetaba el techo de `budget`: se emitía completo, sin
+acotar. En un proyecto con historia acumulada llegó a ocupar el 68 % de un documento que más que duplicaba su
+presupuesto. Ahora se acota como cualquier otra sección, con un puntero `get_memory` al detalle completo.
+
+#### La actividad automática deja de crecer sin límite
+
+Un checkpoint guardaba hasta cinco comandos por turno, pero sin límite de largo: un comando que incluyera un archivo
+entero se almacenaba literal. Cada comando queda acotado y se declara cuánto se omitió.
+
+Los checkpoints también se deduplican por contenido. La actividad de un mismo turno se registraba dos veces —una por
+el agente principal y otra por el subagente— con títulos distintos y cuerpo idéntico, y esas copias se acumulaban sin
+que nada las fundiera.
+
+#### El historial deja de viajar dos veces en la misma sesión
+
+Al entrar en modo plan, gomemory sustituye el historial por un aviso si ya se entregó en esa sesión. La sustitución no
+llegaba a aplicarse cuando el contexto lo entregaba el enganche de arranque, que es la vía habitual: la entrega no
+quedaba anotada y no había con qué compararla.
+
+#### La versión informada corresponde al código
+
+Una compilación desde el árbol reportaba una versión anterior a la publicada, porque la constante interna se había
+quedado atrás respecto de las etiquetas de release.
+
 ## [2.12.0] - 2026-08-25
 
 ### Novedades
