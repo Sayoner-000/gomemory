@@ -210,7 +210,7 @@ func removeMCPEntries(target string) {
 		fmt.Printf("  ✅ %s: entrada gomemory removida\n", rel)
 	}
 
-	fmt.Println("  ℹ️  ~/.codex/config.toml conserva [mcp_servers.gomemory] — es un registro global compartido por todos los proyectos.")
+	fmt.Println("  ℹ️  ~/.codex/config.toml conserva [mcp_servers.gomemory] y los hooks del ciclo de gomemory — son configuración global compartida por todos los proyectos.")
 }
 
 func removeClaudePlugin(target string) {

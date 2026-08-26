@@ -217,6 +217,15 @@ func (b *Builder) fits(sb *strings.Builder, n int) bool {
 	return false
 }
 
+// descarta contabiliza como línea base el contenido de las memorias que NO se
+// emiten. Lo que no se muestra debe seguir constando en el ahorro medido
+// (feature 020): un descarte silencioso inflaría el ahorro reportado.
+func (b *Builder) descarta(mems []domain.Memory) {
+	for _, m := range mems {
+		b.discardedChars += len(m.Content)
+	}
+}
+
 func New(lister ports.MemoryLister, session ports.SessionQuerier, relations ports.RelationLister, root, project string) *Builder {
 	return &Builder{Lister: lister, Session: session, Relations: relations, Project: project, Root: root}
 }
@@ -411,10 +420,8 @@ func (b *Builder) Build() (string, error) {
 			if i >= 5 {
 				// Tercer punto de descarte (feature 020, research.md §2): el
 				// mayor de los tres — descarta hasta 75 de 80 registros de
-				// actividad cargados, sin pasar nunca por acota() ni fits().
-				for _, rest := range checkpoints[i:] {
-					b.discardedChars += len(rest.Content)
-				}
+				// actividad cargados.
+				b.descarta(checkpoints[i:])
 				break
 			}
 			if b.IndexMode {
@@ -422,7 +429,16 @@ func (b *Builder) Build() (string, error) {
 				sb.WriteString(fmt.Sprintf("- %s → `get_memory %d`\n", displayTitle(m), m.ID))
 				continue
 			}
-			sb.WriteString(fmt.Sprintf("- %s\n", m.Content))
+			// El cuerpo pasa por acota() y fits() igual que el de cualquier otra
+			// sección. Sin ellos, un checkpoint es un volcado literal del turno
+			// (heredocs incluidos): esta sección sola llegó a ocupar el 68 % de un
+			// documento que duplicaba con creces el techo de settings.Budget.
+			line := fmt.Sprintf("- %s\n", b.acota(m))
+			if !b.fits(&sb, len(line)) {
+				b.descarta(checkpoints[i+1:])
+				break
+			}
+			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
 	}

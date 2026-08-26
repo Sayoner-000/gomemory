@@ -406,6 +406,18 @@ func setupCodexGlobal(ref BinRef) bool {
 		migrated += fmt.Sprintf("\n[mcp_servers.gomemory]\ncommand = %q\nargs = [%q]\n", ref.MCPCommand, "mcp")
 	}
 
+	// El registro MCP da a Codex la CAPACIDAD de consultar memoria; los hooks
+	// son los que hacen que gomemory EJERZA su ciclo (inyectar contexto al
+	// arrancar, registrar la actividad al cerrar cada turno). Sin ellos, Codex
+	// corría sobre un solo canal de cinco y `mem doctor` ni lo reportaba.
+	hooksAdded := 0
+	if conHooks, añadidos, err := ensureCodexGomemoryHooks([]byte(migrated), ref.MCPCommand); err != nil {
+		fmt.Printf("  ⚠️  codex: no se pudieron registrar los hooks de gomemory; el resto del archivo no se toca: %v\n", err)
+	} else {
+		migrated = string(conHooks)
+		hooksAdded = añadidos
+	}
+
 	if migrated == string(originalData) && !hooksConsolidated {
 		fmt.Println("  ✅ codex: ~/.codex/config.toml ya tiene el registro global de gomemory")
 		return true
@@ -415,7 +427,7 @@ func setupCodexGlobal(ref BinRef) bool {
 	if info, statErr := os.Stat(cfgPath); statErr == nil {
 		mode = info.Mode().Perm()
 	}
-	if removed > 0 || hooksConsolidated {
+	if removed > 0 || hooksConsolidated || hooksAdded > 0 {
 		backupPath, backupErr := backupCodexConfig(cfgPath, originalData, mode)
 		if backupErr != nil {
 			fmt.Printf("  ⚠️  codex: no se pudo respaldar config.toml; no se modifica: %v\n", backupErr)
@@ -451,6 +463,10 @@ func setupCodexGlobal(ref BinRef) bool {
 	}
 	if removed > 0 {
 		fmt.Printf("  ✅ codex: %d registro(s) gomemory_* legado(s) migrado(s)\n", removed)
+	}
+	if hooksAdded > 0 {
+		fmt.Printf("  ✅ codex: %d hook(s) del ciclo de gomemory registrado(s) en config.toml\n", hooksAdded)
+		fmt.Println("  ℹ️  codex: autoriza los hooks nuevos en tu próxima sesión de Codex para que queden activos")
 	}
 	fmt.Println("  ✅ codex: ~/.codex/config.toml actualizado con registro global (gomemory)")
 	return true

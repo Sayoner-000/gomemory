@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mem/adapters/secondary/persistence"
+	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
 )
@@ -110,10 +111,33 @@ func hookSessionStart(deps *Deps) {
 	os.Remove(sessionMarkerPath(deps, root))
 	os.Remove(planEnteredMarkerPath(deps, root))
 
-	if ctx, err := deps.ContextBuilder.Build(); err == nil && ctx != "" {
+	if ctx := entregaContextoDeArranque(deps); ctx != "" {
 		fmt.Print(ctx)
 	}
 	os.Exit(0)
+}
+
+// entregaContextoDeArranque construye el contexto de la sesión y deja constancia
+// de la entrega. Devuelve "" cuando no hay nada que emitir.
+//
+// Anotar la entrega es lo que permite a get_plan_context no reenviar el mismo
+// historial en esta sesión (feature 023, FR-006), igual que ya hacen el handler
+// MCP de get_context y `mem context`. Sin esta anotación la supresión no se
+// aplicaba NUNCA en uso real: la entrega dominante es este hook —479 llamadas
+// por canal cli contra 88 por mcp en un proyecto medido—, así que la guarda se
+// quedaba sin nada con que comparar y el historial completo viajaba dos veces
+// en la misma sesión.
+//
+// Vive fuera de hookSessionStart, que termina en os.Exit, para poder verificarla.
+func entregaContextoDeArranque(deps *Deps) string {
+	ctx, err := deps.ContextBuilder.Build()
+	if err != nil || ctx == "" {
+		return ""
+	}
+	if deps.DeliveryLog != nil {
+		deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(ctx))
+	}
+	return ctx
 }
 
 // hookSessionEnd cierra la sesión activa como red de seguridad. El resumen
@@ -670,6 +694,27 @@ func stringSliceFromPayload(v any) []string {
 	return out
 }
 
+// maxCommandChars acota CADA comando registrado en un checkpoint. El límite de
+// 5 comandos por turno no bastaba: un solo comando puede traer un heredoc con
+// un archivo entero. Sin este techo, la actividad automática llegó a ser el
+// 78 % de la memoria del proyecto (426 de 508 entradas, con un checkpoint de
+// 25 478 caracteres). El checkpoint es una red de seguridad de lo que pasó, no
+// una transcripción de la terminal.
+const maxCommandChars = 300
+
+// acotaComando recorta un comando dejando constancia explícita de cuánto se
+// omitió. No reusa domain.Extract a propósito: su heurística de "primera
+// oración" está pensada para prosa y sobre un comando cortaría en cualquier
+// punto seguido de espacio, produciendo un fragmento engañoso.
+func acotaComando(cmd string) string {
+	r := []rune(strings.TrimSpace(cmd))
+	if len(r) <= maxCommandChars {
+		return string(r)
+	}
+	corte := strings.TrimRight(string(r[:maxCommandChars]), " \n\t")
+	return fmt.Sprintf("%s… (+%d caracteres omitidos)", corte, len(r)-maxCommandChars)
+}
+
 func formatCheckpoint(a turnActivity) string {
 	var parts []string
 	if len(a.Files) > 0 {
@@ -680,7 +725,11 @@ func formatCheckpoint(a turnActivity) string {
 		if len(cmds) > 5 {
 			cmds = cmds[:5]
 		}
-		parts = append(parts, "Comandos: "+strings.Join(cmds, "; "))
+		acotados := make([]string, 0, len(cmds))
+		for _, c := range cmds {
+			acotados = append(acotados, acotaComando(c))
+		}
+		parts = append(parts, "Comandos: "+strings.Join(acotados, "; "))
 	}
 	return strings.Join(parts, ". ")
 }

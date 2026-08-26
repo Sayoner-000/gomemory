@@ -99,7 +99,7 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	// Dedup/upsert en la fuente (feature 008): consolida una memoria equivalente
 	// ya existente en vez de crear una fila nueva, para que el contexto no se
 	// infle con repeticiones. Best-effort: si no hay match, sigue el INSERT normal.
-	if existingID, ok := findDuplicateTx(tx, m, title); ok {
+	if existingID, ok := findDuplicateTx(tx, m, title, content); ok {
 		if _, err := tx.Exec(
 			`UPDATE memories SET content = ?, title = ?, type = ?, filepath = ?, topic_key = ?, updated_at = `+Now+`
 			 WHERE id = ?`,
@@ -343,12 +343,21 @@ func contentHash(s string) string {
 // findDuplicate localiza una memoria existente que la nueva debe consolidar en
 // lugar de duplicar:
 //   - por topic_key (explícito, cualquier tipo): agrupa revisiones del mismo tópico;
-//   - por identidad (mismo project+type+title dentro de la ventana): NUNCA aplica
-//     a checkpoints (su contenido varía por turno) ni a memorias sin título (un
-//     título vacío no es una clave de dedup fiable).
+//   - por contenido exacto (solo checkpoints): la actividad de un MISMO turno se
+//     registra por dos vías —agente principal y subagente— con títulos distintos
+//     y cuerpo idéntico. Medido en un proyecto real: 106 de 120 grupos duplicados
+//     diferían solo en el título, 178 filas redundantes y 265 KB desperdiciados.
+//     Antes se excluía el tipo entero razonando que "su contenido varía por
+//     turno": cierto entre turnos distintos, falso para el mismo turno visto dos
+//     veces.
+//   - por identidad (mismo project+type+title dentro de la ventana): no aplica a
+//     memorias sin título (un título vacío no es una clave de dedup fiable).
+//
+// content es el contenido YA redactado y anotado, el mismo que se persistiría:
+// compararlo contra m.Content daría siempre falso negativo.
 //
 // Best-effort: ante cualquier error o ausencia de match, (0,false) ⇒ INSERT normal.
-func findDuplicate(db *sql.DB, m *domain.Memory, title string) (int64, bool) {
+func findDuplicate(db *sql.DB, m *domain.Memory, title, content string) (int64, bool) {
 	if tk := strings.TrimSpace(m.TopicKey); tk != "" {
 		var id int64
 		if err := db.QueryRow(
@@ -360,7 +369,26 @@ func findDuplicate(db *sql.DB, m *domain.Memory, title string) (int64, bool) {
 		return 0, false // topic explícito sin match: no cae a identidad, el tópico manda.
 	}
 
-	if dedupWindowDays <= 0 || m.Type == domain.Checkpoint || strings.TrimSpace(title) == "" {
+	if dedupWindowDays <= 0 {
+		return 0, false
+	}
+
+	// Checkpoint: la clave de identidad es el CONTENIDO, no el título.
+	if m.Type == domain.Checkpoint {
+		var id int64
+		if err := db.QueryRow(
+			`SELECT id FROM memories
+			 WHERE project = ? AND type = 'checkpoint' AND content = ?
+			   AND julianday(`+Now+`) - julianday(created_at) <= ?
+			 ORDER BY id DESC LIMIT 1`,
+			m.Project, content, dedupWindowDays,
+		).Scan(&id); err == nil {
+			return id, true
+		}
+		return 0, false
+	}
+
+	if strings.TrimSpace(title) == "" {
 		return 0, false
 	}
 	var id int64
@@ -377,7 +405,7 @@ func findDuplicate(db *sql.DB, m *domain.Memory, title string) (int64, bool) {
 }
 
 // findDuplicateTx variante transaccional de findDuplicate.
-func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title string) (int64, bool) {
+func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64, bool) {
 	if tk := strings.TrimSpace(m.TopicKey); tk != "" {
 		var id int64
 		if err := tx.QueryRow(
@@ -389,7 +417,26 @@ func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title string) (int64, bool) {
 		return 0, false
 	}
 
-	if dedupWindowDays <= 0 || m.Type == domain.Checkpoint || strings.TrimSpace(title) == "" {
+	if dedupWindowDays <= 0 {
+		return 0, false
+	}
+
+	// Checkpoint: la clave de identidad es el CONTENIDO, no el título.
+	if m.Type == domain.Checkpoint {
+		var id int64
+		if err := tx.QueryRow(
+			`SELECT id FROM memories
+			 WHERE project = ? AND type = 'checkpoint' AND content = ?
+			   AND julianday(`+Now+`) - julianday(created_at) <= ?
+			 ORDER BY id DESC LIMIT 1`,
+			m.Project, content, dedupWindowDays,
+		).Scan(&id); err == nil {
+			return id, true
+		}
+		return 0, false
+	}
+
+	if strings.TrimSpace(title) == "" {
 		return 0, false
 	}
 	var id int64

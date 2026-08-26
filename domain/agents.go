@@ -55,8 +55,14 @@ const (
 // única de lo que introduce la feature 019 — niveles, dialectos, reporte.
 // Las tablas por agente que ya existen dispersas en el instalador
 // (globalScopeAgents, atomicPlanWrappers, agentFiles) no se migran aquí
-// todavía; por eso KnownAgents solo declara los agentes con mecanismo
-// determinista o de entrada ya diseñado en esta feature (claude, opencode).
+// todavía.
+//
+// Codex entró al registro después: estaba dentro del alcance del proyecto y
+// recibía instalación real (registro MCP global, migración de hooks), pero al
+// no figurar aquí no producía NI UNA fila en `mem doctor`, que cerraba con
+// «Sin problemas» mientras el agente corría sobre un solo canal de cinco. Un
+// agente que se instala pero no se observa es justo el punto ciego
+// «presencia contra actividad» que el reporte existe para cerrar.
 type AgentCapability struct {
 	Name    string
 	Dialect AgentDialect
@@ -68,6 +74,14 @@ type AgentCapability struct {
 	// sea consecuencia de esta fila, nunca un caso especial escrito a mano en
 	// el adaptador (FR-017, T049).
 	GuardUnavailableReason string
+
+	// EntryUnavailableReason es el equivalente para AgentLevelEntry. Existe por
+	// el mismo motivo que su hermano: sin él, un agente que no declara el nivel
+	// simplemente no producía fila alguna en `mem doctor`, y una ausencia sin
+	// motivo es indistinguible de un olvido. Una degradación declarada es
+	// información; un hueco silencioso es el defecto que este registro existe
+	// para impedir.
+	EntryUnavailableReason string
 }
 
 // HasLevel reporta si esta capacidad declara el nivel dado.
@@ -109,6 +123,25 @@ var KnownAgents = []AgentCapability{
 			ScopeUser:    true,
 		},
 		GuardUnavailableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan",
+	},
+	{
+		Name:    "codex",
+		Dialect: DialectText,
+		Levels: map[AgentLevel]bool{
+			// Ni Guard ni Entry: el ciclo de Codex no expone una herramienta de
+			// entrada ni de salida del modo plan sobre la que enganchar un hook.
+			// Lo que sí sostiene —y por eso entra al registro— son los eventos
+			// SessionStart y Stop de su config.toml, que dan inyección de
+			// contexto al arrancar y checkpoint al cerrar cada turno.
+			AgentLevelTextFloor: true,
+		},
+		Scopes: map[AgentScope]bool{
+			// Solo usuario: Codex registra su configuración una vez por máquina
+			// en ~/.codex/config.toml, sin equivalente por proyecto.
+			ScopeUser: true,
+		},
+		GuardUnavailableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan",
+		EntryUnavailableReason: "el ciclo del agente no expone un borde de entrada al modo plan sobre el que enganchar",
 	},
 }
 

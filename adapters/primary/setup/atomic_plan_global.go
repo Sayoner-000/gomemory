@@ -19,7 +19,10 @@ type globalTarget struct {
 	dir []string
 	// instructions es el archivo de instrucciones que el agente lee siempre.
 	instructions string
-	// wrapper es la ruta del envoltorio nativo, relativa a dir.
+	// wrapper es la ruta del envoltorio nativo, relativa a dir. Vacío = el
+	// agente no tiene un formato propio de comandos/habilidades que gomemory
+	// sepa escribir; se instalan sus instrucciones y nada más. Inventar una
+	// ruta produciría un archivo que ningún agente lee.
 	wrapper []string
 	// frontmatter que necesita ese envoltorio para ser descubierto.
 	frontmatter string
@@ -44,6 +47,15 @@ var globalTargets = []globalTarget{
 		frontmatter: "---\n" +
 			"description: Descompone el objetivo en tareas atómicas verificables antes de planificar\n" +
 			"---\n\n",
+	},
+	{
+		agent: "codex",
+		dir:   []string{".codex"},
+		// AGENTS.md es el archivo que Codex lee siempre, el mismo estándar que
+		// usa OpenCode. Sin envoltorio nativo: Codex no expone un formato de
+		// comandos o habilidades propio que gomemory pueda escribir, y el
+		// método de descomposición le llega igual por el bloque de protocolo.
+		instructions: "AGENTS.md",
 	},
 }
 
@@ -90,7 +102,7 @@ func InstallAtomicPlanGlobal(method string, compose func(existing string) (strin
 			written = append(written, p)
 		}
 
-		if strings.TrimSpace(method) == "" {
+		if strings.TrimSpace(method) == "" || len(t.wrapper) == 0 {
 			continue
 		}
 		dest := filepath.Join(append([]string{base}, t.wrapper...)...)

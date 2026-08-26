@@ -590,3 +590,50 @@ func TestBuild_IndexMode_EmptyProject_ExplicitEmptyIndex(t *testing.T) {
 		t.Fatalf("sin memorias, el modo índice debe declararlo explícitamente, got:\n%s", out)
 	}
 }
+
+// TestBuild_CheckpointsRespectBudget cubre la regresión medida en producción: la
+// sección "Actividad Reciente (auto)" emitía el cuerpo del checkpoint en crudo,
+// sin acota() ni fits(). Con 5 checkpoints de 16 KB —el tamaño real de un turno
+// con heredocs— esa sola sección ocupaba el 68 % de un documento de 58 KB contra
+// un techo de 24 000.
+func TestBuild_CheckpointsRespectBudget(t *testing.T) {
+	root := t.TempDir()
+	db, err := persistence.Init(root)
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	defer db.Close()
+
+	memRepo := persistence.NewMemoryRepository(db)
+	sessRepo := persistence.NewSessionRepository(db)
+	relRepo := persistence.NewRelationRepository(db)
+
+	// Contenidos DISTINTOS entre sí: el dedup por contenido no debe ser el que
+	// salve esta prueba, la tiene que salvar el presupuesto.
+	for i := 0; i < 5; i++ {
+		content := fmt.Sprintf("Comandos: cat > archivo_%d.go <<'EOF'\n%s", i, strings.Repeat("linea de un heredoc largo\n", 640))
+		if _, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Checkpoint, Content: content}); err != nil {
+			t.Fatalf("insert checkpoint %d: %v", i, err)
+		}
+	}
+
+	builder := usecases.New(memRepo, sessRepo, relRepo, root, "proj")
+	builder.Budget = 24000
+	out, err := builder.Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	if len(out) > 24000 {
+		t.Fatalf("la salida excede el presupuesto por culpa de los checkpoints: %d bytes", len(out))
+	}
+	if !strings.Contains(out, "Actividad Reciente") {
+		t.Fatalf("la sección de actividad no debe desaparecer, solo acotarse, got:\n%s", out[:min(len(out), 1500)])
+	}
+	if !strings.Contains(out, "get_memory") {
+		t.Fatalf("el cuerpo acotado debe dejar el puntero al detalle, got:\n%s", out[:min(len(out), 1500)])
+	}
+	if strings.Contains(out, strings.Repeat("linea de un heredoc largo\n", 20)) {
+		t.Fatalf("el volcado literal del turno no debe llegar al contexto")
+	}
+}

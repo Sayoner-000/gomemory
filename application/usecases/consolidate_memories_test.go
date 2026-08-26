@@ -135,10 +135,15 @@ func TestConsolidateMemories_CheckpointDuplicates_ByExactContent(t *testing.T) {
 	defer db.Close()
 	memRepo := persistence.NewMemoryRepository(db)
 
+	// Filas RAW por el mismo motivo que insertRawTopicDuplicate: desde que
+	// findDuplicate deduplica checkpoints por contenido, InsertMemory colapsa
+	// este grupo en el momento de guardarlo y no quedaría nada que consolidar.
+	// La fixture fija el estado heredado —bases que ya acumularon duplicados
+	// antes de esa corrección—, que es justo lo que este caso de uso resuelve.
 	identical := "Editó: main.go. Comandos: go build ./..."
-	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Checkpoint, Title: "Checkpoint automático", Content: identical})
-	idNewest, _ := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Checkpoint, Title: "Checkpoint de subagente", Content: identical})
-	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Checkpoint, Title: "Checkpoint automático", Content: "otro contenido distinto"})
+	insertRawCheckpoint(t, db, "proj", "Checkpoint automático", identical)
+	idNewest := insertRawCheckpoint(t, db, "proj", "Checkpoint de subagente", identical)
+	insertRawCheckpoint(t, db, "proj", "Checkpoint automático", "otro contenido distinto")
 
 	report, err := usecases.ConsolidateMemories(memRepo, "proj", true)
 	if err != nil {
@@ -161,6 +166,22 @@ func TestConsolidateMemories_CheckpointDuplicates_ByExactContent(t *testing.T) {
 	if report.DeletedCount != 1 {
 		t.Fatalf("DeletedCount = %d, want 1", report.DeletedCount)
 	}
+}
+
+// insertRawCheckpoint inserta un checkpoint DIRECTAMENTE en SQL, evitando el
+// dedup por contenido de findDuplicate — mismo propósito que
+// insertRawTopicDuplicate para los duplicados por tópico.
+func insertRawCheckpoint(t *testing.T, db *sql.DB, project, title, content string) int64 {
+	t.Helper()
+	res, err := db.Exec(
+		`INSERT INTO memories (project, type, title, content) VALUES (?, 'checkpoint', ?, ?)`,
+		project, title, content,
+	)
+	if err != nil {
+		t.Fatalf("insertRawCheckpoint: %v", err)
+	}
+	id, _ := res.LastInsertId()
+	return id
 }
 
 // insertRawTopicDuplicate inserta una fila DIRECTAMENTE en SQL, evitando el

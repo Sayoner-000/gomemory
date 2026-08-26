@@ -174,6 +174,30 @@ var ChannelMatrix = []MatrixCell{
 	{Agent: "opencode", Kind: KindPlanGuard, Scope: ScopeUser,
 		NotApplicableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan"},
 
+	// ── codex · usuario ──────────────────────────────────────────────────
+	// Codex configura una sola vez por máquina: no tiene equivalente por
+	// proyecto, y por eso no declara ScopeProject en KnownAgents.
+	{Agent: "codex", Kind: KindInstructions, Scope: ScopeUser,
+		Path: []string{".codex", "AGENTS.md"}, Managed: true},
+	{Agent: "codex", Kind: KindServerConfig, Scope: ScopeUser,
+		Path: []string{".codex", "config.toml"}, ConfigKey: "mcp_servers", Managed: true},
+	{Agent: "codex", Kind: KindLifecycleHook, Scope: ScopeUser,
+		Path: []string{".codex", "config.toml"}, Managed: true},
+	{Agent: "codex", Kind: KindTurnReminder, Scope: ScopeUser,
+		Path: []string{".codex", "config.toml"}, Managed: true},
+	{Agent: "codex", Kind: KindPlanEntry, Scope: ScopeUser,
+		NotApplicableReason: "el ciclo del agente no expone un borde de entrada al modo plan sobre el que enganchar"},
+	{Agent: "codex", Kind: KindPlanGuard, Scope: ScopeUser,
+		NotApplicableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan"},
+	{Agent: "codex", Kind: KindNativeWrapper, Scope: ScopeUser,
+		NotApplicableReason: "el agente no expone un formato propio de comandos o habilidades; el método viaja en el bloque de protocolo de AGENTS.md"},
+
+	// ── artefactos heredados · usuario ───────────────────────────────────
+	// INV-5: se retira, nunca se escribe. Lo dejaron las versiones anteriores
+	// a la 2.12.0, que registraban los hooks de Codex en un archivo aparte.
+	{Agent: "codex", Kind: KindLifecycleHook, Scope: ScopeUser,
+		Path: []string{".codex", "hooks.json"}, Legacy: true},
+
 	// ── artefactos heredados · proyecto ──────────────────────────────────
 	// INV-5: se retiran, nunca se escriben. Los dejó `mem install` antes de
 	// la versión 2.9.0.

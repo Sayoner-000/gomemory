@@ -19,6 +19,17 @@ func rutasDeLaMatriz(kind domain.ChannelKind, scope domain.AgentScope) map[strin
 	return out
 }
 
+// motivoDeclarado reporta si la matriz explica, con un motivo, por qué un
+// agente no materializa un canal en un ámbito.
+func motivoDeclarado(kind domain.ChannelKind, scope domain.AgentScope, agente string) bool {
+	for _, c := range domain.ChannelMatrix {
+		if c.Agent == agente && c.Kind == kind && c.Scope == scope && c.NotApplicableReason != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // contieneBajo reporta si alguna ruta declarada es prefijo de la ruta dada. Los
 // envoltorios nativos se declaran a nivel de directorio en la matriz, porque su
 // nombre de archivo depende del envoltorio concreto y no del agente.
@@ -73,6 +84,16 @@ func TestC7_DestinosGlobalesConcuerdanConLaMatriz(t *testing.T) {
 		ruta := filepath.Join(base, tg.instructions)
 		if !instrucciones[ruta] {
 			t.Errorf("el archivo de instrucciones de ámbito de usuario %q no está declarado en la matriz", ruta)
+		}
+
+		if len(tg.wrapper) == 0 {
+			// Un agente sin formato propio de envoltorio no queda exento: debe
+			// DECLARAR por qué en la matriz. El hueco sin motivo sigue siendo
+			// un error, que es lo que este contrato existe para atrapar.
+			if !motivoDeclarado(domain.KindNativeWrapper, domain.ScopeUser, tg.agent) {
+				t.Errorf("el agente %q no instala envoltorio nativo y la matriz no declara por qué", tg.agent)
+			}
+			continue
 		}
 
 		rutaEnv := filepath.Join(append(tg.dir, tg.wrapper...)...)

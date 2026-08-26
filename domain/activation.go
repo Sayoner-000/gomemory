@@ -22,6 +22,11 @@ const (
 	KindInstructions    ChannelKind = "instructions"
 	KindNativeWrapper   ChannelKind = "native_wrapper"
 	KindMCPInstructions ChannelKind = "mcp_instructions"
+	// KindLifecycleHook cubre el enganche por turno/sesión de un agente cuyo
+	// ciclo NO pasa por los hooks de Claude Code: es la evidencia de que
+	// gomemory EJERCE su ciclo (inyectar al arrancar, registrar al cerrar), no
+	// solo de que el agente pueda consultar memoria por MCP.
+	KindLifecycleHook ChannelKind = "lifecycle_hook"
 )
 
 // ChannelState es el estado de un canal concreto. StateNotApplicable está

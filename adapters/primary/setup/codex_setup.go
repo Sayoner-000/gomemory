@@ -1,0 +1,149 @@
+package setup
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/pelletier/go-toml/v2"
+)
+
+// codexHook declara un enganche del ciclo de vida de gomemory en Codex: el
+// evento de su config.toml, el filtro de orígenes y el subcomando `mem hook`
+// que lo implementa.
+//
+// Es el equivalente de claudeHookEvents para el dialecto de Codex. Se limita a
+// los eventos que Codex expone de verdad (SessionStart y Stop): el agente no
+// ofrece un borde de entrada ni de salida del modo plan, y declararlos aquí
+// produciría un hook que nunca dispara — un fallo silencioso, justo lo que el
+// registro de capacidades existe para impedir.
+type CodexHook struct {
+	Event   string
+	Matcher string
+	Sub     string
+}
+
+// codexGomemoryHooks es el ciclo mínimo que hace que Codex ejerza memoria y no
+// solo pueda consultarla: contexto al arrancar, recuperación tras compactar, y
+// registro determinista de la actividad al cerrar cada turno.
+var codexGomemoryHooks = []CodexHook{
+	{Event: "SessionStart", Matcher: "startup|resume|clear", Sub: "session-start"},
+	{Event: "SessionStart", Matcher: "compact", Sub: "post-compact"},
+	{Event: "Stop", Sub: "turn-end"},
+}
+
+// CodexGomemoryHooks expone la tabla para quien tenga que escribirla. Vive en
+// este paquete —el dueño de los artefactos de cada agente— y no en el
+// instalador, para que el diagnóstico y la instalación lean la MISMA
+// declaración: un hook que se instala y no se observa es el punto ciego que
+// esta feature cierra.
+func CodexGomemoryHooks() []CodexHook { return codexGomemoryHooks }
+
+// CodexConfigPath resuelve ~/.codex/config.toml.
+func CodexConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".codex", "config.toml"), nil
+}
+
+// CodexGlobalRegistrationExists reporta si config.toml registra el servidor
+// gomemory bajo [mcp_servers.gomemory].
+func CodexGlobalRegistrationExists() bool {
+	doc, err := readCodexConfig()
+	if err != nil {
+		return false
+	}
+	servers, _ := doc["mcp_servers"].(map[string]any)
+	_, existe := servers["gomemory"]
+	return existe
+}
+
+// CodexMissingGomemoryHooks devuelve los subcomandos de gomemory que NO están
+// enganchados en config.toml. Lista vacía = el ciclo está completo.
+func CodexMissingGomemoryHooks() []string {
+	doc, err := readCodexConfig()
+	if err != nil {
+		// Sin config legible no se puede afirmar que los hooks estén: se
+		// reportan todos como faltantes antes que declarar un ciclo sano que
+		// nadie comprobó.
+		return codexHookSubs()
+	}
+	hooks, _ := doc["hooks"].(map[string]any)
+	var faltan []string
+	for _, h := range codexGomemoryHooks {
+		if !CodexHookPresente(hooks, h) {
+			faltan = append(faltan, h.Sub)
+		}
+	}
+	return faltan
+}
+
+func codexHookSubs() []string {
+	out := make([]string, 0, len(codexGomemoryHooks))
+	for _, h := range codexGomemoryHooks {
+		out = append(out, h.Sub)
+	}
+	return out
+}
+
+// CodexHookGroup arma el grupo TOML que Codex espera para un enganche.
+func CodexHookGroup(h CodexHook, memCommand string) map[string]any {
+	group := map[string]any{
+		"hooks": []any{map[string]any{
+			"type":    "command",
+			"command": fmt.Sprintf("%s hook %s", memCommand, h.Sub),
+		}},
+	}
+	if h.Matcher != "" {
+		group["matcher"] = h.Matcher
+	}
+	return group
+}
+
+// codexHookPresente reconoce un hook de gomemory por el subcomando que invoca,
+// no por la ruta del binario: quien instaló con `mem` y quien lo hizo con una
+// ruta absoluta tienen el mismo ciclo enganchado, y reinstalar no debe
+// duplicarlo. Es el mismo criterio que usa el instalador de Claude Code.
+func CodexHookPresente(hooks map[string]any, h CodexHook) bool {
+	grupos, _ := hooks[h.Event].([]any)
+	for _, g := range grupos {
+		grupo, ok := g.(map[string]any)
+		if !ok {
+			continue
+		}
+		matcher, _ := grupo["matcher"].(string)
+		if matcher != h.Matcher {
+			continue
+		}
+		acciones, _ := grupo["hooks"].([]any)
+		for _, a := range acciones {
+			accion, ok := a.(map[string]any)
+			if !ok {
+				continue
+			}
+			if cmd, _ := accion["command"].(string); strings.Contains(cmd, "hook "+h.Sub) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func readCodexConfig() (map[string]any, error) {
+	path, err := CodexConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	doc := map[string]any{}
+	if err := toml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}

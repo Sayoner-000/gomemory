@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"mem/domain"
 )
@@ -104,6 +105,19 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 				State: domain.StateNotApplicable, Detail: "este agente instala su mecanismo de entrada de forma global, no por proyecto",
 			})
 		}
+	} else {
+		// Simétrico al tratamiento de plan_guard: un agente que no sostiene el
+		// nivel 2 declara POR QUÉ. Antes no se emitía fila alguna, y una
+		// ausencia sin motivo es indistinguible de un olvido — así fue como un
+		// agente entero pudo faltar del reporte sin que nada lo señalara.
+		reason := agent.EntryUnavailableReason
+		if reason == "" {
+			reason = "el agente no declara soporte para el borde de entrada al modo plan"
+		}
+		out = append(out, domain.ActivationChannel{
+			Arm: domain.ArmGomemory, Agent: agent.Name, Scope: scope, Kind: domain.KindPlanEntry,
+			State: domain.StateNotApplicable, Detail: reason,
+		})
 	}
 
 	// turn_reminder: el recordatorio de una línea (feature 019, Historia 2)
@@ -129,8 +143,49 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 	if agent.Name == "opencode" && scope == domain.ScopeUser {
 		out = append(out, inspectOpenCodeServerConfig())
 	}
+	if agent.Name == "codex" && scope == domain.ScopeUser {
+		out = append(out, inspectCodexServerConfig(), inspectCodexHooks())
+	}
 
 	return out
+}
+
+// inspectCodexServerConfig verifica que ~/.codex/config.toml registre el
+// servidor gomemory. Es el canal por el que Codex obtiene memoria: sin él, y
+// sin hooks, el agente corre sin memoria y sin ningún síntoma visible.
+func inspectCodexServerConfig() domain.ActivationChannel {
+	ch := domain.ActivationChannel{
+		Arm: domain.ArmGomemory, Agent: "codex", Scope: domain.ScopeUser,
+		Kind: domain.KindServerConfig,
+	}
+	if CodexGlobalRegistrationExists() {
+		ch.State = domain.StateOK
+		ch.Detail = "registro MCP global en ~/.codex/config.toml"
+		return ch
+	}
+	ch.State = domain.StateMissing
+	ch.Detail = "sin registro MCP global para gomemory"
+	return ch
+}
+
+// inspectCodexHooks comprueba que el ciclo por turno de Codex esté enganchado.
+// Es la diferencia entre que el agente PUEDA consultar memoria (registro MCP) y
+// que gomemory EJERZA su ciclo: inyectar contexto al arrancar y registrar la
+// actividad al cerrar cada turno, sin gastar tokens del agente.
+func inspectCodexHooks() domain.ActivationChannel {
+	ch := domain.ActivationChannel{
+		Arm: domain.ArmGomemory, Agent: "codex", Scope: domain.ScopeUser,
+		Kind: domain.KindLifecycleHook,
+	}
+	faltantes := CodexMissingGomemoryHooks()
+	if len(faltantes) == 0 {
+		ch.State = domain.StateOK
+		ch.Detail = "hooks de gomemory en ~/.codex/config.toml (session-start, post-compact, turn-end)"
+		return ch
+	}
+	ch.State = domain.StateMissing
+	ch.Detail = "faltan hooks de gomemory en ~/.codex/config.toml: " + strings.Join(faltantes, ", ")
+	return ch
 }
 
 // inspectOpenCodeServerConfig verifica que la configuración global del agente

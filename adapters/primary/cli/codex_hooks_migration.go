@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"mem/adapters/primary/setup"
 )
 
 // consolidateCodexHooks convierte la representación heredada hooks.json al
@@ -244,4 +246,107 @@ func removeLegacyHooksJSON(path string) error {
 		return err
 	}
 	return nil
+}
+
+// ensureCodexGomemoryHooks devuelve el config.toml con los enganches del ciclo
+// de vida de gomemory presentes, junto al número de enganches añadidos.
+// Idempotente: reaplicarlo sobre su propio resultado no cambia nada.
+//
+// Solo AÑADE lo que falta, al final de la lista de cada evento: no reordena ni
+// retira hooks ajenos, y por eso el estado de confianza de los que ya estaban
+// conserva su posición e identidad (contracts/hooks-config.md). El de los hooks
+// nuevos lo genera Codex al autorizarlos — aquí jamás se calcula un
+// trusted_hash a mano.
+//
+// El resto del archivo se preserva verbatim: se recortan únicamente las tablas
+// de hooks y se anexan reserializadas, igual que hace consolidateCodexHooks.
+func ensureCodexGomemoryHooks(config []byte, memCommand string) ([]byte, int, error) {
+	doc := map[string]any{}
+	if len(bytes.TrimSpace(config)) > 0 {
+		if err := toml.Unmarshal(config, &doc); err != nil {
+			return nil, 0, fmt.Errorf("config.toml inválido: %w", err)
+		}
+	}
+
+	hooks, _ := stringMap(doc["hooks"])
+	if hooks == nil {
+		hooks = make(map[string]any)
+	}
+
+	añadidos := 0
+	for _, h := range setup.CodexGomemoryHooks() {
+		if setup.CodexHookPresente(hooks, h) {
+			continue
+		}
+		grupos, _ := anySlice(hooks[h.Event])
+		hooks[h.Event] = append(grupos, setup.CodexHookGroup(h, memCommand))
+		añadidos++
+	}
+	if añadidos == 0 {
+		return config, 0, nil
+	}
+
+	bloque, err := toml.Marshal(map[string]any{"hooks": hooks})
+	if err != nil {
+		return nil, 0, fmt.Errorf("serializar hooks de gomemory: %w", err)
+	}
+
+	base := ensureCodexHooksFeature(stripCodexHooksTables(string(config)))
+	candidate := []byte(strings.TrimRight(base, "\n") + "\n\n" + strings.TrimLeft(string(bloque), "\n"))
+	var validado map[string]any
+	if err := toml.Unmarshal(candidate, &validado); err != nil {
+		return nil, 0, fmt.Errorf("candidato TOML inválido: %w", err)
+	}
+	return candidate, añadidos, nil
+}
+
+// ensureCodexHooksFeature garantiza `[features] hooks = true`. Sin esa bandera
+// Codex ignora la sección entera: dejar los hooks escritos sin activarla
+// produce un ciclo presente y muerto, indistinguible de uno sano para quien
+// solo mire el archivo.
+//
+// Inserta la clave dentro de la tabla `[features]` existente en vez de anexar
+// una segunda —que rompería el TOML— y respeta el resto del archivo.
+func ensureCodexHooksFeature(base string) string {
+	var doc map[string]any
+	if toml.Unmarshal([]byte(base), &doc) == nil {
+		if features, ok := stringMap(doc["features"]); ok {
+			if activo, _ := features["hooks"].(bool); activo {
+				return base
+			}
+		}
+	}
+
+	lines := strings.SplitAfter(base, "\n")
+	dentro := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if isTOMLTableHeader(trimmed) {
+			if dentro {
+				// Se sale de [features] sin haber encontrado la clave: se
+				// inserta justo antes de la tabla siguiente, dentro todavía.
+				lines[i] = "hooks = true\n" + line
+				return strings.Join(lines, "")
+			}
+			dentro = trimmed == "[features]"
+			continue
+		}
+		if !dentro {
+			continue
+		}
+		// Reemplazar la clave existente, nunca añadir una segunda: un TOML con
+		// la misma clave dos veces en la misma tabla es inválido.
+		if clave, _, ok := strings.Cut(trimmed, "="); ok && strings.TrimSpace(clave) == "hooks" {
+			lines[i] = "hooks = true\n"
+			return strings.Join(lines, "")
+		}
+	}
+	if dentro {
+		return strings.TrimRight(strings.Join(lines, ""), "\n") + "\nhooks = true\n"
+	}
+
+	if base != "" && !strings.HasSuffix(base, "\n") {
+		base += "\n"
+	}
+	return base + "\n[features]\nhooks = true\n"
 }
