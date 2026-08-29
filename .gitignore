@@ -23,3 +23,6 @@ opencode.json
 *.swp
 .vscode/
 .idea/
+.agents/
+.specify/
+.github/workflows/
