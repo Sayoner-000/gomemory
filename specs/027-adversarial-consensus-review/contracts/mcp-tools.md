@@ -34,6 +34,16 @@ Registra una corrección aplicada fuera de GoMemory, atada a hallazgos confirmad
 - **Salida**: `round` asignado.
 - **Invariante de contrato**: rechaza si algún `addressed_consensus_ids` no es `CONFIRMED`, si su severidad no está en `auto_fix_severities` sin `explicit_authorization`, o si el siguiente número de ronda excede `max_fix_rounds` (INV-009 — no hay forma de pedir una ronda extra desde la entrada).
 
+## `review_rejudge`
+
+Registra el resultado de la revalidación de los hallazgos confirmados tras una corrección (FR-023, FR-024, INV-008).
+
+- **Entrada**: `review_id`, `states` — un mapa de `consensus_local_id` a `RESOLVED`, `UNRESOLVED` o `REGRESSED`.
+- **Salida**: los `consensus_findings` actualizados con su estado.
+- **Invariante de contrato**: exige una corrección ya registrada — sin `fix_delta` previo no hay nada que revalidar, y aceptarlo permitiría marcar `RESOLVED` sin que nadie hubiera arreglado nada, lo que bastaría para aprobar una revisión con su defecto intacto. Solo admite hallazgos `CONFIRMED`: un `SUSPECT` no pasó por corrección. La revalidación **no** recalcula el consenso ni admite hallazgos nuevos; un defecto descubierto ahora pertenece a una revisión nueva sobre el target corregido.
+
+Es una tool propia y no un modo de `review_consensus` porque son dos momentos distintos del protocolo con reglas distintas; fundirlas daría a esa tool dos significados según cuándo se llame.
+
 ## `review_finalize`
 
 Deriva el estado terminal a partir de lo persistido (FR-026..030, FR-042).

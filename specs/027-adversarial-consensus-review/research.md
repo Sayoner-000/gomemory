@@ -43,3 +43,37 @@ Este documento resuelve las decisiones técnicas necesarias antes del diseño de
 **Justificación**: es precisamente la lógica que la spec exige que NO dependa solo del prompt (sección 44). Al ser una función pura, se prueba exhaustivamente con tests unitarios de tabla (aprobado / escalado por agotamiento / escalado por contradicción / incompleto por fallo de revisor) sin infraestructura, cumpliendo Testing First de la constitución.
 
 **Alternativas consideradas**: dejar que el agente orquestador decida cuándo detenerse — rechazada explícitamente por la spec (INV-009, "no debe excederse de forma automática ni silenciosa").
+
+## Estado de la evidencia
+
+### T001 — deduplicación por `topic_key` (2026-08-29)
+
+**Confirmada en vivo.** Se compiló el binario actual y se ejecutó su servidor MCP contra un
+directorio de datos y un proyecto Git temporales. Dos llamadas consecutivas a `save_memory` con
+contenidos y títulos distintos, pero el mismo `topic_key` (`t001-same`), devolvieron ambas el
+identificador `3`. Una llamada posterior a `list_memories` mostró una sola fila para ese tópico,
+actualizada con el segundo título y contenido. La puerta de decisión de la Historia 3 queda
+superada: la promoción puede reutilizar el *upsert* existente sin implementar deduplicación propia.
+
+### T002 — columna nullable sobre una base preexistente (2026-08-29)
+
+**Confirmada contra una copia de `mem.db` con datos reales.** Un test de sonda temporal abrió la
+copia con el mismo controlador SQLite del proyecto, contó las filas de `memories`, invocó
+`addColumnIfMissing(db, "memories", "t002_nullable_probe", "TEXT")` y volvió a contar las filas. El
+conteo no cambió, la operación no produjo error y `PRAGMA table_info(memories)` confirmó que la
+columna existía con `notnull = 0`. La sonda pasó y se retiró después de registrar la evidencia. La
+columna `source_review_id` puede implementarse de forma aditiva; no hace falta una tabla de enlace.
+
+### T003 — puntos de extensión reales (2026-08-29)
+
+**Confirmados contra el grafo actualizado del código.** Las tools MCP se registran en
+`registerTools` (`adapters/primary/cli/cmd_mcp.go`, desde la línea 118 en el índice actual) y los
+comandos de primer nivel se enrutan en el `switch` de `Run`
+(`adapters/primary/cli/dispatcher.go`). El tercer supuesto del plan había quedado parcialmente
+obsoleto por la entrega adelantada de T070: `constitution_setup.go` conserva el patrón histórico de
+`.claude/skills/<nombre>/SKILL.md`, pero las skills embebidas ya no deben copiar ese adaptador. El
+punto vigente es `InstallAgentSkill` en `adapters/primary/setup/agent_skills_setup.go`, que instala
+`SKILL.md` en `~/.claude/skills`, `~/.codex/skills` y `~/.opencode/skills`; el cuerpo de la guía se
+obtiene de `infrastructure/templates/adversarial-consensus-review/SKILL.md` desde
+`adapters/primary/cli/cmd_mcp_setup.go`. La implementación restante debe reutilizar este mecanismo
+centralizado y no reintroducir un instalador exclusivo de Claude.

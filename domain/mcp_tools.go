@@ -33,6 +33,15 @@ const (
 	ToolPackShow     = "pack_show"
 	ToolPackCompress = "pack_compress"
 	ToolPackStats    = "pack_stats"
+
+	ToolReviewStart     = "review_start"
+	ToolReviewSubmit    = "review_submit"
+	ToolReviewConsensus = "review_consensus"
+	ToolReviewStatus    = "review_status"
+	ToolReviewFinalize  = "review_finalize"
+	ToolReviewFixRecord = "review_fix_record"
+	ToolReviewRejudge   = "review_rejudge"
+	ToolReviewPromote   = "review_promote_memory"
 )
 
 // MCPMemoryTools son las tools del núcleo de memoria.
@@ -69,16 +78,28 @@ var MCPContextPackTools = []string{
 	ToolPackStats,
 }
 
+var MCPReviewTools = []string{
+	ToolReviewStart,
+	ToolReviewSubmit,
+	ToolReviewConsensus,
+	ToolReviewStatus,
+	ToolReviewFinalize,
+	ToolReviewFixRecord,
+	ToolReviewRejudge,
+	ToolReviewPromote,
+}
+
 // MCPDestructiveTools nunca se pre-aprueban: son irreversibles y deben pasar
 // siempre por confirmación explícita de la persona.
 var MCPDestructiveTools = []string{ToolForgetMemory}
 
 // MCPAllTools es el conjunto completo que registra el servidor.
 func MCPAllTools() []string {
-	out := make([]string, 0, len(MCPMemoryTools)+len(MCPCodeTools)+len(MCPContextPackTools))
+	out := make([]string, 0, len(MCPMemoryTools)+len(MCPCodeTools)+len(MCPContextPackTools)+len(MCPReviewTools))
 	out = append(out, MCPMemoryTools...)
 	out = append(out, MCPCodeTools...)
 	out = append(out, MCPContextPackTools...)
+	out = append(out, MCPReviewTools...)
 	return out
 }
 

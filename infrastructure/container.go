@@ -23,6 +23,8 @@ type Container struct {
 	MemoryRepo      ports.MemoryRepository
 	SessionRepo     ports.SessionRepository
 	RelationRepo    ports.RelationRepository
+	ReviewRepo      ports.ReviewRepository
+	ConsensusRepo   ports.ConsensusRepository
 	SettingsRepo    ports.SettingsRepository
 	ProjectRepo     ports.ProjectRepository
 	ContextBuilder  ports.ContextBuilder
@@ -59,6 +61,8 @@ func NewContainer(root, channel string) (*Container, error) {
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)
 	relRepo := persistence.NewRelationRepository(db)
+	reviewRepo := persistence.NewReviewRepository(db)
+	consensusRepo := persistence.NewConsensusRepository(db)
 	codeGraphRepo := persistence.NewCodeGraphRepository(db)
 
 	settings := persistence.ReadSettings(root)
@@ -146,6 +150,8 @@ func NewContainer(root, channel string) (*Container, error) {
 		MemoryRepo:      memRepo,
 		SessionRepo:     sessRepo,
 		RelationRepo:    relRepo,
+		ReviewRepo:      reviewRepo,
+		ConsensusRepo:   consensusRepo,
 		SettingsRepo:    persistence.NewSettingsRepository(),
 		ProjectRepo:     persistence.NewProjectRepository(),
 		ContextBuilder:  contextBuilder,
@@ -178,6 +184,8 @@ func (c *Container) ToDeps() *cli.Deps {
 		MemoryRepo:      c.MemoryRepo,
 		SessionRepo:     c.SessionRepo,
 		RelationRepo:    c.RelationRepo,
+		ReviewRepo:      c.ReviewRepo,
+		ConsensusRepo:   c.ConsensusRepo,
 		SettingsRepo:    c.SettingsRepo,
 		ProjectRepo:     c.ProjectRepo,
 		ContextBuilder:  c.ContextBuilder,

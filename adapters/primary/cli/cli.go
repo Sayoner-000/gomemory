@@ -73,6 +73,10 @@ Uso:
   mem wrap <comando> [args...]     Ejecutar comando y preguntar si guardar
   mem mcp [--root <dir>]           Servidor MCP para agentes AI
   mem hook <evento>                Entrypoint de hooks de agentes (uso interno, invocado por Claude Code/OpenCode)
+  mem review --diff|--commit|--file  Congelar un target y abrir una revisión adversarial (ACR)
+  mem review status [<id>]         Etapa de la revisión abierta, o de <id>
+  mem review history [--limit N]   Listar revisiones del proyecto
+  mem review show <id>             Detalle completo: target, revisores, consenso, correcciones, veredicto
   mem setup [--port 9735] <agent>  Instalar plugin para opencode|claude-code (flags ANTES del agente)
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]

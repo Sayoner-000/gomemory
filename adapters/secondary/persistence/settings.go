@@ -52,6 +52,18 @@ type Settings struct {
 	// el script del hook (sin pasar por mem settings), así el gate no depende
 	// de que la CLI/TUI ya lo expongan.
 	SpeckitContextDisabled bool `json:"speckit_context_disabled,omitempty"`
+	// ReviewMaxFixRounds: presupuesto de rondas de corrección de la revisión
+	// adversarial (feature 027, INV-009). Ausente/0 → default. A diferencia de
+	// los tunables de huella, un valor negativo NO significa «sin límite»:
+	// applyReviewDefaults lo normaliza al defecto, porque una revisión sin
+	// techo de rondas es exactamente el bucle infinito que la invariante existe
+	// para impedir.
+	ReviewMaxFixRounds int `json:"review_max_fix_rounds,omitempty"`
+	// ReviewAutoFixSeverities: severidades que pueden corregirse sin
+	// autorización explícita caso a caso. Ausente/vacía → CRITICAL y HIGH.
+	// Una lista vacía nunca se interpreta como «todas»: convertiría un hallazgo
+	// informativo en material corregible automáticamente.
+	ReviewAutoFixSeverities []string `json:"review_auto_fix_severities,omitempty"`
 	// AtomicPlanDisabled apaga la planificación atómica en modo plan (feature
 	// 013): `mem plan-context` / get_plan_context terminan sin salida. Ausente/
 	// false = activada, mismo patrón opt-out que SpeckitContextDisabled. Un
@@ -115,6 +127,38 @@ func DefaultSettings() Settings {
 		ContextDefaultBudget: DefaultContextBudget,
 		ContextMinRelevance:  DefaultContextMinRelevance,
 		ContextMaxItems:      DefaultContextMaxItems,
+
+		ReviewMaxFixRounds:      domain.DefaultMaxFixRounds,
+		ReviewAutoFixSeverities: defaultReviewAutoFixSeverities(),
+	}
+}
+
+// defaultReviewAutoFixSeverities deriva la política por defecto del dominio en
+// vez de escribir ["CRITICAL","HIGH"] a mano: si mañana cambia qué cuenta como
+// severo, este defecto lo sigue solo. Es el mismo motivo por el que
+// AutoApproveTools se deriva de domain.MCPAutoApprovableTools().
+func defaultReviewAutoFixSeverities() []string {
+	severas := []domain.Severity{domain.SeverityCritical, domain.SeverityHigh}
+	out := make([]string, 0, len(severas))
+	for _, s := range severas {
+		out = append(out, string(s))
+	}
+	return out
+}
+
+// applyReviewDefaults normaliza la política de revisión tras leer un
+// settings.json que puede no traer las claves nuevas.
+//
+// Nota deliberada: aquí un valor negativo NO se conserva como opt-out, al
+// revés que en applyFootprintDefaults. Allí «sin límite» es una elección
+// razonable sobre cuánto contexto emitir; aquí sería una revisión que puede
+// corregir indefinidamente sin escalar nunca.
+func applyReviewDefaults(s *Settings) {
+	if s.ReviewMaxFixRounds <= 0 {
+		s.ReviewMaxFixRounds = domain.DefaultMaxFixRounds
+	}
+	if len(s.ReviewAutoFixSeverities) == 0 {
+		s.ReviewAutoFixSeverities = defaultReviewAutoFixSeverities()
 	}
 }
 
@@ -167,6 +211,7 @@ func ReadSettings(root string) Settings {
 	applyFootprintDefaults(&s)
 	applyCodeGraphProvidersDefault(&s)
 	applyContextDefaults(&s)
+	applyReviewDefaults(&s)
 	return s
 }
 

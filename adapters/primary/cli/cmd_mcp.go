@@ -116,6 +116,8 @@ func newMCPServer(deps *Deps, root, project string) *mcp.Server {
 }
 
 func registerTools(server *mcp.Server, deps *Deps, project string) {
+	registerReviewTools(server, deps, project)
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "save_memory",
 		Description: "Guarda un aprendizaje, decisión, bugfix, patrón o descubrimiento en la memoria del " +

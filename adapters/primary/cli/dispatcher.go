@@ -25,6 +25,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdCapture(deps, args)
 	case "compare", "judge":
 		CmdCompare(deps, args)
+	case "review":
+		CmdReview(deps, args)
 	case "forget":
 		CmdForget(deps, args)
 	case "project":

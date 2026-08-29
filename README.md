@@ -163,6 +163,16 @@ Agents can retrieve project history and atomic decomposition guidance before pla
 mem plan-context
 ```
 
+**Adversarial consensus review**
+Two independent, read-only reviewers analyze the same frozen target; a defect only counts once both confirm it separately. gomemory validates and persists the consensus, the fix authorization, and the round budget — the agent proposes, it does not decide. A confirmed-and-resolved defect can be promoted into reusable project memory (problem, root cause, resolution — never a transcript).
+
+```bash
+mem review --diff              # or --commit <sha> | --file <path>
+mem review show <review-id>    # target → reviewers → consensus → fixes → verdict
+```
+
+See [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/) for the full protocol.
+
 **Code graph integration**
 Optional integration with an external code graph (via [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)) enriches memory with modules, symbols, dependencies, hotspots and callers. Non-blocking and agnostic to the agent. Controlled via `mem settings --code-graph=true|false`.
 
@@ -185,7 +195,7 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 ## MCP Tools
 
-19 tools across three groups (`domain/mcp_tools.go` is the single source of truth).
+27 tools across four groups (`domain/mcp_tools.go` is the single source of truth — `len(domain.MCPAllTools())` is asserted against the live server in CI).
 
 **Memory (10)**
 
@@ -221,6 +231,21 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 | `pack_stats` | Return only the reduction-stats block of an already-built `ContextPack` |
 | `pack_compress` | Deterministically compress arbitrary text (no retrieval/budget), report token cost |
 
+**Adversarial Review (8)** — `mem review`, two independent reviewers, consensus-gated fixes, bounded rounds
+
+| Tool | Description |
+| :--- | :--- |
+| `review_start` | Freeze a target (diff/commit/spec/…) and open a review |
+| `review_submit` | Record one reviewer's findings for the active round |
+| `review_consensus` | Validate and persist a proposed CONFIRMED/SUSPECT/CONTRADICTION classification |
+| `review_status` | Read-only: current stage, no verdict until finalized |
+| `review_fix_record` | Register a correction, scoped to confirmed findings, bounded by the round budget |
+| `review_rejudge` | Record whether a confirmed finding is RESOLVED, UNRESOLVED, or REGRESSED |
+| `review_finalize` | Derive the terminal verdict (APPROVED/ESCALATED/INCOMPLETE) from persisted state only |
+| `review_promote_memory` | Turn a CONFIRMED-and-RESOLVED defect into reusable project memory |
+
+The agent proposes; gomemory validates and persists. It rejects fixing an unconfirmed finding, exceeding the round budget, or passing in a verdict as a parameter — see [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/).
+
 **Resources:** `mem://context` · `mem://memory/{id}`
 
 ## CLI
@@ -254,6 +279,10 @@ mem
 ├── usage              Measured token benchmark: baseline/emitted/saved per session (--json, --all)
 ├── compact           Reclaim SQLite space (no data loss)
 ├── adr-sync status   Inspect ADR sync state with the external code-graph provider
+├── review            Adversarial consensus review (ACR): --diff | --commit <sha> | --file <path>
+│   ├── status <id>?  Stage of the open review, or of <id> (no verdict until finalized)
+│   ├── history       List reviews (--limit N)
+│   └── show <id>     Full lineage: target, reviewers, consensus, fixes, verdict
 ├── install           Install gomemory into a project (no instruction files are generated)
 ├── setup <agent>     Install the hooks/plugin for opencode | claude-code
 ├── setup-mcp         Register MCP tools for all 6 supported agents
@@ -307,8 +336,10 @@ Main settings (via `mem settings` or the interactive TUI):
 | `code_graph_providers` | *(none)* | Ordered list of external code-graph provider commands (priority fallback) |
 | `code_impact_annotation_disabled` | `false` | Disable annotating saved memories with code-graph hotspot impact |
 | `adr_sync_enabled` | `false` | Opt-in bidirectional sync of architecture memories with the external provider's ADR document |
+| `review_max_fix_rounds` | `2` | Round budget for `mem review` fix/re-judgment cycles |
+| `review_auto_fix_severities` | `["CRITICAL","HIGH"]` | Severities eligible for automatic correction without explicit authorization |
 
-See [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) for all configuration options.
+The table above lists every user-facing setting; `mem settings --show` prints the live values for your project.
 
 ## Build from Source
 

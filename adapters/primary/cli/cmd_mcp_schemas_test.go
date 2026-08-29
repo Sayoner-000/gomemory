@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"mem/adapters/secondary/tokens"
+	"mem/domain"
 )
 
 // TestMeasurePublishedSchemas_CountsRealServer levanta el servidor MCP REAL
@@ -20,13 +21,20 @@ func TestMeasurePublishedSchemas_CountsRealServer(t *testing.T) {
 		t.Fatalf("measurePublishedSchemas: %v", err)
 	}
 
-	// 19 operaciones verificadas contra el código real: 14 en cmd_mcp.go + 5
-	// en cmd_mcp_code_tools.go (research.md §3). Si mañana se añade una
-	// operación, este número debe seguir cuadrando SIN tocar código de
-	// medición — por eso el test no hardcodea "19" como mágico aislado, lo
-	// documenta como expectativa verificada.
-	if schemaOperations != 19 {
-		t.Fatalf("schemaOperations = %d, want 19 (recuento verificado en research.md)", schemaOperations)
+	// DERIVADO de domain.MCPAllTools(), no un número escrito a mano.
+	//
+	// Este total se subió a mano tres veces en una sola sesión (19 → 24 → 26 →
+	// 27) según se añadían tools. Un número que hay que recordar actualizar es
+	// un número que algún día no se actualiza, y entonces el test se relaja
+	// «para que pase» en vez de avisar. Derivarlo convierte el recuento en la
+	// invariante que de verdad importa: TODA tool declarada en el dominio está
+	// efectivamente publicada por el servidor. Registrar una y olvidar
+	// declararla —o al revés— ahora falla solo.
+	esperadas := len(domain.MCPAllTools())
+	if schemaOperations != esperadas {
+		t.Fatalf("schemaOperations = %d, se esperaban %d (len(domain.MCPAllTools())): "+
+			"una tool registrada sin declarar en el dominio, o declarada sin registrar",
+			schemaOperations, esperadas)
 	}
 	if schemaTokens <= 0 {
 		t.Fatalf("schemaTokens = %d, se esperaba un costo mayor que cero", schemaTokens)

@@ -881,3 +881,70 @@ mem get <id>
 
 Recupera el detalle completo de una memoria por su identificador — el mismo mecanismo de
 drill-down que la tool MCP `get_memory`, disponible también desde la línea de comandos.
+
+## 17. Revisión adversarial por consenso (`mem review`)
+
+Dos revisores independientes analizan el mismo target congelado, y un defecto
+solo se considera real cuando ambos lo encuentran por separado. Sirve para
+validación de alta confianza sobre algo concreto: un diff, un commit, una
+especificación, una migración, un contrato.
+
+La diferencia con pedirle a un agente que "revise bien" es que aquí las reglas
+no se piden, se imponen. gomemory rechaza corregir un hallazgo sin corroborar,
+exceder el presupuesto de rondas, o declarar un veredicto por parámetro. El
+agente propone; gomemory valida y persiste.
+
+### Abrir una revisión
+
+```bash
+mem review --diff             # cambios sin commitear
+mem review --commit HEAD      # un commit concreto
+mem review --file specs/042/spec.md
+```
+
+Imprime el `review_id`, el digest congelado del target y el nivel de
+independencia alcanzado. Si ambos revisores usan el mismo proveedor y modelo,
+el nivel es `degraded`: se declara así en vez de presentarse como una revisión
+plenamente independiente que no lo fue.
+
+### Consultar
+
+```bash
+mem review status                 # la revisión abierta, si la hay
+mem review status <review-id>
+mem review history [--limit N]
+mem review show <review-id>       # linaje completo
+```
+
+`status` de una revisión en curso muestra su **etapa**, no un veredicto:
+confundir "va por la mitad" con "terminó sin defectos" es el error que esta
+funcionalidad existe para impedir.
+
+### El ciclo
+
+```text
+target congelado → revisor A + revisor B (aislados) → consenso
+   → CONFIRMED severo → corrección acotada → re-revisión
+   → veredicto: APPROVED · ESCALATED · INCOMPLETE
+```
+
+- **CONFIRMED**: lo encontraron los dos por separado. Es lo único corregible
+  automáticamente, y solo en severidad CRITICAL o HIGH por defecto.
+- **SUSPECT**: lo vio uno solo. No dispara corrección.
+- **ESCALATED**: hay algo severo sin resolver tras agotar las rondas, o una
+  contradicción entre revisores. Lo decide una persona.
+- **INCOMPLETE**: un revisor falló. Nunca se convierte en aprobado.
+
+El presupuesto por defecto es de 2 rondas de corrección; configurable con
+`review_max_fix_rounds` en `.memory/settings.json`, junto a
+`review_auto_fix_severities`.
+
+### Qué se conserva
+
+Un defecto confirmado **y resuelto** puede promoverse a memoria del proyecto:
+problema, causa raíz, resolución y verificación. No hay dónde poner un
+transcript ni una cadena de razonamiento — la estructura no tiene ese campo.
+Dos revisiones del mismo patrón refuerzan una memoria en vez de crear dos, y el
+aprendizaje reaparece solo en `mem context` de sesiones futuras.
+
+Una revisión aprobada **no** autoriza commit, push, merge, PR ni despliegue.

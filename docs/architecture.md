@@ -860,6 +860,41 @@ sin ningún aviso.
 
 Índices: `project`, `memory_id_a`, `memory_id_b`.
 
+### `reviews`, `reviewer_results`, `findings`, `consensus_findings`, `fix_rounds` (feature 027)
+
+Esquema de la revisión adversarial por consenso (`mem review`, ACR). Aditivo
+sobre el mismo `migrate()`: cinco tablas nuevas más una columna
+`memories.source_review_id` (nullable) que enlaza una memoria promovida con la
+revisión que la produjo.
+
+| Tabla | Columnas clave | Notas |
+|---|---|---|
+| `reviews` | `review_id` (prefijo `acr_`), `target_digest`, `max_fix_rounds`, `auto_fix_severities`, `round`, `status`, `verdict` | Una fila por revisión; `status`/`verdict` son la única fuente del estado terminal |
+| `reviewer_results` | `review_id` FK, `reviewer` (A/B), `round`, `status` | `UNIQUE(review_id, reviewer, round)` — garantiza idempotencia de reenvío |
+| `findings` | `reviewer_result_id` FK, `local_id`, `severity`, `claim`, `evidence` | `UNIQUE(reviewer_result_id, local_id)`; `claim`/`evidence` pasan por `RedactSecrets`/`RedactPrivate` antes de persistir |
+| `consensus_findings` | `review_id` FK, `consensus_local_id`, `status` (CONFIRMED/SUSPECT/CONTRADICTION/INFO), `rejudgment_state` | `claim` también redactado |
+| `fix_rounds` | `review_id` FK, `round`, `base_target_digest`, `fixed_target_digest`, `addressed_consensus_ids`, `verification` | `UNIQUE(review_id, round)`; `verification` redactado |
+
+Dominio puro en `domain/{review,finding,consensus,verdict,fix,review_learning}.go`
+— `domain.DeriveVerdict()` y `domain.AuthorizeFix()` son funciones sin I/O,
+testeadas por tabla. Puertos en `application/ports/{review,consensus}_repository.go`,
+casos de uso en `application/usecases/{start_review,submit_reviewer_result,
+build_consensus,record_fix,rejudge_review,finalize_review,
+promote_review_memory}.go`. Siete tools MCP en
+`adapters/primary/cli/cmd_mcp_review_tools.go` (`review_start`, `_submit`,
+`_consensus`, `_fix_record`, `_rejudge`, `_finalize`, `_promote_memory`) más
+`review_status` de solo lectura; CLI equivalente en `cmd_review.go` /
+`cmd_review_query.go` (`mem review --diff|--commit|--file`, `status`,
+`history`, `show`).
+
+Principio de diseño (spec `specs/027-adversarial-consensus-review`): gomemory
+no ejecuta modelos ni juzga equivalencia semántica de hallazgos — el agente
+orquestador propone la clasificación de consenso, gomemory valida
+estructuralmente (ambos hallazgos deben venir de revisores distintos del mismo
+target congelado) y es el único punto de escritura del ledger. Mismo patrón que
+`judge_memories` → `RecordVerdict`. La promoción de conocimiento reutiliza
+`memories` + dedup por `topic_key` (feature 008) en vez de un almacén paralelo.
+
 ### Tipos de memoria
 
 | Tipo | Icono | Constante | Uso |

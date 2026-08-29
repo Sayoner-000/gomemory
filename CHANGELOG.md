@@ -19,9 +19,15 @@ Ahora `mem setup-mcp --scope global` escribe el enganche `user-prompt-submit` co
 
 Antes, gomemory escribía habilidades únicamente en `.claude/skills/`. Codex y OpenCode nunca recibieron la descomposición atómica ni la constitución como habilidad descubrible. Ahora un instalador genérico (`InstallAgentSkill`) distribuye cada skill al directorio de habilidades de cada agente que lo exponga: `.claude/skills/`, `.codex/skills/`, `.opencode/skills/`. Cada skill tiene un solo dueño que la escribe, y los agentes que no usan ese canal no reciben archivos sobrantes.
 
-#### Guía de revisión adversarial por consenso
+#### `mem review`: revisión adversarial por consenso (ACR)
 
-Nueva habilidad distribuida en scope global a los tres agentes. Describe un protocolo de revisión con dos revisores independientes de solo lectura sobre un target congelado, un motor de consenso y rondas acotadas de corrección. No depende de las herramientas de gomemory ni de memoria persistente.
+Protocolo completo de revisión con dos revisores independientes sobre un target congelado (diff, commit o archivo). Un defecto solo se confirma cuando ambos lo encuentran por separado; la corrección automática queda limitada a hallazgos confirmados de severidad CRITICAL o HIGH, con un presupuesto de rondas configurable (2 por defecto). El agente propone la clasificación de consenso y la corrección; gomemory valida cada paso contra el estado persistido y deriva el veredicto (APPROVED, ESCALATED, INCOMPLETE) — el veredicto no se puede pasar como parámetro.
+
+Un defecto confirmado y resuelto puede promoverse a memoria del proyecto (problema, causa raíz, resolución, verificación), reutilizando el mismo dedup por `topic_key` de las memorias normales en vez de un almacén paralelo.
+
+CLI: `mem review --diff|--commit|--file`, `status`, `history`, `show`. Siete tools MCP nuevas (`review_start`, `_submit`, `_consensus`, `_fix_record`, `_rejudge`, `_finalize`, `_promote_memory`) más `review_status` de solo lectura. Detalle completo en [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/).
+
+Se distribuye además como habilidad (`SKILL.md`) en los tres agentes, agnóstica de proveedor y de las herramientas de gomemory, para que un agente sin este servidor MCP conectado igual conozca el protocolo.
 
 ### Correcciones
 
@@ -42,6 +48,18 @@ Ahora el fallback elimina el binario antiguo antes de copiar, forzando un inodo 
 `go test ./...` escribía en `~/.codex/config.toml` de quien ejecutaba la suite. Varios tests lanzan el binario como subproceso fijando `cmd.Dir` pero no `cmd.Env`, y el hijo hereda el HOME del proceso de test. `t.Setenv("HOME", ...)` protege al código in-process, no a un subproceso sin `Env` explícito.
 
 Los `TestMain` de `tests/contract` y `tests/integration` ahora aíslan HOME y USERPROFILE además del `GOMEMORY_DATA_HOME`. `anclarCachesDeGo()` fija GOCACHE y GOMODCACHE antes de mover el HOME, o cada ejecución recompilaría el mundo.
+
+#### `mem review` podía aprobar una revisión sin calcular el consenso
+
+`review_finalize` derivaba el veredicto sobre los hallazgos de consenso; si ese paso fallaba o simplemente no se ejecutaba, la lista de hallazgos quedaba vacía y `DeriveVerdict` aprobaba con "0 hallazgos" aunque ambos revisores hubieran reportado un defecto. Lo destapó ejecutar el protocolo completo contra el servidor MCP real, no la suite de tests.
+
+`DeriveVerdict` ahora exige que exista consenso calculado cuando algún revisor reportó hallazgos; sin eso, la revisión no está lista para finalizar. De paso, `review_consensus` dejó de exigir `unmatched` cuando no hay hallazgos sueltos que declarar.
+
+#### El ledger de revisión guardaba secretos en claro
+
+Las memorias se redactan al guardarse desde hace varias versiones; las tablas de `mem review` (`findings`, `consensus_findings`, `fix_rounds`) no. Un revisor cita el código que analiza, así que una credencial en esa línea quedaba persistida tal cual y se servía después por `mem review show`.
+
+Ahora `claim`, `evidence` y `verification` pasan por el mismo `RedactSecrets`/`RedactPrivate` que ya protege a las memorias.
 
 ## [2.13.0] - 2026-08-25
 

@@ -223,3 +223,20 @@ func TestClaudeAutoAllowCubreTodasLasSeguras(t *testing.T) {
 		}
 	}
 }
+
+// TestUsage_MencionaReview cubre un hueco real: `mem help` documentaba todos
+// los comandos de la CLI excepto `review`, así que el comando era invisible
+// para quien no supiera ya que existe. Ver docs/lessons.md 2026-08-29.
+func TestUsage_MencionaReview(t *testing.T) {
+	ruta := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "cli.go")
+	data, err := os.ReadFile(ruta)
+	if err != nil {
+		t.Fatalf("leer cli.go: %v", err)
+	}
+	texto := string(data)
+	for _, sub := range []string{"mem review --diff", "mem review status", "mem review history", "mem review show"} {
+		if !strings.Contains(texto, sub) {
+			t.Errorf("Usage() no menciona %q: el subcomando queda invisible en `mem help`", sub)
+		}
+	}
+}

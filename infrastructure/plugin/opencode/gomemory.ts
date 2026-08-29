@@ -247,6 +247,27 @@ const [T_PACK_BUILD, T_PACK_SHOW, T_PACK_COMPRESS, T_PACK_STATS] = [
   "gomemory_pack_stats",
 ];
 
+// Revisión adversarial por consenso (feature 027): domain.MCPReviewTools.
+const [
+  T_REVIEW_START,
+  T_REVIEW_SUBMIT,
+  T_REVIEW_CONSENSUS,
+  T_REVIEW_STATUS,
+  T_REVIEW_FINALIZE,
+  T_REVIEW_FIX_RECORD,
+  T_REVIEW_REJUDGE,
+  T_REVIEW_PROMOTE,
+] = [
+  "gomemory_review_start",
+  "gomemory_review_submit",
+  "gomemory_review_consensus",
+  "gomemory_review_status",
+  "gomemory_review_finalize",
+  "gomemory_review_fix_record",
+  "gomemory_review_rejudge",
+  "gomemory_review_promote_memory",
+];
+
 const [
   T_EXT_SEARCH_GRAPH,
   T_EXT_TRACE_PATH,
@@ -315,6 +336,20 @@ ${T_EXT_GET_ARCHITECTURE}, ${T_EXT_SEARCH_CODE}. Use the graph's tools to
 explore; use the atomic task tree to deliver a plan. What you find with the
 graph feeds the tree's leaves. If it is not connected, this guidance does not
 apply.
+
+ADVERSARIAL REVIEW: when high-confidence validation is required for a concrete
+artifact (code, spec, plan, config, migration, contract), run the bounded
+consensus protocol instead of reviewing it yourself: ${T_REVIEW_START} freezes
+the target, ${T_REVIEW_SUBMIT} records each independent reviewer's findings,
+${T_REVIEW_CONSENSUS} classifies them, ${T_REVIEW_STATUS} reports progress and
+${T_REVIEW_FINALIZE} derives the verdict. Only after a CONFIRMED defect exists may
+${T_REVIEW_FIX_RECORD} register a correction, and ${T_REVIEW_REJUDGE} record whether it
+resolved, failed, or regressed. When a defect ends CONFIRMED and RESOLVED,
+${T_REVIEW_PROMOTE} turns it into reusable project memory — problem, root cause,
+resolution and verification only; there is nowhere to put a transcript. You propose; gomemory validates and
+persists. It rejects a CONFIRMED finding without two independent sources, a fix
+on an unconfirmed finding, and any verdict you try to pass in as a parameter —
+so do not work around it, the rejection is the point.
 
 SESSION CLOSE: before saying "done", call ${T_END_SESSION}(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;

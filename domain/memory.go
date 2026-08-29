@@ -44,7 +44,13 @@ type Memory struct {
 	// TopicKey agrupa memorias del mismo tópico para el upsert de deduplicación
 	// (feature 008): guardar con un TopicKey ya existente en el proyecto actualiza
 	// la memoria previa en vez de crear una fila nueva. Vacío = sin agrupación.
-	TopicKey  string `json:"topic_key,omitempty"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	TopicKey string `json:"topic_key,omitempty"`
+	// SourceReviewID enlaza una memoria promovida con la revisión adversarial
+	// que la produjo (feature 027, FR-038). Vacío en toda memoria que no venga
+	// de una revisión, que son la mayoría. Cierra el linaje justo donde el
+	// conocimiento sale del protocolo: sin él se puede reconstruir qué se
+	// revisó, pero no de dónde salió lo que hoy aparece en el contexto.
+	SourceReviewID string `json:"source_review_id,omitempty"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
 }

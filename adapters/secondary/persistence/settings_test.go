@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"mem/domain"
 )
 
 // writeRawSettings escribe un settings.json arbitrario (JSON crudo) para
@@ -387,5 +389,45 @@ func TestSettingsRepository_UsageWindowTokens_RoundTrip(t *testing.T) {
 	}
 	if !got.ContextIndexMode {
 		t.Errorf("tras el round-trip ContextIndexMode = %v, se esperaba true", got.ContextIndexMode)
+	}
+}
+
+// TestReviewPolicyDefaults cubre la política de corrección de la feature 027.
+//
+// El defecto NO puede ser «sin techo» ni «cualquier severidad»: un presupuesto
+// ausente interpretado como infinito sería el bucle que INV-009 prohíbe, y una
+// lista vacía interpretada como «todo vale» convertiría un hallazgo informativo
+// en material corregible. Ausente ⇒ 2 rondas y CRITICAL/HIGH.
+func TestReviewPolicyDefaults(t *testing.T) {
+	root := t.TempDir()
+
+	s := ReadSettings(root)
+	if s.ReviewMaxFixRounds != domain.DefaultMaxFixRounds {
+		t.Errorf("ReviewMaxFixRounds = %d, se esperaba el defecto %d", s.ReviewMaxFixRounds, domain.DefaultMaxFixRounds)
+	}
+	if len(s.ReviewAutoFixSeverities) != 2 ||
+		s.ReviewAutoFixSeverities[0] != string(domain.SeverityCritical) ||
+		s.ReviewAutoFixSeverities[1] != string(domain.SeverityHigh) {
+		t.Errorf("ReviewAutoFixSeverities = %v, se esperaba [CRITICAL HIGH]", s.ReviewAutoFixSeverities)
+	}
+}
+
+// TestReviewPolicyRespetaLoConfigurado: un proyecto que endurece o relaja la
+// política debe verla respetada, no pisada por el defecto.
+func TestReviewPolicyRespetaLoConfigurado(t *testing.T) {
+	root := t.TempDir()
+	propia := DefaultSettings()
+	propia.ReviewMaxFixRounds = 1
+	propia.ReviewAutoFixSeverities = []string{string(domain.SeverityCritical)}
+	if err := WriteSettings(root, propia); err != nil {
+		t.Fatalf("WriteSettings: %v", err)
+	}
+
+	s := ReadSettings(root)
+	if s.ReviewMaxFixRounds != 1 {
+		t.Errorf("ReviewMaxFixRounds = %d, se esperaba 1", s.ReviewMaxFixRounds)
+	}
+	if len(s.ReviewAutoFixSeverities) != 1 || s.ReviewAutoFixSeverities[0] != string(domain.SeverityCritical) {
+		t.Errorf("ReviewAutoFixSeverities = %v, se esperaba [CRITICAL]", s.ReviewAutoFixSeverities)
 	}
 }

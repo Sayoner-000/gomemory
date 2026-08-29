@@ -45,7 +45,7 @@ hay ninguna, se emite un reporte en ceros con `scope: "empty"`. **Nunca un error
   "reduction_ratio": 0.3460,
 
   "schema_tokens": 1842,       // costo de los descriptores publicados; 0 si no se midió
-  "schema_operations": 19,
+  "schema_operations": 27,   // = len(domain.MCPAllTools()); crece con cada tool MCP nueva
 
   "window_tokens": 0,          // ventana de referencia; 0 = sin ventana
   "window_ratio": null,        // null cuando window_tokens == 0 — ESTIMADO cuando no es null

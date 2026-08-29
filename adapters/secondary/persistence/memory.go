@@ -118,9 +118,10 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	}
 
 	res, err := tx.Exec(
-		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, topic_key, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
-		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin, nullableTopic(m.TopicKey),
+		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, topic_key, source_review_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, `+Now+`, `+Now+`)`,
+		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin,
+		nullableTopic(m.TopicKey), nullableTopic(m.SourceReviewID),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert memory: %w", err)

@@ -224,7 +224,83 @@ func migrate(db *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_usage_project_session ON usage_records(project, session_id);
 	CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_records(created_at DESC);
-	`, Now, Now, Now, Now, Now, Now, Now, Now, Now)
+	CREATE TABLE IF NOT EXISTS reviews (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		review_id TEXT NOT NULL,
+		target_type TEXT NOT NULL,
+		target_revision TEXT NOT NULL,
+		target_digest TEXT NOT NULL,
+		target_scope TEXT NOT NULL DEFAULT '[]',
+		max_fix_rounds INTEGER NOT NULL DEFAULT 2,
+		auto_fix_severities TEXT NOT NULL DEFAULT '["CRITICAL","HIGH"]',
+		independence_level TEXT NOT NULL DEFAULT 'degraded',
+		independence_reason TEXT NOT NULL DEFAULT '',
+		round INTEGER NOT NULL DEFAULT 0,
+		status TEXT NOT NULL DEFAULT 'frozen',
+		verdict TEXT,
+		created_at TEXT NOT NULL DEFAULT (%s),
+		updated_at TEXT NOT NULL DEFAULT (%s),
+		UNIQUE(project, review_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_reviews_project ON reviews(project);
+	CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(project, status);
+	CREATE TABLE IF NOT EXISTS reviewer_results (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		reviewer TEXT NOT NULL,
+		round INTEGER NOT NULL DEFAULT 0,
+		provider TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL,
+		submitted_at TEXT NOT NULL DEFAULT (%s),
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		UNIQUE(review_id, reviewer, round)
+	);
+	CREATE TABLE IF NOT EXISTS findings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		reviewer_result_id INTEGER NOT NULL,
+		local_id TEXT NOT NULL,
+		location TEXT NOT NULL DEFAULT '',
+		severity TEXT NOT NULL,
+		category TEXT NOT NULL DEFAULT '',
+		claim TEXT NOT NULL,
+		evidence_class TEXT NOT NULL,
+		evidence TEXT NOT NULL DEFAULT '[]',
+		confidence TEXT NOT NULL DEFAULT '',
+		FOREIGN KEY (reviewer_result_id) REFERENCES reviewer_results(id),
+		UNIQUE(reviewer_result_id, local_id)
+	);
+	CREATE TABLE IF NOT EXISTS consensus_findings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		round INTEGER NOT NULL DEFAULT 0,
+		consensus_local_id TEXT NOT NULL,
+		status TEXT NOT NULL,
+		severity TEXT NOT NULL DEFAULT '',
+		claim TEXT NOT NULL DEFAULT '',
+		source_finding_ids TEXT NOT NULL DEFAULT '[]',
+		rejudgment_state TEXT,
+		created_at TEXT NOT NULL DEFAULT (%s),
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		UNIQUE(review_id, consensus_local_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_consensus_review ON consensus_findings(review_id);
+	CREATE TABLE IF NOT EXISTS fix_rounds (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		round INTEGER NOT NULL,
+		base_target_digest TEXT NOT NULL,
+		fixed_target_digest TEXT NOT NULL,
+		addressed_consensus_ids TEXT NOT NULL DEFAULT '[]',
+		modified_paths TEXT NOT NULL DEFAULT '[]',
+		verification TEXT NOT NULL DEFAULT '[]',
+		diff_digest TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL DEFAULT (%s),
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		UNIQUE(review_id, round)
+	);
+	`, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now)
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}
@@ -239,6 +315,7 @@ func migrate(db *sql.DB) error {
 	// El índice va DESPUÉS del ALTER (referencia la columna recién creada) y es
 	// parcial: solo indexa filas con tópico. Idempotente (IF NOT EXISTS).
 	addColumnIfMissing(db, "memories", "topic_key", "TEXT")
+	addColumnIfMissing(db, "memories", "source_review_id", "INTEGER")
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
 
 	// Unique index para INSERT OR IGNORE en formSynapse: evita duplicar
