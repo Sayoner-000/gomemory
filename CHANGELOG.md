@@ -5,6 +5,32 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.15.0] - 2026-08-29
+
+### Novedades
+
+#### Revisión adversarial por consenso
+
+Nuevo protocolo de revisión con dos revisores independientes de solo lectura. Cada revisión trabaja sobre un target congelado (hash SHA-256 del contenido a evaluar), lo que garantiza que ambos revisores ven exactamente lo mismo sin importar cuándo ejecuten.
+
+El flujo: `review start` congela el target, `review submit` recibe los hallazgos de cada revisor de forma independiente, `review consensus` cruza los hallazgos buscando convergencia, y `review finalize` decide si el cambio se aprueba, escala o corrige. Los hallazgos deconvergentes quedan registrados para análisis posterior.
+
+Las herramientas MCP disponibles son `review_start`, `review_submit`, `review_consensus`, `review_finalize` y `review_fix`. Cada una maneja su fase del protocolo y valida las transiciones de estado.
+
+#### El ledger de revisión redacta secretos
+
+Los campos `claim`, `evidence` y `verification` de cada hallazgo pasan por el mismo pipeline de redacción que usa la memoria persistente. Cuando `redact_secrets_enabled` está activo (lo es por defecto), los tokens, credenciales y datos sensibles se reemplazan por `<private>` antes de escribirse al ledger.
+
+#### Promoción de hallazgos a memorias
+
+`review promote` convierte un hallazgo de consenso en una memoria persistente del proyecto. Esto cierra el ciclo entre la revisión y el sistema de memoria: un problema encontrado por los revisores termina como conocimiento estructurado que los agentes pueden consultar.
+
+### Cambios
+
+#### Limpieza del repositorio
+
+`.agents/`, `.specify/` y `.github/workflows/` se retiraron del tracking de git. Son generados localmente por speckit y las herramientas de setup, y no deberían versionarse.
+
 ## [2.14.0] - 2026-08-29
 
 ### Novedades
