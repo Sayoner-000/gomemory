@@ -17,4 +17,9 @@ opencode.json
 *.test
 *.out
 *.exe
+/vendor/
 /dist/
+*.tmp
+*.swp
+.vscode/
+.idea/
