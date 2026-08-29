@@ -5,6 +5,44 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.14.0] - 2026-08-29
+
+### Novedades
+
+#### Codex recibe contexto en cada turno, no solo al arrancar
+
+Hasta ahora Codex obtenía el protocolo de memoria una sola vez al inicio de la sesión, en un archivo estático que se diluye a medida que crece la conversación. Se verificó en sesión interactiva real (Codex 0.151.0) que el evento `UserPromptSubmit` dispara y su stdout llega al modelo como contexto, el mismo canal que usa Claude Code para la inyección por turno. La matriz de canales declaraba que Codex no exponía esto, y sobrevivió porque una celda marcada "no aplicable" no la revisa nadie.
+
+Ahora `mem setup-mcp --scope global` escribe el enganche `user-prompt-submit` con `--emit=text` en el config de Codex, y el hook traduce su salida al dialecto correcto por agente.
+
+#### Habilidades disponibles en los tres agentes
+
+Antes, gomemory escribía habilidades únicamente en `.claude/skills/`. Codex y OpenCode nunca recibieron la descomposición atómica ni la constitución como habilidad descubrible. Ahora un instalador genérico (`InstallAgentSkill`) distribuye cada skill al directorio de habilidades de cada agente que lo exponga: `.claude/skills/`, `.codex/skills/`, `.opencode/skills/`. Cada skill tiene un solo dueño que la escribe, y los agentes que no usan ese canal no reciben archivos sobrantes.
+
+#### Guía de revisión adversarial por consenso
+
+Nueva habilidad distribuida en scope global a los tres agentes. Describe un protocolo de revisión con dos revisores independientes de solo lectura sobre un target congelado, un motor de consenso y rondas acotadas de corrección. No depende de las herramientas de gomemory ni de memoria persistente.
+
+### Correcciones
+
+#### `mem setup-mcp --scope global` sin argumentos registraba solo dos agentes
+
+El valor por defecto de `--agents` era `opencode,claude`. Codex estaba en `globalScopeAgents` pero ausente del defecto, así que quien no supiera pasar `--agents codex` se quedaba sin su ciclo de memoria entero, y el comando terminaba en éxito sin advertir nada.
+
+Ahora el defecto es `opencode,claude,codex`, con un test que fija la invariante: todo agente del defecto debe existir en `globalScopeAgents`.
+
+#### macOS mataba el binario recién instalado con SIGKILL
+
+El script de instalación usaba `cp` directo para reemplazar el binario. En macOS la firma de código se cachea por inodo, y `cp` sobre un ejecutable existente reutiliza el mismo inodo. El resultado era un `mem` que moría con exit 137 en cada invocación, sin mensaje ni error de firma.
+
+Ahora el fallback elimina el binario antiguo antes de copiar, forzando un inodo nuevo. `codesign -v` no reporta problema con ninguno de los dos estados; la diferencia solo se ve al ejecutar.
+
+#### Los tests modificaban el config real de Codex
+
+`go test ./...` escribía en `~/.codex/config.toml` de quien ejecutaba la suite. Varios tests lanzan el binario como subproceso fijando `cmd.Dir` pero no `cmd.Env`, y el hijo hereda el HOME del proceso de test. `t.Setenv("HOME", ...)` protege al código in-process, no a un subproceso sin `Env` explícito.
+
+Los `TestMain` de `tests/contract` y `tests/integration` ahora aíslan HOME y USERPROFILE además del `GOMEMORY_DATA_HOME`. `anclarCachesDeGo()` fija GOCACHE y GOMODCACHE antes de mover el HOME, o cada ejecución recompilaría el mundo.
+
 ## [2.13.0] - 2026-08-25
 
 ### Novedades
