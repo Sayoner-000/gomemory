@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"mem/adapters/primary/setup"
 )
 
 // configConHooksAjenos reproduce el estado real de una máquina tras la
@@ -49,12 +51,18 @@ func TestEnsureCodexGomemoryHooks_RegistraElCicloCompleto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ensureCodexGomemoryHooks: %v", err)
 	}
-	if añadidos != 3 {
-		t.Fatalf("se esperaban 3 enganches añadidos, got %d", añadidos)
+	// Derivado de la tabla, no de un literal: con el número escrito a mano este
+	// test se rompía al crecer el ciclo y obligaba a editarlo cada vez, que es
+	// como una aserción acaba relajándose «para que pase». Ahora la tabla es la
+	// única fuente y añadir un enganche no exige tocar aquí.
+	esperados := setup.CodexGomemoryHooks()
+	if añadidos != len(esperados) {
+		t.Fatalf("se esperaban %d enganches añadidos, got %d", len(esperados), añadidos)
 	}
 
 	texto := string(got)
-	for _, sub := range []string{"hook session-start", "hook post-compact", "hook turn-end"} {
+	for _, h := range esperados {
+		sub := "hook " + h.Sub
 		if !strings.Contains(texto, sub) {
 			t.Errorf("falta el enganche %q en el resultado:\n%s", sub, texto)
 		}

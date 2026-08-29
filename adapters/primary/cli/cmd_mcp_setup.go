@@ -39,12 +39,25 @@ var globalScopeAgents = map[string]bool{
 	"opencode": true,
 }
 
+// defaultAgentList es el valor por defecto de --agents.
+//
+// Codex entró aquí al cerrarse su ciclo de inyección por turno. Antes estaba
+// declarado en globalScopeAgents pero ausente del defecto, así que
+// `mem setup-mcp --scope global` sin argumentos no lo registraba nunca: quien
+// no supiera pasar `--agents codex` se quedaba sin su ciclo de memoria entero,
+// y nada lo advertía porque el comando terminaba en éxito.
+//
+// La invariante que lo sostiene está en TestAgentesPorDefecto_IncluyenCodex:
+// todo agente del defecto debe existir en globalScopeAgents, para que este
+// valor no pueda volver a prometer lo que el flujo no cumple.
+const defaultAgentList = "opencode,claude,codex"
+
 var codexConfigMu sync.Mutex
 
 func CmdMCPSetup(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("setup-mcp", flag.ContinueOnError)
 	target := fs.String("target", ".", "Directorio del proyecto donde instalar configs (solo aplica a --scope project)")
-	agents := fs.String("agents", "opencode,claude", "Agentes objetivo (separados por coma): opencode, claude, cursor, windsurf, cline, codex, all")
+	agents := fs.String("agents", defaultAgentList, "Agentes objetivo (separados por coma): opencode, claude, cursor, windsurf, cline, codex, all")
 	scope := fs.String("scope", "project", "project (default, por repo) o global (una vez por máquina — claude, codex, opencode)")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -226,6 +239,35 @@ func runGlobalScopeSetup(agentList []string) {
 	for _, p := range written {
 		fmt.Printf("  ✅ planificación atómica: %s\n", p)
 	}
+
+	// Guía de revisión adversarial por consenso (spec 027, FR-044): se
+	// distribuye solo en scope global y no por proyecto, porque es un protocolo
+	// de trabajo del usuario, no configuración de un repositorio concreto.
+	//
+	// Es autosuficiente: no depende de las herramientas de gomemory ni de que
+	// haya memoria persistente, así que instalarla no promete nada que el
+	// binario no pueda cumplir hoy.
+	skills, err := setup.InstallAdversarialReviewSkill(embeddedTemplate("adversarial-consensus-review/SKILL.md"))
+	if err != nil {
+		fmt.Printf("  ⚠️  revisión adversarial (scope global): %v\n", err)
+	}
+	for _, p := range skills {
+		fmt.Printf("  ✅ revisión adversarial: %s\n", p)
+	}
+	written = append(written, skills...)
+
+	// Habilidades ya existentes hacia Codex y OpenCode. Cierra un hueco abierto
+	// desde las features 013/021: gomemory escribía habilidades solo en
+	// `.claude/skills/`, así que estos dos agentes nunca recibieron el método de
+	// descomposición ni la constitución como habilidad descubrible.
+	previas, err := setup.InstallExistingSkillsForAgents(PlanMethod(), setup.ConstitutionSkillBody())
+	if err != nil {
+		fmt.Printf("  ⚠️  habilidades existentes (scope global): %v\n", err)
+	}
+	for _, p := range previas {
+		fmt.Printf("  ✅ habilidad: %s\n", p)
+	}
+	written = append(written, previas...)
 
 	fmt.Println()
 	if generated > 0 || len(written) > 0 {

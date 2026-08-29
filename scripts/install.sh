@@ -101,8 +101,16 @@ main() {
   [ -f "$tmp/$BIN_NAME" ] || die "El archivo no contiene el binario $BIN_NAME"
 
   mkdir -p "$bin_dir"
+  # El `rm -f` previo NO es limpieza cosmética: en macOS la firma de código se
+  # cachea por inodo, y `cp` sobre un ejecutable existente reutiliza el inodo.
+  # El binario resultante muere con SIGKILL en cada invocación, sin mensaje ni
+  # error de firma —`codesign -v` lo da por válido—, así que el síntoma es un
+  # `mem` que no responde y nada que explique por qué. `install` sí crea un
+  # inodo nuevo (comprobado), pero el fallback tenía que hacerlo también.
   install -m 0755 "$tmp/$BIN_NAME" "$bin_dir/$BIN_NAME" 2>/dev/null \
-    || { cp "$tmp/$BIN_NAME" "$bin_dir/$BIN_NAME" && chmod 0755 "$bin_dir/$BIN_NAME"; }
+    || { rm -f "$bin_dir/$BIN_NAME" \
+      && cp "$tmp/$BIN_NAME" "$bin_dir/$BIN_NAME" \
+      && chmod 0755 "$bin_dir/$BIN_NAME"; }
 
   ok "gomemory instalado en $bin_dir/$BIN_NAME"
 

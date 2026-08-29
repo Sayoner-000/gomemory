@@ -49,7 +49,7 @@ func CmdHook(deps *Deps, args []string) {
 	case "post-compact":
 		hookPostCompact(deps)
 	case "user-prompt-submit":
-		hookUserPromptSubmit(deps)
+		hookUserPromptSubmit(deps, args[1:])
 	case "nudge":
 		hookNudge(deps)
 	case "channel-fired":
@@ -236,10 +236,24 @@ func printRecoveryAndContext(deps *Deps) {
 // hookUserPromptSubmit corre en cada prompt del usuario. En el primer prompt
 // de la sesión inyecta el bootstrap de tools y un recordatorio del protocolo
 // de memoria; en los siguientes es pasivo para no agregar overhead.
-func hookUserPromptSubmit(deps *Deps) {
+func hookUserPromptSubmit(deps *Deps, args []string) {
+	// El dialecto se resuelve ANTES de cualquier salida, incluida la de fallo:
+	// un `{}` impreso a un agente que lee stdout como contexto le inyectaría
+	// esas dos llaves como si fueran una instrucción.
+	//
+	// El defecto es Claude y NO el neutral de detectDialect: este hook nació
+	// para Claude Code, que lo invoca sin bandera y solo inyecta lo que venga
+	// en additionalContext. Quien necesite texto plano —Codex— lo pide
+	// explícitamente con --emit=text. Invertir este defecto deja a Claude Code
+	// sin inyección por turno sin que nada falle a la vista.
+	dialect := dialectClaude
+	if v := emitFlagValue(args); isKnownDialect(v) {
+		dialect = hookDialect(v)
+	}
+
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		fmt.Print("{}")
+		emitHookOutput(renderPromptContext(dialect, ""))
 		os.Exit(0)
 	}
 	project := deps.ProjectRepo.Key(root)
@@ -275,17 +289,7 @@ func hookUserPromptSubmit(deps *Deps) {
 			parts = append(parts, msg)
 		}
 
-		if len(parts) > 0 {
-			data, _ := json.Marshal(map[string]any{
-				"hookSpecificOutput": map[string]any{
-					"hookEventName":     "UserPromptSubmit",
-					"additionalContext": strings.Join(parts, "\n\n"),
-				},
-			})
-			fmt.Print(string(data))
-		} else {
-			fmt.Print("{}")
-		}
+		emitHookOutput(renderPromptContext(dialect, strings.Join(parts, "\n\n")))
 		os.Exit(0)
 	}
 
@@ -309,14 +313,7 @@ func hookUserPromptSubmit(deps *Deps) {
 	os.WriteFile(marker, []byte("1"), 0644)
 	settings := deps.SettingsRepo.Read(root)
 	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled)
-	out := map[string]any{
-		"hookSpecificOutput": map[string]any{
-			"hookEventName":     "UserPromptSubmit",
-			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder,
-		},
-	}
-	data, _ := json.Marshal(out)
-	fmt.Print(string(data))
+	emitHookOutput(renderPromptContext(dialect, bootstrap+"\n\n"+memoryProtocolReminder))
 	os.Exit(0)
 }
 

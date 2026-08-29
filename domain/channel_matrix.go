@@ -158,7 +158,7 @@ var ChannelMatrix = []MatrixCell{
 	{Agent: "opencode", Kind: KindPlanEntry, Scope: ScopeProject,
 		NotApplicableReason: "este agente instala su mecanismo de entrada de forma global, no por proyecto"},
 	{Agent: "opencode", Kind: KindPlanGuard, Scope: ScopeProject,
-		NotApplicableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan"},
+		NotApplicableReason: "el agente no expone una llamada a herramienta que marque «estoy presentando el plan»; ver la celda de ámbito de usuario"},
 
 	// ── opencode · usuario ───────────────────────────────────────────────
 	{Agent: "opencode", Kind: KindPlanEntry, Scope: ScopeUser,
@@ -169,10 +169,16 @@ var ChannelMatrix = []MatrixCell{
 		Path: []string{".config", "opencode", "AGENTS.md"}, Managed: true},
 	{Agent: "opencode", Kind: KindNativeWrapper, Scope: ScopeUser,
 		Path: []string{".config", "opencode", "commands"}, Managed: true},
+	// Segunda superficie nativa: las habilidades. Convive con commands y no la
+	// sustituye — un comando lo invoca la persona, una habilidad la descubre el
+	// modelo. La ruta cuelga de ~/.opencode, no de ~/.config/opencode: es la que
+	// el propio binario documenta (contiene `.opencode/skills/my-skill/SKILL.md`).
+	{Agent: "opencode", Kind: KindNativeWrapper, Scope: ScopeUser,
+		Path: []string{".opencode", "skills"}, Managed: true},
 	{Agent: "opencode", Kind: KindServerConfig, Scope: ScopeUser,
 		Path: []string{".config", "opencode", "opencode.json"}, ConfigKey: "mcp", Managed: true},
 	{Agent: "opencode", Kind: KindPlanGuard, Scope: ScopeUser,
-		NotApplicableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan"},
+		NotApplicableReason: "el agente no expone una llamada a herramienta que marque «estoy presentando el plan»: el cambio de modo viaja por la RPC session/set_mode, no por una tool, así que permission.ask y tool.execute.before no tienen qué interceptar"},
 
 	// ── codex · usuario ──────────────────────────────────────────────────
 	// Codex configura una sola vez por máquina: no tiene equivalente por
@@ -185,12 +191,24 @@ var ChannelMatrix = []MatrixCell{
 		Path: []string{".codex", "config.toml"}, Managed: true},
 	{Agent: "codex", Kind: KindTurnReminder, Scope: ScopeUser,
 		Path: []string{".codex", "config.toml"}, Managed: true},
+	// Verificado en sesión interactiva (2026-08-29, Codex 0.151.0): el hook
+	// UserPromptSubmit dispara y su stdout llega al modelo como contexto. La
+	// entrada al modo plan viaja por ahí, igual que en Claude Code, y no por un
+	// borde de modo que este agente no expone.
 	{Agent: "codex", Kind: KindPlanEntry, Scope: ScopeUser,
-		NotApplicableReason: "el ciclo del agente no expone un borde de entrada al modo plan sobre el que enganchar"},
+		Path: []string{".codex", "config.toml"}, Managed: true},
 	{Agent: "codex", Kind: KindPlanGuard, Scope: ScopeUser,
-		NotApplicableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan"},
+		NotApplicableReason: "el agente no expone una llamada a herramienta que marque «estoy presentando el plan», que es lo que hace interceptable el borde de salida en Claude Code (ExitPlanMode)"},
+	// Dos superficies nativas distintas, dos celdas. Codex no tiene formato
+	// propio de COMANDOS —por eso el método de planificación sigue viajando en
+	// el bloque de protocolo de AGENTS.md y globalTargets no le escribe
+	// envoltorio—, pero sí tiene directorio de HABILIDADES, y eso gomemory sí
+	// lo gestiona. Fundir ambas en una sola celda obligaría a mentir en una de
+	// las dos mitades.
 	{Agent: "codex", Kind: KindNativeWrapper, Scope: ScopeUser,
-		NotApplicableReason: "el agente no expone un formato propio de comandos o habilidades; el método viaja en el bloque de protocolo de AGENTS.md"},
+		NotApplicableReason: "el agente no expone un formato propio de comandos; el método de planificación viaja en el bloque de protocolo de AGENTS.md"},
+	{Agent: "codex", Kind: KindNativeWrapper, Scope: ScopeUser,
+		Path: []string{".codex", "skills"}, Managed: true},
 
 	// ── artefactos heredados · usuario ───────────────────────────────────
 	// INV-5: se retira, nunca se escribe. Lo dejaron las versiones anteriores

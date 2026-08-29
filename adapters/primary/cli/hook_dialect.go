@@ -169,6 +169,43 @@ func budgetFlagValue(args []string) int {
 	return 0
 }
 
+// renderPromptContext traduce el contexto que se inyecta en cada turno
+// (recordatorio de guardado y/o de modo plan) al dialecto d.
+//
+// Existe porque `user-prompt-submit` era el único hook que emitía su salida sin
+// pasar por el traductor: hablaba JSON de Claude Code y punto. Eso bastaba
+// mientras fuera el único agente con inyección por turno, y dejó de bastar al
+// verificarse en sesión real que Codex también dispara UserPromptSubmit y toma
+// el stdout del hook COMO CONTEXTO TAL CUAL. Entregarle el JSON de Claude le
+// inyectaría la envoltura como si fuera texto para el modelo.
+//
+// texto == "" representa el silencio: no hay nada que recordar este turno.
+func renderPromptContext(d hookDialect, texto string) hookRenderedOutput {
+	switch d {
+	case dialectClaude:
+		if texto == "" {
+			return hookRenderedOutput{stdout: "{}"}
+		}
+		out, _ := json.Marshal(map[string]any{
+			"hookSpecificOutput": map[string]any{
+				"hookEventName":     "UserPromptSubmit",
+				"additionalContext": texto,
+			},
+		})
+		return hookRenderedOutput{stdout: string(out)}
+
+	case dialectJSON:
+		out, _ := json.Marshal(map[string]any{"context": texto})
+		return hookRenderedOutput{stdout: string(out)}
+
+	default:
+		// dialectNeutral y dialectText: el texto va desnudo a stdout. El
+		// silencio es la cadena vacía y no `{}` — quien lee stdout como
+		// contexto se tragaría esas dos llaves como si fueran una instrucción.
+		return hookRenderedOutput{stdout: texto}
+	}
+}
+
 // renderEnteredDocument traduce el documento de plan-entered (ya ajustado al
 // presupuesto por domain.AdjustPlanDocumentToBudget) al dialecto d, según las
 // tres formas documentadas en contracts/hook-plan-entered.md. doc == ""

@@ -14,14 +14,27 @@ import (
 // que lo implementa.
 //
 // Es el equivalente de claudeHookEvents para el dialecto de Codex. Se limita a
-// los eventos que Codex expone de verdad (SessionStart y Stop): el agente no
-// ofrece un borde de entrada ni de salida del modo plan, y declararlos aquí
-// produciría un hook que nunca dispara — un fallo silencioso, justo lo que el
-// registro de capacidades existe para impedir.
+// los eventos que Codex expone de verdad: declarar uno que nunca dispara
+// produciría un fallo silencioso, justo lo que el registro de capacidades
+// existe para impedir.
+//
+// «De verdad» significa comprobado en una sesión interactiva, no leído en la
+// documentación ni deducido del binario. Esta tabla dijo durante varias
+// versiones que Codex solo exponía SessionStart y Stop, y era falso:
+// UserPromptSubmit dispara y su stdout llega al modelo como contexto. Nadie lo
+// notó porque una capacidad declarada ausente no la vuelve a mirar nadie.
+//
+// `codex exec` NO ejecuta hooks —ninguno, tampoco SessionStart—, así que
+// cualquier verificación futura de esta tabla exige sesión interactiva.
 type CodexHook struct {
 	Event   string
 	Matcher string
 	Sub     string
+	// Emit fija el dialecto de salida del subcomando. Vacío deja el de por
+	// defecto (JSON de Claude Code). Codex toma el stdout del hook como
+	// contexto tal cual, así que los hooks que inyectan texto al modelo deben
+	// pedir el dialecto plano de forma explícita.
+	Emit string
 }
 
 // codexGomemoryHooks es el ciclo mínimo que hace que Codex ejerza memoria y no
@@ -31,6 +44,11 @@ var codexGomemoryHooks = []CodexHook{
 	{Event: "SessionStart", Matcher: "startup|resume|clear", Sub: "session-start"},
 	{Event: "SessionStart", Matcher: "compact", Sub: "post-compact"},
 	{Event: "Stop", Sub: "turn-end"},
+	// Inyección por turno. Sin ella, Codex recibía el protocolo una sola vez al
+	// arrancar, en un archivo estático que compite con todo el contexto y se
+	// diluye según crece la conversación — la diferencia observable entre "el
+	// agente sigue el método" y "lo siguió al principio".
+	{Event: "UserPromptSubmit", Sub: "user-prompt-submit", Emit: "text"},
 }
 
 // CodexGomemoryHooks expone la tabla para quien tenga que escribirla. Vive en
@@ -91,10 +109,14 @@ func codexHookSubs() []string {
 
 // CodexHookGroup arma el grupo TOML que Codex espera para un enganche.
 func CodexHookGroup(h CodexHook, memCommand string) map[string]any {
+	comando := fmt.Sprintf("%s hook %s", memCommand, h.Sub)
+	if h.Emit != "" {
+		comando += " --emit=" + h.Emit
+	}
 	group := map[string]any{
 		"hooks": []any{map[string]any{
 			"type":    "command",
-			"command": fmt.Sprintf("%s hook %s", memCommand, h.Sub),
+			"command": comando,
 		}},
 	}
 	if h.Matcher != "" {

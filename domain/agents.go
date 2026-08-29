@@ -128,11 +128,18 @@ var KnownAgents = []AgentCapability{
 		Name:    "codex",
 		Dialect: DialectText,
 		Levels: map[AgentLevel]bool{
-			// Ni Guard ni Entry: el ciclo de Codex no expone una herramienta de
-			// entrada ni de salida del modo plan sobre la que enganchar un hook.
-			// Lo que sí sostiene —y por eso entra al registro— son los eventos
-			// SessionStart y Stop de su config.toml, que dan inyección de
-			// contexto al arrancar y checkpoint al cerrar cada turno.
+			// Entry SÍ, Guard no. La distinción se comprobó en sesión
+			// interactiva (Codex 0.151.0): el evento UserPromptSubmit dispara y
+			// su stdout llega al modelo como contexto, que es todo lo que la
+			// entrada al modo plan necesita — el mismo canal por el que la
+			// resuelve Claude Code. Lo que sigue sin existir es un borde de
+			// SALIDA: ninguna llamada a herramienta marca «estoy presentando el
+			// plan», así que no hay dónde enganchar un guardián.
+			//
+			// Esta entrada dijo durante varias versiones que Codex tampoco
+			// sostenía Entry. Era falso, y sobrevivió porque una capacidad
+			// declarada ausente no la vuelve a comprobar nadie.
+			AgentLevelEntry:     true,
 			AgentLevelTextFloor: true,
 		},
 		Scopes: map[AgentScope]bool{
@@ -140,8 +147,7 @@ var KnownAgents = []AgentCapability{
 			// en ~/.codex/config.toml, sin equivalente por proyecto.
 			ScopeUser: true,
 		},
-		GuardUnavailableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan",
-		EntryUnavailableReason: "el ciclo del agente no expone un borde de entrada al modo plan sobre el que enganchar",
+		GuardUnavailableReason: "el agente no expone una llamada a herramienta que marque «estoy presentando el plan», que es lo que hace interceptable el borde de salida en Claude Code (ExitPlanMode)",
 	},
 }
 
