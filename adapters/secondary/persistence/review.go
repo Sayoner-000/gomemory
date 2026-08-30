@@ -389,13 +389,50 @@ func (r *ReviewRepository) UpsertReviewerResultAtomically(
 		faseEsperada = domain.ReviewRejudging
 	}
 	if actualStatus != faseEsperada {
-		return fmt.Errorf(
-			"la revisión está en %s y los resultados de la ronda %d ya no se pueden modificar",
-			status, round,
-		)
+		// Fuera de la fase de recogida, la guarda protege UNA cosa: que un reenvío no
+		// MUTE las fuentes sobre las que ya se construyó el consenso. Rechazar por
+		// fase a secas cerraba además dos puertas que deben seguir abiertas.
+		//
+		// La primera es el fail-closed. consensus_ready lo escribe el propio envío
+		// del segundo revisor, así que la ventana se cerraba en el mismo instante en
+		// que ambos terminaban: a partir de ahí nadie podía declarar failure y la
+		// transición consensus_ready -> incomplete quedaba inalcanzable, con el
+		// dominio declarándola legal y sin nadie capaz de ejecutarla. Una ejecución
+		// inválida terminaba APPROVED, que es justo lo que INV-010 prohíbe.
+		//
+		// La segunda es la idempotencia de reenvío que promete FR-039: un reintento
+		// de transporte con contenido idéntico pasaba de no-op a error duro.
+		if result.Status != domain.ReviewerResultFailure {
+			identico, err := resultadoCoincideConElPersistido(ctx, connQuerier{ctx, conn}, internalID, result)
+			if err != nil {
+				return err
+			}
+			if !identico {
+				return fmt.Errorf(
+					"la revisión está en %s y los resultados de la ronda %d ya no se pueden modificar",
+					status, round,
+				)
+			}
+		}
 	}
 	if result.Round != round {
 		return fmt.Errorf("el resultado pertenece a la ronda %d, la vigente es la %d", result.Round, round)
+	}
+	// «Un resultado failure es final para la ronda» se comprobaba SOLO en el caso de
+	// uso, con un ListReviewerResults suelto fuera de toda transacción. Entre esa
+	// lectura y esta escritura cabía un envío success que pisaba el failure vía
+	// ON CONFLICT DO UPDATE, y el ledger quedaba sin rastro de la ejecución fallida.
+	// La comprobación previa sigue dando errores tempranos; esta cierra la carrera.
+	var previo string
+	err = conn.QueryRowContext(ctx,
+		`SELECT status FROM reviewer_results WHERE review_id = ? AND reviewer = ? AND round = ?`,
+		internalID, string(result.Reviewer), round,
+	).Scan(&previo)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if err == nil && domain.ReviewerResultStatus(previo) == domain.ReviewerResultFailure {
+		return fmt.Errorf("failed reviewer result is final for this round")
 	}
 	if err := persistReviewerResult(ctx, conn, internalID, reviewID, result); err != nil {
 		return err
@@ -409,6 +446,96 @@ func (r *ReviewRepository) UpsertReviewerResultAtomically(
 
 type reviewerResultWriter interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+// resultadoCoincideConElPersistido indica si el resultado entrante es, campo a campo,
+// el que ya está guardado para ese revisor y esa ronda.
+//
+// La comparación se hace sobre los valores REDACTADOS porque es lo que hay en la
+// tabla: persistReviewerResult redacta claim y evidence al escribir, así que comparar
+// contra el texto crudo declararía «distinto» un reenvío idéntico que cite un secreto
+// —exactamente el reintento que esto existe para dejar pasar—.
+//
+// submitted_at queda fuera a propósito: un reintento idéntico no cambia el juicio, y
+// meter la marca de tiempo haría que ningún reenvío coincidiera nunca.
+func resultadoCoincideConElPersistido(
+	ctx context.Context, q querier, internalID int64, result *domain.ReviewerResult,
+) (bool, error) {
+	rows, err := q.Query(`
+		SELECT rr.provider, rr.model, rr.status,
+		       f.local_id, f.location, f.severity, f.category, f.claim,
+		       f.evidence_class, f.evidence, f.confidence
+		FROM reviewer_results rr
+		LEFT JOIN findings f ON f.reviewer_result_id = rr.id
+		WHERE rr.review_id = ? AND rr.reviewer = ? AND rr.round = ?
+		ORDER BY f.local_id`, internalID, string(result.Reviewer), result.Round)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	type hallazgoGuardado struct {
+		localID, location, severity, category, claim string
+		evidenceClass, evidence, confidence          string
+	}
+	var provider, model, status string
+	guardados := make(map[string]hallazgoGuardado)
+	filas := 0
+	for rows.Next() {
+		var localID, location, severity, category, claim sql.NullString
+		var evidenceClass, evidence, confidence sql.NullString
+		if err := rows.Scan(
+			&provider, &model, &status,
+			&localID, &location, &severity, &category, &claim,
+			&evidenceClass, &evidence, &confidence,
+		); err != nil {
+			return false, err
+		}
+		filas++
+		if !localID.Valid {
+			continue
+		}
+		guardados[localID.String] = hallazgoGuardado{
+			localID: localID.String, location: location.String, severity: severity.String,
+			category: category.String, claim: claim.String, evidenceClass: evidenceClass.String,
+			evidence: evidence.String, confidence: confidence.String,
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	// Sin fila previa no hay nada que reenviar: es un alta, y un alta fuera de fase
+	// sí debe rechazarse.
+	if filas == 0 {
+		return false, nil
+	}
+	if provider != result.Provider || model != result.Model || status != string(result.Status) {
+		return false, nil
+	}
+	if len(guardados) != len(result.Findings) {
+		return false, nil
+	}
+	for i := range result.Findings {
+		entrante := &result.Findings[i]
+		guardado, existe := guardados[entrante.LocalID]
+		if !existe {
+			return false, nil
+		}
+		evidence, err := json.Marshal(redactarLista(entrante.Evidence))
+		if err != nil {
+			return false, err
+		}
+		if guardado.location != entrante.Location ||
+			guardado.severity != string(entrante.Severity) ||
+			guardado.category != entrante.Category ||
+			guardado.claim != redactarTexto(entrante.Claim) ||
+			guardado.evidenceClass != string(entrante.EvidenceClass) ||
+			guardado.evidence != string(evidence) ||
+			guardado.confidence != entrante.Confidence {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func persistReviewerResult(

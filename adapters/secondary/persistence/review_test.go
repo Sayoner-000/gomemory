@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"mem/application/ports"
 	"mem/domain"
 )
 
@@ -533,4 +534,161 @@ func TestListConsensusFindings_RevisionInexistenteDevuelveVacio(t *testing.T) {
 	if len(out) != 0 {
 		t.Fatalf("se esperaba lista vacía, llegaron %d hallazgos", len(out))
 	}
+}
+
+// TestUnFailureNoSeSobrescribeDentroDeLaTransaccion cubre la mitad que faltaba de
+// "un resultado failure es final para la ronda".
+//
+// El caso de uso ya lo comprobaba, pero leyendo con ListReviewerResults FUERA de
+// cualquier transacción: entre esa lectura y la escritura cabía un envío success que
+// pisaba el failure vía ON CONFLICT DO UPDATE. La comprobación previa sigue dando
+// errores tempranos; esta es la que cierra la carrera.
+func TestUnFailureNoSeSobrescribeDentroDeLaTransaccion(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewReviewRepository(db)
+	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+	review := &domain.Review{
+		ID: "acr_failure_final", Project: "proj", Target: target,
+		Status: domain.ReviewAwaitingReviewers,
+	}
+	if err := repo.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	fallo := &domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultFailure,
+	}
+	if err := repo.UpsertReviewerResult("proj", review.ID, fallo); err != nil {
+		t.Fatal(err)
+	}
+
+	// El envío que llega con la lectura ya obsoleta.
+	exito := &domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultSuccess,
+	}
+	if err := repo.UpsertReviewerResultAtomically(
+		"proj", review.ID, domain.ReviewAwaitingReviewers, 0, exito,
+	); err == nil {
+		t.Fatal("un success pisó un failure ya persistido")
+	}
+	results, err := repo.ListReviewerResults("proj", review.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Status != domain.ReviewerResultFailure {
+		t.Fatalf("el failure dejó de ser final: %#v", results)
+	}
+}
+
+// TestGuardaDeFaseYRondaEnElAdaptadorReal ejercita en el ADAPTADOR las ramas que
+// hasta ahora solo afirmaba el doble de memoria de los casos de uso.
+//
+// El doble reimplementa esta lógica palabra por palabra, así que un test que solo
+// pase por él no distingue una divergencia entre los dos: la que decide en
+// producción es la que no tenía prueba. Borrar la guarda real dejaba la suite verde.
+func TestGuardaDeFaseYRondaEnElAdaptadorReal(t *testing.T) {
+	hallazgo := func(claim string) domain.Finding {
+		return domain.Finding{
+			LocalID: "A-001", Location: "domain/verdict.go:42", Severity: domain.SeverityHigh,
+			Category: "correctness", Claim: claim, EvidenceClass: "deterministic",
+			Evidence: []string{"e1"}, Confidence: "high",
+		}
+	}
+	preparar := func(t *testing.T, estado domain.ReviewStatus) (ports.ReviewRepository, string) {
+		t.Helper()
+		db, err := Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { db.Close() })
+		repo := NewReviewRepository(db)
+		target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+		review := &domain.Review{
+			ID: "acr_guarda", Project: "proj", Target: target,
+			Status: domain.ReviewAwaitingReviewers,
+		}
+		if err := repo.CreateReview(review); err != nil {
+			t.Fatal(err)
+		}
+		original := &domain.ReviewerResult{
+			Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultSuccess,
+			Findings: []domain.Finding{hallazgo("defecto")},
+		}
+		if err := repo.UpsertReviewerResult("proj", review.ID, original); err != nil {
+			t.Fatal(err)
+		}
+		if estado != domain.ReviewAwaitingReviewers {
+			review.Status = estado
+			if err := repo.UpdateReview(review); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return repo, review.ID
+	}
+
+	t.Run("fuera de fase se rechaza el reenvío que muta la fuente del consenso", func(t *testing.T) {
+		repo, id := preparar(t, domain.ReviewConsensusReady)
+		mutado := &domain.ReviewerResult{
+			Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultSuccess,
+			Findings: []domain.Finding{hallazgo("consenso distinto")},
+		}
+		err := repo.UpsertReviewerResultAtomically("proj", id, domain.ReviewConsensusReady, 0, mutado)
+		if err == nil || !strings.Contains(err.Error(), "ya no se pueden modificar") {
+			t.Fatalf("una fuente del consenso fue mutada fuera de fase: %v", err)
+		}
+		stored, _ := repo.ListReviewerResults("proj", id, 0)
+		if stored[0].Findings[0].Claim != "defecto" {
+			t.Fatalf("la fuente quedó alterada: %q", stored[0].Findings[0].Claim)
+		}
+	})
+
+	t.Run("fuera de fase pasa el reenvío idéntico", func(t *testing.T) {
+		repo, id := preparar(t, domain.ReviewConsensusReady)
+		identico := &domain.ReviewerResult{
+			Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultSuccess,
+			Findings: []domain.Finding{hallazgo("defecto")},
+		}
+		if err := repo.UpsertReviewerResultAtomically(
+			"proj", id, domain.ReviewConsensusReady, 0, identico,
+		); err != nil {
+			t.Fatalf("un reenvío idéntico debe seguir siendo un no-op: %v", err)
+		}
+	})
+
+	t.Run("fuera de fase pasa un failure", func(t *testing.T) {
+		repo, id := preparar(t, domain.ReviewConsensusReady)
+		fallo := &domain.ReviewerResult{
+			Reviewer: domain.ReviewerB, Round: 0, Status: domain.ReviewerResultFailure,
+		}
+		if err := repo.UpsertReviewerResultAtomically(
+			"proj", id, domain.ReviewConsensusReady, 0, fallo,
+		); err != nil {
+			t.Fatalf("el fail-closed debe seguir alcanzable fuera de fase: %v", err)
+		}
+	})
+
+	t.Run("un resultado de otra ronda se rechaza", func(t *testing.T) {
+		repo, id := preparar(t, domain.ReviewAwaitingReviewers)
+		otraRonda := &domain.ReviewerResult{
+			Reviewer: domain.ReviewerB, Round: 3, Status: domain.ReviewerResultSuccess,
+		}
+		err := repo.UpsertReviewerResultAtomically("proj", id, domain.ReviewAwaitingReviewers, 0, otraRonda)
+		if err == nil || !strings.Contains(err.Error(), "pertenece a la ronda") {
+			t.Fatalf("un resultado de otra ronda debe rechazarse: %v", err)
+		}
+	})
+
+	t.Run("un estado movido bajo los pies se rechaza", func(t *testing.T) {
+		repo, id := preparar(t, domain.ReviewConsensusReady)
+		entrante := &domain.ReviewerResult{
+			Reviewer: domain.ReviewerB, Round: 0, Status: domain.ReviewerResultSuccess,
+		}
+		err := repo.UpsertReviewerResultAtomically("proj", id, domain.ReviewAwaitingReviewers, 0, entrante)
+		if err == nil || !strings.Contains(err.Error(), "mientras se enviaba el resultado") {
+			t.Fatalf("el CAS de estado no protegió la escritura: %v", err)
+		}
+	})
 }

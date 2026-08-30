@@ -5,6 +5,61 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.16.6] - 2026-08-30
+
+Correcciones surgidas de una revisión adversarial por consenso sobre 2.16.5.
+
+### Correcciones
+
+#### Un revisor vuelve a poder declarar `failure` con el consenso listo
+
+La guarda de fase que 2.16.5 introdujo en el envío de resultados rechazaba
+cualquier escritura fuera de la fase de recogida. Como el estado
+`consensus_ready` lo escribe el propio envío del segundo revisor, la ventana se
+cerraba en el mismo instante en que ambos terminaban: a partir de ahí nadie
+podía declarar `failure`, y esa era la única vía a `INCOMPLETE` desde ese
+estado. La transición quedaba inalcanzable aunque el dominio siguiera
+declarándola legal, así que una revisión con ejecución inválida podía terminar
+`APPROVED`.
+
+Ahora la guarda deja pasar todo resultado `failure` y rechaza solo lo que debía
+proteger: el reenvío que altera las fuentes sobre las que se construyó el
+consenso.
+
+#### `review_submit` recupera la idempotencia de reenvío
+
+Por la misma guarda, un reintento con contenido idéntico tras `consensus_ready`
+pasaba de no-op a error. Un reintento de transporte —un timeout cuya escritura
+sí se confirmó— fallaba en el segundo intento. El reenvío vuelve a compararse
+por contenido; la comparación se hace sobre los valores ya redactados, que es lo
+que hay almacenado.
+
+#### Un `failure` ya persistido no lo pisa un `success` concurrente
+
+«Un resultado `failure` es final para la ronda» se comprobaba leyendo fuera de
+toda transacción. Entre esa lectura y la escritura cabía un envío `success` que
+sobrescribía el fallo y dejaba el ledger sin rastro de la ejecución fallida. La
+comprobación previa sigue dando errores tempranos; la que cierra la carrera vive
+ahora dentro del mismo bloqueo de escritura.
+
+#### El digest de `--pending` deja de admitir dos lecturas
+
+Los campos se concatenaban separados por NUL, pero ni la identidad del índice ni
+el contenido del archivo tienen prohibido contenerlo: el mismo flujo de bytes
+admitía más de un reparto, y dos estados pendientes distintos podían compartir
+identidad congelada. Cada campo se escribe ahora precedido de su longitud.
+
+**Cambio observable:** el digest de `--pending` cambia para el mismo árbol de
+trabajo. Una revisión congelada con una versión anterior y continuada con esta
+se rechaza con `target changed`; hay que volver a congelarla.
+
+### Pruebas
+
+Cobertura de las ramas que decidían en producción sin tenerla: la guarda de fase
+y ronda del adaptador real —hasta ahora solo se afirmaba sobre la copia de esa
+lógica en el doble de memoria—, las etapas 1/2/3 de un conflicto de merge en la
+identidad del índice, y la colisión de reparto del digest de `--pending`.
+
 ## [2.16.5] - 2026-08-30
 
 ### Correcciones
@@ -16,6 +71,30 @@ SHA-256. Se usa en la comparación atómica de finalización para detectar si
 alguien modificó los resultados entre la lectura y la escritura. Antes, solo
 se comparaba el estado de la revisión y los re-juicios, no el contenido de los
 resultados.
+
+#### El envío de resultados comprueba fase y ronda bajo el mismo bloqueo
+
+`UpsertReviewerResultAtomically` verifica el estado terminal, la fase y la ronda
+dentro del `BEGIN IMMEDIATE` que persiste el resultado. La comprobación previa
+del caso de uso sigue dando errores tempranos, pero la que cierra la carrera es
+esta.
+
+#### El linaje por revisor solo publica la ronda vigente
+
+`ReJudgmentsByReviewer` filtra por ronda. Antes, un estado declarado en una ronda
+ya superada seguía apareciendo en `review_status`, `review_rejudge` y
+`mem review show`, de modo que la auditoría podía atribuir a un revisor una
+postura que ya no sostenía.
+
+#### La identidad del índice en `--pending` incluye modo y etapa
+
+`blobsPreparados` conservaba solo el SHA del blob. El modo distingue un archivo
+ejecutable de uno normal aunque los bytes sean idénticos, y la etapa distingue
+las entradas 1/2/3 de un conflicto de merge, que además podían sobrescribirse
+entre sí al compartir ruta.
+
+**Cambio observable:** el digest de `--pending` cambia para el mismo árbol de
+trabajo respecto de 2.16.4.
 
 ## [2.16.4] - 2026-08-29
 

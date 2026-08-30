@@ -225,10 +225,23 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 	}
 
 	hash := sha256.New()
+	// campo escribe un valor de longitud variable precedido de su tamaño.
+	//
+	// Delimitar con NUL no basta: los valores hasheados son rutas, identidades del
+	// índice y el contenido CRUDO del archivo, y ninguno tiene prohibido contener el
+	// delimitador. Sin la longitud, dos particiones distintas del mismo flujo de
+	// bytes son indistinguibles —«E1\0E2» + contenido C produce el mismo flujo que
+	// «E1» + («E2\0» + C)—, así que dos estados pendientes distintos podían compartir
+	// identidad congelada. Con el tamaño delante, cada campo solo se puede leer de
+	// una manera.
+	campo := func(etiqueta string, valor []byte) {
+		fmt.Fprintf(hash, "%s:%d:", etiqueta, len(valor))
+		hash.Write(valor)
+	}
 	scope := make([]string, 0, len(rutas))
 	for _, rel := range rutas {
 		scope = append(scope, rel)
-		hash.Write([]byte("pending\x00" + rel + "\x00"))
+		campo("pending", []byte(rel))
 		// Lo PREPARADO entra en la identidad del target, no solo el árbol de trabajo.
 		//
 		// Solo se hasheaba os.ReadFile, y eso deja fuera justo el caso que el
@@ -237,7 +250,7 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 		// Dos revisiones con contenidos preparados completamente distintos producían
 		// el MISMO digest, así que el target no identificaba lo que decía congelar.
 		if sha, ok := preparados[rel]; ok {
-			hash.Write([]byte("staged\x00" + sha + "\x00"))
+			campo("staged", []byte(sha))
 		} else {
 			// Sin entrada en el índice hay DOS situaciones distintas, y colapsarlas en
 			// un solo marcador hacía que un archivo sin seguimiento y otro preparado
@@ -245,7 +258,7 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 			// identidad congelada si el árbol tenía el mismo contenido. El estado del
 			// índice lo trae `git status` en el primer carácter de cada registro: '?'
 			// es sin seguimiento y 'D' es preparado para borrar.
-			hash.Write([]byte{'u', 'n', 's', 't', 'a', 'g', 'e', 'd', 0, indice[rel], 0})
+			campo("unstaged", []byte{indice[rel]})
 		}
 		data, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -254,16 +267,22 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 			}
 			// Un archivo borrado contribuye su ruta con un marcador: borrar debe
 			// cambiar la identidad del target, no pasar desapercibido.
-			hash.Write([]byte("deleted"))
+			campo("deleted", nil)
 		} else {
-			hash.Write(data)
+			campo("content", data)
 		}
-		hash.Write([]byte{0})
 	}
 	return "pending-changes", hex.EncodeToString(hash.Sum(nil)), scope, nil
 }
 
-// blobsPreparados devuelve, por ruta, el identificador del blob que hay en el índice.
+// blobsPreparados devuelve, por ruta, la identidad completa de sus entradas en el
+// índice: cada una como «modo blob etapa», y varias unidas por NUL cuando la ruta
+// está conflictuada.
+//
+// No basta el SHA del blob. El modo distingue un archivo ejecutable de uno normal
+// aunque los bytes sean idénticos, y la etapa distingue las entradas 1/2/3 de un
+// conflicto de merge, que pueden repetir blob entre sí: sin ella, «queremos X y ellos
+// Y» y «queremos Y y ellos X» —intenciones opuestas— comparten identidad congelada.
 //
 // Se hashea el identificador y no el contenido porque git ya lo calculó sobre ese
 // contenido: dos índices distintos dan blobs distintos, que es la única propiedad que

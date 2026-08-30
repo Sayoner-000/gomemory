@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -159,5 +161,164 @@ func TestPendingDistingueSinSeguimientoDeBorradoPreparado(t *testing.T) {
 	}
 	if digestA == digestB {
 		t.Fatal("mismo digest para un archivo sin seguimiento y uno preparado para borrar")
+	}
+}
+
+// repoConConflicto deja el índice con las TRES etapas de un conflicto de merge para
+// la misma ruta: 1 (base común), 2 (nuestra versión) y 3 (la de ellos). Es el estado
+// que git deja tras un merge que no resuelve, y la razón por la que blobsPreparados
+// acumula varias entradas por ruta en vez de sobrescribirlas.
+func repoConConflicto(t *testing.T, base, nuestra, suya string) string {
+	t.Helper()
+	root := t.TempDir()
+	gitEnRepo(t, root, "init", "-q", ".")
+	gitEnRepo(t, root, "config", "user.email", "prueba@local")
+	gitEnRepo(t, root, "config", "user.name", "prueba")
+	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("V0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitEnRepo(t, root, "add", "f.txt")
+	gitEnRepo(t, root, "commit", "-qm", "base")
+
+	blob := func(contenido string) string {
+		t.Helper()
+		cmd := exec.Command("git", "hash-object", "-w", "--stdin")
+		cmd.Dir = root
+		cmd.Stdin = strings.NewReader(contenido)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("git hash-object: %v", err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+
+	gitEnRepo(t, root, "rm", "-q", "--cached", "f.txt")
+	entradas := fmt.Sprintf("100644 %s 1\tf.txt\n100644 %s 2\tf.txt\n100644 %s 3\tf.txt\n",
+		blob(base), blob(nuestra), blob(suya))
+	cmd := exec.Command("git", "update-index", "--index-info")
+	cmd.Dir = root
+	cmd.Stdin = strings.NewReader(entradas)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git update-index --index-info: %v\n%s", err, out)
+	}
+	return root
+}
+
+// TestBlobsPreparadosDistingueLasEtapasDelConflicto cubre la otra mitad del arreglo
+// de blobsPreparados: la que motivó pasar de map[ruta]sha a acumular, ordenar y unir.
+//
+// Conservar solo el SHA del blob hacía que las etapas 1/2/3 de una misma ruta se
+// sobrescribieran entre sí, así que dos conflictos con resoluciones pendientes
+// distintas compartían identidad congelada. El modo tenía prueba desde v2.16.5; la
+// etapa no, y era el caso que el propio comentario declara como motivo principal.
+func TestBlobsPreparadosDistingueLasEtapasDelConflicto(t *testing.T) {
+	// Los MISMOS blobs, cruzados de etapa: en uno queremos X y ellos quieren Y, en
+	// el otro al revés. Son intenciones opuestas sobre la misma ruta.
+	//
+	// El caso está elegido a propósito: si las tres etapas llevan blobs distintos,
+	// la simple acumulación ya basta para separarlas y la etapa no aporta nada. Solo
+	// cuando el conjunto de blobs coincide se ve que el número de etapa es parte de
+	// la identidad del índice, y no un adorno del formato.
+	nuestraPrimero := repoConConflicto(t, "BASE\n", "X\n", "Y\n")
+	suyaPrimero := repoConConflicto(t, "BASE\n", "Y\n", "X\n")
+
+	uno, err := blobsPreparados(nuestraPrimero, []string{"f.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otro, err := blobsPreparados(suyaPrimero, []string{"f.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uno["f.txt"] == otro["f.txt"] {
+		t.Fatal("dos conflictos con las etapas cruzadas comparten identidad preparada")
+	}
+
+	// Y las tres etapas deben estar representadas: quedarse con una sola volvería a
+	// colapsar estados distintos del índice.
+	if partes := strings.Split(uno["f.txt"], "\x00"); len(partes) != 3 {
+		t.Fatalf("se conservaron %d etapas de 3: %q", len(partes), uno["f.txt"])
+	}
+}
+
+// repoConIndiceCrudo construye un repositorio cuyo índice se escribe entrada por
+// entrada, y deja en el árbol de trabajo el contenido indicado. Permite fabricar
+// estados del índice que git no produciría por sí solo, que es lo que hace falta
+// para exhibir una colisión de identidad.
+func repoConIndiceCrudo(t *testing.T, entradas string, contenido []byte) string {
+	t.Helper()
+	root := t.TempDir()
+	gitEnRepo(t, root, "init", "-q", ".")
+	gitEnRepo(t, root, "config", "user.email", "prueba@local")
+	gitEnRepo(t, root, "config", "user.name", "prueba")
+	if err := os.WriteFile(filepath.Join(root, "semilla.txt"), []byte("s\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitEnRepo(t, root, "add", "semilla.txt")
+	gitEnRepo(t, root, "commit", "-qm", "base")
+
+	cmd := exec.Command("git", "update-index", "--index-info")
+	cmd.Dir = root
+	cmd.Stdin = strings.NewReader(entradas)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git update-index --index-info: %v\n%s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(root, "f.txt"), contenido, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func blobDe(t *testing.T, root, contenido string) string {
+	t.Helper()
+	cmd := exec.Command("git", "hash-object", "-w", "--stdin")
+	cmd.Dir = root
+	cmd.Stdin = strings.NewReader(contenido)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git hash-object: %v", err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// TestPendingNoColisionaAlRepartirLosCamposDeOtraForma exhibe la ambigüedad que la
+// concatenación sin longitud permitía.
+//
+// El digest escribía «staged\0» + identidad + «\0» + contenido crudo + «\0». Como ni
+// la identidad ni el contenido tienen prohibido contener NUL, el mismo flujo de bytes
+// admitía dos lecturas: un índice con DOS entradas y un contenido C producía
+// exactamente los mismos bytes que un índice con UNA entrada y un contenido que
+// empezara por la segunda entrada seguida de NUL. Dos estados pendientes distintos,
+// una sola identidad congelada.
+func TestPendingNoColisionaAlRepartirLosCamposDeOtraForma(t *testing.T) {
+	semilla := t.TempDir()
+	gitEnRepo(t, semilla, "init", "-q", ".")
+	gitEnRepo(t, semilla, "config", "user.email", "prueba@local")
+	gitEnRepo(t, semilla, "config", "user.name", "prueba")
+	sha := blobDe(t, semilla, "X\n")
+	etapa1 := fmt.Sprintf("100644 %s 1", sha)
+	etapa2 := fmt.Sprintf("100644 %s 2", sha)
+
+	// Dos entradas en el índice, contenido limpio.
+	dosEntradas := repoConIndiceCrudo(t,
+		fmt.Sprintf("%s\tf.txt\n%s\tf.txt\n", etapa1, etapa2),
+		[]byte("HOLA\n"))
+
+	// Una entrada, y el contenido absorbe la segunda: los mismos bytes, repartidos
+	// de otra forma.
+	unaEntrada := repoConIndiceCrudo(t,
+		fmt.Sprintf("%s\tf.txt\n", etapa1),
+		append([]byte(etapa2+"\x00"), []byte("HOLA\n")...))
+
+	_, digestDos, _, err := resolvePendingTarget(dosEntradas)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, digestUna, _, err := resolvePendingTarget(unaEntrada)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digestDos == digestUna {
+		t.Fatal("dos estados pendientes distintos comparten digest: los campos se pueden repartir de más de una forma")
 	}
 }

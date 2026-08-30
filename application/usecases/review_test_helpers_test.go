@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -182,13 +183,28 @@ func (r *memoryReviewRepository) UpsertReviewerResultAtomically(
 		faseEsperada = domain.ReviewRejudging
 	}
 	if review.Status != faseEsperada {
-		return fmt.Errorf(
-			"la revisión está en %s y los resultados de la ronda %d ya no se pueden modificar",
-			review.Status, review.Round,
-		)
+		// Espeja al adaptador real: fuera de la fase de recogida solo se rechaza lo
+		// que MUTA las fuentes del consenso. Un failure debe poder declararse siempre
+		// (fail-closed) y un reenvío idéntico sigue siendo un no-op (FR-039).
+		if result.Status != domain.ReviewerResultFailure &&
+			!r.resultadoCoincideConElPersistido(project, reviewID, result) {
+			return fmt.Errorf(
+				"la revisión está en %s y los resultados de la ronda %d ya no se pueden modificar",
+				review.Status, review.Round,
+			)
+		}
 	}
 	if result.Round != review.Round {
 		return fmt.Errorf("el resultado pertenece a la ronda %d, la vigente es la %d", result.Round, review.Round)
+	}
+	// Espeja al adaptador real: un failure ya persistido es final para la ronda, y
+	// esa comprobación vive aquí dentro —no solo en el caso de uso— porque es la
+	// que cierra la carrera entre la lectura y la escritura.
+	for _, guardado := range r.results[reviewKey(project, reviewID)] {
+		if guardado.Reviewer == result.Reviewer && guardado.Round == result.Round &&
+			guardado.Status == domain.ReviewerResultFailure {
+			return fmt.Errorf("failed reviewer result is final for this round")
+		}
 	}
 	return r.UpsertReviewerResult(project, reviewID, result)
 }
@@ -464,4 +480,37 @@ func (r *memoryConsensusRepository) RecordFixAtomically(
 // así que informa cero. Los tests que miden esta métrica usan SQLite real.
 func (r *memoryReviewRepository) CountPromotedMemories(project, reviewID string) (int, int, error) {
 	return 0, 0, nil
+}
+
+// resultadoCoincideConElPersistido espeja la comparación de contenido del adaptador
+// real. El doble no redacta, así que compara los valores tal cual los guarda.
+func (r *memoryReviewRepository) resultadoCoincideConElPersistido(
+	project, reviewID string, result *domain.ReviewerResult,
+) bool {
+	for _, guardado := range r.results[reviewKey(project, reviewID)] {
+		if guardado.Reviewer != result.Reviewer || guardado.Round != result.Round {
+			continue
+		}
+		if guardado.Provider != result.Provider || guardado.Model != result.Model ||
+			guardado.Status != result.Status || len(guardado.Findings) != len(result.Findings) {
+			return false
+		}
+		previos := make(map[string]domain.Finding, len(guardado.Findings))
+		for _, f := range guardado.Findings {
+			previos[f.LocalID] = f
+		}
+		for _, entrante := range result.Findings {
+			previo, existe := previos[entrante.LocalID]
+			if !existe ||
+				previo.Location != entrante.Location || previo.Severity != entrante.Severity ||
+				previo.Category != entrante.Category || previo.Claim != entrante.Claim ||
+				previo.EvidenceClass != entrante.EvidenceClass ||
+				previo.Confidence != entrante.Confidence ||
+				!slices.Equal(previo.Evidence, entrante.Evidence) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }

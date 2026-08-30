@@ -11,6 +11,15 @@ func TestDeriveVerdictApprovedAndIncomplete(t *testing.T) {
 		want      Verdict
 	}{
 		{
+			// Un SUSPECT severo NO bloquea la aprobación, y es deliberado: lo vio un
+			// solo revisor, así que no está corroborado y actuar sobre él es
+			// exactamente lo que el consenso existe para evitar. La habilidad ACR
+			// define APPROVED como «no queda ningún CRITICAL o HIGH CONFIRMADO sin
+			// resolver» (§36), y RecordFix rechaza corregir lo no confirmado.
+			//
+			// Lo que sí exige el protocolo es que no desaparezca de la vista: el
+			// recuento por clase de review_status lo publica, y el informe de la
+			// revisión debe nombrarlo aunque el veredicto sea APPROVED.
 			name: "sin confirmed severo queda aprobado",
 			results: []ReviewerResult{
 				{Reviewer: ReviewerA, Status: ReviewerResultSuccess},

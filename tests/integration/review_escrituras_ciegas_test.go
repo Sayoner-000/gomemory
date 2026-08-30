@@ -391,3 +391,127 @@ func TestUnaMarcaDeResultadosObsoletaRechazaElCierre(t *testing.T) {
 		t.Fatalf("un cierre rechazado dejó rastro: status=%s verdict=%q", final.Status, final.Verdict)
 	}
 }
+
+// TestUnFailureTrasConsensusReadyAlcanzaIncomplete cubre la regresión que la guarda
+// de fase introdujo: cerró la única puerta que quedaba al fail-closed.
+//
+// consensus_ready lo escribe el PROPIO envío del segundo revisor, así que la ventana
+// se cerraba en el mismo instante en que ambos terminaban. A partir de ahí ningún
+// revisor podía declarar failure y la transición consensus_ready -> incomplete
+// quedaba inalcanzable: el dominio seguía declarándola legal y ya no había quien la
+// ejecutara. Una revisión cuya ejecución fue inválida terminaba APPROVED.
+func TestUnFailureTrasConsensusReadyAlcanzaIncomplete(t *testing.T) {
+	db, err := persistence.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	const proyecto = "failure-tardio"
+	reviews := persistence.NewReviewRepository(db)
+	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+	review := &domain.Review{
+		ID: "acr_failure_tardio", Project: proyecto, Target: target,
+		Status: domain.ReviewAwaitingReviewers,
+	}
+	if err := reviews.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	for _, revisor := range []domain.Reviewer{domain.ReviewerA, domain.ReviewerB} {
+		if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+			Project: proyecto, ReviewID: "acr_failure_tardio", TargetDigest: "sha256:v0",
+			Result: domain.ReviewerResult{Reviewer: revisor, Status: domain.ReviewerResultSuccess},
+		}); err != nil {
+			t.Fatalf("envío de %s: %v", revisor, err)
+		}
+	}
+	previa, err := reviews.GetReview(proyecto, "acr_failure_tardio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if previa.Status != domain.ReviewConsensusReady {
+		t.Fatalf("el escenario exige consensus_ready, está en %s", previa.Status)
+	}
+
+	// A descubre que su propia ejecución fue inválida.
+	if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+		Project: proyecto, ReviewID: "acr_failure_tardio", TargetDigest: "sha256:v0",
+		Result: domain.ReviewerResult{Reviewer: domain.ReviewerA, Status: domain.ReviewerResultFailure},
+	}); err != nil {
+		t.Fatalf("un failure debe poder declararse siempre: %v", err)
+	}
+
+	final, err := reviews.GetReview(proyecto, "acr_failure_tardio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.Status != domain.ReviewIncomplete || final.Verdict != domain.VerdictIncomplete {
+		t.Fatalf("el fail-closed no se alcanzó: status=%s verdict=%q", final.Status, final.Verdict)
+	}
+}
+
+// TestUnReenvioIdenticoTrasConsensusReadySigueSiendoNoOp cubre FR-039: la guarda de
+// fase debe impedir que un reenvío MUTE las fuentes del consenso, no convertir un
+// reintento de transporte en un error duro.
+func TestUnReenvioIdenticoTrasConsensusReadySigueSiendoNoOp(t *testing.T) {
+	db, err := persistence.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	const proyecto = "reenvio-identico"
+	reviews := persistence.NewReviewRepository(db)
+	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+	review := &domain.Review{
+		ID: "acr_reenvio", Project: proyecto, Target: target,
+		Status: domain.ReviewAwaitingReviewers,
+	}
+	if err := reviews.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	resultadoDeA := func() domain.ReviewerResult {
+		return domain.ReviewerResult{
+			Reviewer: domain.ReviewerA, Status: domain.ReviewerResultSuccess,
+			Findings: []domain.Finding{{
+				LocalID: "A-001", Location: "domain/verdict.go:42", Severity: domain.SeverityHigh,
+				Category: "correctness", Claim: "defecto", EvidenceClass: "deterministic",
+				Evidence: []string{"e1"}, Confidence: "high",
+			}},
+		}
+	}
+	for _, entrada := range []domain.ReviewerResult{
+		resultadoDeA(),
+		{Reviewer: domain.ReviewerB, Status: domain.ReviewerResultSuccess},
+	} {
+		copia := entrada
+		if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+			Project: proyecto, ReviewID: "acr_reenvio", TargetDigest: "sha256:v0", Result: copia,
+		}); err != nil {
+			t.Fatalf("envío de %s: %v", entrada.Reviewer, err)
+		}
+	}
+
+	// Reintento del cliente MCP tras un timeout cuya escritura sí se confirmó.
+	if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+		Project: proyecto, ReviewID: "acr_reenvio", TargetDigest: "sha256:v0", Result: resultadoDeA(),
+	}); err != nil {
+		t.Fatalf("un reenvío idéntico debe seguir siendo un no-op: %v", err)
+	}
+
+	// Y lo que la guarda sí debe seguir impidiendo: mutar la fuente del consenso.
+	mutado := resultadoDeA()
+	mutado.Findings[0].Claim = "consenso distinto"
+	if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+		Project: proyecto, ReviewID: "acr_reenvio", TargetDigest: "sha256:v0", Result: mutado,
+	}); err == nil {
+		t.Fatal("un reenvío que altera el contenido debe rechazarse")
+	}
+	stored, err := reviews.ListReviewerResults(proyecto, "acr_reenvio", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range stored {
+		if r.Reviewer == domain.ReviewerA && r.Findings[0].Claim != "defecto" {
+			t.Fatalf("la fuente del consenso fue alterada: %q", r.Findings[0].Claim)
+		}
+	}
+}
