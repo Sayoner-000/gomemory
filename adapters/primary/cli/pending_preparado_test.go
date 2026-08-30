@@ -91,3 +91,51 @@ func TestPendingSigueDistinguiendoElArbol(t *testing.T) {
 		t.Fatal("mismo digest con árboles de trabajo distintos")
 	}
 }
+
+// TestPendingDistingueSinSeguimientoDeBorradoPreparado: un archivo sin seguimiento y
+// uno preparado para borrar son intenciones opuestas sobre la misma ruta. Con el mismo
+// contenido visible en el árbol, colapsarlas en un solo marcador les daba la misma
+// identidad congelada.
+func TestPendingDistingueSinSeguimientoDeBorradoPreparado(t *testing.T) {
+	sinSeguimiento := func(t *testing.T) string {
+		t.Helper()
+		root := t.TempDir()
+		gitEnRepo(t, root, "init", "-q", ".")
+		gitEnRepo(t, root, "config", "user.email", "prueba@local")
+		gitEnRepo(t, root, "config", "user.name", "prueba")
+		os.WriteFile(filepath.Join(root, "otro.txt"), []byte("ancla\n"), 0o644)
+		gitEnRepo(t, root, "add", "otro.txt")
+		gitEnRepo(t, root, "commit", "-qm", "base")
+		// f.txt nunca entró en el repositorio.
+		os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
+		return root
+	}
+	borradoPreparado := func(t *testing.T) string {
+		t.Helper()
+		root := t.TempDir()
+		gitEnRepo(t, root, "init", "-q", ".")
+		gitEnRepo(t, root, "config", "user.email", "prueba@local")
+		gitEnRepo(t, root, "config", "user.name", "prueba")
+		os.WriteFile(filepath.Join(root, "otro.txt"), []byte("ancla\n"), 0o644)
+		os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
+		gitEnRepo(t, root, "add", ".")
+		gitEnRepo(t, root, "commit", "-qm", "base")
+		// f.txt se prepara para borrar, pero vuelve a existir en el árbol con el
+		// mismo contenido: lo único que los diferencia es el índice.
+		gitEnRepo(t, root, "rm", "--cached", "-q", "f.txt")
+		os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
+		return root
+	}
+
+	_, digestA, _, err := resolvePendingTarget(sinSeguimiento(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, digestB, _, err := resolvePendingTarget(borradoPreparado(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digestA == digestB {
+		t.Fatal("mismo digest para un archivo sin seguimiento y uno preparado para borrar")
+	}
+}

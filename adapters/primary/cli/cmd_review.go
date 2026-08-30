@@ -210,7 +210,7 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 		return "", "", nil, fmt.Errorf("git status: %w", err)
 	}
 
-	rutas, err := parsePorcelainZ(string(out))
+	rutas, indice, err := parsePorcelainZ(string(out))
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -239,8 +239,13 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 		if sha, ok := preparados[rel]; ok {
 			hash.Write([]byte("staged\x00" + sha + "\x00"))
 		} else {
-			// Sin entrada en el índice: sin seguimiento, o preparado para borrar.
-			hash.Write([]byte("unstaged\x00"))
+			// Sin entrada en el índice hay DOS situaciones distintas, y colapsarlas en
+			// un solo marcador hacía que un archivo sin seguimiento y otro preparado
+			// para borrar —intenciones opuestas sobre la misma ruta— compartieran
+			// identidad congelada si el árbol tenía el mismo contenido. El estado del
+			// índice lo trae `git status` en el primer carácter de cada registro: '?'
+			// es sin seguimiento y 'D' es preparado para borrar.
+			hash.Write([]byte{'u', 'n', 's', 't', 'a', 'g', 'e', 'd', 0, indice[rel], 0})
 		}
 		data, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -267,8 +272,22 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 // Una ruta sin entrada en el índice —sin seguimiento, o preparada para borrar— no
 // aparece en el mapa, y quien llama la distingue con un marcador.
 func blobsPreparados(root string, rutas []string) (map[string]string, error) {
-	args := append([]string{"ls-files", "--stage", "-z", "--"}, rutas...)
-	cmd := exec.Command("git", args...)
+	// SIN pathspec y con --full-name, por dos motivos distintos que se cierran igual.
+	//
+	// El pathspec pasaba cada ruta pendiente como argumento: con decenas de miles de
+	// archivos sin seguimiento —el caso que --untracked-files=all produce en cuanto hay
+	// un directorio generado y no ignorado— la invocación superaba el límite de
+	// argumentos del sistema y la congelación fallaba por completo, cuando antes de
+	// mezclar el índice funcionaba.
+	//
+	// Y las dos órdenes no hablan la misma convención de rutas: `git status` las
+	// devuelve relativas a la raíz del repositorio y `git ls-files` relativas al
+	// directorio de trabajo. Con una raíz de proyecto anidada dentro de un repositorio
+	// mayor el pathspec no casaba con nada, y `ls-files` sale con código 0 y salida
+	// vacía cuando eso ocurre: el mapa quedaba vacío SIN error, cada ruta se marcaba
+	// como no preparada y la mezcla del índice se desactivaba en silencio. --full-name
+	// fuerza rutas relativas a la raíz, que es la convención de `git status`.
+	cmd := exec.Command("git", "ls-files", "--stage", "-z", "--full-name")
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
@@ -299,9 +318,10 @@ func blobsPreparados(root string, rutas []string) (map[string]string, error) {
 // El formato son registros terminados en NUL, cada uno "XY <ruta>". Un renombrado
 // (R) gasta DOS registros: el destino y, a continuación, el origen. Se toman ambos:
 // mover un archivo cambia lo que hay que revisar en los dos extremos.
-func parsePorcelainZ(salida string) ([]string, error) {
+func parsePorcelainZ(salida string) ([]string, map[string]byte, error) {
 	campos := strings.Split(salida, "\x00")
 	vistas := map[string]bool{}
+	indice := map[string]byte{}
 	var rutas []string
 	for i := 0; i < len(campos); i++ {
 		registro := campos[i]
@@ -313,14 +333,16 @@ func parsePorcelainZ(salida string) ([]string, error) {
 		if !vistas[ruta] {
 			vistas[ruta] = true
 			rutas = append(rutas, ruta)
+			indice[ruta] = estado[0]
 		}
 		if estado[0] == 'R' || estado[0] == 'C' {
 			i++
 			if i < len(campos) && campos[i] != "" && !vistas[campos[i]] {
 				vistas[campos[i]] = true
 				rutas = append(rutas, campos[i])
+				indice[campos[i]] = estado[0]
 			}
 		}
 	}
-	return rutas, nil
+	return rutas, indice, nil
 }

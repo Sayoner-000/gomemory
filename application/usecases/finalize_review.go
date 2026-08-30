@@ -57,6 +57,16 @@ func FinalizeReviewWithMetrics(
 	if review == nil {
 		return nil, ReviewMetrics{}, fmt.Errorf("review %s not found", reviewID)
 	}
+	// La marca de re-juicios se lee ANTES que los datos de los que se deriva el
+	// veredicto, no después. El orden es la mitad de la garantía: leída después,
+	// una retractación que aterrice entre la lectura de los hallazgos y la de la
+	// marca queda DENTRO de la marca, el veredicto se deriva de los hallazgos ya
+	// obsoletos y la comparación da igual porque compara lo nuevo con lo nuevo.
+	// Leída antes, cualquier cambio posterior la desplaza y el cierre se rechaza.
+	marca, err := reviews.RejudgmentMark(project, reviewID)
+	if err != nil {
+		return nil, ReviewMetrics{}, err
+	}
 	results, err := reviews.ListReviewerResults(project, reviewID, review.Round)
 	if err != nil {
 		return nil, ReviewMetrics{}, err
@@ -100,12 +110,13 @@ func FinalizeReviewWithMetrics(
 	// obsoleto: restauraba la ronda y el target de antes y encima cerraba la
 	// revisión. Si algo se movió, el veredicto ya no corresponde a lo que hay y hay
 	// que rederivarlo.
-	if err := reviews.FinalizeReviewAtomically(project, reviewID, ports.FinalizeTransition{
-		ExpectedStatus: anterior,
-		ExpectedRound:  review.Round,
-		ExpectedDigest: review.ActiveTargetDigest(),
-		Verdict:        verdict,
-		NextStatus:     terminal,
+	if err := reviews.SetReviewStatusAtomically(project, reviewID, ports.StatusTransition{
+		ExpectedStatus:         anterior,
+		ExpectedRound:          review.Round,
+		ExpectedDigest:         review.ActiveTargetDigest(),
+		ExpectedRejudgmentMark: marca,
+		Verdict:                verdict,
+		NextStatus:             terminal,
 	}); err != nil {
 		return nil, ReviewMetrics{}, err
 	}

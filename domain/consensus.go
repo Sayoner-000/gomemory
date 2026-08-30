@@ -45,3 +45,24 @@ type ConsensusFinding struct {
 	// una ronda de un intento de reemplazarla (FR-005).
 	RoundFingerprint string
 }
+
+// EstadoVigente devuelve el estado de re-juicio del hallazgo SOLO si pertenece a la
+// ronda indicada; en otro caso devuelve vacío, que es "sin verificar".
+//
+// Existe para que haya UN solo criterio de vigencia. El veredicto ya lo aplicaba,
+// pero las consultas de estado y de detalle leían la columna a secas, así que
+// mostraban RESOLVED por ambos revisores mientras la finalización se negaba a cerrar
+// sin decir cuál era el hallazgo ni por qué. En un ledger migrado —donde la ronda no
+// consta y vale 0— esa contradicción es sistemática.
+func (f ConsensusFinding) EstadoVigente(round int) ReJudgmentState {
+	if f.RejudgmentRound != round {
+		return ""
+	}
+	return f.RejudgmentState
+}
+
+// ResueltoEn indica si el hallazgo está resuelto EN la ronda indicada, y no en
+// cualquier ronda pasada.
+func (f ConsensusFinding) ResueltoEn(round int) bool {
+	return f.EstadoVigente(round) == ReJudgmentResolved
+}

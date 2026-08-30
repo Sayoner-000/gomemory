@@ -35,7 +35,7 @@ func cmdReviewStatus(deps *Deps, args []string) {
 		fmt.Printf("etapa: %s (ronda %d de %d)\n", review.Status, review.Round, review.MaxFixRounds)
 	}
 	fmt.Printf("alcance: %s\n", alcanceDeRevision(review.FixAuthorized))
-	resumirHallazgos(deps, review.ID)
+	resumirHallazgos(deps, review.ID, review.Round)
 }
 
 // cmdReviewHistory implementa `mem review history [--limit N]`.
@@ -151,10 +151,17 @@ func cmdReviewShow(deps *Deps, args []string) {
 			fail("listar re-juicios: %v", err)
 		}
 		if len(porRevisor) > 0 || finding.RejudgmentState != "" {
+			// Con el MISMO criterio de vigencia que el veredicto: mostrar la columna a
+			// secas anunciaba como resuelto lo que la finalización cuenta como pendiente.
+			vigente := finding.EstadoVigente(review.Round)
 			fmt.Printf("  re-juicio  A=%s  B=%s  ·  agregado: %s\n",
 				estadoOGuion(porRevisor[domain.ReviewerA]),
 				estadoOGuion(porRevisor[domain.ReviewerB]),
-				estadoOGuion(finding.RejudgmentState))
+				estadoOGuion(vigente))
+			if vigente == "" && finding.RejudgmentState != "" {
+				fmt.Printf("             verificado en la ronda %d; la ronda vigente es la %d y exige volver a verificarlo\n",
+					finding.RejudgmentRound, review.Round)
+			}
 		}
 		if finding.Claim != "" {
 			fmt.Printf("  %s\n", finding.Claim)
@@ -214,7 +221,7 @@ func activeReview(deps *Deps) *domain.Review {
 	return nil
 }
 
-func resumirHallazgos(deps *Deps, reviewID string) {
+func resumirHallazgos(deps *Deps, reviewID string, ronda int) {
 	findings, err := deps.ConsensusRepo.ListAllConsensusFindings(deps.Project, reviewID)
 	if err != nil {
 		fail("listar consenso: %v", err)
@@ -229,10 +236,12 @@ func resumirHallazgos(deps *Deps, reviewID string) {
 	for _, finding := range findings {
 		porEstado[finding.Status]++
 		porSeveridad[finding.Severity]++
-		if finding.RejudgmentState == "" {
+		// La ronda vigente decide, igual que en el veredicto: un re-juicio de una
+		// ronda anterior cuenta como pendiente, no como resuelto.
+		if vigente := finding.EstadoVigente(ronda); vigente == "" {
 			pendientes++
 		} else {
-			porReJuicio[finding.RejudgmentState]++
+			porReJuicio[vigente]++
 		}
 	}
 	fmt.Printf("hallazgos: %d confirmado(s), %d sospechoso(s), %d contradicción(es), %d informativo(s)\n",

@@ -94,15 +94,17 @@ func TestReviewLearning_ExigeLoIndispensable(t *testing.T) {
 // una regla del sistema, no del prompt. Cualquier otra combinación queda fuera.
 func TestPromotableFindings_SoloConfirmadoYResuelto(t *testing.T) {
 	consenso := []ConsensusFinding{
-		{ConsensusLocalID: "C-002", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentResolved},
-		{ConsensusLocalID: "C-001", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentResolved},
-		{ConsensusLocalID: "C-003", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentUnresolved},
-		{ConsensusLocalID: "C-004", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentRegressed},
-		{ConsensusLocalID: "S-001", Status: ConsensusSuspect, RejudgmentState: ReJudgmentResolved},
+		{ConsensusLocalID: "C-002", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentResolved, RejudgmentRound: 1},
+		{ConsensusLocalID: "C-001", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentResolved, RejudgmentRound: 1},
+		{ConsensusLocalID: "C-003", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentUnresolved, RejudgmentRound: 1},
+		{ConsensusLocalID: "C-004", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentRegressed, RejudgmentRound: 1},
+		{ConsensusLocalID: "S-001", Status: ConsensusSuspect, RejudgmentState: ReJudgmentResolved, RejudgmentRound: 1},
 		{ConsensusLocalID: "C-005", Status: ConsensusConfirmed},
+		// Resuelto, sí, pero en una ronda anterior: no es promovible en la ronda 1.
+		{ConsensusLocalID: "C-006", Status: ConsensusConfirmed, RejudgmentState: ReJudgmentResolved, RejudgmentRound: 0},
 	}
 
-	got := PromotableFindings(consenso)
+	got := PromotableFindings(consenso, 1)
 	quiero := []string{"C-001", "C-002"}
 	if len(got) != len(quiero) {
 		t.Fatalf("promovibles = %v, se esperaba %v", got, quiero)

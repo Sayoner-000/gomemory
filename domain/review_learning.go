@@ -128,17 +128,23 @@ func limpiarLista(items []string) []string {
 }
 
 // PromotableFindings devuelve los identificadores locales de los hallazgos que
-// cumplen la condición de promoción: CONFIRMED y RESOLVED (FR-033).
+// cumplen la condición de promoción: CONFIRMED y resuelto EN la ronda indicada
+// (FR-033).
+//
+// La ronda es parte de la condición, no un adorno. Comprobar solo RESOLVED aplicaba
+// a este dato un criterio distinto del que aplica el veredicto: el cierre trataba la
+// verificación de una ronda pasada como no vigente —falla cerrado— y esta consulta la
+// seguía anunciando como promovible —falla abierto—, sobre exactamente la misma fila.
 //
 // Es una consulta, no una acción, y esa distinción es deliberada. gomemory no
 // puede promover por su cuenta porque no puede inventar el conocimiento: el
 // problema, la causa raíz y la resolución los redacta quien revisó. Lo que sí
 // puede —y debe— es decir con autoridad CUÁLES tienen derecho a producirlo, para
 // que la promoción no dependa de que el agente recuerde la regla.
-func PromotableFindings(consensus []ConsensusFinding) []string {
+func PromotableFindings(consensus []ConsensusFinding, round int) []string {
 	out := make([]string, 0, len(consensus))
 	for _, finding := range consensus {
-		if finding.Status == ConsensusConfirmed && finding.RejudgmentState == ReJudgmentResolved {
+		if finding.Status == ConsensusConfirmed && finding.ResueltoEn(round) {
 			out = append(out, finding.ConsensusLocalID)
 		}
 	}

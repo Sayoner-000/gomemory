@@ -95,9 +95,22 @@ func SubmitReviewerResult(repo ports.ReviewRepository, input SubmitReviewerResul
 		findingIDs[finding.LocalID] = finding.ID
 	}
 	if input.Result.Status == domain.ReviewerResultFailure {
-		review.Status = domain.ReviewIncomplete
-		review.Verdict = domain.VerdictIncomplete
-		if err := repo.UpdateReview(review); err != nil {
+		// Por TransitionTo y bajo comparación-y-cambio, no por asignación directa
+		// más UpdateReview. Esto era lo último que quedaba de la escritura ciega: un
+		// resultado que llegaba tarde reabría una revisión ya cerrada, borraba un
+		// veredicto escrito o devolvía la ronda y el target a los valores que había
+		// leído, con la corrección ya registrada en el ledger.
+		anterior := review.Status
+		if err := review.TransitionTo(domain.ReviewIncomplete); err != nil {
+			return SubmitReviewerResultOutput{}, err
+		}
+		if err := repo.SetReviewStatusAtomically(input.Project, input.ReviewID, ports.StatusTransition{
+			ExpectedStatus: anterior,
+			ExpectedRound:  review.Round,
+			ExpectedDigest: review.ActiveTargetDigest(),
+			Verdict:        domain.VerdictIncomplete,
+			NextStatus:     domain.ReviewIncomplete,
+		}); err != nil {
 			return SubmitReviewerResultOutput{}, err
 		}
 		return SubmitReviewerResultOutput{FindingIDs: findingIDs}, nil
@@ -113,9 +126,24 @@ func SubmitReviewerResult(repo ports.ReviewRepository, input SubmitReviewerResul
 		}
 	}
 	ready := seen[domain.ReviewerA] && seen[domain.ReviewerB]
-	if ready {
-		review.Status = domain.ReviewConsensusReady
-		if err := repo.UpdateReview(review); err != nil {
+	// Solo se escribe cuando el avance es LEGAL en la máquina de estados. Al asignar
+	// Status directamente, este punto producía dos transiciones que la máquina
+	// prohíbe: consensus_ready -> consensus_ready al reenviar un resultado, y
+	// rejudging -> consensus_ready en una ronda de revalidación, que además es
+	// incorrecta de raíz —el consenso no se reconstruye en las rondas de
+	// revalidación—. En ambos casos lo correcto es no mover el estado, no forzarlo.
+	if ready && review.Status.CanTransitionTo(domain.ReviewConsensusReady) {
+		anterior := review.Status
+		if err := review.TransitionTo(domain.ReviewConsensusReady); err != nil {
+			return SubmitReviewerResultOutput{}, err
+		}
+		// Sin veredicto: un avance de estado intermedio no emite juicio.
+		if err := repo.SetReviewStatusAtomically(input.Project, input.ReviewID, ports.StatusTransition{
+			ExpectedStatus: anterior,
+			ExpectedRound:  review.Round,
+			ExpectedDigest: review.ActiveTargetDigest(),
+			NextStatus:     domain.ReviewConsensusReady,
+		}); err != nil {
 			return SubmitReviewerResultOutput{}, err
 		}
 	}

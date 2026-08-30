@@ -229,7 +229,8 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 			salida = append(salida, map[string]any{
 				"consensus_local_id": finding.ConsensusLocalID,
 				"reviewer_states":    porRevisor,
-				"aggregate_state":    finding.RejudgmentState,
+				"aggregate_state":    finding.EstadoVigente(finding.RejudgmentRound),
+				"rejudgment_round":   finding.RejudgmentRound,
 			})
 		}
 		return reviewToolResult(map[string]any{"rejudged": salida})
@@ -272,7 +273,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		return reviewToolResult(map[string]any{
 			"review_id":           review.ID,
 			"verdict":             review.Verdict,
-			"promotable_findings": domain.PromotableFindings(findings),
+			"promotable_findings": domain.PromotableFindings(findings, review.Round),
 			"metrics":             nuevasMetricasDTO(metrics),
 		})
 	})
@@ -409,10 +410,13 @@ func construirEstadoDeRevision(
 	for _, finding := range findings {
 		porEstado[string(finding.Status)]++
 		porSeveridad[string(finding.Severity)]++
-		if finding.RejudgmentState == "" {
+		// Con el MISMO criterio de vigencia que aplica el veredicto. Contar la columna
+		// a secas presentaba como RESOLVED lo que la finalización considera pendiente.
+		vigente := finding.EstadoVigente(review.Round)
+		if vigente == "" {
 			porReJuicio["PENDING"]++
 		} else {
-			porReJuicio[string(finding.RejudgmentState)]++
+			porReJuicio[string(vigente)]++
 		}
 		reJuicios, err := usecases.ReJudgmentsByReviewer(
 			deps.ConsensusRepo, project, review.ID, finding.ConsensusLocalID)
@@ -426,7 +430,16 @@ func construirEstadoDeRevision(
 			"round":              finding.Round,
 			"source_finding_ids": finding.SourceFindingIDs,
 			"rejudgments":        reJuicios,
-			"aggregate_state":    finding.RejudgmentState,
+			"aggregate_state":    vigente,
+			// La ronda del re-juicio se publica: sin ella no hay forma de explicar por
+			// qué un hallazgo con re-juicios registrados cuenta como pendiente.
+			"rejudgment_round": finding.RejudgmentRound,
+		}
+		if vigente == "" && finding.RejudgmentState != "" {
+			entrada["rejudgment_stale_state"] = finding.RejudgmentState
+			entrada["rejudgment_pending_reason"] = fmt.Sprintf(
+				"verificado en la ronda %d; la ronda vigente es la %d y exige volver a verificarlo",
+				finding.RejudgmentRound, review.Round)
 		}
 		if ronda, ok := abordadoPor[finding.ConsensusLocalID]; ok {
 			entrada["addressed_by_round"] = ronda

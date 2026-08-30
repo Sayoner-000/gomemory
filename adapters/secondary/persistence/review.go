@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -81,10 +82,47 @@ func (r *ReviewRepository) UpdateReview(review *domain.Review) error {
 	return requireAffected(result, "review")
 }
 
-// FinalizeReviewAtomically escribe el veredicto terminal bajo comparación-y-cambio.
+// RejudgmentMark resume en un valor comparable el conjunto de re-juicios de una
+// revisión: cuántos hay y cuál es el más reciente por identificador y por estado.
+//
+// Se calcula en el motor y no se acumula en un contador para que no pueda
+// desincronizarse de las filas de las que sale. Un alta cambia el recuento; una
+// modificación por ON CONFLICT cambia el estado agregado sin cambiar el recuento, y
+// por eso la marca lleva las dos cosas.
+func (r *ReviewRepository) RejudgmentMark(project, reviewID string) (string, error) {
+	internalID, err := r.lookupReviewID(project, reviewID)
+	if err != nil {
+		return "", err
+	}
+	return rejudgmentMark(r.db, internalID)
+}
+
+func rejudgmentMark(q querier, internalID int64) (string, error) {
+	rows, err := q.Query(`
+		SELECT COUNT(*), COALESCE(MAX(id), 0), COALESCE(GROUP_CONCAT(id || ':' || state, ','), '')
+		FROM (SELECT id, state FROM rejudgments WHERE review_id = ? ORDER BY id)`, internalID)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return "", rows.Err()
+	}
+	var total, maxID int64
+	var estados string
+	if err := rows.Scan(&total, &maxID, &estados); err != nil {
+		return "", err
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d:%d:%x", total, maxID, sha256.Sum256([]byte(estados))), nil
+}
+
+// SetReviewStatusAtomically escribe el estado de una revisión bajo comparación-y-cambio.
 //
 // La superficie de escritura es deliberadamente mínima: verdict, status y updated_at.
-// La finalización usaba UpdateReview, que reescribe TODAS las columnas desde un objeto
+// La finalización y el envío de resultados usaban UpdateReview, que reescribe TODAS las columnas desde un objeto
 // leído fuera de cualquier transacción; si una corrección se colaba en medio, la
 // finalización devolvía `round` y `current_target_digest` a los valores obsoletos que
 // había leído y encima cerraba la revisión. Al no existir aquí ninguna sentencia capaz
@@ -92,8 +130,8 @@ func (r *ReviewRepository) UpdateReview(review *domain.Review) error {
 //
 // Lo que la guarda sí decide es si el veredicto sigue siendo válido: se derivó de un
 // estado, una ronda y un target concretos, y si alguno cambió ya no es el mismo juicio.
-func (r *ReviewRepository) FinalizeReviewAtomically(
-	project, reviewID string, transition ports.FinalizeTransition,
+func (r *ReviewRepository) SetReviewStatusAtomically(
+	project, reviewID string, transition ports.StatusTransition,
 ) error {
 	ctx := context.Background()
 	// Conexión dedicada con BEGIN IMMEDIATE, por el motivo ya documentado en
@@ -152,19 +190,32 @@ func (r *ReviewRepository) FinalizeReviewAtomically(
 			transition.ExpectedDigest,
 		)
 	}
+	// La marca de re-juicios se relee DENTRO de la transacción. Es la comprobación
+	// que las otras tres no cubren: un re-juicio no toca status, round ni digest.
+	if transition.ExpectedRejudgmentMark != "" {
+		marca, err := rejudgmentMark(connQuerier{ctx, conn}, internalID)
+		if err != nil {
+			return err
+		}
+		if marca != transition.ExpectedRejudgmentMark {
+			return fmt.Errorf(
+				"los re-juicios cambiaron mientras se finalizaba: vuelve a derivar el veredicto",
+			)
+		}
+	}
 
 	result, err := conn.ExecContext(ctx,
 		`UPDATE reviews SET status = ?, verdict = ?, updated_at = `+Now+` WHERE id = ?`,
 		string(transition.NextStatus), nullableVerdict(transition.Verdict), internalID)
 	if err != nil {
-		return fmt.Errorf("finalizar la revisión: %w", err)
+		return fmt.Errorf("escribir el estado de la revisión: %w", err)
 	}
 	if err := requireAffected(result, "review"); err != nil {
 		return err
 	}
 
 	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
-		return fmt.Errorf("confirmar la finalización: %w", err)
+		return fmt.Errorf("confirmar el cambio de estado: %w", err)
 	}
 	comprometida = true
 	return nil
@@ -470,8 +521,14 @@ func (r *ReviewRepository) GetConsensusFinding(project, reviewID, localID string
 }
 
 func (r *ReviewRepository) ListConsensusFindings(project, reviewID string, round int) ([]domain.ConsensusFinding, error) {
-	internalID, err := r.lookupReviewID(project, reviewID)
-	if err != nil {
+	// Una revisión inexistente devuelve lista vacía y ningún error, que es el
+	// contrato que tenía la consulta original con su JOIN. Al extraer la consulta
+	// para poder releerla dentro de una transacción se coló un lookup que traduce
+	// "no hay filas" en error: un cambio de contrato de un método público del puerto
+	// que nadie pidió. Hoy no tiene llamadores en producción, y eso no lo vuelve
+	// inofensivo — lo vuelve una trampa para el primero que llegue.
+	internalID, encontrada, err := r.lookupReviewIDOpcional(project, reviewID)
+	if err != nil || !encontrada {
 		return nil, err
 	}
 	return consensusDeRonda(r.db, internalID, reviewID, round)
@@ -734,6 +791,21 @@ func scanConsensus(row scanner, reviewID string) (*domain.ConsensusFinding, erro
 	return &finding, nil
 }
 
+// lookupReviewIDOpcional distingue "no existe" de "falló la consulta". Es lo que
+// permite que una consulta de listado devuelva vacío en vez de error sin tener que
+// inspeccionar el texto del error de lookupReviewID.
+func (r *ReviewRepository) lookupReviewIDOpcional(project, reviewID string) (int64, bool, error) {
+	var id int64
+	err := r.db.QueryRow(`SELECT id FROM reviews WHERE project = ? AND review_id = ?`, project, reviewID).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return id, true, nil
+}
+
 func (r *ReviewRepository) lookupReviewID(project, reviewID string) (int64, error) {
 	var id int64
 	err := r.db.QueryRow(`SELECT id FROM reviews WHERE project = ? AND review_id = ?`, project, reviewID).Scan(&id)
@@ -845,13 +917,24 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 	}()
 
 	var internalID int64
+	var estado string
 	err = conn.QueryRowContext(ctx,
-		`SELECT id FROM reviews WHERE project = ? AND review_id = ?`, project, reviewID).Scan(&internalID)
+		`SELECT id, status FROM reviews WHERE project = ? AND review_id = ?`,
+		project, reviewID).Scan(&internalID, &estado)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("review %s not found", reviewID)
 	}
 	if err != nil {
 		return err
+	}
+	// El estado terminal se revalida DENTRO de la transacción. El caso de uso ya lo
+	// comprobó, pero con una lectura de fuera: un revisor que se retracta lee la
+	// revisión todavía abierta, pasa la comprobación, y escribe cuando la
+	// finalización ya la cerró. El resultado era un ledger con APPROVED y el
+	// hallazgo severo marcado como reaparecido — la aprobación falsa que el
+	// protocolo existe para impedir.
+	if domain.ReviewStatus(estado).Terminal() {
+		return fmt.Errorf("la revisión está en estado terminal %s y no admite cambios", estado)
 	}
 	var findingID int64
 	err = conn.QueryRowContext(ctx,

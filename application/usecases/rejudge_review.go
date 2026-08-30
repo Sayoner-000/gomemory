@@ -66,13 +66,28 @@ func RejudgeReview(
 	if len(fixes) == 0 {
 		return nil, fmt.Errorf("no hay ninguna corrección registrada que revalidar")
 	}
-	// La corrección VIGENTE es la última: un hallazgo que ninguna ronda abordó no
-	// tiene nada que revalidar, y declararlo resuelto sería afirmar un arreglo que
-	// no existe (FR-013).
+	// Un hallazgo que NINGUNA ronda abordó no tiene nada que revalidar: declararlo
+	// resuelto sería afirmar un arreglo que no existe (FR-013). Esa es la frontera,
+	// y no se mueve.
+	//
+	// Lo que sí se admite es revalidar en la ronda vigente cualquier hallazgo que
+	// alguna corrección abordó, aunque no fuera la última. Restringirlo a la última
+	// dejaba al protocolo exigiendo algo que él mismo prohibía aportar: al abrir una
+	// ronda se invalida el re-juicio de TODOS los hallazgos —porque la corrección
+	// nueva pudo regresar cualquiera de ellos—, pero solo se podía volver a juzgar
+	// el que esa ronda abordaba. Con dos defectos corregidos en rondas distintas, el
+	// primero quedaba sin forma de re-verificarse y la revisión terminaba escalada o
+	// bloqueada aunque los dos estuvieran corregidos y ambos revisores lo hubieran
+	// confirmado.
+	//
+	// La ronda del re-juicio sigue siendo la vigente, así que la verificación se
+	// fecha contra el target que de verdad está en evaluación.
 	vigente := fixes[len(fixes)-1]
-	abordados := make(map[string]bool, len(vigente.AddressedConsensusIDs))
-	for _, localID := range vigente.AddressedConsensusIDs {
-		abordados[localID] = true
+	abordados := make(map[string]bool)
+	for _, fix := range fixes {
+		for _, localID := range fix.AddressedConsensusIDs {
+			abordados[localID] = true
+		}
 	}
 
 	// Orden estable: el mapa de entrada no lo tiene, y una salida que cambia de
@@ -104,8 +119,8 @@ func RejudgeReview(
 		}
 		if !abordados[localID] {
 			return nil, fmt.Errorf(
-				"el hallazgo %s no forma parte de la corrección de la ronda %d",
-				localID, vigente.Round,
+				"el hallazgo %s no lo abordó ninguna corrección: no hay arreglo que revalidar",
+				localID,
 			)
 		}
 		judgment := domain.ReJudgment{

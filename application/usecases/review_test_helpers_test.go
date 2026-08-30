@@ -2,14 +2,17 @@ package usecases
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"mem/application/ports"
 	"mem/domain"
 )
 
 type memoryReviewRepository struct {
-	reviews map[string]*domain.Review
-	results map[string][]domain.ReviewerResult
+	reviews   map[string]*domain.Review
+	results   map[string][]domain.ReviewerResult
+	consensus *memoryConsensusRepository
 }
 
 func newMemoryReviewRepository() *memoryReviewRepository {
@@ -46,12 +49,12 @@ func (r *memoryReviewRepository) UpdateReview(review *domain.Review) error {
 	return nil
 }
 
-// FinalizeReviewAtomically refleja la implementación real: compara el estado sobre el
+// SetReviewStatusAtomically refleja la implementación real: compara el estado sobre el
 // que se derivó el veredicto y escribe SOLO status y verdict. Si el doble escribiera
 // la revisión entera, los tests darían verde sobre una invariante que el adaptador de
 // verdad sí tiene y el doble no.
-func (r *memoryReviewRepository) FinalizeReviewAtomically(
-	project, reviewID string, transition ports.FinalizeTransition,
+func (r *memoryReviewRepository) SetReviewStatusAtomically(
+	project, reviewID string, transition ports.StatusTransition,
 ) error {
 	review := r.reviews[reviewKey(project, reviewID)]
 	if review == nil {
@@ -75,9 +78,33 @@ func (r *memoryReviewRepository) FinalizeReviewAtomically(
 			transition.ExpectedDigest,
 		)
 	}
+	if transition.ExpectedRejudgmentMark != "" {
+		marca, err := r.rejudgmentMarkDe(project, reviewID)
+		if err != nil {
+			return err
+		}
+		if marca != transition.ExpectedRejudgmentMark {
+			return fmt.Errorf("los re-juicios cambiaron mientras se finalizaba: vuelve a derivar el veredicto")
+		}
+	}
 	review.Status = transition.NextStatus
-	review.Verdict = transition.Verdict
+	if transition.Verdict != "" {
+		review.Verdict = transition.Verdict
+	}
 	return nil
+}
+
+// ledger enlaza el repositorio de revisiones con el de consenso para poder calcular
+// la marca de re-juicios, que es lo que el adaptador real deriva de sus filas.
+func (r *memoryReviewRepository) rejudgmentMarkDe(project, reviewID string) (string, error) {
+	if r.consensus == nil {
+		return "", nil
+	}
+	return r.consensus.marcaDeReJuicios(project, reviewID), nil
+}
+
+func (r *memoryReviewRepository) RejudgmentMark(project, reviewID string) (string, error) {
+	return r.rejudgmentMarkDe(project, reviewID)
 }
 
 func (r *memoryReviewRepository) ListReviews(project string, limit int) ([]domain.Review, error) {
@@ -165,7 +192,27 @@ func newMemoryConsensusRepository() *memoryConsensusRepository {
 // lo que la transición atómica de corrección necesita para avanzar la revisión.
 func (r *memoryConsensusRepository) enlazar(reviews *memoryReviewRepository) *memoryConsensusRepository {
 	r.reviews = reviews
+	reviews.consensus = r
 	return r
+}
+
+// marcaDeReJuicios reproduce la marca del adaptador real: cambia con cualquier alta o
+// modificación de un re-juicio. Si el doble no la moviera, el test de la carrera de
+// finalización pasaría contra un doble que no tiene la comprobación.
+func (r *memoryConsensusRepository) marcaDeReJuicios(project, reviewID string) string {
+	prefijo := reviewKey(project, reviewID) + ":"
+	partes := make([]string, 0)
+	for key, judgments := range r.rejudgment {
+		if !strings.HasPrefix(key, prefijo) {
+			continue
+		}
+		for _, judgment := range judgments {
+			partes = append(partes, fmt.Sprintf("%s|%d|%s|%s",
+				judgment.ConsensusLocalID, judgment.Round, judgment.Reviewer, judgment.State))
+		}
+	}
+	sort.Strings(partes)
+	return strings.Join(partes, ",")
 }
 
 func (r *memoryConsensusRepository) UpsertConsensusFinding(project, reviewID string, finding *domain.ConsensusFinding) error {

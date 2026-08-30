@@ -429,3 +429,26 @@ func TestReJudgmentRedactaEvidencia(t *testing.T) {
 		t.Errorf("estado agregado = %s, con un solo revisor debe ser UNRESOLVED", finding.RejudgmentState)
 	}
 }
+
+// TestListConsensusFindings_RevisionInexistenteDevuelveVacio fija el contrato del
+// método: una revisión que no existe no es un error, es una lista vacía.
+//
+// Se rompió al extraer la consulta para poder releerla dentro de una transacción: el
+// lookup que se añadió delante traduce "no hay filas" en error. No tenía llamadores en
+// producción, que es justo lo que lo hacía fácil de dejar pasar.
+func TestListConsensusFindings_RevisionInexistenteDevuelveVacio(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ledger := NewConsensusRepository(db)
+
+	out, err := ledger.ListConsensusFindings("proj", "acr_no_existe", 0)
+	if err != nil {
+		t.Fatalf("una revisión inexistente no es un error: %v", err)
+	}
+	if len(out) != 0 {
+		t.Fatalf("se esperaba lista vacía, llegaron %d hallazgos", len(out))
+	}
+}

@@ -206,8 +206,9 @@ func TestRejudgeReview_RegressedManda(t *testing.T) {
 	}
 }
 
-// TestRejudgeReview_ExigePertenecerALaCorreccion cubre FR-013: un hallazgo que la
-// corrección vigente no aborda no tiene nada que revalidar.
+// TestRejudgeReview_ExigePertenecerALaCorreccion cubre FR-013: un hallazgo que NINGUNA
+// corrección abordó no tiene nada que revalidar, y declararlo resuelto afirmaría un
+// arreglo que no existe. Es la frontera que no se mueve.
 func TestRejudgeReview_ExigePertenecerALaCorreccion(t *testing.T) {
 	reviews, ledger, _ := escenarioCorregible(t, 2)
 	otro := &domain.ConsensusFinding{
@@ -228,8 +229,55 @@ func TestRejudgeReview_ExigePertenecerALaCorreccion(t *testing.T) {
 	if err == nil {
 		t.Fatal("se aceptó resolver un hallazgo que la corrección no incluye")
 	}
-	if !strings.Contains(err.Error(), "no forma parte de la corrección") {
+	if !strings.Contains(err.Error(), "no lo abordó ninguna corrección") {
 		t.Errorf("el error debe explicar que el hallazgo quedó fuera: %v", err)
+	}
+}
+
+// TestRejudgeReview_AdmiteLoAbordadoEnUnaRondaAnterior es la contracara del test de
+// arriba, y la razón por la que la frontera se define por "alguna corrección" y no por
+// "la corrección vigente".
+//
+// Al abrir una ronda se invalida el re-juicio de TODOS los hallazgos, porque la
+// corrección nueva pudo regresar cualquiera. Si solo se pudiera re-juzgar lo que esa
+// ronda aborda, el hallazgo corregido en la ronda anterior se quedaba sin forma de
+// volver a verificarse: el protocolo exigía una verificación que él mismo prohibía
+// aportar, y la revisión terminaba escalada o bloqueada con los dos defectos
+// corregidos y ambos revisores conformes.
+func TestRejudgeReview_AdmiteLoAbordadoEnUnaRondaAnterior(t *testing.T) {
+	reviews, ledger, _ := escenarioCorregible(t, 2)
+	otro := &domain.ConsensusFinding{
+		ReviewID: "acr_test", ConsensusLocalID: "C-002",
+		Status: domain.ConsensusConfirmed, Severity: domain.SeverityHigh,
+		SourceFindingIDs: []int64{4, 5},
+	}
+	if err := ledger.UpsertConsensusFinding("proj", "acr_test", otro); err != nil {
+		t.Fatal(err)
+	}
+	// Ronda 1 aborda C-001; ronda 2 aborda C-002.
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:base", "sha256:r1", "C-001")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:r1", "sha256:r2", "C-002")); err != nil {
+		t.Fatal(err)
+	}
+
+	// C-001 lo abordó la ronda 1, no la vigente: debe poder re-verificarse contra el
+	// target de la ronda 2, que es el que está en evaluación.
+	out, err := RejudgeReview(reviews, ledger, RejudgeReviewInput{
+		Project: "proj", ReviewID: "acr_test", Reviewer: domain.ReviewerA,
+		Judgments: map[string]ReJudgeEntry{
+			"C-001": {State: domain.ReJudgmentResolved, Evidence: []string{"sigue sin reproducir"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("no se pudo re-verificar un hallazgo corregido en una ronda anterior: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("se esperaba un hallazgo actualizado, se obtuvieron %d", len(out))
+	}
+	if out[0].RejudgmentRound != 2 {
+		t.Fatalf("el re-juicio debe fecharse en la ronda vigente 2, se fechó en la %d", out[0].RejudgmentRound)
 	}
 }
 

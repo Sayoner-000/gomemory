@@ -93,10 +93,13 @@ func PromoteReviewMemory(
 				localID, finding.Status,
 			)
 		}
-		if finding.RejudgmentState != domain.ReJudgmentResolved {
+		// Resuelto EN la ronda vigente, con el mismo criterio que el veredicto. Sin la
+		// ronda, una verificación de una corrección anterior habilitaba promover como
+		// conocimiento algo que nadie comprobó sobre el target que se aprobó.
+		if !finding.ResueltoEn(review.Round) {
 			return nil, fmt.Errorf(
-				"el hallazgo %s no está resuelto (%s): promoverlo guardaría como conocimiento algo que aún no se sabe arreglar",
-				localID, finding.RejudgmentState,
+				"el hallazgo %s no está resuelto en la ronda vigente %d (estado %q de la ronda %d): promoverlo guardaría como conocimiento algo que aún no se sabe arreglar",
+				localID, review.Round, finding.RejudgmentState, finding.RejudgmentRound,
 			)
 		}
 

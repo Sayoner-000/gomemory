@@ -85,7 +85,7 @@ func DeriveVerdict(
 		if finding.Status == ConsensusContradiction {
 			return VerdictEscalated
 		}
-		if finding.Status == ConsensusConfirmed && !resueltoEnLaRonda(finding, review.Round) {
+		if finding.Status == ConsensusConfirmed && !finding.ResueltoEn(review.Round) {
 			pendienteSevero = true
 		}
 	}
@@ -110,22 +110,6 @@ func DeriveVerdict(
 		return VerdictEscalated
 	}
 	return ""
-}
-
-// resueltoEnLaRonda indica si el hallazgo está resuelto EN la ronda que se está
-// evaluando, y no en cualquier ronda pasada.
-//
-// La condición era solo `RejudgmentState == RESOLVED`, y ese estado es un valor
-// derivado que RecordFix no invalidaba al abrir la ronda siguiente: un RESOLVED de la
-// primera corrección aprobaba la segunda sin que nadie hubiera re-verificado el target
-// vigente. Comprobar la ronda aquí, en el punto donde se decide, es lo que impide que
-// vuelva a pasar aunque un escritor futuro olvide invalidar la columna.
-//
-// Falla cerrado con las filas anteriores a rejudgment_round, que llegan con ronda 0:
-// los re-juicios solo existen a partir de la ronda 1, así que esas revisiones exigen
-// re-juzgar en vez de aprobarse con un veredicto sin fecha.
-func resueltoEnLaRonda(finding ConsensusFinding, round int) bool {
-	return finding.RejudgmentState == ReJudgmentResolved && finding.RejudgmentRound == round
 }
 
 // hayFuentesSinClasificar indica si algún hallazgo reportado por los revisores no
