@@ -249,12 +249,17 @@ func removeLegacyHooksJSON(path string) error {
 }
 
 // ensureCodexGomemoryHooks devuelve el config.toml con los enganches del ciclo
-// de vida de gomemory presentes, junto al número de enganches añadidos.
+// de vida de gomemory presentes, junto al número de enganches añadidos o
+// actualizados.
 // Idempotente: reaplicarlo sobre su propio resultado no cambia nada.
 //
-// Solo AÑADE lo que falta, al final de la lista de cada evento: no reordena ni
-// retira hooks ajenos, y por eso el estado de confianza de los que ya estaban
-// conserva su posición e identidad (contracts/hooks-config.md). El de los hooks
+// Añade al final de la lista de cada evento lo que falta y reescribe, EN SU
+// SITIO, el comando de los hooks de gomemory que quedaron desalineados de la
+// tabla vigente. No reordena ni retira hooks ajenos, y por eso el estado de
+// confianza de los que ya estaban conserva su posición e identidad
+// (contracts/hooks-config.md). Reescribir el comando sí invalida el
+// trusted_hash de ESE hook, que es el precio de corregirlo: Codex vuelve a
+// pedir autorización para él, y por eso el instalador lo avisa. El de los hooks
 // nuevos lo genera Codex al autorizarlos — aquí jamás se calcula un
 // trusted_hash a mano.
 //
@@ -273,16 +278,21 @@ func ensureCodexGomemoryHooks(config []byte, memCommand string) ([]byte, int, er
 		hooks = make(map[string]any)
 	}
 
-	añadidos := 0
+	cambiados := 0
 	for _, h := range setup.CodexGomemoryHooks() {
 		if setup.CodexHookPresente(hooks, h) {
 			continue
 		}
 		grupos, _ := anySlice(hooks[h.Event])
+		if replaceLegacyCodexHook(grupos, h, memCommand) {
+			hooks[h.Event] = grupos
+			cambiados++
+			continue
+		}
 		hooks[h.Event] = append(grupos, setup.CodexHookGroup(h, memCommand))
-		añadidos++
+		cambiados++
 	}
-	if añadidos == 0 {
+	if cambiados == 0 {
 		return config, 0, nil
 	}
 
@@ -297,7 +307,56 @@ func ensureCodexGomemoryHooks(config []byte, memCommand string) ([]byte, int, er
 	if err := toml.Unmarshal(candidate, &validado); err != nil {
 		return nil, 0, fmt.Errorf("candidato TOML inválido: %w", err)
 	}
-	return candidate, añadidos, nil
+	return candidate, cambiados, nil
+}
+
+// replaceLegacyCodexHook actualiza un hook de gomemory ya instalado cuyo
+// subcomando coincide pero cuyo comando quedó desalineado de la tabla vigente.
+// Reemplazarlo en su grupo preserva los hooks ajenos y evita ejecutar dos veces
+// el mismo evento durante una actualización.
+//
+// Reconcilia en LAS DOS direcciones, y no solo añadiendo el dialecto que falta.
+// Un hook al que la tabla le retire el Emit —una vuelta atrás, o un subcomando
+// que deje de inyectar texto al modelo— dejaría de reconocerse como presente y
+// se añadiría otra vez, duplicando el evento en toda instalación ya migrada:
+// exactamente el defecto que esta función existe para cerrar, en el sentido
+// contrario. Por eso reescribe hacia la forma canónica sea cual sea, en vez de
+// tratar el --emit como algo que solo se agrega.
+func replaceLegacyCodexHook(groups []any, h setup.CodexHook, memCommand string) bool {
+	for _, rawGroup := range groups {
+		group, ok := stringMap(rawGroup)
+		if !ok {
+			continue
+		}
+		matcher, _ := group["matcher"].(string)
+		if matcher != h.Matcher {
+			continue
+		}
+		actions, _ := anySlice(group["hooks"])
+		for _, rawAction := range actions {
+			action, ok := stringMap(rawAction)
+			if !ok {
+				continue
+			}
+			command, _ := action["command"].(string)
+			indice := strings.Index(command, "hook "+h.Sub)
+			if indice < 0 {
+				continue
+			}
+			// Se conserva TODO lo que precede al subcomando: quien apunta a una
+			// ruta absoluta lo hace porque `mem` no está en el PATH que ve
+			// Codex, y sustituirla por el comando por defecto dejaría el hook
+			// registrado, visible y muerto. De este comando solo el dialecto es
+			// de gomemory; la ruta es del usuario.
+			binario := strings.TrimSpace(command[:indice])
+			if binario == "" {
+				binario = memCommand
+			}
+			action["command"] = setup.CodexHookCommand(h, binario)
+			return true
+		}
+	}
+	return false
 }
 
 // ensureCodexHooksFeature garantiza `[features] hooks = true`. Sin esa bandera

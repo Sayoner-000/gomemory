@@ -119,6 +119,47 @@ func TestEnsureCodexGomemoryHooks_ReconoceOtraRutaDelBinario(t *testing.T) {
 	}
 }
 
+// TestEnsureCodexGomemoryHooks_ActualizaElDialectoHeredado fija la migración
+// desde v2.16.6: el mismo subcomando sin --emit=text emitía el sobre JSON de
+// Claude y Codex descartaba la inyección de turn-end.
+func TestEnsureCodexGomemoryHooks_ActualizaElDialectoHeredado(t *testing.T) {
+	const heredado = `[features]
+hooks = true
+
+[hooks]
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "mem hook turn-end"
+`
+
+	got, cambios, err := ensureCodexGomemoryHooks([]byte(heredado), "mem")
+	if err != nil {
+		t.Fatalf("ensureCodexGomemoryHooks: %v", err)
+	}
+	if esperados := len(setup.CodexGomemoryHooks()); cambios != esperados {
+		t.Fatalf("se esperaba actualizar turn-end y añadir %d hooks del ciclo, got %d", esperados-1, cambios)
+	}
+	texto := string(got)
+	if strings.Count(texto, "hook turn-end") != 1 {
+		t.Fatalf("turn-end debe actualizarse sin duplicarse:\n%s", texto)
+	}
+	if !strings.Contains(texto, "command = 'mem hook turn-end --emit=text'") &&
+		!strings.Contains(texto, `command = "mem hook turn-end --emit=text"`) {
+		t.Fatalf("turn-end debe usar el dialecto plano:\n%s", texto)
+	}
+	if !setup.CodexHookPresente(decodeTOML(t, got)["hooks"].(map[string]any), setup.CodexGomemoryHooks()[2]) {
+		t.Fatalf("el hook actualizado debe satisfacer el diagnóstico de setup:\n%s", got)
+	}
+	segunda, cambios, err := ensureCodexGomemoryHooks(got, "mem")
+	if err != nil {
+		t.Fatalf("segunda pasada: %v", err)
+	}
+	if cambios != 0 || string(segunda) != string(got) {
+		t.Fatalf("la migración corregida debe ser idempotente; cambios=%d\n%s", cambios, segunda)
+	}
+}
+
 // TestEnsureCodexGomemoryHooks_ActivaLaBandera: escribir hooks sin
 // `[features] hooks = true` deja un ciclo presente y muerto — el fallo
 // silencioso más caro, porque el archivo se ve correcto.
@@ -174,5 +215,80 @@ func TestHooksDeCodexQueInyectanTextoPidenElDialectoPlano(t *testing.T) {
 		if !vistos[sub] {
 			t.Errorf("el hook %q ya no está en la tabla de Codex: revisa esta lista", sub)
 		}
+	}
+}
+
+// TestEnsureCodexGomemoryHooks_NormalizaElDialectoSobrante cubre la dirección
+// contraria a ActualizaElDialectoHeredado, que quedó sin cubrir.
+//
+// La reconciliación era asimétrica: sustituía el comando cuando FALTABA el
+// --emit, pero no cuando SOBRABA. Un hook cuyo dialecto se retire de la tabla
+// —una vuelta atrás, o un subcomando que deje de inyectar texto— dejaba de
+// reconocerse como presente y se añadía otra vez, así que toda instalación ya
+// migrada acababa ejecutando ese hook dos veces por evento. Es el mismo defecto
+// que la migración vino a cerrar, en el sentido opuesto.
+func TestEnsureCodexGomemoryHooks_NormalizaElDialectoSobrante(t *testing.T) {
+	const sobrante = `[features]
+hooks = true
+
+[hooks]
+[[hooks.SessionStart]]
+matcher = "startup|resume|clear"
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "mem hook session-start --emit=text"
+`
+
+	got, _, err := ensureCodexGomemoryHooks([]byte(sobrante), "mem")
+	if err != nil {
+		t.Fatalf("ensureCodexGomemoryHooks: %v", err)
+	}
+	texto := string(got)
+	if n := strings.Count(texto, "hook session-start"); n != 1 {
+		t.Fatalf("session-start se duplicó (%d apariciones):\n%s", n, texto)
+	}
+	if strings.Contains(texto, "hook session-start --emit") {
+		t.Fatalf("session-start no declara dialecto: el --emit sobrante debe retirarse:\n%s", texto)
+	}
+
+	segunda, cambios, err := ensureCodexGomemoryHooks(got, "mem")
+	if err != nil {
+		t.Fatalf("segunda pasada: %v", err)
+	}
+	if cambios != 0 || string(segunda) != string(got) {
+		t.Fatalf("la normalización debe ser idempotente; cambios=%d\n%s", cambios, segunda)
+	}
+}
+
+// TestEnsureCodexGomemoryHooks_ConservaLaRutaDelBinarioAlReconciliar protege la
+// promesa que CodexHookPresente lleva documentada desde su origen: un hook de
+// gomemory se reconoce por el subcomando, NO por la ruta del binario.
+//
+// Al reconciliar el dialecto había que reescribir el comando, y reescribirlo
+// entero sustituía además la ruta que el usuario tenía instalada. Quien apunta a
+// una ruta absoluta lo hace justamente porque `mem` no está en el PATH que ve
+// Codex: cambiarla por el comando por defecto deja el hook registrado, visible y
+// muerto. Solo el dialecto es de gomemory; la ruta es del usuario.
+func TestEnsureCodexGomemoryHooks_ConservaLaRutaDelBinarioAlReconciliar(t *testing.T) {
+	const rutaAbsoluta = `[features]
+hooks = true
+
+[hooks]
+[[hooks.Stop]]
+[[hooks.Stop.hooks]]
+type = "command"
+command = "/usr/local/bin/mem hook turn-end"
+`
+
+	got, _, err := ensureCodexGomemoryHooks([]byte(rutaAbsoluta), "mem")
+	if err != nil {
+		t.Fatalf("ensureCodexGomemoryHooks: %v", err)
+	}
+	texto := string(got)
+	if n := strings.Count(texto, "hook turn-end"); n != 1 {
+		t.Fatalf("turn-end se duplicó (%d apariciones):\n%s", n, texto)
+	}
+	if !strings.Contains(texto, "/usr/local/bin/mem hook turn-end --emit=text") {
+		t.Fatalf("la reconciliación debe añadir el dialecto SIN tocar la ruta del binario:\n%s", texto)
 	}
 }

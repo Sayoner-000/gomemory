@@ -108,15 +108,26 @@ func codexHookSubs() []string {
 }
 
 // CodexHookGroup arma el grupo TOML que Codex espera para un enganche.
-func CodexHookGroup(h CodexHook, memCommand string) map[string]any {
+// CodexHookCommand es la forma canónica del comando de un hook: el subcomando y,
+// solo si la tabla lo declara, el dialecto de salida.
+//
+// Vive aparte porque tiene DOS consumidores —el que instala un hook nuevo y el
+// que reconcilia uno ya instalado— y tenerla escrita dos veces era justo lo que
+// permitía que divergieran: una sabía añadir el --emit y la otra no sabía
+// retirarlo.
+func CodexHookCommand(h CodexHook, memCommand string) string {
 	comando := fmt.Sprintf("%s hook %s", memCommand, h.Sub)
 	if h.Emit != "" {
 		comando += " --emit=" + h.Emit
 	}
+	return comando
+}
+
+func CodexHookGroup(h CodexHook, memCommand string) map[string]any {
 	group := map[string]any{
 		"hooks": []any{map[string]any{
 			"type":    "command",
-			"command": comando,
+			"command": CodexHookCommand(h, memCommand),
 		}},
 	}
 	if h.Matcher != "" {
@@ -125,10 +136,12 @@ func CodexHookGroup(h CodexHook, memCommand string) map[string]any {
 	return group
 }
 
-// codexHookPresente reconoce un hook de gomemory por el subcomando que invoca,
-// no por la ruta del binario: quien instaló con `mem` y quien lo hizo con una
-// ruta absoluta tienen el mismo ciclo enganchado, y reinstalar no debe
-// duplicarlo. Es el mismo criterio que usa el instalador de Claude Code.
+// CodexHookPresente reconoce un hook de gomemory por el subcomando y el
+// dialecto de salida que invoca, no por la ruta del binario: quien instaló con
+// `mem` y quien lo hizo con una ruta absoluta tienen el mismo ciclo enganchado,
+// y reinstalar no debe duplicarlo. El dialecto también es parte del contrato:
+// un hook que inyecta texto sin --emit=text sigue siendo una instalación
+// incompleta aunque el subcomando coincida.
 func CodexHookPresente(hooks map[string]any, h CodexHook) bool {
 	grupos, _ := hooks[h.Event].([]any)
 	for _, g := range grupos {
@@ -146,9 +159,26 @@ func CodexHookPresente(hooks map[string]any, h CodexHook) bool {
 			if !ok {
 				continue
 			}
-			if cmd, _ := accion["command"].(string); strings.Contains(cmd, "hook "+h.Sub) {
+			cmd, _ := accion["command"].(string)
+			if !strings.Contains(cmd, "hook "+h.Sub) {
+				continue
+			}
+			if h.Emit == "" && !strings.Contains(cmd, "--emit") {
 				return true
 			}
+			if h.Emit != "" && codexHookEmits(cmd, h.Emit) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func codexHookEmits(command, emit string) bool {
+	fields := strings.Fields(command)
+	for i, field := range fields {
+		if field == "--emit="+emit || field == "--emit" && i+1 < len(fields) && fields[i+1] == emit {
+			return true
 		}
 	}
 	return false
