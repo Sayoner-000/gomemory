@@ -5,6 +5,24 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.16.3] - 2026-08-29
+
+### Correcciones
+
+#### El consenso se reemplaza de forma atómica
+
+`BuildConsensus` ahora llama `ReplaceConsensusRound`: una sola transacción que
+verifica que no existe y escribe todas las filas. Antes eran dos pasos separados
+(listar y luego upserts individuales), y dos llamadas concurrentes veían el
+ledger vacío y las dos escribían, mezclando la ronda.
+
+#### La finalización ya no pierde actualizaciones concurrentes
+
+`FinalizeReview` usa compare-and-swap: lee el estado antes de la transacción,
+verifica que no cambió, y actualiza solo si coincide. `UpdateReview` reescribía
+todas las columnas, así que una ronda de corrección entre la lectura y la
+escritura se perdía sin aviso.
+
 ## [2.16.1] - 2026-08-29
 
 ### Correcciones
