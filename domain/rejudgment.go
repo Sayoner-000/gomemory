@@ -56,6 +56,31 @@ func (j ReJudgment) Validate() error {
 //     hace útil a este protocolo.
 //  3. Todo lo demás —discrepancia, un solo juicio, ninguno— queda UNRESOLVED, que
 //     es el estado que NO permite aprobar.
+//
+// AggregateReJudgmentForRound agrega SOLO los re-juicios de la ronda indicada.
+//
+// Es la función que deben usar los llamadores, y la distinción no es cosmética. Los
+// re-juicios se acumulan ronda tras ronda, así que agregar el conjunto entero deja
+// que un RESOLVED viejo complete la unanimidad de una corrección posterior: el
+// revisor que lo emitió juzgó OTRO target, el anterior a la corrección vigente.
+// Reproducido: A da RESOLVED en la ronda 1, B da UNRESOLVED; llega una corrección
+// nueva, solo B la revalida como RESOLVED, y el hallazgo quedaba RESOLVED y la
+// revisión APPROVED sin que A hubiera visto nunca ese arreglo.
+//
+// FR-013 lo dice literalmente: la corrección VIGENTE debe incluirlo y ambos
+// revisores deben considerarlo resuelto.
+func AggregateReJudgmentForRound(judgments []ReJudgment, round int) ReJudgmentState {
+	deLaRonda := make([]ReJudgment, 0, len(judgments))
+	for _, judgment := range judgments {
+		if judgment.Round == round {
+			deLaRonda = append(deLaRonda, judgment)
+		}
+	}
+	return AggregateReJudgment(deLaRonda)
+}
+
+// AggregateReJudgment agrega un conjunto de re-juicios que YA pertenece a una sola
+// ronda. Si los re-juicios pueden venir de varias, usa AggregateReJudgmentForRound.
 func AggregateReJudgment(judgments []ReJudgment) ReJudgmentState {
 	resueltos := map[Reviewer]bool{}
 	for _, judgment := range judgments {

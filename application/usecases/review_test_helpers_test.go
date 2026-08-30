@@ -215,7 +215,7 @@ func (r *memoryConsensusRepository) UpsertReJudgment(project, reviewID string, j
 	if !reemplazado {
 		r.rejudgment[key] = append(r.rejudgment[key], *judgment)
 	}
-	finding.RejudgmentState = domain.AggregateReJudgment(r.rejudgment[key])
+	finding.RejudgmentState = domain.AggregateReJudgmentForRound(r.rejudgment[key], judgment.Round)
 	return r.UpsertConsensusFinding(project, reviewID, finding)
 }
 

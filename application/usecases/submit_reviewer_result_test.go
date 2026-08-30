@@ -212,10 +212,12 @@ func TestSubmitReviewerResult_ValidaContraElTargetVigente(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Sin hallazgos: una ronda posterior a la corrección es de VERIFICACIÓN, y
+	// declarar hallazgos nuevos ahí se rechaza por separado. Lo que este test mide
+	// es contra qué digest se valida, no qué se puede reportar.
 	resultado := domain.ReviewerResult{
 		Reviewer: domain.ReviewerA, Status: domain.ReviewerResultSuccess,
 		Provider: "anthropic", Model: "claude-opus-5",
-		Findings: []domain.Finding{hallazgoCompleto("A-001")},
 	}
 	if _, err := SubmitReviewerResult(repo, SubmitReviewerResultInput{
 		Project: "proj", ReviewID: "acr_ident", TargetDigest: "sha256:frozen", Result: resultado,
@@ -226,5 +228,50 @@ func TestSubmitReviewerResult_ValidaContraElTargetVigente(t *testing.T) {
 		Project: "proj", ReviewID: "acr_ident", TargetDigest: "sha256:corregido", Result: resultado,
 	}); err != nil {
 		t.Fatalf("el target corregido debe aceptarse: %v", err)
+	}
+}
+
+// TestSubmitReviewerResult_RondaDeRevalidacionNoAdmiteHallazgos es la regresión del
+// segundo defecto encontrado revisando la funcionalidad 028.
+//
+// Un hallazgo enviado tras una corrección quedaba huérfano: ninguna clasificación de
+// consenso lo cubría, DeriveVerdict lo veía sin clasificar y devolvía «aún no».
+// Resultado: la revisión no podía alcanzar NINGÚN estado terminal, ni aprobado ni
+// escalado. El mismo bloqueo irrecuperable que la funcionalidad 028 existe para
+// cerrar, entrando por otra puerta.
+func TestSubmitReviewerResult_RondaDeRevalidacionNoAdmiteHallazgos(t *testing.T) {
+	repo := revisionConIdentidades(t)
+	review, _ := repo.GetReview("proj", "acr_ident")
+	review.Round = 1
+	review.Status = domain.ReviewRejudging
+	review.CurrentTargetDigest = "sha256:corregido"
+	if err := repo.UpdateReview(review); err != nil {
+		t.Fatal(err)
+	}
+
+	conHallazgos := domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Status: domain.ReviewerResultSuccess,
+		Provider: "anthropic", Model: "claude-opus-5",
+		Findings: []domain.Finding{hallazgoCompleto("A-900")},
+	}
+	_, err := SubmitReviewerResult(repo, SubmitReviewerResultInput{
+		Project: "proj", ReviewID: "acr_ident", TargetDigest: "sha256:corregido",
+		Result: conHallazgos,
+	})
+	if err == nil {
+		t.Fatal("una ronda de revalidación no puede admitir hallazgos nuevos")
+	}
+	if !strings.Contains(err.Error(), "review_rejudge") {
+		t.Errorf("el error debe encaminar al canal correcto: %v", err)
+	}
+
+	// La verificación sin hallazgos es exactamente lo que esa ronda espera.
+	sinHallazgos := conHallazgos
+	sinHallazgos.Findings = nil
+	if _, err := SubmitReviewerResult(repo, SubmitReviewerResultInput{
+		Project: "proj", ReviewID: "acr_ident", TargetDigest: "sha256:corregido",
+		Result: sinHallazgos,
+	}); err != nil {
+		t.Fatalf("la verificación post-corrección debe aceptarse: %v", err)
 	}
 }

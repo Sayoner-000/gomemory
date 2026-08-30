@@ -237,3 +237,48 @@ func contieneTexto(s, sub string) bool {
 	}
 	return false
 }
+
+// TestBuildConsensus_RechazaRondaDeRevalidacion es la regresión de un defecto
+// encontrado revisando la propia funcionalidad 028.
+//
+// Los ConsensusLocalID se generan por posición (C-001, C-002…) y son únicos por
+// REVISIÓN, no por ronda. Un consenso construido en la ronda 1 reasignaba C-001 y
+// SOBRESCRIBÍA el hallazgo confirmado de la ronda 0: un CONFIRMED HIGH se convertía
+// en un CONFIRMED LOW con otras fuentes, la evidencia original desaparecía, y el
+// addressed_consensus_ids de la corrección quedaba apuntando a un hallazgo distinto
+// del que decía haber arreglado.
+func TestBuildConsensus_RechazaRondaDeRevalidacion(t *testing.T) {
+	reviews, ledger, ids := escenarioConsensuable(t)
+	if _, err := BuildConsensus(reviews, ledger, clasificacionDe(ids, domain.ConsensusSuspect)); err != nil {
+		t.Fatal(err)
+	}
+	antes, _ := ledger.ListAllConsensusFindings("proj", "acr_idem")
+
+	review, _ := reviews.GetReview("proj", "acr_idem")
+	review.Round = 1
+	review.Status = domain.ReviewRejudging
+	if err := reviews.UpdateReview(review); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := BuildConsensus(reviews, ledger, clasificacionDe(ids, domain.ConsensusSuspect))
+	if err == nil {
+		t.Fatal("una ronda de revalidación no puede reconstruir el consenso")
+	}
+	if !contieneTexto(err.Error(), "revalidación") {
+		t.Errorf("el error debe explicar que la ronda es de revalidación: %v", err)
+	}
+
+	despues, _ := ledger.ListAllConsensusFindings("proj", "acr_idem")
+	if len(despues) != len(antes) {
+		t.Fatalf("el ledger cambió: %d → %d", len(antes), len(despues))
+	}
+	for i := range antes {
+		if antes[i].ConsensusLocalID != despues[i].ConsensusLocalID ||
+			antes[i].Severity != despues[i].Severity ||
+			len(antes[i].SourceFindingIDs) != len(despues[i].SourceFindingIDs) {
+			t.Errorf("la clasificación %s fue alterada: %#v → %#v",
+				antes[i].ConsensusLocalID, antes[i], despues[i])
+		}
+	}
+}

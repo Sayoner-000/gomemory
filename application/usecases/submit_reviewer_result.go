@@ -54,6 +54,23 @@ func SubmitReviewerResult(repo ports.ReviewRepository, input SubmitReviewerResul
 			)
 		}
 	}
+	// Tras una corrección, el resultado de un revisor es una VERIFICACIÓN, no una
+	// ronda de descubrimiento nueva: la revalidación está acotada a lo ya
+	// confirmado y un defecto descubierto ahora pertenece a una revisión nueva
+	// sobre el target corregido (FR-023).
+	//
+	// Sin esta guarda, esos hallazgos quedaban huérfanos —ninguna clasificación de
+	// consenso los cubría— y la revisión no podía finalizar NUNCA: DeriveVerdict
+	// los veía sin clasificar y devolvía «aún no». El mismo bloqueo irrecuperable
+	// que esta funcionalidad existe para cerrar, por otra puerta.
+	if review.Round > 0 && len(input.Result.Findings) > 0 {
+		return SubmitReviewerResultOutput{}, fmt.Errorf(
+			"la ronda %d es de revalidación y no admite hallazgos nuevos: "+
+				"declara el resultado con review_rejudge, y abre una revisión nueva "+
+				"sobre el target corregido para lo que no estuviera confirmado",
+			review.Round,
+		)
+	}
 	for _, finding := range input.Result.Findings {
 		if err := validarHallazgoEstructurado(finding); err != nil {
 			return SubmitReviewerResultOutput{}, err

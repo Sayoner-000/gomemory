@@ -70,6 +70,23 @@ func BuildConsensusWithOutcome(
 	if err := review.EnsureMutable(); err != nil {
 		return BuildConsensusOutput{}, err
 	}
+	// El consenso se construye UNA vez, sobre los resultados de la ronda de
+	// descubrimiento. Las rondas posteriores son de revalidación (FR-023).
+	//
+	// Sin esta guarda el daño era grave y silencioso: los ConsensusLocalID se
+	// generan por posición (C-001, C-002…) y son únicos por REVISIÓN, no por
+	// ronda, así que un consenso de la ronda 1 reasignaba C-001 y SOBRESCRIBÍA el
+	// hallazgo confirmado de la ronda 0 — borrando la evidencia que FR-028 exige
+	// conservar y dejando el addressed_consensus_ids de la corrección apuntando a
+	// un hallazgo distinto del que decía abordar.
+	if review.Round > 0 {
+		return BuildConsensusOutput{}, fmt.Errorf(
+			"la ronda %d es de revalidación: el consenso ya se construyó en la ronda de "+
+				"descubrimiento y no se recalcula. Usa review_rejudge para revalidar lo "+
+				"confirmado, o abre una revisión nueva sobre el target corregido",
+			review.Round,
+		)
+	}
 
 	results, err := reviews.ListReviewerResults(input.Project, input.ReviewID, review.Round)
 	if err != nil {

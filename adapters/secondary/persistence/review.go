@@ -642,7 +642,9 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 	if err != nil {
 		return err
 	}
-	agregado := domain.AggregateReJudgment(judgments)
+	// Solo la ronda que se acaba de escribir: agregar todas dejaría que un
+	// RESOLVED de una corrección anterior complete la unanimidad de esta.
+	agregado := domain.AggregateReJudgmentForRound(judgments, judgment.Round)
 	if _, err := tx.Exec(`UPDATE consensus_findings SET rejudgment_state = ? WHERE id = ?`,
 		string(agregado), findingID); err != nil {
 		return fmt.Errorf("actualizar el estado agregado: %w", err)
