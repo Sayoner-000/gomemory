@@ -219,11 +219,29 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 	}
 	sort.Strings(rutas)
 
+	preparados, err := blobsPreparados(root, rutas)
+	if err != nil {
+		return "", "", nil, err
+	}
+
 	hash := sha256.New()
 	scope := make([]string, 0, len(rutas))
 	for _, rel := range rutas {
 		scope = append(scope, rel)
 		hash.Write([]byte("pending\x00" + rel + "\x00"))
+		// Lo PREPARADO entra en la identidad del target, no solo el árbol de trabajo.
+		//
+		// Solo se hasheaba os.ReadFile, y eso deja fuera justo el caso que el
+		// comentario de arriba promete cubrir: preparar una versión y seguir editando
+		// —o revertir— el archivo deja el índice y el árbol con contenidos distintos.
+		// Dos revisiones con contenidos preparados completamente distintos producían
+		// el MISMO digest, así que el target no identificaba lo que decía congelar.
+		if sha, ok := preparados[rel]; ok {
+			hash.Write([]byte("staged\x00" + sha + "\x00"))
+		} else {
+			// Sin entrada en el índice: sin seguimiento, o preparado para borrar.
+			hash.Write([]byte("unstaged\x00"))
+		}
 		data, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
 			if !os.IsNotExist(err) {
@@ -238,6 +256,42 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 		hash.Write([]byte{0})
 	}
 	return "pending-changes", hex.EncodeToString(hash.Sum(nil)), scope, nil
+}
+
+// blobsPreparados devuelve, por ruta, el identificador del blob que hay en el índice.
+//
+// Se hashea el identificador y no el contenido porque git ya lo calculó sobre ese
+// contenido: dos índices distintos dan blobs distintos, que es la única propiedad que
+// el digest necesita. Y es una sola invocación en vez de una por archivo.
+//
+// Una ruta sin entrada en el índice —sin seguimiento, o preparada para borrar— no
+// aparece en el mapa, y quien llama la distingue con un marcador.
+func blobsPreparados(root string, rutas []string) (map[string]string, error) {
+	args := append([]string{"ls-files", "--stage", "-z", "--"}, rutas...)
+	cmd := exec.Command("git", args...)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git ls-files: %w", err)
+	}
+	preparados := make(map[string]string, len(rutas))
+	for _, registro := range strings.Split(string(out), "\x00") {
+		if registro == "" {
+			continue
+		}
+		// Formato: "<modo> <blob> <etapa>\t<ruta>". La ruta puede llevar espacios,
+		// así que se corta por el tabulador y no por espacios.
+		meta, ruta, ok := strings.Cut(registro, "\t")
+		if !ok {
+			continue
+		}
+		campos := strings.Fields(meta)
+		if len(campos) < 2 {
+			continue
+		}
+		preparados[ruta] = campos[1]
+	}
+	return preparados, nil
 }
 
 // parsePorcelainZ extrae las rutas de la salida de `git status -z`.

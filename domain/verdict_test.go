@@ -223,3 +223,36 @@ func TestDeriveVerdict_PresupuestoAgotadoEscala(t *testing.T) {
 		t.Fatalf("agotado el presupuesto con un defecto severo abierto debe escalar, se obtuvo %q", got)
 	}
 }
+
+// TestDeriveVerdict_UnResueltoDeOtraRondaNoAprueba es la segunda defensa contra el
+// CRITICAL C-001 de acr_83428b4c, y se prueba aquí aparte porque la primera —que
+// RecordFix invalide el estado al abrir la ronda— vive en el adaptador.
+//
+// El veredicto no puede confiar en que el escritor hiciera lo correcto: rejudgment_state
+// es un valor derivado, y el ledger puede contener filas de una versión anterior que no
+// lo invalidaba. Un RESOLVED sin la ronda vigente detrás no es una verificación, es un
+// recuerdo de otra.
+func TestDeriveVerdict_UnResueltoDeOtraRondaNoAprueba(t *testing.T) {
+	results := []ReviewerResult{
+		{Reviewer: ReviewerA, Status: ReviewerResultSuccess, Round: 2, Findings: []Finding{{ID: 1, Severity: SeverityCritical}}},
+		{Reviewer: ReviewerB, Status: ReviewerResultSuccess, Round: 2, Findings: []Finding{{ID: 2, Severity: SeverityCritical}}},
+	}
+	rancio := []ConsensusFinding{{
+		Status: ConsensusConfirmed, Severity: SeverityCritical, SourceFindingIDs: []int64{1, 2},
+		RejudgmentState: ReJudgmentResolved, RejudgmentRound: 1,
+	}}
+	review := Review{MaxFixRounds: 2, FixAuthorized: true, Round: 2}
+	if got := DeriveVerdict(review, results, rancio, []FixDelta{{Round: 1}, {Round: 2}}); got == VerdictApproved {
+		t.Fatal("aprobó con un CRITICAL cuyo RESOLVED pertenece a la ronda 1, no a la vigente")
+	}
+
+	// El contraste: el mismo RESOLVED, ya fechado en la ronda vigente, sí aprueba.
+	// Sin esto, exigir la ronda podría estar bloqueando toda aprobación.
+	vigente := []ConsensusFinding{{
+		Status: ConsensusConfirmed, Severity: SeverityCritical, SourceFindingIDs: []int64{1, 2},
+		RejudgmentState: ReJudgmentResolved, RejudgmentRound: 2,
+	}}
+	if got := DeriveVerdict(review, results, vigente, []FixDelta{{Round: 1}, {Round: 2}}); got != VerdictApproved {
+		t.Fatalf("con el re-juicio en la ronda vigente debe aprobar, se obtuvo %q", got)
+	}
+}

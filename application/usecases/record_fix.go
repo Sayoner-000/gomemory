@@ -120,6 +120,7 @@ func RecordFix(
 		Delta:               delta,
 		ExpectedRounds:      len(existentes),
 		ExpectedBaseDigest:  review.ActiveTargetDigest(),
+		ExpectedStatus:      review.Status,
 		NextRound:           round,
 		NextStatus:          siguiente.Status,
 		CurrentTargetDigest: input.FixedTargetDigest,

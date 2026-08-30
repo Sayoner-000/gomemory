@@ -78,19 +78,35 @@ func FinalizeReviewWithMetrics(
 	if !verdict.Valid() {
 		return nil, ReviewMetrics{}, fmt.Errorf("review is not ready to finalize")
 	}
-	review.Verdict = verdict
 	terminal := map[domain.Verdict]domain.ReviewStatus{
 		domain.VerdictApproved:   domain.ReviewApproved,
 		domain.VerdictEscalated:  domain.ReviewEscalated,
 		domain.VerdictIncomplete: domain.ReviewIncomplete,
 	}[verdict]
+	// El estado desde el que se finaliza se guarda ANTES de moverlo: es la mitad de
+	// la comparación que la escritura hará dentro de su transacción.
+	anterior := review.Status
+	review.Verdict = verdict
 	// Por TransitionTo y no por asignación directa: es el único punto que impide
 	// reabrir o mover una revisión ya cerrada (FR-015, FR-016).
 	if err := review.TransitionTo(terminal); err != nil {
 		return nil, ReviewMetrics{}, err
 	}
 	review.UpdatedAt = time.Now()
-	if err := reviews.UpdateReview(review); err != nil {
+	// Comparación-y-cambio, no UpdateReview. Todo lo anterior —la revisión, los
+	// resultados, los hallazgos, las correcciones— se leyó fuera de cualquier
+	// transacción, y entre esas lecturas y esta escritura cabe una ronda de
+	// corrección entera. UpdateReview reescribía todas las columnas desde el objeto
+	// obsoleto: restauraba la ronda y el target de antes y encima cerraba la
+	// revisión. Si algo se movió, el veredicto ya no corresponde a lo que hay y hay
+	// que rederivarlo.
+	if err := reviews.FinalizeReviewAtomically(project, reviewID, ports.FinalizeTransition{
+		ExpectedStatus: anterior,
+		ExpectedRound:  review.Round,
+		ExpectedDigest: review.ActiveTargetDigest(),
+		Verdict:        verdict,
+		NextStatus:     terminal,
+	}); err != nil {
 		return nil, ReviewMetrics{}, err
 	}
 

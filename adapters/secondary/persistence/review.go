@@ -81,6 +81,95 @@ func (r *ReviewRepository) UpdateReview(review *domain.Review) error {
 	return requireAffected(result, "review")
 }
 
+// FinalizeReviewAtomically escribe el veredicto terminal bajo comparación-y-cambio.
+//
+// La superficie de escritura es deliberadamente mínima: verdict, status y updated_at.
+// La finalización usaba UpdateReview, que reescribe TODAS las columnas desde un objeto
+// leído fuera de cualquier transacción; si una corrección se colaba en medio, la
+// finalización devolvía `round` y `current_target_digest` a los valores obsoletos que
+// había leído y encima cerraba la revisión. Al no existir aquí ninguna sentencia capaz
+// de tocar esas columnas, ese daño deja de ser improbable y pasa a ser inexpresable.
+//
+// Lo que la guarda sí decide es si el veredicto sigue siendo válido: se derivó de un
+// estado, una ronda y un target concretos, y si alguno cambió ya no es el mismo juicio.
+func (r *ReviewRepository) FinalizeReviewAtomically(
+	project, reviewID string, transition ports.FinalizeTransition,
+) error {
+	ctx := context.Background()
+	// Conexión dedicada con BEGIN IMMEDIATE, por el motivo ya documentado en
+	// RecordFixAtomically: el BEGIN diferido de database/sql toma el bloqueo en la
+	// primera escritura y en WAL el perdedor recibe un SQLITE_BUSY que el
+	// busy_timeout no reintenta.
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
+	}
+	comprometida := false
+	defer func() {
+		if !comprometida {
+			conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+
+	var internalID int64
+	var estado string
+	var ronda int
+	var vigente, original sql.NullString
+	err = conn.QueryRowContext(ctx,
+		`SELECT id, status, round, current_target_digest, target_digest FROM reviews
+		 WHERE project = ? AND review_id = ?`,
+		project, reviewID).Scan(&internalID, &estado, &ronda, &vigente, &original)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("review %s not found", reviewID)
+	}
+	if err != nil {
+		return err
+	}
+
+	if domain.ReviewStatus(estado) != transition.ExpectedStatus {
+		return fmt.Errorf(
+			"la revisión pasó a %s mientras se finalizaba: vuelve a derivar el veredicto",
+			estado,
+		)
+	}
+	if ronda != transition.ExpectedRound {
+		return fmt.Errorf(
+			"la revisión avanzó a la ronda %d mientras se finalizaba: vuelve a derivar el veredicto",
+			ronda,
+		)
+	}
+	actual := vigente.String
+	if actual == "" {
+		actual = original.String
+	}
+	if transition.ExpectedDigest != "" && actual != transition.ExpectedDigest {
+		return fmt.Errorf(
+			"el target vigente cambió mientras se finalizaba: el veredicto ya no corresponde a %s",
+			transition.ExpectedDigest,
+		)
+	}
+
+	result, err := conn.ExecContext(ctx,
+		`UPDATE reviews SET status = ?, verdict = ?, updated_at = `+Now+` WHERE id = ?`,
+		string(transition.NextStatus), nullableVerdict(transition.Verdict), internalID)
+	if err != nil {
+		return fmt.Errorf("finalizar la revisión: %w", err)
+	}
+	if err := requireAffected(result, "review"); err != nil {
+		return err
+	}
+
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("confirmar la finalización: %w", err)
+	}
+	comprometida = true
+	return nil
+}
+
 func (r *ReviewRepository) ListReviews(project string, limit int) ([]domain.Review, error) {
 	if limit <= 0 {
 		limit = 20
@@ -225,38 +314,152 @@ func (r *ReviewRepository) ListFindings(project, reviewID string, round int) ([]
 	return out, rows.Err()
 }
 
+// upsertConsensusSQL escribe un hallazgo de consenso. Se comparte entre la escritura
+// suelta y ReplaceConsensusRound para que la ronda completa y la fila individual no
+// puedan divergir en columnas.
+const upsertConsensusSQL = `
+	INSERT INTO consensus_findings
+		(review_id, round, consensus_local_id, status, severity, claim, source_finding_ids,
+		 rejudgment_state, round_fingerprint, rejudgment_round)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(review_id, consensus_local_id) DO UPDATE SET
+		round = excluded.round, status = excluded.status, severity = excluded.severity,
+		claim = excluded.claim, source_finding_ids = excluded.source_finding_ids,
+		rejudgment_state = excluded.rejudgment_state, round_fingerprint = excluded.round_fingerprint,
+		rejudgment_round = excluded.rejudgment_round
+	RETURNING id`
+
+func consensusArgs(internalID int64, finding *domain.ConsensusFinding) ([]any, error) {
+	sources, err := json.Marshal(finding.SourceFindingIDs)
+	if err != nil {
+		return nil, err
+	}
+	return []any{
+		internalID, finding.Round, finding.ConsensusLocalID, string(finding.Status),
+		string(finding.Severity), redactarTexto(finding.Claim), string(sources),
+		nullableRejudgment(finding.RejudgmentState), finding.RoundFingerprint,
+		finding.RejudgmentRound,
+	}, nil
+}
+
 func (r *ReviewRepository) UpsertConsensusFinding(project, reviewID string, finding *domain.ConsensusFinding) error {
 	internalID, err := r.lookupReviewID(project, reviewID)
 	if err != nil {
 		return err
 	}
-	sources, err := json.Marshal(finding.SourceFindingIDs)
+	args, err := consensusArgs(internalID, finding)
 	if err != nil {
 		return err
 	}
-	err = r.db.QueryRow(`
-		INSERT INTO consensus_findings
-			(review_id, round, consensus_local_id, status, severity, claim, source_finding_ids,
-			 rejudgment_state, round_fingerprint)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(review_id, consensus_local_id) DO UPDATE SET
-			round = excluded.round, status = excluded.status, severity = excluded.severity,
-			claim = excluded.claim, source_finding_ids = excluded.source_finding_ids,
-			rejudgment_state = excluded.rejudgment_state, round_fingerprint = excluded.round_fingerprint
-		RETURNING id`, internalID, finding.Round, finding.ConsensusLocalID, string(finding.Status),
-		string(finding.Severity), redactarTexto(finding.Claim), string(sources),
-		nullableRejudgment(finding.RejudgmentState), finding.RoundFingerprint).Scan(&finding.ID)
-	if err != nil {
+	if err := r.db.QueryRow(upsertConsensusSQL, args...).Scan(&finding.ID); err != nil {
 		return fmt.Errorf("upsert consensus finding: %w", err)
 	}
 	finding.ReviewID = reviewID
 	return nil
 }
 
+// ReplaceConsensusRound persiste la clasificación completa de una ronda dentro de una
+// única transacción, con la comprobación de "ya existe" hecha DENTRO de ella.
+//
+// Antes esto era un check-then-write en el caso de uso: listar los hallazgos, ver el
+// ledger vacío y recorrer un bucle de inserciones, cada una en su propia transacción
+// implícita. Dos llamadas simultáneas veían las dos el ledger vacío y escribían las
+// dos, dejando la ronda mezclada; y un error a mitad del bucle dejaba media
+// clasificación escrita, que es exactamente el estado que hayFuentesSinClasificar
+// tiene que detectar más tarde. Ahora la ronda entra entera o no entra.
+func (r *ReviewRepository) ReplaceConsensusRound(
+	project, reviewID string, expectedRound int, fingerprint string,
+	findings []domain.ConsensusFinding,
+) ([]domain.ConsensusFinding, bool, error) {
+	ctx := context.Background()
+	// Conexión dedicada con BEGIN IMMEDIATE, por el mismo motivo que
+	// RecordFixAtomically y UpsertReJudgment: el BEGIN diferido de database/sql toma
+	// el bloqueo en la primera escritura y en WAL el perdedor recibe un SQLITE_BUSY
+	// que el busy_timeout no reintenta para una transacción que ya leyó.
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return nil, false, fmt.Errorf("tomar el bloqueo de escritura: %w", err)
+	}
+	comprometida := false
+	defer func() {
+		if !comprometida {
+			conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+
+	var internalID int64
+	var estado string
+	var ronda int
+	err = conn.QueryRowContext(ctx,
+		`SELECT id, status, round FROM reviews WHERE project = ? AND review_id = ?`,
+		project, reviewID).Scan(&internalID, &estado, &ronda)
+	if err == sql.ErrNoRows {
+		return nil, false, fmt.Errorf("review %s not found", reviewID)
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	// Estado y ronda se revalidan aquí dentro: el caso de uso los comprobó con una
+	// lectura de fuera, y entre esa lectura y esta escritura cabe una corrección
+	// entera o una finalización.
+	if domain.ReviewStatus(estado).Terminal() {
+		return nil, false, fmt.Errorf("la revisión está en estado terminal %s y no admite cambios", estado)
+	}
+	if ronda != expectedRound {
+		return nil, false, fmt.Errorf(
+			"la revisión avanzó a la ronda %d mientras se construía el consenso de la ronda %d",
+			ronda, expectedRound,
+		)
+	}
+
+	existentes, err := consensusDeRonda(connQuerier{ctx, conn}, internalID, reviewID, expectedRound)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(existentes) > 0 {
+		// Reenviar la ronda exacta es una lectura; reemplazarla por otra distinta
+		// permitiría reclasificar un confirmado como informativo justo antes de
+		// finalizar, que es una aprobación falsa por otra puerta (FR-005).
+		//
+		// La huella se recalcula de las filas y no se lee de round_fingerprint: una
+		// ronda escrita antes de esa columna la tiene vacía, y compararla con la
+		// columna dejaría pasar el reemplazo justo en las revisiones más antiguas.
+		if domain.ClassificationFingerprint(existentes) != fingerprint {
+			return nil, false, fmt.Errorf(
+				"la ronda %d ya tiene un consenso registrado y no admite reemplazo", expectedRound,
+			)
+		}
+		return existentes, true, nil
+	}
+
+	persistidos := make([]domain.ConsensusFinding, len(findings))
+	copy(persistidos, findings)
+	for i := range persistidos {
+		args, err := consensusArgs(internalID, &persistidos[i])
+		if err != nil {
+			return nil, false, err
+		}
+		if err := conn.QueryRowContext(ctx, upsertConsensusSQL, args...).Scan(&persistidos[i].ID); err != nil {
+			return nil, false, fmt.Errorf("persistir el consenso %s: %w", persistidos[i].ConsensusLocalID, err)
+		}
+		persistidos[i].ReviewID = reviewID
+	}
+
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return nil, false, fmt.Errorf("confirmar el consenso: %w", err)
+	}
+	comprometida = true
+	return persistidos, false, nil
+}
+
 func (r *ReviewRepository) GetConsensusFinding(project, reviewID, localID string) (*domain.ConsensusFinding, error) {
 	row := r.db.QueryRow(`
 		SELECT cf.id, cf.round, cf.consensus_local_id, cf.status, cf.severity, cf.claim,
-		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint
+		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint, cf.rejudgment_round
 		FROM consensus_findings cf JOIN reviews rv ON rv.id = cf.review_id
 		WHERE rv.project = ? AND rv.review_id = ? AND cf.consensus_local_id = ?`, project, reviewID, localID)
 	finding, err := scanConsensus(row, reviewID)
@@ -267,11 +470,24 @@ func (r *ReviewRepository) GetConsensusFinding(project, reviewID, localID string
 }
 
 func (r *ReviewRepository) ListConsensusFindings(project, reviewID string, round int) ([]domain.ConsensusFinding, error) {
-	rows, err := r.db.Query(`
+	internalID, err := r.lookupReviewID(project, reviewID)
+	if err != nil {
+		return nil, err
+	}
+	return consensusDeRonda(r.db, internalID, reviewID, round)
+}
+
+// consensusDeRonda lee la clasificación de una ronda por el id interno de la revisión.
+//
+// Toma un querier en vez de usar r.db para que ReplaceConsensusRound pueda releer las
+// filas DENTRO de su transacción. Comprobar si la ronda ya existe desde fuera es
+// precisamente lo que hacía de esto un check-then-write.
+func consensusDeRonda(q querier, internalID int64, reviewID string, round int) ([]domain.ConsensusFinding, error) {
+	rows, err := q.Query(`
 		SELECT cf.id, cf.round, cf.consensus_local_id, cf.status, cf.severity, cf.claim,
-		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint
-		FROM consensus_findings cf JOIN reviews rv ON rv.id = cf.review_id
-		WHERE rv.project = ? AND rv.review_id = ? AND cf.round = ? ORDER BY cf.id`, project, reviewID, round)
+		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint, cf.rejudgment_round
+		FROM consensus_findings cf
+		WHERE cf.review_id = ? AND cf.round = ? ORDER BY cf.id`, internalID, round)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +506,7 @@ func (r *ReviewRepository) ListConsensusFindings(project, reviewID string, round
 func (r *ReviewRepository) ListAllConsensusFindings(project, reviewID string) ([]domain.ConsensusFinding, error) {
 	rows, err := r.db.Query(`
 		SELECT cf.id, cf.round, cf.consensus_local_id, cf.status, cf.severity, cf.claim,
-		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint
+		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint, cf.rejudgment_round
 		FROM consensus_findings cf JOIN reviews rv ON rv.id = cf.review_id
 		WHERE rv.project = ? AND rv.review_id = ? ORDER BY cf.id`, project, reviewID)
 	if err != nil {
@@ -501,8 +717,9 @@ func scanConsensus(row scanner, reviewID string) (*domain.ConsensusFinding, erro
 	var finding domain.ConsensusFinding
 	var status, severity, sources string
 	var rejudgment, fingerprint sql.NullString
+	var rejudgmentRound sql.NullInt64
 	if err := row.Scan(&finding.ID, &finding.Round, &finding.ConsensusLocalID, &status, &severity,
-		&finding.Claim, &sources, &rejudgment, &fingerprint); err != nil {
+		&finding.Claim, &sources, &rejudgment, &fingerprint, &rejudgmentRound); err != nil {
 		return nil, err
 	}
 	finding.ReviewID = reviewID
@@ -510,6 +727,7 @@ func scanConsensus(row scanner, reviewID string) (*domain.ConsensusFinding, erro
 	finding.Severity = domain.Severity(severity)
 	finding.RejudgmentState = domain.ReJudgmentState(rejudgment.String)
 	finding.RoundFingerprint = fingerprint.String
+	finding.RejudgmentRound = int(rejudgmentRound.Int64)
 	if err := json.Unmarshal([]byte(sources), &finding.SourceFindingIDs); err != nil {
 		return nil, err
 	}
@@ -669,8 +887,13 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 	// Solo la ronda que se acaba de escribir: agregar todas dejaría que un
 	// RESOLVED de una corrección anterior complete la unanimidad de esta.
 	agregado := domain.AggregateReJudgmentForRound(judgments, judgment.Round)
-	if _, err := conn.ExecContext(ctx, `UPDATE consensus_findings SET rejudgment_state = ? WHERE id = ?`,
-		string(agregado), findingID); err != nil {
+	// La ronda viaja con el estado, en la misma sentencia. Guardar el veredicto sin
+	// su ronda lo convierte en un valor sin fecha, y RecordFix abría la corrección
+	// siguiente dejándolo intacto: el veredicto leía como vigente un RESOLVED que
+	// pertenecía a la ronda anterior y aprobaba sin haber re-verificado nada.
+	if _, err := conn.ExecContext(ctx,
+		`UPDATE consensus_findings SET rejudgment_state = ?, rejudgment_round = ? WHERE id = ?`,
+		string(agregado), judgment.Round, findingID); err != nil {
 		return fmt.Errorf("actualizar el estado agregado: %w", err)
 	}
 
@@ -777,15 +1000,27 @@ func (r *ReviewRepository) RecordFixAtomically(
 	}()
 
 	var internalID int64
+	var estado string
 	var vigente, original sql.NullString
 	err = conn.QueryRowContext(ctx,
-		`SELECT id, current_target_digest, target_digest FROM reviews WHERE project = ? AND review_id = ?`,
-		project, reviewID).Scan(&internalID, &vigente, &original)
+		`SELECT id, status, current_target_digest, target_digest FROM reviews
+		 WHERE project = ? AND review_id = ?`,
+		project, reviewID).Scan(&internalID, &estado, &vigente, &original)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("review %s not found", reviewID)
 	}
 	if err != nil {
 		return err
+	}
+
+	// El estado se revalida DENTRO de la transacción, y no basta con el digest: una
+	// finalización NO cambia el target, así que una corrección que llegaba tarde
+	// pasaba la comprobación de abajo y reabría una revisión ya terminal.
+	if transition.ExpectedStatus != "" && domain.ReviewStatus(estado) != transition.ExpectedStatus {
+		return fmt.Errorf(
+			"la revisión pasó a %s mientras se registraba la corrección de la ronda %d",
+			estado, transition.NextRound,
+		)
 	}
 
 	// El target vigente se revalida DENTRO de la transacción. El caso de uso ya lo
@@ -832,6 +1067,16 @@ func (r *ReviewRepository) RecordFixAtomically(
 	}
 	if err := requireAffected(result, "review"); err != nil {
 		return err
+	}
+
+	// Abrir una ronda invalida el veredicto de re-juicio de la anterior, en la misma
+	// transacción que la abre. La columna es derivada y no debe sobrevivir al target
+	// del que se dedujo: dejarla puesta hacía que review_status siguiera mostrando
+	// RESOLVED sobre un código que ya nadie había vuelto a mirar.
+	if _, err := conn.ExecContext(ctx, `
+		UPDATE consensus_findings SET rejudgment_state = NULL, rejudgment_round = NULL
+		WHERE review_id = ?`, internalID); err != nil {
+		return fmt.Errorf("invalidar los re-juicios de la ronda anterior: %w", err)
 	}
 
 	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {

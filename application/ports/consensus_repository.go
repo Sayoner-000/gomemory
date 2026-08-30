@@ -19,7 +19,12 @@ type FixTransition struct {
 	// lee la revisión fuera, así que dos correcciones concurrentes pueden ver el
 	// mismo target vigente, derivar rondas distintas y colarse las dos. Sin esta
 	// comprobación, un test de 100 escrituras simultáneas registra dos.
-	ExpectedBaseDigest  string
+	ExpectedBaseDigest string
+	// ExpectedStatus es el estado que el caso de uso comprobó mutable antes de la
+	// transacción. Se revalida dentro, y cierra la dirección que el digest no cubre:
+	// finalizar NO cambia el target, así que una corrección que llegaba tarde pasaba
+	// la comprobación de digest y reabría una revisión ya terminal.
+	ExpectedStatus      domain.ReviewStatus
 	NextRound           int
 	NextStatus          domain.ReviewStatus
 	CurrentTargetDigest string
@@ -37,6 +42,24 @@ type ConsensusRepository interface {
 	// el listado por ronda hacía que, tras la primera corrección, no se viera
 	// ningún hallazgo y la revisión se aprobara con su defecto intacto.
 	ListAllConsensusFindings(project, reviewID string) ([]domain.ConsensusFinding, error)
+
+	// ReplaceConsensusRound persiste la clasificación COMPLETA de una ronda en una
+	// sola transacción, o no persiste nada.
+	//
+	// Reemplaza al par «listar y luego insertar fila a fila», que era un
+	// check-then-write sin transacción: dos llamadas concurrentes veían el ledger
+	// vacío, las dos escribían y la ronda quedaba mezclada; y un fallo a mitad del
+	// bucle dejaba media clasificación persistida, que es justo lo que el veredicto
+	// tiene que atrapar después.
+	//
+	// Devuelve las filas ya existentes con idempotente=true cuando la ronda
+	// registrada tiene exactamente la misma huella. Si la huella difiere, rechaza:
+	// reclasificar un confirmado como informativo justo antes de finalizar es una
+	// aprobación falsa por otra puerta (FR-005).
+	ReplaceConsensusRound(
+		project, reviewID string, expectedRound int, fingerprint string,
+		findings []domain.ConsensusFinding,
+	) (existentes []domain.ConsensusFinding, idempotente bool, err error)
 
 	UpsertFixDelta(project, reviewID string, delta *domain.FixDelta) error
 	ListFixDeltas(project, reviewID string) ([]domain.FixDelta, error)

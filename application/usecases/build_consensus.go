@@ -122,29 +122,26 @@ func BuildConsensusWithOutcome(
 	}
 	huella := domain.ClassificationFingerprint(derivados)
 
-	existentes, err := ledger.ListConsensusFindings(input.Project, input.ReviewID, review.Round)
-	if err != nil {
-		return BuildConsensusOutput{}, err
-	}
-	if len(existentes) > 0 {
-		// Reenviar la ronda exacta es una lectura; reemplazarla por otra distinta
-		// permitiría reclasificar un confirmado como informativo justo antes de
-		// finalizar, que es una aprobación falsa por otra puerta (FR-005).
-		if domain.ClassificationFingerprint(existentes) != huella {
-			return BuildConsensusOutput{}, fmt.Errorf(
-				"la ronda %d ya tiene un consenso registrado y no admite reemplazo", review.Round,
-			)
-		}
-		return BuildConsensusOutput{Findings: existentes, Idempotent: true}, nil
-	}
-
 	for i := range derivados {
 		derivados[i].ReviewID = input.ReviewID
 		derivados[i].Round = review.Round
 		derivados[i].RoundFingerprint = huella
-		if err := ledger.UpsertConsensusFinding(input.Project, input.ReviewID, &derivados[i]); err != nil {
-			return BuildConsensusOutput{}, err
-		}
 	}
-	return BuildConsensusOutput{Findings: derivados}, nil
+
+	// La comprobación de "ya existe" y la escritura de las filas van juntas, en una
+	// transacción del ledger. Aquí eran dos pasos —listar y luego un bucle de
+	// upserts, cada uno con su propia transacción implícita— y eso es un
+	// check-then-write: dos llamadas concurrentes veían las dos el ledger vacío y
+	// escribían las dos, dejando la ronda mezclada, y un fallo a mitad del bucle
+	// dejaba media clasificación persistida.
+	//
+	// Lo que se queda en el caso de uso es lo que no toca el ledger: ValidateCoverage
+	// y ClassificationFingerprint siguen siendo puros.
+	persistidos, idempotente, err := ledger.ReplaceConsensusRound(
+		input.Project, input.ReviewID, review.Round, huella, derivados,
+	)
+	if err != nil {
+		return BuildConsensusOutput{}, err
+	}
+	return BuildConsensusOutput{Findings: persistidos, Idempotent: idempotente}, nil
 }

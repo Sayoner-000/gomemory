@@ -338,6 +338,12 @@ func migrate(db *sql.DB) error {
 	addColumnIfMissing(db, "reviews", "reviewer_b_model", "TEXT")
 	addColumnIfMissing(db, "consensus_findings", "round_fingerprint", "TEXT")
 
+	// rejudgment_round fecha el estado agregado de re-juicio. Nullable a propósito:
+	// una base anterior la interpreta como ronda 0, que nunca es la ronda vigente de
+	// una re-revisión, así que sus hallazgos confirmados vuelven a exigir re-juicio
+	// en vez de aprobarse con el veredicto de una corrección pasada.
+	addColumnIfMissing(db, "consensus_findings", "rejudgment_round", "INTEGER")
+
 	// topic_key (feature 008): agrupa memorias por tópico para el upsert de dedup.
 	// El índice va DESPUÉS del ALTER (referencia la columna recién creada) y es
 	// parcial: solo indexa filas con tópico. Idempotente (IF NOT EXISTS).

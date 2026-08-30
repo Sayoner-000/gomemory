@@ -46,6 +46,40 @@ func (r *memoryReviewRepository) UpdateReview(review *domain.Review) error {
 	return nil
 }
 
+// FinalizeReviewAtomically refleja la implementación real: compara el estado sobre el
+// que se derivó el veredicto y escribe SOLO status y verdict. Si el doble escribiera
+// la revisión entera, los tests darían verde sobre una invariante que el adaptador de
+// verdad sí tiene y el doble no.
+func (r *memoryReviewRepository) FinalizeReviewAtomically(
+	project, reviewID string, transition ports.FinalizeTransition,
+) error {
+	review := r.reviews[reviewKey(project, reviewID)]
+	if review == nil {
+		return fmt.Errorf("review %s not found", reviewID)
+	}
+	if review.Status != transition.ExpectedStatus {
+		return fmt.Errorf(
+			"la revisión pasó a %s mientras se finalizaba: vuelve a derivar el veredicto",
+			review.Status,
+		)
+	}
+	if review.Round != transition.ExpectedRound {
+		return fmt.Errorf(
+			"la revisión avanzó a la ronda %d mientras se finalizaba: vuelve a derivar el veredicto",
+			review.Round,
+		)
+	}
+	if transition.ExpectedDigest != "" && review.ActiveTargetDigest() != transition.ExpectedDigest {
+		return fmt.Errorf(
+			"el target vigente cambió mientras se finalizaba: el veredicto ya no corresponde a %s",
+			transition.ExpectedDigest,
+		)
+	}
+	review.Status = transition.NextStatus
+	review.Verdict = transition.Verdict
+	return nil
+}
+
 func (r *memoryReviewRepository) ListReviews(project string, limit int) ([]domain.Review, error) {
 	var out []domain.Review
 	for _, review := range r.reviews {
@@ -167,6 +201,52 @@ func (r *memoryConsensusRepository) ListConsensusFindings(project, reviewID stri
 	return out, nil
 }
 
+// ReplaceConsensusRound refleja la implementación real: la comprobación de "ya existe"
+// y la escritura son un solo paso. El doble no puede reproducir una carrera, pero sí
+// las reglas de idempotencia y rechazo que el caso de uso delegó aquí.
+func (r *memoryConsensusRepository) ReplaceConsensusRound(
+	project, reviewID string, expectedRound int, fingerprint string,
+	findings []domain.ConsensusFinding,
+) ([]domain.ConsensusFinding, bool, error) {
+	if r.reviews != nil {
+		review, err := r.reviews.GetReview(project, reviewID)
+		if err != nil {
+			return nil, false, err
+		}
+		if review != nil {
+			if err := review.EnsureMutable(); err != nil {
+				return nil, false, err
+			}
+			if review.Round != expectedRound {
+				return nil, false, fmt.Errorf(
+					"la revisión avanzó a la ronda %d mientras se construía el consenso de la ronda %d",
+					review.Round, expectedRound,
+				)
+			}
+		}
+	}
+	existentes, err := r.ListConsensusFindings(project, reviewID, expectedRound)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(existentes) > 0 {
+		if domain.ClassificationFingerprint(existentes) != fingerprint {
+			return nil, false, fmt.Errorf(
+				"la ronda %d ya tiene un consenso registrado y no admite reemplazo", expectedRound,
+			)
+		}
+		return existentes, true, nil
+	}
+	persistidos := make([]domain.ConsensusFinding, len(findings))
+	copy(persistidos, findings)
+	for i := range persistidos {
+		if err := r.UpsertConsensusFinding(project, reviewID, &persistidos[i]); err != nil {
+			return nil, false, err
+		}
+	}
+	return persistidos, false, nil
+}
+
 func (r *memoryConsensusRepository) ListAllConsensusFindings(project, reviewID string) ([]domain.ConsensusFinding, error) {
 	return append([]domain.ConsensusFinding(nil), r.findings[reviewKey(project, reviewID)]...), nil
 }
@@ -216,6 +296,7 @@ func (r *memoryConsensusRepository) UpsertReJudgment(project, reviewID string, j
 		r.rejudgment[key] = append(r.rejudgment[key], *judgment)
 	}
 	finding.RejudgmentState = domain.AggregateReJudgmentForRound(r.rejudgment[key], judgment.Round)
+	finding.RejudgmentRound = judgment.Round
 	return r.UpsertConsensusFinding(project, reviewID, finding)
 }
 
@@ -229,6 +310,18 @@ func (r *memoryConsensusRepository) RecordFixAtomically(
 	key := reviewKey(project, reviewID)
 	if len(r.fixes[key]) != transition.ExpectedRounds {
 		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+	}
+	if r.reviews != nil && transition.ExpectedStatus != "" {
+		actual, err := r.reviews.GetReview(project, reviewID)
+		if err != nil {
+			return err
+		}
+		if actual != nil && actual.Status != transition.ExpectedStatus {
+			return fmt.Errorf(
+				"la revisión pasó a %s mientras se registraba la corrección de la ronda %d",
+				actual.Status, transition.NextRound,
+			)
+		}
 	}
 	if r.reviews != nil && transition.ExpectedBaseDigest != "" {
 		actual, err := r.reviews.GetReview(project, reviewID)
@@ -245,6 +338,13 @@ func (r *memoryConsensusRepository) RecordFixAtomically(
 		}
 	}
 	r.fixes[key] = append(r.fixes[key], *transition.Delta)
+	// Abrir una ronda invalida el veredicto de re-juicio de la anterior, igual que en
+	// el adaptador real: si el doble lo conservara, el test de arrastre de RESOLVED
+	// pasaría contra un doble que no tiene la corrección.
+	for i := range r.findings[key] {
+		r.findings[key][i].RejudgmentState = ""
+		r.findings[key][i].RejudgmentRound = 0
+	}
 	if r.reviews == nil {
 		return nil
 	}
