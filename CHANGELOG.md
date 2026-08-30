@@ -5,7 +5,7 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Sin publicar]
+## [2.16.0] - 2026-08-29
 
 ### Correcciones
 
