@@ -602,18 +602,42 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 	if err := judgment.Validate(); err != nil {
 		return err
 	}
-	tx, err := r.db.Begin()
+	// Conexión dedicada con BEGIN IMMEDIATE, igual que RecordFixAtomically y por el
+	// mismo motivo: db.Begin() emite un BEGIN diferido que toma el bloqueo de
+	// escritura en el primer INSERT, y en WAL el perdedor recibe SQLITE_BUSY, que el
+	// busy_timeout no reintenta para una transacción que ya leyó.
+	//
+	// No es teórico: dos revisores re-juzgando en paralelo —el flujo normal de este
+	// protocolo, no un caso raro— perdían la mayoría de las escrituras con
+	// "database is locked". Reproducido con 16 re-juicios simultáneos: fallaban 11.
+	ctx := context.Background()
+	conn, err := r.db.Conn(ctx)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
+	}
+	comprometida := false
+	defer func() {
+		if !comprometida {
+			conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
 
-	internalID, err := reviewInternalID(tx, project, reviewID)
+	var internalID int64
+	err = conn.QueryRowContext(ctx,
+		`SELECT id FROM reviews WHERE project = ? AND review_id = ?`, project, reviewID).Scan(&internalID)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("review %s not found", reviewID)
+	}
 	if err != nil {
 		return err
 	}
 	var findingID int64
-	err = tx.QueryRow(`SELECT id FROM consensus_findings WHERE review_id = ? AND consensus_local_id = ?`,
+	err = conn.QueryRowContext(ctx,
+		`SELECT id FROM consensus_findings WHERE review_id = ? AND consensus_local_id = ?`,
 		internalID, judgment.ConsensusLocalID).Scan(&findingID)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("el hallazgo de consenso %s no existe en esta revisión", judgment.ConsensusLocalID)
@@ -626,7 +650,7 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 	if err != nil {
 		return err
 	}
-	err = tx.QueryRow(`
+	err = conn.QueryRowContext(ctx, `
 		INSERT INTO rejudgments (review_id, round, consensus_finding_id, reviewer, state, evidence)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(review_id, round, consensus_finding_id, reviewer) DO UPDATE SET
@@ -638,20 +662,35 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 		return fmt.Errorf("upsert rejudgment: %w", err)
 	}
 
-	judgments, err := reJudgmentsForFinding(tx, internalID, findingID, reviewID, judgment.ConsensusLocalID)
+	judgments, err := reJudgmentsForFinding(connQuerier{ctx, conn}, internalID, findingID, reviewID, judgment.ConsensusLocalID)
 	if err != nil {
 		return err
 	}
 	// Solo la ronda que se acaba de escribir: agregar todas dejaría que un
 	// RESOLVED de una corrección anterior complete la unanimidad de esta.
 	agregado := domain.AggregateReJudgmentForRound(judgments, judgment.Round)
-	if _, err := tx.Exec(`UPDATE consensus_findings SET rejudgment_state = ? WHERE id = ?`,
+	if _, err := conn.ExecContext(ctx, `UPDATE consensus_findings SET rejudgment_state = ? WHERE id = ?`,
 		string(agregado), findingID); err != nil {
 		return fmt.Errorf("actualizar el estado agregado: %w", err)
 	}
 
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("confirmar el re-juicio: %w", err)
+	}
+	comprometida = true
 	judgment.ReviewID = reviewID
-	return tx.Commit()
+	return nil
+}
+
+// connQuerier adapta una *sql.Conn a la interfaz querier, para poder releer los
+// re-juicios dentro de la transacción abierta sobre esa conexión.
+type connQuerier struct {
+	ctx  context.Context
+	conn *sql.Conn
+}
+
+func (q connQuerier) Query(query string, args ...any) (*sql.Rows, error) {
+	return q.conn.QueryContext(q.ctx, query, args...)
 }
 
 func (r *ReviewRepository) ListReJudgments(project, reviewID, consensusLocalID string) ([]domain.ReJudgment, error) {

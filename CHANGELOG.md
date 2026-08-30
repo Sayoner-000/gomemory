@@ -9,13 +9,50 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Correcciones
 
-#### El consenso ya no se sobre escribe entre rondas
+Cuatro defectos encontrados al revisar la versión 2.16.0 con su propio protocolo. Tres
+viven en la misma ruta —qué ocurre DESPUÉS de una corrección— y ninguna prueba los veía,
+porque todos los fixtures enviaban los resultados post-corrección sin hallazgos. El
+cuarto solo aparece con los dos revisores trabajando de verdad en paralelo.
 
-`BuildConsensus` rechazaba rondas mayores a 0 sin avisar. Los `ConsensusLocalID` se generan por posición (C-001, C-002...) y son únicos por revisión, así que un segundo cálculo reasignaba los IDs y borraba los hallazgos confirmados de la ronda anterior. Ahora la ronda de descubrimiento construye el consenso una sola vez, y las rondas posteriores usan `review_rejudge` para revalidar.
+#### El consenso ya no se sobrescribe entre rondas
 
-`SubmitReviewerResult` rechazaba hallazgos nuevos en rondas de revalidación. Esos hallazgos quedaban sin clasificación de consenso y la revisión nunca podía finalizar: `DeriveVerdict` los veía sin clasificar y devolvía "aún no".
+`BuildConsensus` aceptaba reconstruir el consenso en una ronda posterior. Los
+`ConsensusLocalID` se generan por posición (C-001, C-002…) y son únicos por revisión, no
+por ronda, así que el segundo cálculo reasignaba los identificadores y sobrescribía los
+hallazgos confirmados de la ronda anterior: un `CONFIRMED HIGH` se convertía en un
+`CONFIRMED LOW` con otras fuentes, y el `addressed_consensus_ids` de la corrección
+quedaba apuntando a un hallazgo distinto del que decía haber arreglado.
 
-`AggregateReJudgmentForRound` filtra re-juicios por ronda. Antes, un `RESOLVED` emitido sobre un target anterior completaba la unanimidad de una corrección que el revisor nunca vio.
+Ahora el consenso se construye una sola vez, en la ronda de descubrimiento. Las rondas
+posteriores revalidan con `review_rejudge`.
+
+#### Una revisión con hallazgos post-corrección ya puede terminar
+
+`SubmitReviewerResult` aceptaba hallazgos nuevos en rondas de revalidación. Quedaban sin
+clasificación de consenso —y no podían tenerla, por el defecto anterior—, así que
+`DeriveVerdict` los veía sin clasificar y la revisión no alcanzaba ningún estado
+terminal: ni aprobada ni escalada, nunca.
+
+Ahora esas rondas rechazan hallazgos y encaminan a `review_rejudge`, que es el canal que
+el protocolo ya definía para revalidar.
+
+#### Los re-juicios en paralelo ya no se pierden
+
+`UpsertReJudgment` abría su transacción con el `BEGIN` diferido de `database/sql`, que
+en modo WAL toma el bloqueo de escritura en el primer `INSERT`. El perdedor recibía
+`SQLITE_BUSY`, que el `busy_timeout` no reintenta para una transacción que ya leyó.
+
+Afectaba al flujo normal del protocolo, no a un caso raro: dos revisores independientes
+re-juzgando a la vez es exactamente para lo que existe. Con 16 re-juicios simultáneos
+fallaban 11 con «database is locked». Ahora usa una conexión dedicada con
+`BEGIN IMMEDIATE`, el mismo patrón que ya empleaba el registro de correcciones.
+
+#### La unanimidad ya no cruza rondas
+
+`AggregateReJudgment` recibía todos los re-juicios de un hallazgo, de todas las rondas.
+Un `RESOLVED` emitido sobre una corrección anterior completaba la unanimidad de una
+posterior que ese revisor nunca vio, y la revisión terminaba aprobada. Se añadió
+`AggregateReJudgmentForRound`, que filtra por ronda antes de agregar.
 
 ## [2.16.0] - 2026-08-29
 
