@@ -5,6 +5,18 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.16.5] - 2026-08-30
+
+### Correcciones
+
+#### La marca de resultados detecta cambios entre lecturas
+
+`ReviewerResultsMark` resume resultados y hallazgos de una ronda como hash
+SHA-256. Se usa en la comparación atómica de finalización para detectar si
+alguien modificó los resultados entre la lectura y la escritura. Antes, solo
+se comparaba el estado de la revisión y los re-juicios, no el contenido de los
+resultados.
+
 ## [2.16.4] - 2026-08-29
 
 ### Correcciones
