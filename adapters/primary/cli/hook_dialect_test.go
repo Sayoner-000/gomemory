@@ -210,3 +210,43 @@ func TestRenderGuardDecision_LasCuatroFormasParaElMismoVeredicto(t *testing.T) {
 		}
 	})
 }
+
+// TestRenderTurnEndPorDialecto fija las dos propiedades que el fallo de campo
+// destapó: en dialectos planos NO puede salir el sobre de Claude Code, y el
+// silencio es la cadena vacía y no `{}` —quien lee stdout como contexto se
+// tragaría esas dos llaves como si fueran una instrucción—.
+func TestRenderTurnEndPorDialecto(t *testing.T) {
+	const aviso = "considera compactar"
+	const refuerzo = "recuerda las preferencias"
+
+	t.Run("claude envuelve segun el destinatario", func(t *testing.T) {
+		humano := renderTurnEnd(dialectClaude, aviso, true)
+		if !strings.Contains(humano, `"systemMessage"`) {
+			t.Fatalf("el aviso al humano debe ir en systemMessage: %s", humano)
+		}
+		modelo := renderTurnEnd(dialectClaude, refuerzo, false)
+		if !strings.Contains(modelo, `"hookEventName":"Stop"`) ||
+			!strings.Contains(modelo, `"additionalContext"`) {
+			t.Fatalf("el refuerzo al modelo debe ir en additionalContext de Stop: %s", modelo)
+		}
+	})
+
+	t.Run("los dialectos planos no emiten envoltura", func(t *testing.T) {
+		for _, d := range []hookDialect{dialectText, dialectNeutral} {
+			for _, paraElHumano := range []bool{true, false} {
+				got := renderTurnEnd(d, refuerzo, paraElHumano)
+				if got != refuerzo {
+					t.Fatalf("dialecto %q: se esperaba texto desnudo, salió %q", d, got)
+				}
+			}
+		}
+	})
+
+	t.Run("el silencio nunca imprime llaves", func(t *testing.T) {
+		for _, d := range []hookDialect{dialectClaude, dialectJSON, dialectText, dialectNeutral} {
+			if got := renderTurnEnd(d, "", false); got != "" {
+				t.Fatalf("dialecto %q: el silencio salió como %q", d, got)
+			}
+		}
+	})
+}

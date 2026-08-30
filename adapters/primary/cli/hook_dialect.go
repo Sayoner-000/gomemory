@@ -206,6 +206,52 @@ func renderPromptContext(d hookDialect, texto string) hookRenderedOutput {
 	}
 }
 
+// renderTurnEnd traduce la salida del hook de fin de turno al dialecto d.
+//
+// Existe por el mismo motivo que renderPromptContext, y por el mismo descuido:
+// `turn-end` emitía el sobre de Claude Code a cualquier agente. Codex toma el
+// stdout del hook COMO CONTEXTO TAL CUAL y no reconoce ese sobre, así que
+// rechazaba la salida entera —«invalid stop hook JSON output»— y el refuerzo de
+// preferencias no llegaba nunca. El campo Emit de la tabla de hooks de Codex ya
+// existía para esto; turn-end era el único que inyecta texto al modelo y se
+// había registrado sin pedirlo.
+//
+// paraElHumano distingue los dos mensajes que este hook puede emitir: el aviso
+// de compactación va dirigido a quien mira la terminal —systemMessage en Claude
+// Code, que el modelo no ve— y el refuerzo de preferencias al modelo, vía
+// additionalContext. En los dialectos planos esa distinción no existe: hay un
+// solo canal, stdout, y ambos salen como texto desnudo.
+//
+// texto == "" representa el silencio: este turno no tiene nada que decir.
+func renderTurnEnd(d hookDialect, texto string, paraElHumano bool) string {
+	if texto == "" {
+		return ""
+	}
+	switch d {
+	case dialectClaude:
+		if paraElHumano {
+			out, _ := json.Marshal(map[string]any{"systemMessage": texto})
+			return string(out)
+		}
+		out, _ := json.Marshal(map[string]any{
+			"hookSpecificOutput": map[string]any{
+				"hookEventName":     "Stop",
+				"additionalContext": texto,
+			},
+		})
+		return string(out)
+
+	case dialectJSON:
+		out, _ := json.Marshal(map[string]any{"context": texto})
+		return string(out)
+
+	default:
+		// dialectNeutral y dialectText: texto desnudo. El silencio ya salió
+		// arriba como cadena vacía, nunca como `{}`.
+		return texto
+	}
+}
+
 // renderEnteredDocument traduce el documento de plan-entered (ya ajustado al
 // presupuesto por domain.AdjustPlanDocumentToBudget) al dialecto d, según las
 // tres formas documentadas en contracts/hook-plan-entered.md. doc == ""

@@ -57,7 +57,7 @@ func CmdHook(deps *Deps, args []string) {
 	case "channel-error":
 		hookChannelActivity(deps, args[1:], firstOr(args, 4, "fallo sin descripción"))
 	case "turn-end":
-		hookTurnEnd(deps)
+		hookTurnEnd(deps, args[1:])
 	case "subagent-start":
 		hookSubagentStart(deps)
 	case "subagent-stop":
@@ -368,7 +368,15 @@ func hookNudge(deps *Deps) {
 // corrieron en el turno recién terminado, como red de seguridad ante
 // actividad que el agente no llegó a resumir con save_memory. Turnos de puro
 // chat (sin ediciones ni comandos) no generan checkpoint.
-func hookTurnEnd(deps *Deps) {
+func hookTurnEnd(deps *Deps, args []string) {
+	// Mismo defecto y mismo motivo que en hookUserPromptSubmit: Claude Code
+	// invoca sin bandera y solo lee el sobre JSON, así que es el defecto; quien
+	// toma stdout como contexto —Codex— pide el dialecto plano con --emit=text.
+	dialect := dialectClaude
+	if v := emitFlagValue(args); isKnownDialect(v) {
+		dialect = hookDialect(v)
+	}
+
 	// Mantiene tibio el snapshot del grafo externo por turno, sin depender de
 	// get_context. MaybeRefresh es fire-and-forget (proceso detached, respeta el
 	// TTL de 60s + debounce): nunca bloquea el cierre del turno. Cubre Claude
@@ -400,8 +408,7 @@ func hookTurnEnd(deps *Deps) {
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		threshold := deps.SettingsRepo.Read(root).CompactThreshold
 		if msg, ok := computeCompactNudge(root, threshold); ok {
-			data, _ := json.Marshal(map[string]any{"systemMessage": msg})
-			fmt.Print(string(data))
+			fmt.Print(renderTurnEnd(dialect, msg, true))
 		} else if msg, ok := computePreferenceReinforcement(deps, root, deps.Project, threshold); ok {
 			// Solo uno de los dos por turno: si ya se sugirió compactar, no
 			// compite por espacio con el refuerzo de preferencias — la
@@ -414,13 +421,7 @@ func hookTurnEnd(deps *Deps) {
 			// (documentado como "non-error feedback that continues the
 			// conversation"), a diferencia de decision:"block", que forzaría
 			// una iteración extra no deseada aquí.
-			data, _ := json.Marshal(map[string]any{
-				"hookSpecificOutput": map[string]any{
-					"hookEventName":     "Stop",
-					"additionalContext": msg,
-				},
-			})
-			fmt.Print(string(data))
+			fmt.Print(renderTurnEnd(dialect, msg, false))
 		}
 	}
 

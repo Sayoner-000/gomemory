@@ -5,6 +5,44 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.16.7] - 2026-08-30
+
+### Correcciones
+
+#### Un resultado `failure` ya no puede reescribir las fuentes del consenso
+
+La corrección de 2.16.6 que devolvió el fail-closed dejaba pasar todo resultado
+`failure` sin mirar su contenido. Como los hallazgos se persisten con
+`ON CONFLICT DO UPDATE`, un `failure` que adjuntara un hallazgo con un
+`local_id` ya existente reescribía su enunciado, su severidad o su evidencia
+—sobre fuentes que el consenso ya había clasificado—. La declaración de fallo se
+había convertido en la vía de escritura que la guarda existía para cerrar.
+
+Declarar `failure` sigue siendo siempre posible, que es lo que sostiene el
+fail-closed, pero fuera de la fase de recogida no puede traer hallazgos. Es la
+misma regla que ya rige en las rondas de revalidación y por el mismo motivo: no
+hay consenso que pueda clasificar un hallazgo que llegue ahí.
+
+**Cambio observable:** `review_submit` rechaza un resultado `failure` con
+hallazgos cuando la revisión ya salió de la fase de recogida. Envíalo sin ellos
+y abre una revisión nueva para el material no clasificado.
+
+#### El hook de fin de turno respeta el dialecto del agente
+
+`turn-end` emitía el sobre JSON de Claude Code a cualquier agente. Codex toma el
+stdout del hook como contexto tal cual y no reconoce ese sobre, así que
+rechazaba la salida entera y el refuerzo de preferencias no llegaba nunca. El
+campo `Emit` de la tabla de hooks de Codex existía justo para esto, y `turn-end`
+—el otro hook que inyecta texto al modelo— se había registrado sin pedirlo.
+
+Ahora `turn-end` acepta `--emit`, se registra en Codex con `Emit: "text"`, y
+traduce sus dos mensajes según el destinatario: el aviso de compactación va a
+quien mira la terminal y el refuerzo de preferencias al modelo. En los dialectos
+planos ambos salen como texto desnudo, y el silencio es la cadena vacía en vez
+de `{}`.
+
+La salida para Claude Code no cambia.
+
 ## [2.16.6] - 2026-08-30
 
 Correcciones surgidas de una revisión adversarial por consenso sobre 2.16.5.

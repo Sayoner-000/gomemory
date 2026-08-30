@@ -515,3 +515,90 @@ func TestUnReenvioIdenticoTrasConsensusReadySigueSiendoNoOp(t *testing.T) {
 		}
 	}
 }
+
+// TestUnFailureFueraDeFaseNoPuedeTraerHallazgos cierra el agujero que abrió la propia
+// corrección del fail-closed.
+//
+// Dejar pasar TODO resultado failure sin mirar su contenido convirtió la declaración
+// de fallo en una vía de escritura libre: persistReviewerResult escribe los hallazgos
+// con ON CONFLICT DO UPDATE, así que un failure con un hallazgo del mismo local_id
+// reescribía el claim, la severidad o la evidencia de la fuente sobre la que YA se
+// había construido el consenso. La guarda existía justo para impedir eso.
+//
+// Declarar failure sigue siendo siempre posible —es lo que sostiene INV-010—, pero
+// fuera de la fase de recogida no puede traer hallazgos, por el mismo motivo que una
+// ronda de revalidación tampoco los admite: no hay consenso que pueda clasificarlos.
+func TestUnFailureFueraDeFaseNoPuedeTraerHallazgos(t *testing.T) {
+	db, err := persistence.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	const proyecto = "failure-con-hallazgos"
+	reviews := persistence.NewReviewRepository(db)
+	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+	review := &domain.Review{
+		ID: "acr_failure_hallazgos", Project: proyecto, Target: target,
+		Status: domain.ReviewAwaitingReviewers,
+	}
+	if err := reviews.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	hallazgo := func(claim string) domain.Finding {
+		return domain.Finding{
+			LocalID: "A-001", Location: "domain/verdict.go:42", Severity: domain.SeverityHigh,
+			Category: "correctness", Claim: claim, EvidenceClass: "deterministic",
+			Evidence: []string{"e1"}, Confidence: "high",
+		}
+	}
+	for _, revisor := range []domain.Reviewer{domain.ReviewerA, domain.ReviewerB} {
+		resultado := domain.ReviewerResult{Reviewer: revisor, Status: domain.ReviewerResultSuccess}
+		if revisor == domain.ReviewerA {
+			resultado.Findings = []domain.Finding{hallazgo("defecto original")}
+		}
+		if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+			Project: proyecto, ReviewID: review.ID, TargetDigest: "sha256:v0", Result: resultado,
+		}); err != nil {
+			t.Fatalf("envío de %s: %v", revisor, err)
+		}
+	}
+
+	// El failure que intenta reescribir la fuente del consenso al pasar.
+	_, err = usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+		Project: proyecto, ReviewID: review.ID, TargetDigest: "sha256:v0",
+		Result: domain.ReviewerResult{
+			Reviewer: domain.ReviewerA, Status: domain.ReviewerResultFailure,
+			Findings: []domain.Finding{hallazgo("CLAIM REESCRITO")},
+		},
+	})
+	if err == nil {
+		t.Fatal("un failure fuera de fase no puede traer hallazgos: sería una vía de escritura libre")
+	}
+
+	stored, err := reviews.ListReviewerResults(proyecto, review.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, resultado := range stored {
+		for _, f := range resultado.Findings {
+			if f.Claim != "defecto original" {
+				t.Fatalf("la fuente del consenso fue reescrita: %q", f.Claim)
+			}
+		}
+	}
+
+	// Y el fail-closed sigue intacto: sin hallazgos, el failure pasa y llega a INCOMPLETE.
+	if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+		Project: proyecto, ReviewID: review.ID, TargetDigest: "sha256:v0",
+		Result: domain.ReviewerResult{Reviewer: domain.ReviewerB, Status: domain.ReviewerResultFailure},
+	}); err != nil {
+		t.Fatalf("declarar failure sin hallazgos debe seguir siendo posible: %v", err)
+	}
+	final, err := reviews.GetReview(proyecto, review.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.Status != domain.ReviewIncomplete {
+		t.Fatalf("el fail-closed dejó de alcanzarse: %s", final.Status)
+	}
+}

@@ -186,8 +186,18 @@ func (r *memoryReviewRepository) UpsertReviewerResultAtomically(
 		// Espeja al adaptador real: fuera de la fase de recogida solo se rechaza lo
 		// que MUTA las fuentes del consenso. Un failure debe poder declararse siempre
 		// (fail-closed) y un reenvío idéntico sigue siendo un no-op (FR-039).
-		if result.Status != domain.ReviewerResultFailure &&
-			!r.resultadoCoincideConElPersistido(project, reviewID, result) {
+		if result.Status == domain.ReviewerResultFailure {
+			// Un failure puede declararse siempre, pero no trae material nuevo: sus
+			// hallazgos reescribirían las fuentes ya consensuadas.
+			if len(result.Findings) > 0 {
+				return fmt.Errorf(
+					"la revisión está en %s: un resultado failure puede declararse siempre, "+
+						"pero no puede traer hallazgos; envíalo sin ellos y abre una revisión "+
+						"nueva para el material que no estuviera clasificado",
+					review.Status,
+				)
+			}
+		} else if !r.resultadoCoincideConElPersistido(project, reviewID, result) {
 			return fmt.Errorf(
 				"la revisión está en %s y los resultados de la ronda %d ya no se pueden modificar",
 				review.Status, review.Round,

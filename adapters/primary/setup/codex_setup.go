@@ -43,7 +43,7 @@ type CodexHook struct {
 var codexGomemoryHooks = []CodexHook{
 	{Event: "SessionStart", Matcher: "startup|resume|clear", Sub: "session-start"},
 	{Event: "SessionStart", Matcher: "compact", Sub: "post-compact"},
-	{Event: "Stop", Sub: "turn-end"},
+	{Event: "Stop", Sub: "turn-end", Emit: "text"},
 	// Inyección por turno. Sin ella, Codex recibía el protocolo una sola vez al
 	// arrancar, en un archivo estático que compite con todo el contexto y se
 	// diluye según crece la conversación — la diferencia observable entre "el

@@ -143,3 +143,36 @@ func TestEnsureCodexGomemoryHooks_ActivaLaBandera(t *testing.T) {
 		})
 	}
 }
+
+// TestHooksDeCodexQueInyectanTextoPidenElDialectoPlano fija la regla que el propio
+// campo Emit documenta y que turn-end incumplía.
+//
+// Codex toma el stdout del hook COMO CONTEXTO TAL CUAL. Un hook que inyecta texto
+// al modelo y se registra sin Emit emite el sobre JSON de Claude Code, que Codex no
+// reconoce: rechaza la salida entera y el mensaje no llega nunca. `turn-end` inyecta
+// el refuerzo de preferencias y estaba registrado sin pedir el dialecto plano; el
+// fallo era silencioso salvo por un error del runtime ajeno a este repositorio.
+func TestHooksDeCodexQueInyectanTextoPidenElDialectoPlano(t *testing.T) {
+	// Subcomandos cuyo stdout va dirigido al MODELO. Si añades uno, decide de qué
+	// lado está: si inyecta texto, va aquí y necesita Emit.
+	inyectanTexto := map[string]bool{
+		"user-prompt-submit": true,
+		"turn-end":           true,
+	}
+	vistos := map[string]bool{}
+	for _, hook := range setup.CodexGomemoryHooks() {
+		vistos[hook.Sub] = true
+		if !inyectanTexto[hook.Sub] {
+			continue
+		}
+		if hook.Emit != "text" {
+			t.Errorf("el hook %q inyecta texto al modelo y se registró con Emit=%q: "+
+				"Codex recibiría el sobre JSON de Claude Code", hook.Sub, hook.Emit)
+		}
+	}
+	for sub := range inyectanTexto {
+		if !vistos[sub] {
+			t.Errorf("el hook %q ya no está en la tabla de Codex: revisa esta lista", sub)
+		}
+	}
+}

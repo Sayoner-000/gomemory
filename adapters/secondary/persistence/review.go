@@ -402,7 +402,29 @@ func (r *ReviewRepository) UpsertReviewerResultAtomically(
 		//
 		// La segunda es la idempotencia de reenvío que promete FR-039: un reintento
 		// de transporte con contenido idéntico pasaba de no-op a error duro.
-		if result.Status != domain.ReviewerResultFailure {
+		if result.Status == domain.ReviewerResultFailure {
+			// Declarar el fallo es hablar de la EJECUCIÓN del revisor, no aportar
+			// material nuevo. Dejar pasar el failure sin mirar su contenido convertía
+			// la declaración en una vía de escritura libre: persistReviewerResult
+			// escribe los hallazgos con ON CONFLICT DO UPDATE, así que uno con el
+			// mismo local_id reescribía el claim, la severidad o la evidencia de la
+			// fuente sobre la que YA se había construido el consenso —justo lo que
+			// esta guarda existe para impedir—.
+			//
+			// Rechazar solo los hallazgos, y no el failure, es lo que mantiene las
+			// dos invariantes a la vez: el fail-closed sigue alcanzable y las fuentes
+			// del consenso siguen siendo inmutables. Es la misma regla que ya rige en
+			// las rondas de revalidación, y por el mismo motivo: no hay consenso que
+			// pueda clasificar un hallazgo que llega aquí.
+			if len(result.Findings) > 0 {
+				return fmt.Errorf(
+					"la revisión está en %s: un resultado failure puede declararse siempre, "+
+						"pero no puede traer hallazgos; envíalo sin ellos y abre una revisión "+
+						"nueva para el material que no estuviera clasificado",
+					status,
+				)
+			}
+		} else {
 			identico, err := resultadoCoincideConElPersistido(ctx, connQuerier{ctx, conn}, internalID, result)
 			if err != nil {
 				return err
