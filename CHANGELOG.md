@@ -5,6 +5,18 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.16.1] - 2026-08-29
+
+### Correcciones
+
+#### El consenso ya no se sobre escribe entre rondas
+
+`BuildConsensus` rechazaba rondas mayores a 0 sin avisar. Los `ConsensusLocalID` se generan por posición (C-001, C-002...) y son únicos por revisión, así que un segundo cálculo reasignaba los IDs y borraba los hallazgos confirmados de la ronda anterior. Ahora la ronda de descubrimiento construye el consenso una sola vez, y las rondas posteriores usan `review_rejudge` para revalidar.
+
+`SubmitReviewerResult` rechazaba hallazgos nuevos en rondas de revalidación. Esos hallazgos quedaban sin clasificación de consenso y la revisión nunca podía finalizar: `DeriveVerdict` los veía sin clasificar y devolvía "aún no".
+
+`AggregateReJudgmentForRound` filtra re-juicios por ronda. Antes, un `RESOLVED` emitido sobre un target anterior completaba la unanimidad de una corrección que el revisor nunca vio.
+
 ## [2.16.0] - 2026-08-29
 
 ### Correcciones
