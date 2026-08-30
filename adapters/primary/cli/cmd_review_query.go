@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -33,6 +34,7 @@ func cmdReviewStatus(deps *Deps, args []string) {
 	} else {
 		fmt.Printf("etapa: %s (ronda %d de %d)\n", review.Status, review.Round, review.MaxFixRounds)
 	}
+	fmt.Printf("alcance: %s\n", alcanceDeRevision(review.FixAuthorized))
 	resumirHallazgos(deps, review.ID)
 }
 
@@ -78,8 +80,11 @@ func cmdReviewShow(deps *Deps, args []string) {
 
 	fmt.Printf("# Revisión %s\n\n", review.ID)
 	fmt.Println("## Target")
-	fmt.Printf("- tipo: %s\n- revisión: %s\n- digest: %s\n",
+	fmt.Printf("- tipo: %s\n- revisión: %s\n- digest original: %s\n",
 		review.Target.Type, review.Target.Revision, review.Target.Digest())
+	if vigente := review.ActiveTargetDigest(); vigente != review.Target.Digest() {
+		fmt.Printf("- digest vigente: %s (ronda %d)\n", vigente, review.Round)
+	}
 	if len(review.Target.Scope) > 0 {
 		fmt.Printf("- alcance: %s\n", strings.Join(review.Target.Scope, ", "))
 	}
@@ -88,6 +93,9 @@ func cmdReviewShow(deps *Deps, args []string) {
 		fmt.Printf(" (%s)", review.IndependenceReason)
 	}
 	fmt.Println()
+	fmt.Printf("\n## Política\n- alcance: %s\n- rondas máximas: %d\n- severidades corregibles: %s\n",
+		alcanceDeRevision(review.FixAuthorized), review.MaxFixRounds,
+		severidadesLegibles(review.AutoFixSeverities))
 
 	fmt.Println("\n## Revisores")
 	huboAlguno := false
@@ -114,22 +122,47 @@ func cmdReviewShow(deps *Deps, args []string) {
 	if len(findings) == 0 {
 		fmt.Println("- (sin consenso calculado)")
 	}
-	for _, finding := range findings {
-		fmt.Printf("- %s · %s · %s", finding.ConsensusLocalID, finding.Status, finding.Severity)
-		if finding.RejudgmentState != "" {
-			fmt.Printf(" · %s", finding.RejudgmentState)
-		}
-		if finding.Claim != "" {
-			fmt.Printf("\n  %s", finding.Claim)
-		}
-		fmt.Println()
-	}
-
-	fmt.Println("\n## Correcciones")
-	fixes, err := deps.ConsensusRepo.ListFixDeltas(deps.Project, review.ID)
+	fixesPorHallazgo := map[string]int{}
+	deltas, err := deps.ConsensusRepo.ListFixDeltas(deps.Project, review.ID)
 	if err != nil {
 		fail("listar correcciones: %v", err)
 	}
+	for _, delta := range deltas {
+		for _, localID := range delta.AddressedConsensusIDs {
+			fixesPorHallazgo[localID] = delta.Round
+		}
+	}
+	for _, finding := range findings {
+		fmt.Printf("- %s · %s · %s", finding.ConsensusLocalID, finding.Status, finding.Severity)
+		if len(finding.SourceFindingIDs) > 0 {
+			fmt.Printf(" · fuentes %s", idsLegibles(finding.SourceFindingIDs))
+		}
+		if ronda, ok := fixesPorHallazgo[finding.ConsensusLocalID]; ok {
+			fmt.Printf(" · corregido en ronda %d", ronda)
+		} else if finding.Status == domain.ConsensusConfirmed {
+			fmt.Print(" · sin corregir")
+		}
+		fmt.Println()
+		// El linaje por revisor es la mitad de la auditoría: sin él no se puede
+		// saber si un RESOLVED lo respaldan dos revisores o uno solo (FR-023).
+		porRevisor, err := usecases.ReJudgmentsByReviewer(
+			deps.ConsensusRepo, deps.Project, review.ID, finding.ConsensusLocalID)
+		if err != nil {
+			fail("listar re-juicios: %v", err)
+		}
+		if len(porRevisor) > 0 || finding.RejudgmentState != "" {
+			fmt.Printf("  re-juicio  A=%s  B=%s  ·  agregado: %s\n",
+				estadoOGuion(porRevisor[domain.ReviewerA]),
+				estadoOGuion(porRevisor[domain.ReviewerB]),
+				estadoOGuion(finding.RejudgmentState))
+		}
+		if finding.Claim != "" {
+			fmt.Printf("  %s\n", finding.Claim)
+		}
+	}
+
+	fmt.Println("\n## Correcciones")
+	fixes := deltas
 	if len(fixes) == 0 {
 		fmt.Println("- (ninguna)")
 	}
@@ -190,12 +223,66 @@ func resumirHallazgos(deps *Deps, reviewID string) {
 		return
 	}
 	porEstado := map[domain.ConsensusStatus]int{}
+	porSeveridad := map[domain.Severity]int{}
+	porReJuicio := map[domain.ReJudgmentState]int{}
+	pendientes := 0
 	for _, finding := range findings {
 		porEstado[finding.Status]++
+		porSeveridad[finding.Severity]++
+		if finding.RejudgmentState == "" {
+			pendientes++
+		} else {
+			porReJuicio[finding.RejudgmentState]++
+		}
 	}
-	fmt.Printf("hallazgos: %d confirmado(s), %d sospechoso(s), %d contradicción(es)\n",
+	fmt.Printf("hallazgos: %d confirmado(s), %d sospechoso(s), %d contradicción(es), %d informativo(s)\n",
 		porEstado[domain.ConsensusConfirmed],
 		porEstado[domain.ConsensusSuspect],
 		porEstado[domain.ConsensusContradiction],
+		porEstado[domain.ConsensusInfo],
 	)
+	fmt.Printf("severidad: CRITICAL %d · HIGH %d · MEDIUM %d · LOW %d · INFO %d\n",
+		porSeveridad[domain.SeverityCritical], porSeveridad[domain.SeverityHigh],
+		porSeveridad[domain.SeverityMedium], porSeveridad[domain.SeverityLow],
+		porSeveridad[domain.SeverityInfo],
+	)
+	fmt.Printf("re-juicio: RESOLVED %d · UNRESOLVED %d · REGRESSED %d · PENDIENTE %d\n",
+		porReJuicio[domain.ReJudgmentResolved], porReJuicio[domain.ReJudgmentUnresolved],
+		porReJuicio[domain.ReJudgmentRegressed], pendientes,
+	)
+}
+
+// alcanceDeRevision traduce el booleano a algo que un humano pueda leer sin
+// consultar el contrato.
+func alcanceDeRevision(fixAuthorized bool) string {
+	if fixAuthorized {
+		return "autorizada a corregir"
+	}
+	return "solo lectura"
+}
+
+func severidadesLegibles(severidades []domain.Severity) string {
+	partes := make([]string, 0, len(severidades))
+	for _, severidad := range severidades {
+		partes = append(partes, string(severidad))
+	}
+	if len(partes) == 0 {
+		return "(ninguna)"
+	}
+	return strings.Join(partes, ", ")
+}
+
+func idsLegibles(ids []int64) string {
+	partes := make([]string, 0, len(ids))
+	for _, id := range ids {
+		partes = append(partes, strconv.FormatInt(id, 10))
+	}
+	return strings.Join(partes, ", ")
+}
+
+func estadoOGuion(estado domain.ReJudgmentState) string {
+	if estado == "" {
+		return "—"
+	}
+	return string(estado)
 }

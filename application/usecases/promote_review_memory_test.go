@@ -54,10 +54,31 @@ func aprendizajePromovible() domain.ReviewLearning {
 func escenarioAprobado(t *testing.T) (*memoryReviewRepository, *memoryConsensusRepository) {
 	t.Helper()
 	reviews, ledger := escenarioReRevisable(t)
-	if _, err := RejudgeReview(reviews, ledger, entradaDeReRevision(
-		map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentResolved},
-	)); err != nil {
-		t.Fatalf("RejudgeReview: %v", err)
+
+	// Los dos revisores validan la ronda corregida. Sin esto la revisión queda
+	// INCOMPLETE y no puede aprobarse.
+	ronda, _ := reviews.GetReview("proj", "acr_test")
+	for _, revisor := range []domain.Reviewer{domain.ReviewerA, domain.ReviewerB} {
+		resultado := domain.ReviewerResult{
+			Reviewer: revisor, Round: ronda.Round, Status: domain.ReviewerResultSuccess,
+		}
+		if err := reviews.UpsertReviewerResult("proj", "acr_test", &resultado); err != nil {
+			t.Fatalf("UpsertReviewerResult: %v", err)
+		}
+	}
+	reRevisionUnanime(t, reviews, ledger,
+		map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentResolved})
+
+	// El helper se llama "aprobado" y hasta la funcionalidad 028 no lo estaba: la
+	// revisión se quedaba sin finalizar y nadie lo notaba porque la promoción no
+	// miraba el veredicto. Ahora sí lo mira, así que el helper tiene que cumplir
+	// lo que su nombre promete.
+	review, err := FinalizeReview(reviews, ledger, "proj", "acr_test")
+	if err != nil {
+		t.Fatalf("FinalizeReview: %v", err)
+	}
+	if review.Verdict != domain.VerdictApproved {
+		t.Fatalf("el escenario debe quedar APPROVED, quedó %s", review.Verdict)
 	}
 	return reviews, ledger
 }
@@ -88,11 +109,8 @@ func TestPromoteReviewMemory_SoloConfirmadoYResuelto(t *testing.T) {
 // resolución, no se promueve.
 func TestPromoteReviewMemory_RechazaSinResolver(t *testing.T) {
 	reviews, ledger := escenarioReRevisable(t)
-	if _, err := RejudgeReview(reviews, ledger, entradaDeReRevision(
-		map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentUnresolved},
-	)); err != nil {
-		t.Fatalf("RejudgeReview: %v", err)
-	}
+	reRevisionUnanime(t, reviews, ledger,
+		map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentUnresolved})
 	escritas := nuevaMemoriaEscrita()
 
 	_, err := PromoteReviewMemory(reviews, ledger, escritas, PromoteReviewMemoryInput{
@@ -168,5 +186,61 @@ func TestPromoteReviewMemory_EnlazaConSuRevision(t *testing.T) {
 	}
 	if out[0].SourceReviewID == "" {
 		t.Error("la memoria promovida no referencia su revisión de origen")
+	}
+}
+
+// TestPromoteReviewMemory_ExigeVeredictoAprobado cubre FR-021 y el escenario 5 de la
+// Historia 3. El caso de uso ya comprobaba que el hallazgo estuviera CONFIRMED y
+// RESOLVED, pero no miraba el veredicto de la revisión que lo contiene: se podía
+// promover conocimiento de una revisión que todavía iba a escalar.
+func TestPromoteReviewMemory_ExigeVeredictoAprobado(t *testing.T) {
+	reviews, ledger := escenarioReRevisable(t)
+	reRevisionUnanime(t, reviews, ledger,
+		map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentResolved})
+	escritas := nuevaMemoriaEscrita()
+
+	// El hallazgo está confirmado y resuelto, pero la revisión no ha finalizado.
+	_, err := PromoteReviewMemory(reviews, ledger, escritas, PromoteReviewMemoryInput{
+		Project: "proj", ReviewID: "acr_test",
+		Learnings: map[string]domain.ReviewLearning{"C-001": aprendizajePromovible()},
+	})
+	if err == nil {
+		t.Fatal("se promovió desde una revisión sin aprobar")
+	}
+	if escritas.inserts != 0 {
+		t.Errorf("se escribieron %d memorias pese al rechazo", escritas.inserts)
+	}
+
+	// Tras aprobarla, la misma promoción procede.
+	aprobadas, aprobadoLedger := escenarioAprobado(t)
+	if _, err := PromoteReviewMemory(aprobadas, aprobadoLedger, escritas, PromoteReviewMemoryInput{
+		Project: "proj", ReviewID: "acr_test",
+		Learnings: map[string]domain.ReviewLearning{"C-001": aprendizajePromovible()},
+	}); err != nil {
+		t.Fatalf("una revisión aprobada debe poder promover: %v", err)
+	}
+}
+
+// TestPromoteReviewMemory_RechazaRevisionTerminalNoAprobada: escalada e incompleta
+// también son terminales, y ninguna de las dos es una aprobación.
+func TestPromoteReviewMemory_RechazaRevisionTerminalNoAprobada(t *testing.T) {
+	for _, veredicto := range []domain.Verdict{domain.VerdictEscalated, domain.VerdictIncomplete} {
+		t.Run(string(veredicto), func(t *testing.T) {
+			reviews, ledger := escenarioReRevisable(t)
+			reRevisionUnanime(t, reviews, ledger,
+				map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentResolved})
+			review, _ := reviews.GetReview("proj", "acr_test")
+			review.Verdict = veredicto
+			if err := reviews.UpdateReview(review); err != nil {
+				t.Fatal(err)
+			}
+			_, err := PromoteReviewMemory(reviews, ledger, nuevaMemoriaEscrita(), PromoteReviewMemoryInput{
+				Project: "proj", ReviewID: "acr_test",
+				Learnings: map[string]domain.ReviewLearning{"C-001": aprendizajePromovible()},
+			})
+			if err == nil {
+				t.Fatalf("una revisión %s no puede promover aprendizaje", veredicto)
+			}
+		})
 	}
 }

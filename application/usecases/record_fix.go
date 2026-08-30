@@ -46,11 +46,30 @@ func RecordFix(
 	if review == nil {
 		return nil, fmt.Errorf("review %s not found", input.ReviewID)
 	}
+	if err := review.EnsureMutable(); err != nil {
+		return nil, err
+	}
+	// Una revisión de solo lectura no puede mutar el target bajo ningún concepto:
+	// su alcance es validar, y el ledger no debe ofrecer una vía para saltárselo
+	// (FR-018).
+	if !review.FixAuthorized {
+		return nil, fmt.Errorf("esta revisión es de solo lectura y no admite correcciones")
+	}
 	if len(input.AddressedConsensusIDs) == 0 {
 		return nil, fmt.Errorf("una corrección debe referenciar al menos un hallazgo confirmado")
 	}
 	if err := validarDigestsDeCorreccion(input); err != nil {
 		return nil, err
+	}
+	// La cadena de targets no admite saltos: la ronda 1 parte del original y la
+	// ronda N del corregido por la N-1. Sin esta comprobación, una corrección podía
+	// declarar como base una revisión del código que ya nadie estaba inspeccionando
+	// (FR-009).
+	if vigente := review.ActiveTargetDigest(); strings.TrimSpace(input.BaseTargetDigest) != vigente {
+		return nil, fmt.Errorf(
+			"la corrección parte de %s pero el target vigente es %s",
+			input.BaseTargetDigest, vigente,
+		)
 	}
 
 	// Autorización de TODOS los hallazgos antes de escribir nada: un rechazo a
@@ -87,13 +106,24 @@ func RecordFix(
 		Verification:          append([]string(nil), input.Verification...),
 		DiffDigest:            input.DiffDigest,
 	}
-	if err := ledger.UpsertFixDelta(input.Project, input.ReviewID, delta); err != nil {
+
+	// La transición completa en UNA transacción. Antes eran cuatro operaciones
+	// sueltas —contar rondas, derivar el número, insertar el delta, actualizar la
+	// revisión— y dos procesos concurrentes leían el mismo recuento, derivaban la
+	// misma ronda y el segundo sobrescribía la corrección del primero por el
+	// UPSERT, sin error y sin rastro (FR-010).
+	siguiente := *review
+	if err := siguiente.TransitionTo(domain.ReviewRejudging); err != nil {
 		return nil, err
 	}
-
-	review.Round = round
-	review.Status = domain.ReviewRejudging
-	if err := reviews.UpdateReview(review); err != nil {
+	if err := ledger.RecordFixAtomically(input.Project, input.ReviewID, ports.FixTransition{
+		Delta:               delta,
+		ExpectedRounds:      len(existentes),
+		ExpectedBaseDigest:  review.ActiveTargetDigest(),
+		NextRound:           round,
+		NextStatus:          siguiente.Status,
+		CurrentTargetDigest: input.FixedTargetDigest,
+	}); err != nil {
 		return nil, err
 	}
 	return delta, nil

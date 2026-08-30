@@ -62,14 +62,18 @@ func DeriveVerdict(
 	}
 
 	// Sin consenso no hay veredicto posible: aprobar aquí no sería decidir, sería
-	// no haber mirado. Se detectó en una prueba de punta a punta donde el paso de
-	// consenso falló, nadie lo notó y la revisión salió APPROVED «con 0
-	// hallazgos» pese a que ambos revisores habían reportado un HIGH.
+	// no haber mirado.
 	//
-	// La condición es «hay hallazgos que clasificar y nadie los clasificó», no
-	// «faltan hallazgos de consenso»: una revisión donde ambos revisores no
-	// encontraron nada aprueba legítimamente sin ninguna entrada de consenso.
-	if len(consensus) == 0 && hayHallazgosSinClasificar(results) {
+	// La condición NO es «no hay ninguna fila de consenso». Esa fue la primera
+	// versión y dejaba pasar el caso que de verdad importa: con una fila inocua
+	// —un SUSPECT cualquiera— un hallazgo HIGH omitido de la clasificación se
+	// volvía invisible al veredicto y la revisión salía APPROVED con el defecto
+	// intacto. Lo que se comprueba es que TODO hallazgo fuente esté respaldado por
+	// alguna clasificación (FR-004).
+	//
+	// Una revisión donde ambos revisores no encontraron nada sigue aprobando
+	// legítimamente sin ninguna entrada de consenso: no hay nada que clasificar.
+	if hayFuentesSinClasificar(results, consensus) {
 		return ""
 	}
 
@@ -89,17 +93,44 @@ func DeriveVerdict(
 		return VerdictApproved
 	}
 
+	// Una revisión de solo lectura con un defecto severo abierto NO puede quedarse
+	// esperando: su alcance prohíbe la corrección que la desbloquearía.
+	//
+	// Es el defecto reproducido en acr_96710834: con dos resultados success,
+	// consenso persistido y un CONFIRMED HIGH, review_finalize devolvía "review is
+	// not ready to finalize" y dejaba la revisión en consensus_ready para siempre,
+	// porque el presupuesto de rondas permitía una corrección que nadie estaba
+	// autorizado a hacer. El estado era irrecuperable sin editar la base a mano
+	// (FR-019).
+	if !review.FixAuthorized {
+		return VerdictEscalated
+	}
+
 	if _, err := review.NextFixRound(len(fixes)); err != nil {
 		return VerdictEscalated
 	}
 	return ""
 }
 
-// hayHallazgosSinClasificar indica si algún revisor reportó hallazgos.
-func hayHallazgosSinClasificar(results []ReviewerResult) bool {
+// hayFuentesSinClasificar indica si algún hallazgo reportado por los revisores no
+// aparece como fuente de ninguna clasificación de consenso.
+//
+// BuildConsensus ya impide crear una clasificación incompleta, pero el veredicto no
+// puede confiar en eso: se deriva de lo PERSISTIDO, y el ledger puede contener rondas
+// escritas por una versión anterior que sí lo permitía. Fallar cerrado aquí es lo que
+// hace que esas revisiones no puedan aprobarse por accidente.
+func hayFuentesSinClasificar(results []ReviewerResult, consensus []ConsensusFinding) bool {
+	clasificados := map[int64]bool{}
+	for _, finding := range consensus {
+		for _, id := range finding.SourceFindingIDs {
+			clasificados[id] = true
+		}
+	}
 	for _, result := range results {
-		if len(result.Findings) > 0 {
-			return true
+		for _, finding := range result.Findings {
+			if !clasificados[finding.ID] {
+				return true
+			}
 		}
 	}
 	return false

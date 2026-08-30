@@ -431,3 +431,66 @@ func TestReviewPolicyRespetaLoConfigurado(t *testing.T) {
 		t.Errorf("ReviewAutoFixSeverities = %v, se esperaba [CRITICAL]", s.ReviewAutoFixSeverities)
 	}
 }
+
+// TestSettingsData_ConservaLaPoliticaDeRevision cubre FR-017 y el caso límite de la
+// especificación "la configuración de revisión se escribe junto con otras
+// preferencias del proyecto".
+//
+// Era un defecto real, no hipotético: SettingsData no llevaba los campos de revisión,
+// y Write reconstruye el Settings completo a partir de ella. Guardar cualquier ajuste
+// —el presupuesto de contexto, el auto-approve— borraba la política de revisión que
+// el proyecto tuviera configurada, sin aviso.
+func TestSettingsData_ConservaLaPoliticaDeRevision(t *testing.T) {
+	root := t.TempDir()
+	repo := NewSettingsRepository()
+
+	if err := WriteSettings(root, Settings{
+		ReviewMaxFixRounds:      7,
+		ReviewAutoFixSeverities: []string{"CRITICAL"},
+		ReviewFixAuthorized:     boolPtr(false),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	leida := repo.Read(root)
+	if leida.ReviewMaxFixRounds != 7 {
+		t.Errorf("ReviewMaxFixRounds = %d, se esperaba 7", leida.ReviewMaxFixRounds)
+	}
+	if len(leida.ReviewAutoFixSeverities) != 1 || leida.ReviewAutoFixSeverities[0] != "CRITICAL" {
+		t.Errorf("ReviewAutoFixSeverities = %v", leida.ReviewAutoFixSeverities)
+	}
+	if leida.ReviewFixAuthorized == nil || *leida.ReviewFixAuthorized {
+		t.Error("ReviewFixAuthorized=false debe sobrevivir a la lectura")
+	}
+
+	// Escribir otra preferencia cualquiera no puede perder la política.
+	leida.Budget = 4000
+	if err := repo.Write(root, leida); err != nil {
+		t.Fatal(err)
+	}
+	relectura := repo.Read(root)
+	if relectura.ReviewMaxFixRounds != 7 {
+		t.Errorf("guardar otra preferencia borró el presupuesto de rondas: %d", relectura.ReviewMaxFixRounds)
+	}
+	if len(relectura.ReviewAutoFixSeverities) != 1 || relectura.ReviewAutoFixSeverities[0] != "CRITICAL" {
+		t.Errorf("guardar otra preferencia borró las severidades: %v", relectura.ReviewAutoFixSeverities)
+	}
+	if relectura.ReviewFixAuthorized == nil || *relectura.ReviewFixAuthorized {
+		t.Error("guardar otra preferencia borró la autorización de corrección")
+	}
+}
+
+// TestSettings_FixAuthorizedAusenteEsAutorizado: un settings.json sin la clave debe
+// autorizar corregir, que es el comportamiento de todas las revisiones anteriores.
+func TestSettings_FixAuthorizedAusenteEsAutorizado(t *testing.T) {
+	root := t.TempDir()
+	s := ReadSettings(root)
+	if s.ReviewFixAuthorized != nil {
+		t.Fatal("sin configurar, la clave debe quedar ausente y no inventar un valor")
+	}
+	if !s.ReviewPolicy().FixAuthorized {
+		t.Error("sin configurar, la política debe autorizar corregir")
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }

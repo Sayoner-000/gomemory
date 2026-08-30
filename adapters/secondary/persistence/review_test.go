@@ -247,3 +247,185 @@ func TestReviewRedactaSecretosEnTextoLibre(t *testing.T) {
 		rows.Close()
 	}
 }
+
+// TestMigracion028EsAditivaSobreEsquemaPrevio comprueba que las columnas y la tabla
+// que introduce la funcionalidad 028 se añaden sobre una base que ya tiene el esquema
+// de la 027, sin perder filas y sin volver NOT NULL nada preexistente.
+//
+// Se construye la base "vieja" con Open y luego se le retiran las novedades de 028,
+// que es lo más cerca que se puede estar de una instalación anterior sin versionar un
+// dump binario en el repositorio.
+func TestMigracion028EsAditivaSobreEsquemaPrevio(t *testing.T) {
+	dir := t.TempDir()
+	db, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := domain.NewTarget(domain.TargetDiff, "working-tree", "sha256:previo", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviews := NewReviewRepository(db)
+	previa := &domain.Review{
+		ID: "acr_previa", Project: "proj", Target: target,
+		MaxFixRounds: 2, Status: domain.ReviewAwaitingReviewers,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if err := reviews.CreateReview(previa); err != nil {
+		t.Fatal(err)
+	}
+	// Simula la base anterior a 028: sin la tabla nueva y con las columnas nuevas a
+	// NULL, que es como quedan las filas escritas por una versión anterior. Ponerlas
+	// a NULL a mano es imprescindible: si se deja que las escriba el código actual,
+	// el test comprueba la ruta nueva y no la de compatibilidad.
+	if _, err := db.Exec(`DROP TABLE IF EXISTS rejudgments`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE reviews SET current_target_digest = NULL, fix_authorized = NULL,
+		reviewer_a_provider = NULL, reviewer_a_model = NULL,
+		reviewer_b_provider = NULL, reviewer_b_model = NULL`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err = Open(dir)
+	if err != nil {
+		t.Fatalf("reabrir una base previa a 028: %v", err)
+	}
+	defer db.Close()
+
+	columnasNuevas := map[string][]string{
+		"reviews": {
+			"current_target_digest", "fix_authorized",
+			"reviewer_a_provider", "reviewer_a_model",
+			"reviewer_b_provider", "reviewer_b_model",
+		},
+		"consensus_findings": {"round_fingerprint"},
+	}
+	for tabla, columnas := range columnasNuevas {
+		info := map[string]bool{}
+		rows, err := db.Query(`SELECT name, "notnull" FROM pragma_table_info(?)`, tabla)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var nombre string
+			var notNull int
+			if err := rows.Scan(&nombre, &notNull); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			info[nombre] = notNull == 1
+		}
+		rows.Close()
+		for _, columna := range columnas {
+			obligatoria, existe := info[columna]
+			if !existe {
+				t.Errorf("la migración no añadió %s.%s", tabla, columna)
+				continue
+			}
+			if obligatoria {
+				t.Errorf("%s.%s se creó NOT NULL: rompería las filas previas", tabla, columna)
+			}
+		}
+	}
+
+	var tablas int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'rejudgments'`,
+	).Scan(&tablas); err != nil {
+		t.Fatal(err)
+	}
+	if tablas != 1 {
+		t.Error("la migración no creó la tabla rejudgments")
+	}
+
+	recuperada, err := NewReviewRepository(db).GetReview("proj", "acr_previa")
+	if err != nil {
+		t.Fatalf("la revisión previa dejó de leerse: %v", err)
+	}
+	if recuperada == nil {
+		t.Fatal("la revisión previa se perdió en la migración")
+	}
+	// Una revisión anterior a 028 no declara nada: el target vigente es el original
+	// y la corrección se asume autorizada, para no cambiar su comportamiento.
+	if recuperada.CurrentTargetDigest != "sha256:previo" {
+		t.Errorf("CurrentTargetDigest = %q, se esperaba el digest original", recuperada.CurrentTargetDigest)
+	}
+	if !recuperada.FixAuthorized {
+		t.Error("una revisión previa a 028 debe seguir autorizando corrección")
+	}
+}
+
+// TestReJudgmentRedactaEvidencia cierra FR-027 sobre el campo nuevo. La evidencia de
+// un re-juicio es texto libre que un revisor copia del código que acaba de verificar:
+// si esa línea trae una credencial, sin redacción el ledger la persiste en claro y
+// después la sirve por `mem review show`.
+func TestReJudgmentRedactaEvidencia(t *testing.T) {
+	db := openTestDB(t)
+	repo := NewReviewRepository(db)
+	ledger := NewConsensusRepository(db)
+	const project = "proj-rejudge-redact"
+
+	target, err := domain.NewTarget(domain.TargetDiff, "abc", "sha256:v0", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review := &domain.Review{
+		ID: "acr_rejudge", Project: project, Target: target,
+		CurrentTargetDigest: "sha256:v0", MaxFixRounds: 2, FixAuthorized: true,
+		Status: domain.ReviewConsensusReady,
+	}
+	if err := repo.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	confirmado := &domain.ConsensusFinding{
+		ReviewID: review.ID, ConsensusLocalID: "C-001",
+		Status: domain.ConsensusConfirmed, Severity: domain.SeverityHigh,
+		SourceFindingIDs: []int64{1, 2},
+	}
+	if err := ledger.UpsertConsensusFinding(project, review.ID, confirmado); err != nil {
+		t.Fatal(err)
+	}
+
+	const secreto = "ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"
+	judgment := &domain.ReJudgment{
+		ReviewID: review.ID, Round: 1, ConsensusLocalID: "C-001",
+		Reviewer: domain.ReviewerA, State: domain.ReJudgmentResolved,
+		Evidence: []string{"verificado con token " + secreto},
+	}
+	if err := ledger.UpsertReJudgment(project, review.ID, judgment); err != nil {
+		t.Fatal(err)
+	}
+
+	var crudo string
+	if err := db.QueryRow(`SELECT evidence FROM rejudgments WHERE id = ?`, judgment.ID).Scan(&crudo); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(crudo, secreto) {
+		t.Fatal("el secreto llegó en claro a la tabla rejudgments")
+	}
+
+	leidos, err := ledger.ListReJudgments(project, review.ID, "C-001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leidos) != 1 {
+		t.Fatalf("se persistieron %d re-juicios, se esperaba 1", len(leidos))
+	}
+	if strings.Contains(strings.Join(leidos[0].Evidence, " "), secreto) {
+		t.Error("el secreto vuelve a salir al leer el re-juicio")
+	}
+
+	// El estado agregado se recalcula en la misma transacción: con un solo
+	// revisor no puede quedar RESOLVED.
+	finding, err := ledger.GetConsensusFinding(project, review.ID, "C-001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finding.RejudgmentState != domain.ReJudgmentUnresolved {
+		t.Errorf("estado agregado = %s, con un solo revisor debe ser UNRESOLVED", finding.RejudgmentState)
+	}
+}

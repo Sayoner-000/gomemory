@@ -237,14 +237,14 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 | :--- | :--- |
 | `review_start` | Freeze a target (diff/commit/spec/…) and open a review |
 | `review_submit` | Record one reviewer's findings for the active round |
-| `review_consensus` | Validate and persist a proposed CONFIRMED/SUSPECT/CONTRADICTION classification |
-| `review_status` | Read-only: current stage, no verdict until finalized |
-| `review_fix_record` | Register a correction, scoped to confirmed findings, bounded by the round budget |
-| `review_rejudge` | Record whether a confirmed finding is RESOLVED, UNRESOLVED, or REGRESSED |
+| `review_consensus` | Validate and persist a classification covering *every* finding of the round exactly once; severity is derived from the sources, never accepted from the caller |
+| `review_status` | Read-only: current stage, counts, and each finding's full lineage — no verdict until finalized |
+| `review_fix_record` | Register a correction, scoped to confirmed findings, chained to the current target, bounded by the round budget |
+| `review_rejudge` | Record one reviewer's verdict on a corrected finding; RESOLVED requires both reviewers to agree |
 | `review_finalize` | Derive the terminal verdict (APPROVED/ESCALATED/INCOMPLETE) from persisted state only |
 | `review_promote_memory` | Turn a CONFIRMED-and-RESOLVED defect into reusable project memory |
 
-The agent proposes; gomemory validates and persists. It rejects fixing an unconfirmed finding, exceeding the round budget, or passing in a verdict as a parameter — see [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/).
+The agent proposes; gomemory validates and persists. It rejects fixing an unconfirmed finding, exceeding the round budget, or passing in a verdict as a parameter. It also rejects a partial consensus, a downgraded severity, a correction that skips the target chain, and any write to a review that already reached a terminal state — see [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/) and [`specs/028-harden-acr-review`](specs/028-harden-acr-review/).
 
 **Resources:** `mem://context` · `mem://memory/{id}`
 

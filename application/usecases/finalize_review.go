@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"fmt"
+	"time"
 
 	"mem/application/ports"
 	"mem/domain"
@@ -15,13 +16,21 @@ import (
 // en el momento de finalizar, no se acumulan por el camino, así que no pueden
 // desincronizarse del ledger.
 type ReviewMetrics struct {
-	Verdict           domain.Verdict
+	Verdict domain.Verdict
+	// Duration son los segundos transcurridos entre la apertura de la revisión y
+	// su finalización. El contrato publicado lo exige y el struct no lo tenía.
+	Duration          int
 	FindingsTotal     int
 	FindingsConfirmed int
 	FindingsSuspect   int
 	Contradictions    int
 	FixRounds         int
 	Rounds            int
+	// MemoryPromoted y MemoryDeduplicated cierran el contrato de métricas. Se
+	// derivan del ledger, no se acumulan por el camino, así que no pueden
+	// desincronizarse de él.
+	MemoryPromoted     int
+	MemoryDeduplicated int
 }
 
 // FinalizeReview deriva el estado terminal. Conserva la firma original porque
@@ -70,23 +79,33 @@ func FinalizeReviewWithMetrics(
 		return nil, ReviewMetrics{}, fmt.Errorf("review is not ready to finalize")
 	}
 	review.Verdict = verdict
-	switch verdict {
-	case domain.VerdictApproved:
-		review.Status = domain.ReviewApproved
-	case domain.VerdictEscalated:
-		review.Status = domain.ReviewEscalated
-	case domain.VerdictIncomplete:
-		review.Status = domain.ReviewIncomplete
+	terminal := map[domain.Verdict]domain.ReviewStatus{
+		domain.VerdictApproved:   domain.ReviewApproved,
+		domain.VerdictEscalated:  domain.ReviewEscalated,
+		domain.VerdictIncomplete: domain.ReviewIncomplete,
+	}[verdict]
+	// Por TransitionTo y no por asignación directa: es el único punto que impide
+	// reabrir o mover una revisión ya cerrada (FR-015, FR-016).
+	if err := review.TransitionTo(terminal); err != nil {
+		return nil, ReviewMetrics{}, err
 	}
+	review.UpdatedAt = time.Now()
 	if err := reviews.UpdateReview(review); err != nil {
 		return nil, ReviewMetrics{}, err
 	}
 
+	promovidas, deduplicadas, err := reviews.CountPromotedMemories(project, reviewID)
+	if err != nil {
+		return nil, ReviewMetrics{}, err
+	}
 	metrics := ReviewMetrics{
-		Verdict:       verdict,
-		FindingsTotal: len(findings),
-		FixRounds:     len(fixes),
-		Rounds:        review.Round,
+		Verdict:            verdict,
+		Duration:           duracionEnSegundos(review.CreatedAt, review.UpdatedAt),
+		FindingsTotal:      len(findings),
+		FixRounds:          len(fixes),
+		Rounds:             review.Round,
+		MemoryPromoted:     promovidas,
+		MemoryDeduplicated: deduplicadas,
 	}
 	for _, finding := range findings {
 		switch finding.Status {
@@ -99,4 +118,13 @@ func FinalizeReviewWithMetrics(
 		}
 	}
 	return review, metrics, nil
+}
+
+// duracionEnSegundos mide lo que tardó el protocolo. Nunca devuelve negativo: un
+// reloj que retrocede no debe convertir una métrica en un dato absurdo.
+func duracionEnSegundos(inicio, fin time.Time) int {
+	if inicio.IsZero() || fin.IsZero() || fin.Before(inicio) {
+		return 0
+	}
+	return int(fin.Sub(inicio).Seconds())
 }

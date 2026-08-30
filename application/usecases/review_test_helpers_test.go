@@ -3,6 +3,7 @@ package usecases
 import (
 	"fmt"
 
+	"mem/application/ports"
 	"mem/domain"
 )
 
@@ -112,15 +113,25 @@ func (r *memoryReviewRepository) ListFindings(project, reviewID string, round in
 }
 
 type memoryConsensusRepository struct {
-	findings map[string][]domain.ConsensusFinding
-	fixes    map[string][]domain.FixDelta
+	findings   map[string][]domain.ConsensusFinding
+	fixes      map[string][]domain.FixDelta
+	rejudgment map[string][]domain.ReJudgment
+	reviews    *memoryReviewRepository
 }
 
 func newMemoryConsensusRepository() *memoryConsensusRepository {
 	return &memoryConsensusRepository{
-		findings: make(map[string][]domain.ConsensusFinding),
-		fixes:    make(map[string][]domain.FixDelta),
+		findings:   make(map[string][]domain.ConsensusFinding),
+		fixes:      make(map[string][]domain.FixDelta),
+		rejudgment: make(map[string][]domain.ReJudgment),
 	}
+}
+
+// enlazar deja al ledger en memoria hablar con el repositorio de revisiones, que es
+// lo que la transición atómica de corrección necesita para avanzar la revisión.
+func (r *memoryConsensusRepository) enlazar(reviews *memoryReviewRepository) *memoryConsensusRepository {
+	r.reviews = reviews
+	return r
 }
 
 func (r *memoryConsensusRepository) UpsertConsensusFinding(project, reviewID string, finding *domain.ConsensusFinding) error {
@@ -174,4 +185,84 @@ func (r *memoryConsensusRepository) UpsertFixDelta(project, reviewID string, del
 
 func (r *memoryConsensusRepository) ListFixDeltas(project, reviewID string) ([]domain.FixDelta, error) {
 	return append([]domain.FixDelta(nil), r.fixes[reviewKey(project, reviewID)]...), nil
+}
+
+func rejudgmentKey(project, reviewID, localID string) string {
+	return reviewKey(project, reviewID) + ":" + localID
+}
+
+func (r *memoryConsensusRepository) UpsertReJudgment(project, reviewID string, judgment *domain.ReJudgment) error {
+	if err := judgment.Validate(); err != nil {
+		return err
+	}
+	finding, err := r.GetConsensusFinding(project, reviewID, judgment.ConsensusLocalID)
+	if err != nil {
+		return err
+	}
+	if finding == nil {
+		return fmt.Errorf("el hallazgo de consenso %s no existe en esta revisión", judgment.ConsensusLocalID)
+	}
+	key := rejudgmentKey(project, reviewID, judgment.ConsensusLocalID)
+	reemplazado := false
+	for i := range r.rejudgment[key] {
+		existente := r.rejudgment[key][i]
+		if existente.Reviewer == judgment.Reviewer && existente.Round == judgment.Round {
+			r.rejudgment[key][i] = *judgment
+			reemplazado = true
+			break
+		}
+	}
+	if !reemplazado {
+		r.rejudgment[key] = append(r.rejudgment[key], *judgment)
+	}
+	finding.RejudgmentState = domain.AggregateReJudgment(r.rejudgment[key])
+	return r.UpsertConsensusFinding(project, reviewID, finding)
+}
+
+func (r *memoryConsensusRepository) ListReJudgments(project, reviewID, localID string) ([]domain.ReJudgment, error) {
+	return append([]domain.ReJudgment(nil), r.rejudgment[rejudgmentKey(project, reviewID, localID)]...), nil
+}
+
+func (r *memoryConsensusRepository) RecordFixAtomically(
+	project, reviewID string, transition ports.FixTransition,
+) error {
+	key := reviewKey(project, reviewID)
+	if len(r.fixes[key]) != transition.ExpectedRounds {
+		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+	}
+	if r.reviews != nil && transition.ExpectedBaseDigest != "" {
+		actual, err := r.reviews.GetReview(project, reviewID)
+		if err != nil {
+			return err
+		}
+		if actual != nil && actual.ActiveTargetDigest() != transition.ExpectedBaseDigest {
+			return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+		}
+	}
+	for _, existente := range r.fixes[key] {
+		if existente.Round == transition.Delta.Round {
+			return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+		}
+	}
+	r.fixes[key] = append(r.fixes[key], *transition.Delta)
+	if r.reviews == nil {
+		return nil
+	}
+	review, err := r.reviews.GetReview(project, reviewID)
+	if err != nil {
+		return err
+	}
+	if review == nil {
+		return fmt.Errorf("review %s not found", reviewID)
+	}
+	review.Round = transition.NextRound
+	review.Status = transition.NextStatus
+	review.CurrentTargetDigest = transition.CurrentTargetDigest
+	return r.reviews.UpdateReview(review)
+}
+
+// CountPromotedMemories: el repositorio en memoria no guarda memorias promovidas,
+// así que informa cero. Los tests que miden esta métrica usan SQLite real.
+func (r *memoryReviewRepository) CountPromotedMemories(project, reviewID string) (int, int, error) {
+	return 0, 0, nil
 }

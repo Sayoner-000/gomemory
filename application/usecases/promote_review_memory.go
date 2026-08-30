@@ -55,6 +55,17 @@ func PromoteReviewMemory(
 	if review == nil {
 		return nil, fmt.Errorf("review %s not found", input.ReviewID)
 	}
+	// El aprendizaje de una revisión que todavía puede escalar no es conocimiento
+	// del proyecto: es una hipótesis. El caso de uso ya exigía que el hallazgo
+	// estuviera CONFIRMED y RESOLVED, pero no miraba el veredicto de la revisión
+	// que lo contiene, así que se podía promover desde una revisión sin cerrar
+	// (FR-021).
+	if review.Verdict != domain.VerdictApproved {
+		return nil, fmt.Errorf(
+			"la revisión no está aprobada (%s): su aprendizaje todavía no es conocimiento del proyecto",
+			veredictoLegible(review.Verdict),
+		)
+	}
 	if len(input.Learnings) == 0 {
 		return nil, nil
 	}
@@ -109,4 +120,13 @@ func PromoteReviewMemory(
 		out = append(out, pendientes[i])
 	}
 	return out, nil
+}
+
+// veredictoLegible evita imprimir una cadena vacía cuando la revisión aún no ha
+// finalizado, que es el caso más frecuente de este rechazo.
+func veredictoLegible(verdict domain.Verdict) string {
+	if verdict == "" {
+		return "sin finalizar"
+	}
+	return string(verdict)
 }

@@ -872,8 +872,40 @@ revisión que la produjo.
 | `reviews` | `review_id` (prefijo `acr_`), `target_digest`, `max_fix_rounds`, `auto_fix_severities`, `round`, `status`, `verdict` | Una fila por revisión; `status`/`verdict` son la única fuente del estado terminal |
 | `reviewer_results` | `review_id` FK, `reviewer` (A/B), `round`, `status` | `UNIQUE(review_id, reviewer, round)` — garantiza idempotencia de reenvío |
 | `findings` | `reviewer_result_id` FK, `local_id`, `severity`, `claim`, `evidence` | `UNIQUE(reviewer_result_id, local_id)`; `claim`/`evidence` pasan por `RedactSecrets`/`RedactPrivate` antes de persistir |
-| `consensus_findings` | `review_id` FK, `consensus_local_id`, `status` (CONFIRMED/SUSPECT/CONTRADICTION/INFO), `rejudgment_state` | `claim` también redactado |
+| `consensus_findings` | `review_id` FK, `consensus_local_id`, `status` (CONFIRMED/SUSPECT/CONTRADICTION/INFO), `rejudgment_state`, `round_fingerprint` | `claim` redactado; `severity` se DERIVA de las fuentes y `rejudgment_state` se deriva de `rejudgments` — ninguno se acepta del llamador (feature 028) |
 | `fix_rounds` | `review_id` FK, `round`, `base_target_digest`, `fixed_target_digest`, `addressed_consensus_ids`, `verification` | `UNIQUE(review_id, round)`; `verification` redactado |
+| `rejudgments` (028) | `review_id` FK, `round`, `consensus_finding_id` FK, `reviewer` (A/B), `state`, `evidence` | `UNIQUE(review_id, round, consensus_finding_id, reviewer)`; `evidence` redactada. Un hallazgo queda `RESOLVED` solo con los DOS revisores de acuerdo |
+
+Columnas que la feature 028 añadió a `reviews`, todas nullable para que una base
+anterior siga abriendo: `current_target_digest` (el target VIGENTE, que avanza con
+cada corrección, frente al `target_digest` original), `fix_authorized` (revisión de
+solo lectura frente a autorizada a corregir; `NULL` = autorizada, el comportamiento
+histórico) y `reviewer_{a,b}_{provider,model}` (la identidad ESPERADA de cada revisor,
+que se contrasta con cada resultado recibido).
+
+**Invariantes que la feature 028 movió al dominio.** La 027 las tenía repartidas por
+los casos de uso, donde se comprobaban mientras se recorría la entrada y por tanto
+ninguna podía ver el conjunto:
+
+- `domain/consensus_coverage.go` — la clasificación de consenso debe cubrir
+  **exactamente una vez** cada hallazgo de la ronda, la severidad se deriva como el
+  máximo de sus fuentes, y una huella determinista distingue el reenvío idempotente
+  de un intento de reemplazo.
+- `domain/rejudgment.go` — `AggregateReJudgment` resuelve del lado conservador:
+  cualquier `REGRESSED` manda, `RESOLVED` exige a los dos revisores, todo lo demás
+  queda `UNRESOLVED`.
+- `domain/review_policy.go` — precedencia explícito → proyecto → defecto del dominio.
+- `Review.TransitionTo` / `EnsureMutable` — la máquina de estados ya existía en
+  `CanTransitionTo` y era correcta, pero **ningún caso de uso la llamaba**: todos
+  asignaban `Status` a pelo, así que una revisión `APPROVED` aceptaba resultados,
+  consenso y correcciones nuevas sin protestar.
+
+**Concurrencia de la corrección.** `RecordFixAtomically` toma una conexión dedicada y
+abre `BEGIN IMMEDIATE`: el `BEGIN` diferido de `database/sql` toma el bloqueo de
+escritura en el primer `INSERT`, y en WAL el perdedor recibe `SQLITE_BUSY_SNAPSHOT`,
+que `busy_timeout` no reintenta. Dentro de la transacción se revalidan **ambas**
+precondiciones que el caso de uso leyó fuera —el recuento de rondas y el target
+vigente—, porque una transacción no protege lo que se leyó antes de abrirla.
 
 Dominio puro en `domain/{review,finding,consensus,verdict,fix,review_learning}.go`
 — `domain.DeriveVerdict()` y `domain.AuthorizeFix()` son funciones sin I/O,

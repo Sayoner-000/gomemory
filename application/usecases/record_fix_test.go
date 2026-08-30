@@ -19,16 +19,20 @@ func escenarioCorregible(t *testing.T, maxRondas int) (*memoryReviewRepository, 
 	}
 	review := &domain.Review{
 		ID: "acr_test", Project: "proj", Target: target,
-		MaxFixRounds:      maxRondas,
-		AutoFixSeverities: []domain.Severity{domain.SeverityCritical, domain.SeverityHigh},
-		Status:            domain.ReviewConsensusReady,
+		// El target vigente arranca igual que el original: la cadena de
+		// correcciones se valida contra él, no contra un digest inventado.
+		CurrentTargetDigest: "sha256:base",
+		MaxFixRounds:        maxRondas,
+		AutoFixSeverities:   []domain.Severity{domain.SeverityCritical, domain.SeverityHigh},
+		FixAuthorized:       true,
+		Status:              domain.ReviewConsensusReady,
 	}
 	reviews := newMemoryReviewRepository()
 	if err := reviews.CreateReview(review); err != nil {
 		t.Fatalf("CreateReview: %v", err)
 	}
 
-	ledger := newMemoryConsensusRepository()
+	ledger := newMemoryConsensusRepository().enlazar(reviews)
 	confirmado := &domain.ConsensusFinding{
 		ReviewID: review.ID, ConsensusLocalID: "C-001",
 		Status: domain.ConsensusConfirmed, Severity: domain.SeverityHigh,
@@ -48,11 +52,18 @@ func escenarioCorregible(t *testing.T, maxRondas int) (*memoryReviewRepository, 
 }
 
 func entradaDeCorreccion(ids ...string) RecordFixInput {
+	return correccionEncadenada("sha256:base", "sha256:fixed", ids...)
+}
+
+// correccionEncadenada construye una corrección que parte de un target concreto.
+// Desde la funcionalidad 028 la cadena importa: la ronda N debe partir del target
+// que dejó corregido la ronda N-1, y un digest inventado se rechaza (FR-009).
+func correccionEncadenada(base, corregido string, ids ...string) RecordFixInput {
 	return RecordFixInput{
 		Project: "proj", ReviewID: "acr_test",
 		AddressedConsensusIDs: ids,
-		BaseTargetDigest:      "sha256:base",
-		FixedTargetDigest:     "sha256:fixed",
+		BaseTargetDigest:      base,
+		FixedTargetDigest:     corregido,
 		ModifiedPaths:         []string{"internal/memory/store.go"},
 		Verification:          []string{"go test ./internal/memory/..."},
 		DiffDigest:            "sha256:diff",
@@ -112,12 +123,13 @@ func TestRecordFix_ExigeAlMenosUnHallazgoConfirmado(t *testing.T) {
 func TestRecordFix_RespetaElPresupuesto(t *testing.T) {
 	reviews, ledger, _ := escenarioCorregible(t, 2)
 
-	for ronda := 1; ronda <= 2; ronda++ {
-		if _, err := RecordFix(reviews, ledger, entradaDeCorreccion("C-001")); err != nil {
-			t.Fatalf("ronda %d: %v", ronda, err)
-		}
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:base", "sha256:r1", "C-001")); err != nil {
+		t.Fatalf("ronda 1: %v", err)
 	}
-	_, err := RecordFix(reviews, ledger, entradaDeCorreccion("C-001"))
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:r1", "sha256:r2", "C-001")); err != nil {
+		t.Fatalf("ronda 2: %v", err)
+	}
+	_, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:r2", "sha256:r3", "C-001"))
 	if err == nil {
 		t.Fatal("se registró una tercera ronda con presupuesto de 2")
 	}
@@ -219,4 +231,82 @@ func TestInvariantesNoDependenDelPrompt(t *testing.T) {
 			t.Fatal("se finalizó una revisión con un defecto severo sin resolver (INV-010)")
 		}
 	})
+}
+
+// TestRecordFix_ExigeElTargetVigente cubre FR-008 y FR-009. Sin esta comprobación,
+// una corrección podía declarar como base una revisión del código que ya nadie
+// estaba inspeccionando, y la cadena de evidencia dejaba de significar nada.
+func TestRecordFix_ExigeElTargetVigente(t *testing.T) {
+	reviews, ledger, _ := escenarioCorregible(t, 3)
+
+	_, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:inventado", "sha256:r1", "C-001"))
+	if err == nil {
+		t.Fatal("una corrección que no parte del target vigente debe rechazarse")
+	}
+	if !strings.Contains(err.Error(), "target vigente") {
+		t.Errorf("el error debe nombrar el target vigente: %v", err)
+	}
+
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:base", "sha256:r1", "C-001")); err != nil {
+		t.Fatalf("la primera corrección debe partir del original: %v", err)
+	}
+	review, _ := reviews.GetReview("proj", "acr_test")
+	if review.CurrentTargetDigest != "sha256:r1" {
+		t.Fatalf("el target vigente no avanzó: %q", review.CurrentTargetDigest)
+	}
+
+	// La ronda 2 ya no puede partir del original.
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:base", "sha256:r2", "C-001")); err == nil {
+		t.Fatal("la ronda 2 no puede partir del target original")
+	}
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:r1", "sha256:r2", "C-001")); err != nil {
+		t.Fatalf("la ronda 2 debe partir del corregido por la ronda 1: %v", err)
+	}
+}
+
+func TestRecordFix_RechazaRevisionDeSoloLectura(t *testing.T) {
+	reviews, ledger, _ := escenarioCorregible(t, 2)
+	review, _ := reviews.GetReview("proj", "acr_test")
+	review.FixAuthorized = false
+	if err := reviews.UpdateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	_, err := RecordFix(reviews, ledger, entradaDeCorreccion("C-001"))
+	if err == nil {
+		t.Fatal("una revisión de solo lectura no puede registrar correcciones")
+	}
+	if !strings.Contains(err.Error(), "solo lectura") {
+		t.Errorf("el error debe explicar el alcance de solo lectura: %v", err)
+	}
+}
+
+func TestRecordFix_RechazaRevisionTerminal(t *testing.T) {
+	reviews, ledger, _ := escenarioCorregible(t, 2)
+	review, _ := reviews.GetReview("proj", "acr_test")
+	review.Status = domain.ReviewApproved
+	if err := reviews.UpdateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RecordFix(reviews, ledger, entradaDeCorreccion("C-001")); err == nil {
+		t.Fatal("una revisión aprobada no admite correcciones nuevas")
+	}
+}
+
+// TestRecordFix_UnaSolaRondaGanaLaCarrera cubre FR-010 sobre el ledger en memoria.
+// La versión real de esta garantía —con BEGIN IMMEDIATE y el UNIQUE de fix_rounds—
+// se prueba contra SQLite en tests/integration/review_concurrent_fix_test.go.
+func TestRecordFix_UnaSolaRondaGanaLaCarrera(t *testing.T) {
+	reviews, ledger, _ := escenarioCorregible(t, 3)
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:base", "sha256:r1", "C-001")); err != nil {
+		t.Fatal(err)
+	}
+	// Una segunda corrección que cree seguir en la ronda 1 no puede pisar la
+	// primera: parte de un target que ya no es el vigente.
+	if _, err := RecordFix(reviews, ledger, correccionEncadenada("sha256:base", "sha256:otro", "C-001")); err == nil {
+		t.Fatal("una corrección rezagada sobrescribió la ronda ya registrada")
+	}
+	deltas, _ := ledger.ListFixDeltas("proj", "acr_test")
+	if len(deltas) != 1 || deltas[0].FixedTargetDigest != "sha256:r1" {
+		t.Fatalf("el ledger conserva la corrección equivocada: %#v", deltas)
+	}
 }

@@ -5,6 +5,73 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Sin publicar]
+
+### Correcciones
+
+#### La revisión adversarial ya no puede aprobar con un defecto oculto
+
+Tres defectos confirmados por dos revisores independientes sobre la propia
+implementación de `mem review`. Los tres permitían que el protocolo diera por buena
+una revisión que no lo estaba.
+
+**Consenso parcial y severidad degradada.** La clasificación de consenso se validaba
+hallazgo a hallazgo mientras se recorría la entrada, así que nadie comprobaba el
+conjunto: omitir un hallazgo grave no producía ningún error, simplemente no se
+mencionaba. Y la severidad venía del orquestador, de modo que un `HIGH` corroborado
+por ambos revisores podía persistirse como `LOW` y desaparecer del veredicto. Ahora
+la clasificación debe cubrir cada hallazgo de la ronda exactamente una vez, y la
+severidad se deriva como el máximo de sus fuentes.
+
+**La revisión de solo lectura se quedaba bloqueada.** Una revisión con un defecto
+grave confirmado y sin autorización para corregir devolvía «review is not ready to
+finalize» indefinidamente, porque el presupuesto de rondas permitía una corrección
+que su alcance prohibía. `--read-only` y `review_fix_authorized` declaran ese alcance,
+y esas revisiones terminan `ESCALATED` en una sola llamada.
+
+**Las métricas no cumplían su propio contrato.** `review_finalize` prometía ocho
+campos en `snake_case` y emitía cinco en PascalCase, porque el struct no tenía
+etiquetas JSON. Faltaban `duration`, `memory_promoted` y `memory_deduplicated`.
+
+### Otras correcciones del mismo trabajo
+
+- **Correcciones concurrentes se perdían.** Registrar una ronda eran cuatro
+  operaciones sueltas: dos procesos derivaban la misma ronda y el segundo
+  sobrescribía al primero sin dejar rastro. Ahora es una transacción `BEGIN
+  IMMEDIATE` que revalida dentro lo que se leyó fuera.
+- **Los estados terminales no lo eran.** La máquina de estados existía y era
+  correcta, pero ningún caso de uso la usaba: una revisión `APPROVED` aceptaba
+  resultados, consenso y correcciones nuevas.
+- **La política del proyecto no se aplicaba.** `review_max_fix_rounds` y
+  `review_auto_fix_severities` existían en `settings.json` desde la versión anterior
+  y nadie los leía; el código reimplantaba los defectos a mano. Además, guardar
+  cualquier otra preferencia **borraba** esa política, porque no viajaba en la
+  estructura que se reescribe al guardar.
+- **Se podía promover aprendizaje desde una revisión sin aprobar.**
+- **La identidad de los revisores no se comprobaba**, así que la independencia que
+  la revisión declaraba no era verificable.
+- **El re-juicio no distinguía quién lo emitía**: un solo revisor bastaba para marcar
+  un defecto como resuelto. Ahora se registra por revisor, con evidencia, y `RESOLVED`
+  exige unanimidad.
+
+### Novedades
+
+- `mem review --pending` congela **todo** el trabajo pendiente —preparado, sin
+  preparar y archivos nuevos—, con una identidad reproducible. `--diff` usa `git
+  diff`, que no ve los archivos sin seguimiento, así que congelaba menos de lo que
+  parecía.
+- `mem review --read-only` para revisiones que validan sin corregir.
+- `mem review show` reconstruye el linaje completo de cada hallazgo: fuentes, ronda
+  de corrección, lo que declaró cada revisor y el estado agregado.
+- `review_status` devuelve target original y vigente, política, revisores, recuentos
+  por clasificación/severidad/re-juicio y el linaje de cada hallazgo.
+
+### Migración
+
+Aditiva. Una base anterior abre sin cambios: su target vigente se interpreta como el
+original y sus revisiones siguen autorizando corrección, que es su comportamiento
+histórico. Ningún hallazgo se borra.
+
 ## [2.15.0] - 2026-08-29
 
 ### Novedades

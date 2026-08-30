@@ -60,11 +60,8 @@ func TestFinalizeReview_EmiteMetricasDelProtocolo(t *testing.T) {
 			t.Fatalf("UpsertReviewerResult: %v", err)
 		}
 	}
-	if _, err := RejudgeReview(reviews, ledger, entradaDeReRevision(
-		map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentResolved},
-	)); err != nil {
-		t.Fatalf("RejudgeReview: %v", err)
-	}
+	reRevisionUnanime(t, reviews, ledger,
+		map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentResolved})
 
 	_, metricas, err := FinalizeReviewWithMetrics(reviews, ledger, "proj", "acr_test")
 	if err != nil {

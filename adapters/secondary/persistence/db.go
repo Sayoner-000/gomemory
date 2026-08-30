@@ -300,7 +300,21 @@ func migrate(db *sql.DB) error {
 		FOREIGN KEY (review_id) REFERENCES reviews(id),
 		UNIQUE(review_id, round)
 	);
-	`, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now)
+	CREATE TABLE IF NOT EXISTS rejudgments (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		round INTEGER NOT NULL,
+		consensus_finding_id INTEGER NOT NULL,
+		reviewer TEXT NOT NULL,
+		state TEXT NOT NULL,
+		evidence TEXT NOT NULL DEFAULT '[]',
+		created_at TEXT NOT NULL DEFAULT (%s),
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		FOREIGN KEY (consensus_finding_id) REFERENCES consensus_findings(id),
+		UNIQUE(review_id, round, consensus_finding_id, reviewer)
+	);
+	CREATE INDEX IF NOT EXISTS idx_rejudgments_finding ON rejudgments(consensus_finding_id);
+	`, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now)
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}
@@ -310,6 +324,19 @@ func migrate(db *sql.DB) error {
 	// crean solas: se agregan con ALTER idempotente (ignora "duplicate column").
 	addColumnIfMissing(db, "memories", "origin_prompt", "TEXT")
 	addColumnIfMissing(db, "sessions", "last_prompt", "TEXT")
+
+	// Feature 028: el ledger de revisión gana el target vigente, la autorización de
+	// corrección, la identidad esperada de cada revisor y la huella de la ronda de
+	// consenso. Todas nullable a propósito: una base anterior a 028 sigue abriendo,
+	// su target vigente se interpreta como el original y su corrección como
+	// autorizada, que es su comportamiento histórico.
+	addColumnIfMissing(db, "reviews", "current_target_digest", "TEXT")
+	addColumnIfMissing(db, "reviews", "fix_authorized", "INTEGER")
+	addColumnIfMissing(db, "reviews", "reviewer_a_provider", "TEXT")
+	addColumnIfMissing(db, "reviews", "reviewer_a_model", "TEXT")
+	addColumnIfMissing(db, "reviews", "reviewer_b_provider", "TEXT")
+	addColumnIfMissing(db, "reviews", "reviewer_b_model", "TEXT")
+	addColumnIfMissing(db, "consensus_findings", "round_fingerprint", "TEXT")
 
 	// topic_key (feature 008): agrupa memorias por tópico para el upsert de dedup.
 	// El índice va DESPUÉS del ALTER (referencia la columna recién creada) y es

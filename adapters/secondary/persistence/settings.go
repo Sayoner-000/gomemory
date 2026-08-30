@@ -64,6 +64,12 @@ type Settings struct {
 	// Una lista vacía nunca se interpreta como «todas»: convertiría un hallazgo
 	// informativo en material corregible automáticamente.
 	ReviewAutoFixSeverities []string `json:"review_auto_fix_severities,omitempty"`
+	// ReviewFixAuthorized declara si las revisiones del proyecto pueden corregir
+	// hallazgos confirmados o son de solo lectura (feature 028, FR-018). Puntero
+	// a propósito: un bool JSON no distingue "ausente" de "false", y ausente debe
+	// significar autorizado —el comportamiento de todas las revisiones anteriores—
+	// mientras que un false explícito debe respetarse.
+	ReviewFixAuthorized *bool `json:"review_fix_authorized,omitempty"`
 	// AtomicPlanDisabled apaga la planificación atómica en modo plan (feature
 	// 013): `mem plan-context` / get_plan_context terminan sin salida. Ausente/
 	// false = activada, mismo patrón opt-out que SpeckitContextDisabled. Un
@@ -302,4 +308,25 @@ func ApplyAutoApprove(root string, s Settings) {
 			removeAAP(p)
 		}
 	}
+}
+
+// ReviewPolicy traduce los ajustes del proyecto a la política que consume el dominio.
+//
+// Existe para que StartReview no tenga que conocer la forma del settings.json ni
+// reimplantar defectos: hasta la funcionalidad 028 los reimplantaba a mano y la
+// configuración del proyecto no tenía ningún efecto observable (FR-017).
+func (s Settings) ReviewPolicy() domain.ReviewPolicy {
+	severidades := make([]domain.Severity, 0, len(s.ReviewAutoFixSeverities))
+	for _, severidad := range s.ReviewAutoFixSeverities {
+		severidades = append(severidades, domain.Severity(severidad))
+	}
+	politica := domain.ReviewPolicy{
+		FixAuthorized:     true,
+		MaxFixRounds:      s.ReviewMaxFixRounds,
+		AutoFixSeverities: severidades,
+	}
+	if s.ReviewFixAuthorized != nil {
+		politica.FixAuthorized = *s.ReviewFixAuthorized
+	}
+	return politica
 }

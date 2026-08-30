@@ -38,9 +38,11 @@ func TestReviewEscalatedFlow(t *testing.T) {
 	}
 	review := &domain.Review{
 		ID: "acr_escalado", Project: project, Target: target,
-		MaxFixRounds:      2,
-		AutoFixSeverities: []domain.Severity{domain.SeverityCritical, domain.SeverityHigh},
-		Status:            domain.ReviewConsensusReady,
+		CurrentTargetDigest: "sha256:v0",
+		MaxFixRounds:        2,
+		AutoFixSeverities:   []domain.Severity{domain.SeverityCritical, domain.SeverityHigh},
+		FixAuthorized:       true,
+		Status:              domain.ReviewConsensusReady,
 	}
 	if err := repo.CreateReview(review); err != nil {
 		t.Fatalf("CreateReview: %v", err)
@@ -73,11 +75,21 @@ func TestReviewEscalatedFlow(t *testing.T) {
 			t.Fatalf("ronda registrada = %d, se esperaba %d", delta.Round, ronda)
 		}
 		enviarAmbosRevisores(t, repo, project, review.ID, ronda)
-		if _, err := usecases.RejudgeReview(repo, ledger, usecases.RejudgeReviewInput{
-			Project: project, ReviewID: review.ID,
-			States: map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentUnresolved},
-		}); err != nil {
-			t.Fatalf("RejudgeReview ronda %d: %v", ronda, err)
+		// Los DOS revisores re-juzgan: desde la funcionalidad 028 un solo juicio
+		// no basta para declarar un estado, y un UNRESOLVED unánime es lo que
+		// mantiene abierto el defecto ronda tras ronda.
+		for _, revisor := range []domain.Reviewer{domain.ReviewerA, domain.ReviewerB} {
+			if _, err := usecases.RejudgeReview(repo, ledger, usecases.RejudgeReviewInput{
+				Project: project, ReviewID: review.ID, Reviewer: revisor,
+				Judgments: map[string]usecases.ReJudgeEntry{
+					"C-001": {
+						State:    domain.ReJudgmentUnresolved,
+						Evidence: []string{"el defecto sigue reproduciéndose"},
+					},
+				},
+			}); err != nil {
+				t.Fatalf("RejudgeReview ronda %d revisor %s: %v", ronda, revisor, err)
+			}
 		}
 	}
 

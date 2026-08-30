@@ -17,9 +17,26 @@ import (
 
 func CmdReview(deps *Deps, args []string) {
 	if len(args) == 0 {
-		fail("uso: mem review --diff [rango] | --commit <sha> | --file <ruta>\n" +
+		fail("uso: mem review --diff [rango] | --commit <sha> | --file <ruta> | --pending\n" +
+			"     opciones: --read-only\n" +
 			"     mem review status [<review-id>] | history [--limit N] | show <review-id>")
 	}
+	// --read-only puede venir en cualquier posición: es un modificador del alcance
+	// de la revisión, no un modo de target.
+	soloLectura := false
+	filtrados := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == "--read-only" {
+			soloLectura = true
+			continue
+		}
+		filtrados = append(filtrados, arg)
+	}
+	args = filtrados
+	if len(args) == 0 {
+		fail("--read-only modifica una revisión: indica también el target")
+	}
+
 	var targetType domain.TargetType
 	var revision, digest string
 	var scope []string
@@ -32,6 +49,9 @@ func CmdReview(deps *Deps, args []string) {
 		}
 		targetType = domain.TargetDiff
 		revision, digest, err = resolveDiffTarget(deps.Root, diffRange)
+	case "--pending":
+		targetType = domain.TargetFileSet
+		revision, digest, scope, err = resolvePendingTarget(deps.Root)
 	case "--commit":
 		if len(args) != 2 {
 			fail("--commit requiere un SHA o referencia")
@@ -55,25 +75,45 @@ func CmdReview(deps *Deps, args []string) {
 		return
 	default:
 		fail("subcomando de review desconocido: %s\n"+
-			"uso: mem review --diff [rango] | --commit <sha> | --file <ruta>\n"+
+			"uso: mem review --diff [rango] | --commit <sha> | --file <ruta> | --pending\n"+
+			"     opciones: --read-only\n"+
 			"     mem review status [<review-id>] | history [--limit N] | show <review-id>", args[0])
 	}
 	if err != nil {
 		fail("resolver target: %v", err)
 	}
-	review, err := usecases.StartReview(deps.ReviewRepo, usecases.StartReviewInput{
+	entrada := usecases.StartReviewInput{
 		Project: deps.Project, TargetType: targetType, Revision: revision, Digest: digest, Scope: scope,
-	})
+		Policy: reviewPolicyDelProyecto(deps),
+	}
+	if soloLectura {
+		no := false
+		entrada.FixAuthorized = &no
+	}
+	review, err := usecases.StartReview(deps.ReviewRepo, entrada)
 	if err != nil {
 		fail("iniciar revisión: %v", err)
 	}
 	fmt.Println(review.ID)
 	fmt.Printf("target_digest: %s\n", review.Target.Digest())
+	if len(scope) > 0 {
+		fmt.Printf("target_files: %d\n", len(scope))
+	}
 	fmt.Printf("independence: %s", review.IndependenceLevel)
 	if review.IndependenceReason != "" {
 		fmt.Printf(" (%s)", review.IndependenceReason)
 	}
 	fmt.Println()
+	// La política efectiva se imprime siempre: hasta la funcionalidad 028 salía de
+	// constantes escritas en el código y configurar el proyecto no cambiaba nada,
+	// así que no había forma de saber con qué reglas quedó congelada la revisión.
+	fmt.Printf("fix_authorized: %t\n", review.FixAuthorized)
+	fmt.Printf("max_fix_rounds: %d\n", review.MaxFixRounds)
+	severidades := make([]string, 0, len(review.AutoFixSeverities))
+	for _, severidad := range review.AutoFixSeverities {
+		severidades = append(severidades, string(severidad))
+	}
+	fmt.Printf("auto_fix_severities: %s\n", strings.Join(severidades, ", "))
 }
 
 func resolveCommitTarget(root, ref string) (string, string, error) {
@@ -149,4 +189,84 @@ func resolveFileTarget(root, requested string) (string, string, []string, error)
 	}
 	revision := filepath.ToSlash(requested)
 	return revision, hex.EncodeToString(hash.Sum(nil)), scope, nil
+}
+
+// resolvePendingTarget congela TODO el trabajo pendiente del proyecto: cambios
+// preparados, sin preparar y archivos nuevos no ignorados (FR-025).
+//
+// Existe porque --diff usa `git diff --binary`, que NO ve los archivos sin
+// seguimiento: una revisión de trabajo en curso con archivos recién creados
+// congelaba un target que no los contenía, y los revisores inspeccionaban menos de lo
+// que se creía que inspeccionaban.
+//
+// El -z no es cosmético: los nombres con espacios rompen cualquier parseo por líneas,
+// y es uno de los casos límite que la especificación enumera. --untracked-files=all
+// respeta .gitignore, así que lo ignorado sigue fuera del target.
+func resolvePendingTarget(root string) (string, string, []string, error) {
+	cmd := exec.Command("git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return "", "", nil, fmt.Errorf("git status: %w", err)
+	}
+
+	rutas, err := parsePorcelainZ(string(out))
+	if err != nil {
+		return "", "", nil, err
+	}
+	if len(rutas) == 0 {
+		return "", "", nil, fmt.Errorf("no hay cambios pendientes que revisar")
+	}
+	sort.Strings(rutas)
+
+	hash := sha256.New()
+	scope := make([]string, 0, len(rutas))
+	for _, rel := range rutas {
+		scope = append(scope, rel)
+		hash.Write([]byte("pending\x00" + rel + "\x00"))
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return "", "", nil, err
+			}
+			// Un archivo borrado contribuye su ruta con un marcador: borrar debe
+			// cambiar la identidad del target, no pasar desapercibido.
+			hash.Write([]byte("deleted"))
+		} else {
+			hash.Write(data)
+		}
+		hash.Write([]byte{0})
+	}
+	return "pending-changes", hex.EncodeToString(hash.Sum(nil)), scope, nil
+}
+
+// parsePorcelainZ extrae las rutas de la salida de `git status -z`.
+//
+// El formato son registros terminados en NUL, cada uno "XY <ruta>". Un renombrado
+// (R) gasta DOS registros: el destino y, a continuación, el origen. Se toman ambos:
+// mover un archivo cambia lo que hay que revisar en los dos extremos.
+func parsePorcelainZ(salida string) ([]string, error) {
+	campos := strings.Split(salida, "\x00")
+	vistas := map[string]bool{}
+	var rutas []string
+	for i := 0; i < len(campos); i++ {
+		registro := campos[i]
+		if len(registro) < 4 {
+			continue
+		}
+		estado := registro[:2]
+		ruta := registro[3:]
+		if !vistas[ruta] {
+			vistas[ruta] = true
+			rutas = append(rutas, ruta)
+		}
+		if estado[0] == 'R' || estado[0] == 'C' {
+			i++
+			if i < len(campos) && campos[i] != "" && !vistas[campos[i]] {
+				vistas[campos[i]] = true
+				rutas = append(rutas, campos[i])
+			}
+		}
+	}
+	return rutas, nil
 }

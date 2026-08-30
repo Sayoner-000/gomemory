@@ -42,7 +42,8 @@ func TestReviewLearningLlegaAlContextoNormal(t *testing.T) {
 	}
 	review := &domain.Review{
 		ID: "acr_aprendizaje", Project: project, Target: target,
-		MaxFixRounds: 2, Status: domain.ReviewConsensusReady,
+		CurrentTargetDigest: "sha256:v0",
+		MaxFixRounds:        2, FixAuthorized: true, Status: domain.ReviewConsensusReady,
 	}
 	if err := repo.CreateReview(review); err != nil {
 		t.Fatalf("CreateReview: %v", err)
@@ -62,11 +63,36 @@ func TestReviewLearningLlegaAlContextoNormal(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("RecordFix: %v", err)
 	}
-	if _, err := usecases.RejudgeReview(repo, ledger, usecases.RejudgeReviewInput{
-		Project: project, ReviewID: review.ID,
-		States: map[string]domain.ReJudgmentState{"C-001": domain.ReJudgmentResolved},
-	}); err != nil {
-		t.Fatalf("RejudgeReview: %v", err)
+	for _, revisor := range []domain.Reviewer{domain.ReviewerA, domain.ReviewerB} {
+		if _, err := usecases.RejudgeReview(repo, ledger, usecases.RejudgeReviewInput{
+			Project: project, ReviewID: review.ID, Reviewer: revisor,
+			Judgments: map[string]usecases.ReJudgeEntry{
+				"C-001": {
+					State:    domain.ReJudgmentResolved,
+					Evidence: []string{"la expiración ya no borra la memoria refrescada"},
+				},
+			},
+		}); err != nil {
+			t.Fatalf("RejudgeReview revisor %s: %v", revisor, err)
+		}
+	}
+
+	// La promoción exige veredicto APPROVED (FR-021): el aprendizaje de una revisión
+	// que todavía puede escalar es una hipótesis, no conocimiento del proyecto.
+	for _, revisor := range []domain.Reviewer{domain.ReviewerA, domain.ReviewerB} {
+		resultado := domain.ReviewerResult{
+			Reviewer: revisor, Round: 1, Status: domain.ReviewerResultSuccess,
+		}
+		if err := repo.UpsertReviewerResult(project, review.ID, &resultado); err != nil {
+			t.Fatalf("UpsertReviewerResult: %v", err)
+		}
+	}
+	finalizada, err := usecases.FinalizeReview(repo, ledger, project, review.ID)
+	if err != nil {
+		t.Fatalf("FinalizeReview: %v", err)
+	}
+	if finalizada.Verdict != domain.VerdictApproved {
+		t.Fatalf("la revisión debe quedar APPROVED antes de promover, quedó %s", finalizada.Verdict)
 	}
 
 	promovidas, err := usecases.PromoteReviewMemory(repo, ledger, memorias, usecases.PromoteReviewMemoryInput{

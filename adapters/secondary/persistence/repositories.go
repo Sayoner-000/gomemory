@@ -193,6 +193,9 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		ContextDedupDisabled:         s.ContextDedupDisabled,
 		UsageWindowTokens:            s.UsageWindowTokens,
 		ContextIndexMode:             s.ContextIndexMode,
+		ReviewMaxFixRounds:           s.ReviewMaxFixRounds,
+		ReviewAutoFixSeverities:      s.ReviewAutoFixSeverities,
+		ReviewFixAuthorized:          s.ReviewFixAuthorized,
 	}
 }
 
@@ -219,6 +222,9 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		ContextDedupDisabled:         s.ContextDedupDisabled,
 		UsageWindowTokens:            s.UsageWindowTokens,
 		ContextIndexMode:             s.ContextIndexMode,
+		ReviewMaxFixRounds:           s.ReviewMaxFixRounds,
+		ReviewAutoFixSeverities:      s.ReviewAutoFixSeverities,
+		ReviewFixAuthorized:          s.ReviewFixAuthorized,
 	})
 }
 

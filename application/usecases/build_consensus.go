@@ -11,13 +11,16 @@ type ConsensusMatch struct {
 	Status     domain.ConsensusStatus
 	FindingIDA int64
 	FindingIDB int64
-	Severity   domain.Severity
-	Claim      string
+	// Severity es informativa desde la funcionalidad 028: la severidad persistida
+	// se deriva de las fuentes. Si viene y no coincide, la operación se rechaza.
+	Severity domain.Severity
+	Claim    string
 }
 
 type ConsensusUnmatched struct {
 	Status    domain.ConsensusStatus
 	FindingID int64
+	Severity  domain.Severity
 }
 
 type BuildConsensusInput struct {
@@ -27,74 +30,104 @@ type BuildConsensusInput struct {
 	Unmatched []ConsensusUnmatched
 }
 
-type findingSource struct {
-	finding  domain.Finding
-	reviewer domain.Reviewer
+type BuildConsensusOutput struct {
+	Findings []domain.ConsensusFinding
+	// Idempotent indica que la ronda ya tenía exactamente esta clasificación y no
+	// se escribió nada.
+	Idempotent bool
 }
 
+// BuildConsensus registra la clasificación COMPLETA de la ronda activa.
+//
+// "Completa" es la diferencia con la versión anterior: antes la entrada describía una
+// parte cualquiera y cada hallazgo se validaba mientras se recorría, así que omitir
+// uno no producía error — simplemente no se mencionaba. Ahora la decisión la toma
+// domain.ValidateCoverage sobre el conjunto entero, y este caso de uso se limita a
+// materializar las fuentes, consultar el ledger y persistir (FR-001 a FR-005).
 func BuildConsensus(
 	reviews ports.ReviewRepository,
 	ledger ports.ConsensusRepository,
 	input BuildConsensusInput,
 ) ([]domain.ConsensusFinding, error) {
+	out, err := BuildConsensusWithOutcome(reviews, ledger, input)
+	return out.Findings, err
+}
+
+// BuildConsensusWithOutcome expone además si la llamada fue idempotente, que es lo
+// que el contrato MCP publica como `idempotent`.
+func BuildConsensusWithOutcome(
+	reviews ports.ReviewRepository,
+	ledger ports.ConsensusRepository,
+	input BuildConsensusInput,
+) (BuildConsensusOutput, error) {
 	review, err := reviews.GetReview(input.Project, input.ReviewID)
 	if err != nil {
-		return nil, err
+		return BuildConsensusOutput{}, err
 	}
 	if review == nil {
-		return nil, fmt.Errorf("review %s not found", input.ReviewID)
+		return BuildConsensusOutput{}, fmt.Errorf("review %s not found", input.ReviewID)
 	}
+	if err := review.EnsureMutable(); err != nil {
+		return BuildConsensusOutput{}, err
+	}
+
 	results, err := reviews.ListReviewerResults(input.Project, input.ReviewID, review.Round)
 	if err != nil {
-		return nil, err
+		return BuildConsensusOutput{}, err
 	}
-	sources := make(map[int64]findingSource)
+	sources := make([]domain.ConsensusSource, 0)
 	for _, result := range results {
 		for _, finding := range result.Findings {
-			sources[finding.ID] = findingSource{finding: finding, reviewer: result.Reviewer}
+			sources = append(sources, domain.ConsensusSource{
+				FindingID: finding.ID, Reviewer: result.Reviewer, Severity: finding.Severity,
+				Claim: finding.Claim, Confirmable: finding.Confirmable(),
+			})
 		}
 	}
-	var out []domain.ConsensusFinding
+
+	clasificacion := domain.ConsensusClassification{}
 	for _, match := range input.Matches {
-		if match.Status != domain.ConsensusConfirmed && match.Status != domain.ConsensusContradiction {
-			return nil, fmt.Errorf("paired finding must be CONFIRMED or CONTRADICTION")
-		}
-		a, okA := sources[match.FindingIDA]
-		b, okB := sources[match.FindingIDB]
-		if !okA || !okB {
-			return nil, fmt.Errorf("source finding does not belong to the active review round")
-		}
-		if a.reviewer == b.reviewer {
-			return nil, fmt.Errorf("consensus sources must come from independent reviewers")
-		}
-		if match.Status == domain.ConsensusConfirmed && (!a.finding.Confirmable() || !b.finding.Confirmable()) {
-			return nil, fmt.Errorf("confirmed finding requires concrete evidence from both reviewers")
-		}
-		out = append(out, domain.ConsensusFinding{
-			ReviewID: input.ReviewID, Round: review.Round, Status: match.Status,
-			Severity: match.Severity, Claim: match.Claim,
-			SourceFindingIDs: []int64{match.FindingIDA, match.FindingIDB},
+		clasificacion.Matches = append(clasificacion.Matches, domain.ConsensusPair{
+			Status: match.Status, FindingIDA: match.FindingIDA, FindingIDB: match.FindingIDB,
+			Claim: match.Claim, DeclaredSeverity: match.Severity,
 		})
 	}
 	for _, unmatched := range input.Unmatched {
-		if unmatched.Status != domain.ConsensusSuspect && unmatched.Status != domain.ConsensusInfo {
-			return nil, fmt.Errorf("unmatched finding must be SUSPECT or INFO")
-		}
-		source, ok := sources[unmatched.FindingID]
-		if !ok {
-			return nil, fmt.Errorf("source finding does not belong to the active review round")
-		}
-		out = append(out, domain.ConsensusFinding{
-			ReviewID: input.ReviewID, Round: review.Round, Status: unmatched.Status,
-			Severity: source.finding.Severity, Claim: source.finding.Claim,
-			SourceFindingIDs: []int64{unmatched.FindingID},
+		clasificacion.Unmatched = append(clasificacion.Unmatched, domain.ConsensusSingle{
+			Status: unmatched.Status, FindingID: unmatched.FindingID,
+			DeclaredSeverity: unmatched.Severity,
 		})
 	}
-	for i := range out {
-		out[i].ConsensusLocalID = fmt.Sprintf("C-%03d", i+1)
-		if err := ledger.UpsertConsensusFinding(input.Project, input.ReviewID, &out[i]); err != nil {
-			return nil, err
+
+	derivados, err := domain.ValidateCoverage(sources, clasificacion)
+	if err != nil {
+		return BuildConsensusOutput{}, err
+	}
+	huella := domain.ClassificationFingerprint(derivados)
+
+	existentes, err := ledger.ListConsensusFindings(input.Project, input.ReviewID, review.Round)
+	if err != nil {
+		return BuildConsensusOutput{}, err
+	}
+	if len(existentes) > 0 {
+		// Reenviar la ronda exacta es una lectura; reemplazarla por otra distinta
+		// permitiría reclasificar un confirmado como informativo justo antes de
+		// finalizar, que es una aprobación falsa por otra puerta (FR-005).
+		if domain.ClassificationFingerprint(existentes) != huella {
+			return BuildConsensusOutput{}, fmt.Errorf(
+				"la ronda %d ya tiene un consenso registrado y no admite reemplazo", review.Round,
+			)
+		}
+		return BuildConsensusOutput{Findings: existentes, Idempotent: true}, nil
+	}
+
+	for i := range derivados {
+		derivados[i].ReviewID = input.ReviewID
+		derivados[i].Round = review.Round
+		derivados[i].RoundFingerprint = huella
+		if err := ledger.UpsertConsensusFinding(input.Project, input.ReviewID, &derivados[i]); err != nil {
+			return BuildConsensusOutput{}, err
 		}
 	}
-	return out, nil
+	return BuildConsensusOutput{Findings: derivados}, nil
 }

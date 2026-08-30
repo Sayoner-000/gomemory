@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -35,12 +36,17 @@ func (r *ReviewRepository) CreateReview(review *domain.Review) error {
 		INSERT INTO reviews (
 			project, review_id, target_type, target_revision, target_digest, target_scope,
 			max_fix_rounds, auto_fix_severities, independence_level, independence_reason,
-			round, status, verdict, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), `+Now+`), COALESCE(NULLIF(?, ''), `+Now+`))`,
+			round, status, verdict, created_at, updated_at,
+			current_target_digest, fix_authorized,
+			reviewer_a_provider, reviewer_a_model, reviewer_b_provider, reviewer_b_model
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), `+Now+`), COALESCE(NULLIF(?, ''), `+Now+`),
+			?, ?, ?, ?, ?, ?)`,
 		review.Project, review.ID, string(review.Target.Type), review.Target.Revision, review.Target.Digest(), string(scope),
 		review.MaxFixRounds, string(severities), string(review.IndependenceLevel), review.IndependenceReason,
 		review.Round, string(review.Status), nullableVerdict(review.Verdict), formatReviewTime(review.CreatedAt),
 		formatReviewTime(review.UpdatedAt),
+		review.ActiveTargetDigest(), boolToInt(review.FixAuthorized),
+		review.ReviewerA.Provider, review.ReviewerA.Model, review.ReviewerB.Provider, review.ReviewerB.Model,
 	)
 	if err != nil {
 		return fmt.Errorf("create review: %w", err)
@@ -50,9 +56,7 @@ func (r *ReviewRepository) CreateReview(review *domain.Review) error {
 
 func (r *ReviewRepository) GetReview(project, reviewID string) (*domain.Review, error) {
 	row := r.db.QueryRow(`
-		SELECT target_type, target_revision, target_digest, target_scope, max_fix_rounds,
-		       auto_fix_severities, independence_level, independence_reason, round, status,
-		       verdict, created_at, updated_at
+		SELECT `+reviewColumns+`
 		FROM reviews WHERE project = ? AND review_id = ?`, project, reviewID)
 	return scanReview(row, project, reviewID)
 }
@@ -64,10 +68,12 @@ func (r *ReviewRepository) UpdateReview(review *domain.Review) error {
 	}
 	result, err := r.db.Exec(`
 		UPDATE reviews SET max_fix_rounds = ?, auto_fix_severities = ?, independence_level = ?,
-			independence_reason = ?, round = ?, status = ?, verdict = ?, updated_at = `+Now+`
+			independence_reason = ?, round = ?, status = ?, verdict = ?, updated_at = `+Now+`,
+			current_target_digest = ?, fix_authorized = ?
 		WHERE project = ? AND review_id = ?`,
 		review.MaxFixRounds, string(severities), string(review.IndependenceLevel), review.IndependenceReason,
-		review.Round, string(review.Status), nullableVerdict(review.Verdict), review.Project, review.ID,
+		review.Round, string(review.Status), nullableVerdict(review.Verdict),
+		review.ActiveTargetDigest(), boolToInt(review.FixAuthorized), review.Project, review.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update review: %w", err)
@@ -80,9 +86,7 @@ func (r *ReviewRepository) ListReviews(project string, limit int) ([]domain.Revi
 		limit = 20
 	}
 	rows, err := r.db.Query(`
-		SELECT review_id, target_type, target_revision, target_digest, target_scope, max_fix_rounds,
-		       auto_fix_severities, independence_level, independence_reason, round, status,
-		       verdict, created_at, updated_at
+		SELECT review_id, `+reviewColumns+`
 		FROM reviews WHERE project = ? ORDER BY id DESC LIMIT ?`, project, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list reviews: %w", err)
@@ -91,16 +95,11 @@ func (r *ReviewRepository) ListReviews(project string, limit int) ([]domain.Revi
 	var out []domain.Review
 	for rows.Next() {
 		var reviewID string
-		var targetType, revision, digest, scopeJSON, severitiesJSON, independence, reason, status string
-		var maxRounds, round int
-		var verdict sql.NullString
-		var createdAt, updatedAt string
-		if err := rows.Scan(&reviewID, &targetType, &revision, &digest, &scopeJSON, &maxRounds,
-			&severitiesJSON, &independence, &reason, &round, &status, &verdict, &createdAt, &updatedAt); err != nil {
+		var raw reviewRow
+		if err := rows.Scan(append([]any{&reviewID}, raw.dest()...)...); err != nil {
 			return nil, err
 		}
-		review, err := reviewFromValues(project, reviewID, targetType, revision, digest, scopeJSON, maxRounds,
-			severitiesJSON, independence, reason, round, status, verdict, createdAt, updatedAt)
+		review, err := raw.toDomain(project, reviewID)
 		if err != nil {
 			return nil, err
 		}
@@ -237,14 +236,16 @@ func (r *ReviewRepository) UpsertConsensusFinding(project, reviewID string, find
 	}
 	err = r.db.QueryRow(`
 		INSERT INTO consensus_findings
-			(review_id, round, consensus_local_id, status, severity, claim, source_finding_ids, rejudgment_state)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			(review_id, round, consensus_local_id, status, severity, claim, source_finding_ids,
+			 rejudgment_state, round_fingerprint)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(review_id, consensus_local_id) DO UPDATE SET
 			round = excluded.round, status = excluded.status, severity = excluded.severity,
 			claim = excluded.claim, source_finding_ids = excluded.source_finding_ids,
-			rejudgment_state = excluded.rejudgment_state
+			rejudgment_state = excluded.rejudgment_state, round_fingerprint = excluded.round_fingerprint
 		RETURNING id`, internalID, finding.Round, finding.ConsensusLocalID, string(finding.Status),
-		string(finding.Severity), redactarTexto(finding.Claim), string(sources), nullableRejudgment(finding.RejudgmentState)).Scan(&finding.ID)
+		string(finding.Severity), redactarTexto(finding.Claim), string(sources),
+		nullableRejudgment(finding.RejudgmentState), finding.RoundFingerprint).Scan(&finding.ID)
 	if err != nil {
 		return fmt.Errorf("upsert consensus finding: %w", err)
 	}
@@ -255,7 +256,7 @@ func (r *ReviewRepository) UpsertConsensusFinding(project, reviewID string, find
 func (r *ReviewRepository) GetConsensusFinding(project, reviewID, localID string) (*domain.ConsensusFinding, error) {
 	row := r.db.QueryRow(`
 		SELECT cf.id, cf.round, cf.consensus_local_id, cf.status, cf.severity, cf.claim,
-		       cf.source_finding_ids, cf.rejudgment_state
+		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint
 		FROM consensus_findings cf JOIN reviews rv ON rv.id = cf.review_id
 		WHERE rv.project = ? AND rv.review_id = ? AND cf.consensus_local_id = ?`, project, reviewID, localID)
 	finding, err := scanConsensus(row, reviewID)
@@ -268,7 +269,7 @@ func (r *ReviewRepository) GetConsensusFinding(project, reviewID, localID string
 func (r *ReviewRepository) ListConsensusFindings(project, reviewID string, round int) ([]domain.ConsensusFinding, error) {
 	rows, err := r.db.Query(`
 		SELECT cf.id, cf.round, cf.consensus_local_id, cf.status, cf.severity, cf.claim,
-		       cf.source_finding_ids, cf.rejudgment_state
+		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint
 		FROM consensus_findings cf JOIN reviews rv ON rv.id = cf.review_id
 		WHERE rv.project = ? AND rv.review_id = ? AND cf.round = ? ORDER BY cf.id`, project, reviewID, round)
 	if err != nil {
@@ -289,7 +290,7 @@ func (r *ReviewRepository) ListConsensusFindings(project, reviewID string, round
 func (r *ReviewRepository) ListAllConsensusFindings(project, reviewID string) ([]domain.ConsensusFinding, error) {
 	rows, err := r.db.Query(`
 		SELECT cf.id, cf.round, cf.consensus_local_id, cf.status, cf.severity, cf.claim,
-		       cf.source_finding_ids, cf.rejudgment_state
+		       cf.source_finding_ids, cf.rejudgment_state, cf.round_fingerprint
 		FROM consensus_findings cf JOIN reviews rv ON rv.id = cf.review_id
 		WHERE rv.project = ? AND rv.review_id = ? ORDER BY cf.id`, project, reviewID)
 	if err != nil {
@@ -371,46 +372,95 @@ type scanner interface {
 	Scan(dest ...any) error
 }
 
+// reviewColumns fija el orden de lectura de una revisión. Existe como constante
+// porque tres consultas distintas deben coincidir columna a columna con reviewRow:
+// listarlas a mano en cada una es la forma habitual de que una se quede atrás al
+// añadir un campo.
+const reviewColumns = `target_type, target_revision, target_digest, target_scope, max_fix_rounds,
+	       auto_fix_severities, independence_level, independence_reason, round, status,
+	       verdict, created_at, updated_at, current_target_digest, fix_authorized,
+	       reviewer_a_provider, reviewer_a_model, reviewer_b_provider, reviewer_b_model`
+
+// reviewRow son los valores crudos de una fila de reviews. Las columnas de la
+// funcionalidad 028 se leen como nullable: una base anterior las tiene a NULL y debe
+// seguir abriendo con el comportamiento de antes.
+type reviewRow struct {
+	targetType, revision, digest, scopeJSON string
+	maxRounds                               int
+	severitiesJSON, independence, reason    string
+	round                                   int
+	status                                  string
+	verdict                                 sql.NullString
+	createdAt, updatedAt                    string
+	currentDigest                           sql.NullString
+	fixAuthorized                           sql.NullInt64
+	reviewerAProvider, reviewerAModel       sql.NullString
+	reviewerBProvider, reviewerBModel       sql.NullString
+}
+
+func (raw *reviewRow) dest() []any {
+	return []any{
+		&raw.targetType, &raw.revision, &raw.digest, &raw.scopeJSON, &raw.maxRounds,
+		&raw.severitiesJSON, &raw.independence, &raw.reason, &raw.round, &raw.status,
+		&raw.verdict, &raw.createdAt, &raw.updatedAt, &raw.currentDigest, &raw.fixAuthorized,
+		&raw.reviewerAProvider, &raw.reviewerAModel, &raw.reviewerBProvider, &raw.reviewerBModel,
+	}
+}
+
+func (raw *reviewRow) toDomain(project, reviewID string) (*domain.Review, error) {
+	var scope []string
+	if err := json.Unmarshal([]byte(raw.scopeJSON), &scope); err != nil {
+		return nil, err
+	}
+	var severities []domain.Severity
+	if err := json.Unmarshal([]byte(raw.severitiesJSON), &severities); err != nil {
+		return nil, err
+	}
+	target, err := domain.NewTarget(domain.TargetType(raw.targetType), raw.revision, raw.digest, scope)
+	if err != nil {
+		return nil, err
+	}
+	target.CreatedAt = parseReviewTime(raw.createdAt)
+	review := &domain.Review{
+		ID: reviewID, Project: project, Target: target, MaxFixRounds: raw.maxRounds, AutoFixSeverities: severities,
+		IndependenceLevel: domain.IndependenceLevel(raw.independence), IndependenceReason: raw.reason, Round: raw.round,
+		Status: domain.ReviewStatus(raw.status), Verdict: domain.Verdict(raw.verdict.String),
+		CreatedAt: parseReviewTime(raw.createdAt), UpdatedAt: parseReviewTime(raw.updatedAt),
+		CurrentTargetDigest: raw.currentDigest.String,
+		// NULL = revisión anterior a 028: autorizaba corregir, porque no existía
+		// ninguna que no lo hiciera. Interpretarla como solo lectura la escalaría
+		// sin que nadie lo hubiera pedido.
+		FixAuthorized: !raw.fixAuthorized.Valid || raw.fixAuthorized.Int64 != 0,
+		ReviewerA: domain.ReviewerIdentity{
+			Provider: raw.reviewerAProvider.String, Model: raw.reviewerAModel.String,
+		},
+		ReviewerB: domain.ReviewerIdentity{
+			Provider: raw.reviewerBProvider.String, Model: raw.reviewerBModel.String,
+		},
+	}
+	if review.CurrentTargetDigest == "" {
+		review.CurrentTargetDigest = target.Digest()
+	}
+	return review, nil
+}
+
 func scanReview(row scanner, project, reviewID string) (*domain.Review, error) {
-	var targetType, revision, digest, scopeJSON, severitiesJSON, independence, reason, status string
-	var maxRounds, round int
-	var verdict sql.NullString
-	var createdAt, updatedAt string
-	err := row.Scan(&targetType, &revision, &digest, &scopeJSON, &maxRounds, &severitiesJSON,
-		&independence, &reason, &round, &status, &verdict, &createdAt, &updatedAt)
+	var raw reviewRow
+	err := row.Scan(raw.dest()...)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return reviewFromValues(project, reviewID, targetType, revision, digest, scopeJSON, maxRounds,
-		severitiesJSON, independence, reason, round, status, verdict, createdAt, updatedAt)
+	return raw.toDomain(project, reviewID)
 }
 
-func reviewFromValues(project, reviewID, targetType, revision, digest, scopeJSON string, maxRounds int,
-	severitiesJSON, independence, reason string, round int, status string, verdict sql.NullString,
-	createdAt, updatedAt string,
-) (*domain.Review, error) {
-	var scope []string
-	if err := json.Unmarshal([]byte(scopeJSON), &scope); err != nil {
-		return nil, err
+func boolToInt(b bool) int {
+	if b {
+		return 1
 	}
-	var severities []domain.Severity
-	if err := json.Unmarshal([]byte(severitiesJSON), &severities); err != nil {
-		return nil, err
-	}
-	target, err := domain.NewTarget(domain.TargetType(targetType), revision, digest, scope)
-	if err != nil {
-		return nil, err
-	}
-	target.CreatedAt = parseReviewTime(createdAt)
-	return &domain.Review{
-		ID: reviewID, Project: project, Target: target, MaxFixRounds: maxRounds, AutoFixSeverities: severities,
-		IndependenceLevel: domain.IndependenceLevel(independence), IndependenceReason: reason, Round: round,
-		Status: domain.ReviewStatus(status), Verdict: domain.Verdict(verdict.String),
-		CreatedAt: parseReviewTime(createdAt), UpdatedAt: parseReviewTime(updatedAt),
-	}, nil
+	return 0
 }
 
 func scanFinding(row scanner) (*domain.Finding, error) {
@@ -450,15 +500,16 @@ func (r *ReviewRepository) findingsForResult(resultID int64) ([]domain.Finding, 
 func scanConsensus(row scanner, reviewID string) (*domain.ConsensusFinding, error) {
 	var finding domain.ConsensusFinding
 	var status, severity, sources string
-	var rejudgment sql.NullString
+	var rejudgment, fingerprint sql.NullString
 	if err := row.Scan(&finding.ID, &finding.Round, &finding.ConsensusLocalID, &status, &severity,
-		&finding.Claim, &sources, &rejudgment); err != nil {
+		&finding.Claim, &sources, &rejudgment, &fingerprint); err != nil {
 		return nil, err
 	}
 	finding.ReviewID = reviewID
 	finding.Status = domain.ConsensusStatus(status)
 	finding.Severity = domain.Severity(severity)
 	finding.RejudgmentState = domain.ReJudgmentState(rejudgment.String)
+	finding.RoundFingerprint = fingerprint.String
 	if err := json.Unmarshal([]byte(sources), &finding.SourceFindingIDs); err != nil {
 		return nil, err
 	}
@@ -537,4 +588,240 @@ func redactarLista(items []string) []string {
 		out = append(out, redactarTexto(item))
 	}
 	return out
+}
+
+// UpsertReJudgment persiste el re-juicio de un revisor y recalcula, en la MISMA
+// transacción, el estado agregado del hallazgo.
+//
+// Que el recálculo viva aquí y no en el caso de uso es deliberado:
+// consensus_findings.rejudgment_state es un valor derivado de la tabla rejudgments,
+// y dos escrituras separadas dejarían una ventana en la que la columna afirma algo
+// que sus filas de origen ya no respaldan. Esa ventana es justo la que aprovecharía
+// una finalización concurrente para leer RESOLVED sin unanimidad.
+func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *domain.ReJudgment) error {
+	if err := judgment.Validate(); err != nil {
+		return err
+	}
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	internalID, err := reviewInternalID(tx, project, reviewID)
+	if err != nil {
+		return err
+	}
+	var findingID int64
+	err = tx.QueryRow(`SELECT id FROM consensus_findings WHERE review_id = ? AND consensus_local_id = ?`,
+		internalID, judgment.ConsensusLocalID).Scan(&findingID)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("el hallazgo de consenso %s no existe en esta revisión", judgment.ConsensusLocalID)
+	}
+	if err != nil {
+		return err
+	}
+
+	evidence, err := json.Marshal(redactarLista(judgment.Evidence))
+	if err != nil {
+		return err
+	}
+	err = tx.QueryRow(`
+		INSERT INTO rejudgments (review_id, round, consensus_finding_id, reviewer, state, evidence)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(review_id, round, consensus_finding_id, reviewer) DO UPDATE SET
+			state = excluded.state, evidence = excluded.evidence
+		RETURNING id`,
+		internalID, judgment.Round, findingID, string(judgment.Reviewer),
+		string(judgment.State), string(evidence)).Scan(&judgment.ID)
+	if err != nil {
+		return fmt.Errorf("upsert rejudgment: %w", err)
+	}
+
+	judgments, err := reJudgmentsForFinding(tx, internalID, findingID, reviewID, judgment.ConsensusLocalID)
+	if err != nil {
+		return err
+	}
+	agregado := domain.AggregateReJudgment(judgments)
+	if _, err := tx.Exec(`UPDATE consensus_findings SET rejudgment_state = ? WHERE id = ?`,
+		string(agregado), findingID); err != nil {
+		return fmt.Errorf("actualizar el estado agregado: %w", err)
+	}
+
+	judgment.ReviewID = reviewID
+	return tx.Commit()
+}
+
+func (r *ReviewRepository) ListReJudgments(project, reviewID, consensusLocalID string) ([]domain.ReJudgment, error) {
+	internalID, err := r.lookupReviewID(project, reviewID)
+	if err != nil {
+		return nil, err
+	}
+	var findingID int64
+	err = r.db.QueryRow(`SELECT id FROM consensus_findings WHERE review_id = ? AND consensus_local_id = ?`,
+		internalID, consensusLocalID).Scan(&findingID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return reJudgmentsForFinding(r.db, internalID, findingID, reviewID, consensusLocalID)
+}
+
+// querier abstrae *sql.DB y *sql.Tx para poder leer los re-juicios dentro y fuera de
+// una transacción sin duplicar la consulta.
+type querier interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
+func reJudgmentsForFinding(
+	q querier, internalReviewID, findingID int64, reviewID, consensusLocalID string,
+) ([]domain.ReJudgment, error) {
+	rows, err := q.Query(`
+		SELECT id, round, reviewer, state, evidence
+		FROM rejudgments WHERE review_id = ? AND consensus_finding_id = ?
+		ORDER BY round, reviewer`, internalReviewID, findingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.ReJudgment
+	for rows.Next() {
+		judgment := domain.ReJudgment{ReviewID: reviewID, ConsensusLocalID: consensusLocalID}
+		var reviewer, state, evidence string
+		if err := rows.Scan(&judgment.ID, &judgment.Round, &reviewer, &state, &evidence); err != nil {
+			return nil, err
+		}
+		judgment.Reviewer = domain.Reviewer(reviewer)
+		judgment.State = domain.ReJudgmentState(state)
+		if err := json.Unmarshal([]byte(evidence), &judgment.Evidence); err != nil {
+			return nil, err
+		}
+		out = append(out, judgment)
+	}
+	return out, rows.Err()
+}
+
+// RecordFixAtomically escribe la ronda de corrección completa en una transacción.
+//
+// Se abre con BEGIN IMMEDIATE, no con el BEGIN diferido por defecto: el bloqueo de
+// escritura se toma al abrir y no en el primer INSERT, que es lo que cierra la
+// ventana entre contar las rondas existentes y escribir la nueva. El UNIQUE
+// (review_id, round) es la red de seguridad final, y el recuento contra
+// ExpectedRounds convierte la carrera perdida en un error explícito en vez de un
+// sobrescrito silencioso.
+func (r *ReviewRepository) RecordFixAtomically(
+	project, reviewID string, transition ports.FixTransition,
+) error {
+	ctx := context.Background()
+	// Una conexión dedicada, no una transacción de database/sql: db.Begin() emite
+	// un BEGIN diferido, que en WAL toma el bloqueo de escritura al primer INSERT y
+	// no al abrir. Entre el COUNT y el INSERT cabe otra transacción, y el perdedor
+	// recibe SQLITE_BUSY_SNAPSHOT, que el busy_timeout NO reintenta. BEGIN IMMEDIATE
+	// toma el bloqueo desde el principio y el busy_timeout sí lo cubre.
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
+	}
+	comprometida := false
+	defer func() {
+		if !comprometida {
+			conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+
+	var internalID int64
+	var vigente, original sql.NullString
+	err = conn.QueryRowContext(ctx,
+		`SELECT id, current_target_digest, target_digest FROM reviews WHERE project = ? AND review_id = ?`,
+		project, reviewID).Scan(&internalID, &vigente, &original)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("review %s not found", reviewID)
+	}
+	if err != nil {
+		return err
+	}
+
+	// El target vigente se revalida DENTRO de la transacción. El caso de uso ya lo
+	// comprobó, pero con una lectura de fuera: dos correcciones simultáneas leían
+	// el mismo target, derivaban rondas distintas y se registraban las dos.
+	actual := vigente.String
+	if actual == "" {
+		actual = original.String
+	}
+	if transition.ExpectedBaseDigest != "" && actual != transition.ExpectedBaseDigest {
+		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+	}
+
+	var rondas int
+	if err := conn.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM fix_rounds WHERE review_id = ?`, internalID).Scan(&rondas); err != nil {
+		return err
+	}
+	if rondas != transition.ExpectedRounds {
+		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+	}
+
+	delta := transition.Delta
+	addressed, _ := json.Marshal(delta.AddressedConsensusIDs)
+	paths, _ := json.Marshal(delta.ModifiedPaths)
+	verification, _ := json.Marshal(redactarLista(delta.Verification))
+	err = conn.QueryRowContext(ctx, `
+		INSERT INTO fix_rounds
+			(review_id, round, base_target_digest, fixed_target_digest, addressed_consensus_ids,
+			 modified_paths, verification, diff_digest)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		RETURNING id`, internalID, delta.Round, delta.BaseTargetDigest, delta.FixedTargetDigest,
+		string(addressed), string(paths), string(verification), delta.DiffDigest).Scan(&delta.ID)
+	if err != nil {
+		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+	}
+
+	result, err := conn.ExecContext(ctx, `
+		UPDATE reviews SET round = ?, status = ?, current_target_digest = ?, updated_at = `+Now+`
+		WHERE id = ?`, transition.NextRound, string(transition.NextStatus),
+		transition.CurrentTargetDigest, internalID)
+	if err != nil {
+		return fmt.Errorf("avanzar la revisión: %w", err)
+	}
+	if err := requireAffected(result, "review"); err != nil {
+		return err
+	}
+
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("confirmar la corrección: %w", err)
+	}
+	comprometida = true
+	delta.ReviewID = reviewID
+	return nil
+}
+
+// CountPromotedMemories cuenta lo que esta revisión aportó a la memoria del proyecto.
+//
+//   - promovidas: memorias cuyo source_review_id es esta revisión.
+//   - deduplicadas: de esas, las que se escribieron más de una vez (updated_at por
+//     encima de created_at), es decir, promociones posteriores que reforzaron la
+//     misma memoria en vez de crear otra.
+//
+// Salvedad honesta sobre el contrato: `review_finalize` publica estas dos métricas,
+// pero promover exige veredicto APPROVED (FR-021), que solo existe DESPUÉS de
+// finalizar. En la primera finalización de una revisión aprobada valdrán cero por
+// construcción, y reflejan promociones ya hechas —el caso de una revisión que se
+// consulta más tarde—. Se derivan del ledger y no de un contador acumulado, así que
+// nunca afirman más de lo que hay escrito.
+func (r *ReviewRepository) CountPromotedMemories(project, reviewID string) (int, int, error) {
+	var promovidas, deduplicadas int
+	err := r.db.QueryRow(`
+		SELECT COUNT(*), COALESCE(SUM(CASE WHEN updated_at > created_at THEN 1 ELSE 0 END), 0)
+		FROM memories WHERE project = ? AND source_review_id = ?`,
+		project, reviewID).Scan(&promovidas, &deduplicadas)
+	if err != nil {
+		return 0, 0, fmt.Errorf("contar memorias promovidas: %w", err)
+	}
+	return promovidas, deduplicadas, nil
 }

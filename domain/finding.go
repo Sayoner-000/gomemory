@@ -71,3 +71,35 @@ func (f Finding) Confirmable() bool {
 	}
 	return false
 }
+
+// severityRank ordena las severidades para poder derivar "la más alta aplicable"
+// (FR-003). Una severidad desconocida se ordena por debajo de INFO en vez de
+// provocar un error: la validación de la severidad ocurre en el borde del sistema,
+// y aquí lo prudente es no dejar que un valor basura gane la comparación.
+var severityRank = map[Severity]int{
+	SeverityInfo:     1,
+	SeverityLow:      2,
+	SeverityMedium:   3,
+	SeverityHigh:     4,
+	SeverityCritical: 5,
+}
+
+func (s Severity) Rank() int {
+	return severityRank[s]
+}
+
+// MaxSeverity devuelve la severidad más alta del conjunto.
+//
+// Sin fuentes devuelve INFO, la mínima: una clasificación sin respaldo no puede
+// heredar gravedad de la nada. La alternativa —devolver la cadena vacía— produciría
+// una severidad inválida que Severe() daría por no severa, que es exactamente el
+// tipo de silencio que esta funcionalidad existe para cerrar.
+func MaxSeverity(severities ...Severity) Severity {
+	max := SeverityInfo
+	for _, severity := range severities {
+		if severity.Rank() > max.Rank() {
+			max = severity
+		}
+	}
+	return max
+}

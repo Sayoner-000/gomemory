@@ -76,6 +76,18 @@ type SettingsData struct {
 	// con get_memory(id). Ausente/false = modo completo, el comportamiento
 	// actual (feature 020, FR-034).
 	ContextIndexMode bool `json:"context_index_mode,omitempty"`
+	// ReviewMaxFixRounds, ReviewAutoFixSeverities y ReviewFixAuthorized son la
+	// política de revisión adversarial del proyecto (feature 028, FR-017).
+	//
+	// Viajan en SettingsData y no solo en el Settings de persistencia por una razón
+	// concreta: Write reconstruye el Settings COMPLETO a partir de esta struct, así
+	// que un campo que no esté aquí se pierde al guardar cualquier otra preferencia.
+	// La política de revisión se estaba borrando así, en silencio.
+	ReviewMaxFixRounds      int      `json:"review_max_fix_rounds,omitempty"`
+	ReviewAutoFixSeverities []string `json:"review_auto_fix_severities,omitempty"`
+	// ReviewFixAuthorized es un puntero porque un bool JSON no distingue "ausente"
+	// de "false", y aquí la diferencia decide si una revisión puede corregir.
+	ReviewFixAuthorized *bool `json:"review_fix_authorized,omitempty"`
 }
 
 type SettingsRepository interface {

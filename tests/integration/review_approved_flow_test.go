@@ -26,14 +26,18 @@ func TestReviewApprovedFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := domain.ReviewerResult{Reviewer: domain.ReviewerA, Status: domain.ReviewerResultSuccess, Findings: []domain.Finding{{
-		LocalID: "A-001", Severity: domain.SeverityLow, Claim: "detalle menor",
-		EvidenceClass: domain.EvidenceStaticAnalysis, Evidence: []string{"ruta alcanzable"},
-	}}}
-	b := domain.ReviewerResult{Reviewer: domain.ReviewerB, Status: domain.ReviewerResultSuccess, Findings: []domain.Finding{{
-		LocalID: "B-001", Severity: domain.SeverityLow, Claim: "mismo detalle",
-		EvidenceClass: domain.EvidenceDeterministic, Evidence: []string{"misma ruta"},
-	}}}
+	a := domain.ReviewerResult{Reviewer: domain.ReviewerA, Status: domain.ReviewerResultSuccess,
+		Provider: "one", Model: "a", Findings: []domain.Finding{{
+			LocalID: "A-001", Location: "domain/finding.go:12", Severity: domain.SeverityLow,
+			Category: "style", Claim: "detalle menor", Confidence: "medium",
+			EvidenceClass: domain.EvidenceStaticAnalysis, Evidence: []string{"ruta alcanzable"},
+		}}}
+	b := domain.ReviewerResult{Reviewer: domain.ReviewerB, Status: domain.ReviewerResultSuccess,
+		Provider: "two", Model: "b", Findings: []domain.Finding{{
+			LocalID: "B-001", Location: "domain/finding.go:12", Severity: domain.SeverityLow,
+			Category: "style", Claim: "mismo detalle", Confidence: "medium",
+			EvidenceClass: domain.EvidenceDeterministic, Evidence: []string{"misma ruta"},
+		}}}
 	for _, result := range []*domain.ReviewerResult{&a, &b} {
 		if _, err := usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
 			Project: "integration", ReviewID: review.ID, TargetDigest: "sha256:frozen", Result: *result,

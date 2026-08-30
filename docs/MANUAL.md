@@ -897,15 +897,46 @@ agente propone; gomemory valida y persiste.
 ### Abrir una revisión
 
 ```bash
-mem review --diff             # cambios sin commitear
+mem review --pending          # TODO el trabajo pendiente (recomendado)
+mem review --diff             # solo cambios que git diff ve
 mem review --commit HEAD      # un commit concreto
 mem review --file specs/042/spec.md
+
+mem review --pending --read-only   # revisión que valida pero no corrige
 ```
 
-Imprime el `review_id`, el digest congelado del target y el nivel de
-independencia alcanzado. Si ambos revisores usan el mismo proveedor y modelo,
-el nivel es `degraded`: se declara así en vez de presentarse como una revisión
-plenamente independiente que no lo fue.
+Imprime el `review_id`, el digest congelado del target, el nivel de
+independencia alcanzado y la **política efectiva** con la que quedó congelada la
+revisión. Si ambos revisores usan el mismo proveedor y modelo, el nivel es
+`degraded`: se declara así en vez de presentarse como una revisión plenamente
+independiente que no lo fue.
+
+**`--pending` frente a `--diff`.** `--diff` usa `git diff`, que no ve los archivos
+sin seguimiento: una revisión de trabajo en curso con archivos recién creados
+congelaba un target que no los contenía, y los revisores inspeccionaban menos de lo
+que se creía. `--pending` incluye cambios preparados, sin preparar y archivos nuevos
+no ignorados, con una identidad reproducible. Sobre un árbol limpio falla con
+diagnóstico en vez de congelar un target vacío.
+
+**`--read-only`.** Declara una revisión que valida pero no corrige. Con un defecto
+grave confirmado termina `ESCALATED` en una sola llamada, en vez de quedarse
+esperando una corrección que su alcance prohíbe. Sin esta distinción, una revisión de
+solo validación se quedaba bloqueada para siempre.
+
+### Política del proyecto
+
+```jsonc
+// .memory/settings.json
+{
+  "review_max_fix_rounds": 2,
+  "review_auto_fix_severities": ["CRITICAL", "HIGH"],
+  "review_fix_authorized": true
+}
+```
+
+La política se congela en la revisión al iniciarla: cambiarla después no altera
+revisiones ya abiertas. Un valor explícito en `review_start` gana a la del proyecto,
+y esta a los defectos.
 
 ### Consultar
 
@@ -918,7 +949,26 @@ mem review show <review-id>       # linaje completo
 
 `status` de una revisión en curso muestra su **etapa**, no un veredicto:
 confundir "va por la mitad" con "terminó sin defectos" es el error que esta
-funcionalidad existe para impedir.
+funcionalidad existe para impedir. Muestra además el alcance (solo lectura o
+autorizada a corregir) y los recuentos por clasificación, severidad y estado de
+re-juicio.
+
+`show` reconstruye el linaje completo sin abrir la base: para cada hallazgo, sus
+hallazgos fuente, la ronda de corrección que lo abordó, lo que declaró **cada**
+revisor al revalidarlo y el estado agregado resultante.
+
+### Qué garantiza el protocolo
+
+- La clasificación de consenso debe cubrir **todos** los hallazgos de la ronda,
+  exactamente una vez. Omitir uno rechaza la clasificación entera.
+- La severidad de una clasificación se **deriva** de sus fuentes: no hay forma de
+  degradar un `HIGH` corroborado.
+- Un hallazgo queda `RESOLVED` solo si la corrección vigente lo incluye y **los dos**
+  revisores lo dan por resuelto por separado. Un `REGRESSED` de cualquiera manda.
+- Cada corrección parte del target que dejó la anterior. La cadena no admite saltos.
+- `APPROVED`, `ESCALATED` e `INCOMPLETE` son inmutables: sobre ellos no se admite
+  ningún resultado, consenso, corrección ni promoción.
+- El aprendizaje solo se promueve desde una revisión aprobada.
 
 ### El ciclo
 
