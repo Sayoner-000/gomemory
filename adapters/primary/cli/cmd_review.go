@@ -293,7 +293,7 @@ func blobsPreparados(root string, rutas []string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("git ls-files: %w", err)
 	}
-	preparados := make(map[string]string, len(rutas))
+	entradas := make(map[string][]string, len(rutas))
 	for _, registro := range strings.Split(string(out), "\x00") {
 		if registro == "" {
 			continue
@@ -305,10 +305,19 @@ func blobsPreparados(root string, rutas []string) (map[string]string, error) {
 			continue
 		}
 		campos := strings.Fields(meta)
-		if len(campos) < 2 {
+		if len(campos) < 3 {
 			continue
 		}
-		preparados[ruta] = campos[1]
+		// La identidad del índice no es solo el blob: el modo distingue, por
+		// ejemplo, un archivo ejecutable de uno normal, y la etapa distingue las
+		// entradas 1/2/3 de un conflicto. Una ruta puede tener varias etapas, así
+		// que no se deben sobrescribir entre sí.
+		entradas[ruta] = append(entradas[ruta], strings.Join(campos[:3], " "))
+	}
+	preparados := make(map[string]string, len(entradas))
+	for ruta, valores := range entradas {
+		sort.Strings(valores)
+		preparados[ruta] = strings.Join(valores, "\x00")
 	}
 	return preparados, nil
 }

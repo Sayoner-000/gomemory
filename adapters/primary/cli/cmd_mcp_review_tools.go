@@ -222,7 +222,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		salida := make([]map[string]any, 0, len(findings))
 		for _, finding := range findings {
 			porRevisor, err := usecases.ReJudgmentsByReviewer(
-				deps.ConsensusRepo, project, in.ReviewID, finding.ConsensusLocalID)
+				deps.ConsensusRepo, project, in.ReviewID, finding.ConsensusLocalID, finding.RejudgmentRound)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -419,7 +419,7 @@ func construirEstadoDeRevision(
 			porReJuicio[string(vigente)]++
 		}
 		reJuicios, err := usecases.ReJudgmentsByReviewer(
-			deps.ConsensusRepo, project, review.ID, finding.ConsensusLocalID)
+			deps.ConsensusRepo, project, review.ID, finding.ConsensusLocalID, review.Round)
 		if err != nil {
 			return nil, nil, err
 		}

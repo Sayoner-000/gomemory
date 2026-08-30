@@ -63,6 +63,10 @@ func FinalizeReviewWithMetrics(
 	// marca queda DENTRO de la marca, el veredicto se deriva de los hallazgos ya
 	// obsoletos y la comparación da igual porque compara lo nuevo con lo nuevo.
 	// Leída antes, cualquier cambio posterior la desplaza y el cierre se rechaza.
+	marcaResultados, err := reviews.ReviewerResultsMark(project, reviewID, review.Round)
+	if err != nil {
+		return nil, ReviewMetrics{}, err
+	}
 	marca, err := reviews.RejudgmentMark(project, reviewID)
 	if err != nil {
 		return nil, ReviewMetrics{}, err
@@ -111,12 +115,13 @@ func FinalizeReviewWithMetrics(
 	// revisión. Si algo se movió, el veredicto ya no corresponde a lo que hay y hay
 	// que rederivarlo.
 	if err := reviews.SetReviewStatusAtomically(project, reviewID, ports.StatusTransition{
-		ExpectedStatus:         anterior,
-		ExpectedRound:          review.Round,
-		ExpectedDigest:         review.ActiveTargetDigest(),
-		ExpectedRejudgmentMark: marca,
-		Verdict:                verdict,
-		NextStatus:             terminal,
+		ExpectedStatus:              anterior,
+		ExpectedRound:               review.Round,
+		ExpectedDigest:              review.ActiveTargetDigest(),
+		ExpectedRejudgmentMark:      marca,
+		ExpectedReviewerResultsMark: marcaResultados,
+		Verdict:                     verdict,
+		NextStatus:                  terminal,
 	}); err != nil {
 		return nil, ReviewMetrics{}, err
 	}

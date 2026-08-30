@@ -87,6 +87,15 @@ func (r *memoryReviewRepository) SetReviewStatusAtomically(
 			return fmt.Errorf("los re-juicios cambiaron mientras se finalizaba: vuelve a derivar el veredicto")
 		}
 	}
+	if transition.ExpectedReviewerResultsMark != "" {
+		marca, err := r.ReviewerResultsMark(project, reviewID, review.Round)
+		if err != nil {
+			return err
+		}
+		if marca != transition.ExpectedReviewerResultsMark {
+			return fmt.Errorf("los resultados de revisor cambiaron mientras se finalizaba: vuelve a derivar el veredicto")
+		}
+	}
 	review.Status = transition.NextStatus
 	if transition.Verdict != "" {
 		review.Verdict = transition.Verdict
@@ -105,6 +114,14 @@ func (r *memoryReviewRepository) rejudgmentMarkDe(project, reviewID string) (str
 
 func (r *memoryReviewRepository) RejudgmentMark(project, reviewID string) (string, error) {
 	return r.rejudgmentMarkDe(project, reviewID)
+}
+
+func (r *memoryReviewRepository) ReviewerResultsMark(project, reviewID string, round int) (string, error) {
+	results, err := r.ListReviewerResults(project, reviewID, round)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%#v", results), nil
 }
 
 func (r *memoryReviewRepository) ListReviews(project string, limit int) ([]domain.Review, error) {
@@ -139,6 +156,41 @@ func (r *memoryReviewRepository) UpsertReviewerResult(project, reviewID string, 
 	}
 	r.results[key] = append(items, *result)
 	return nil
+}
+
+func (r *memoryReviewRepository) UpsertReviewerResultAtomically(
+	project, reviewID string,
+	expectedStatus domain.ReviewStatus,
+	expectedRound int,
+	result *domain.ReviewerResult,
+) error {
+	review := r.reviews[reviewKey(project, reviewID)]
+	if review == nil {
+		return fmt.Errorf("review %s not found", reviewID)
+	}
+	if review.Status.Terminal() {
+		return fmt.Errorf("la revisión está en estado terminal %s y no admite cambios", review.Status)
+	}
+	if review.Status != expectedStatus || review.Round != expectedRound {
+		return fmt.Errorf(
+			"la revisión cambió a %s ronda %d mientras se enviaba el resultado; vuelve a intentarlo",
+			review.Status, review.Round,
+		)
+	}
+	faseEsperada := domain.ReviewAwaitingReviewers
+	if review.Round > 0 {
+		faseEsperada = domain.ReviewRejudging
+	}
+	if review.Status != faseEsperada {
+		return fmt.Errorf(
+			"la revisión está en %s y los resultados de la ronda %d ya no se pueden modificar",
+			review.Status, review.Round,
+		)
+	}
+	if result.Round != review.Round {
+		return fmt.Errorf("el resultado pertenece a la ronda %d, la vigente es la %d", result.Round, review.Round)
+	}
+	return r.UpsertReviewerResult(project, reviewID, result)
 }
 
 func (r *memoryReviewRepository) ListReviewerResults(project, reviewID string, round int) ([]domain.ReviewerResult, error) {

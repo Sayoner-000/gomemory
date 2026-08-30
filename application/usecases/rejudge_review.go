@@ -155,7 +155,7 @@ func RejudgeReview(
 // ReJudgmentsByReviewer devuelve el estado declarado por cada revisor sobre un
 // hallazgo, para que la auditoría pueda mostrar quién dijo qué (FR-023).
 func ReJudgmentsByReviewer(
-	ledger ports.ConsensusRepository, project, reviewID, consensusLocalID string,
+	ledger ports.ConsensusRepository, project, reviewID, consensusLocalID string, round int,
 ) (map[domain.Reviewer]domain.ReJudgmentState, error) {
 	judgments, err := ledger.ListReJudgments(project, reviewID, consensusLocalID)
 	if err != nil {
@@ -163,6 +163,9 @@ func ReJudgmentsByReviewer(
 	}
 	out := make(map[domain.Reviewer]domain.ReJudgmentState, len(judgments))
 	for _, judgment := range judgments {
+		if judgment.Round != round {
+			continue
+		}
 		out[judgment.Reviewer] = judgment.State
 	}
 	return out, nil

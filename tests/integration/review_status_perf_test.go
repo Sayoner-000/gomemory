@@ -72,7 +72,7 @@ func TestReviewStatusYFinalizeConMilHallazgos(t *testing.T) {
 		t.Fatalf("se leyeron %d hallazgos, se esperaban %d", len(findings), total)
 	}
 	for _, finding := range findings {
-		if _, err := usecases.ReJudgmentsByReviewer(ledger, project, review.ID, finding.ConsensusLocalID); err != nil {
+		if _, err := usecases.ReJudgmentsByReviewer(ledger, project, review.ID, finding.ConsensusLocalID, review.Round); err != nil {
 			t.Fatal(err)
 		}
 	}

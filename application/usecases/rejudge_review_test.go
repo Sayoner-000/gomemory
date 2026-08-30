@@ -306,3 +306,24 @@ func TestRejudgeReview_ExigeDeclararElRevisor(t *testing.T) {
 		t.Fatal("un re-juicio sin revisor no es corroboración independiente")
 	}
 }
+
+func TestReJudgmentsByReviewer_SoloPublicaLaRondaSolicitada(t *testing.T) {
+	ledger := newMemoryConsensusRepository()
+	key := rejudgmentKey("proj", "acr_test", "C-001")
+	ledger.rejudgment[key] = []domain.ReJudgment{
+		{Round: 1, ConsensusLocalID: "C-001", Reviewer: domain.ReviewerA, State: domain.ReJudgmentResolved},
+		{Round: 1, ConsensusLocalID: "C-001", Reviewer: domain.ReviewerB, State: domain.ReJudgmentResolved},
+		{Round: 2, ConsensusLocalID: "C-001", Reviewer: domain.ReviewerA, State: domain.ReJudgmentUnresolved},
+	}
+
+	porRevisor, err := ReJudgmentsByReviewer(ledger, "proj", "acr_test", "C-001", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if porRevisor[domain.ReviewerA] != domain.ReJudgmentUnresolved {
+		t.Fatalf("A debe mostrar el estado vigente, obtuvo %s", porRevisor[domain.ReviewerA])
+	}
+	if _, existe := porRevisor[domain.ReviewerB]; existe {
+		t.Fatal("B conserva un estado de una ronda caducada")
+	}
+}

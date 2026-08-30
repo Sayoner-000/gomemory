@@ -84,6 +84,41 @@ func TestSubmitReviewerResultValidatesDigestIdempotencyAndFailure(t *testing.T) 
 	}
 }
 
+func TestSubmitReviewerResultNoMutaResultadosConConsensoListo(t *testing.T) {
+	repo := newMemoryReviewRepository()
+	target, _ := domain.NewTarget(domain.TargetDiff, "working-tree", "sha256:frozen", nil)
+	review := &domain.Review{
+		ID: "acr_consenso_congelado", Project: "proj", Target: target,
+		Status: domain.ReviewConsensusReady,
+	}
+	if err := repo.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	original := domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultSuccess,
+		Findings: []domain.Finding{hallazgoCompleto("A-001")},
+	}
+	if err := repo.UpsertReviewerResult("proj", review.ID, &original); err != nil {
+		t.Fatal(err)
+	}
+	mutado := original
+	mutado.Findings = append([]domain.Finding(nil), original.Findings...)
+	mutado.Findings[0].Claim = "consenso distinto"
+	_, err := SubmitReviewerResult(repo, SubmitReviewerResultInput{
+		Project: "proj", ReviewID: review.ID, TargetDigest: "sha256:frozen", Result: mutado,
+	})
+	if err == nil || !strings.Contains(err.Error(), "ya no se pueden modificar") {
+		t.Fatalf("un resultado con consenso listo debe ser inmutable, got %v", err)
+	}
+	stored, err := repo.ListReviewerResults("proj", review.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || stored[0].Findings[0].Claim != "defecto" {
+		t.Fatalf("el reenvío alteró las fuentes del consenso: %#v", stored)
+	}
+}
+
 func hallazgoCompleto(localID string) domain.Finding {
 	return domain.Finding{
 		LocalID: localID, Location: "domain/verdict.go:42", Severity: domain.SeverityHigh,

@@ -173,6 +173,88 @@ func TestReviewRepositoryRoundTripAndIdempotentResubmission(t *testing.T) {
 	}
 }
 
+func TestReviewerResultAtomicoRechazaTerminalSinMutarElLedger(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewReviewRepository(db)
+	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+	review := &domain.Review{
+		ID: "acr_resultado_terminal", Project: "proj", Target: target,
+		Status: domain.ReviewAwaitingReviewers,
+	}
+	if err := repo.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	original := &domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultSuccess,
+	}
+	if err := repo.UpsertReviewerResult("proj", review.ID, original); err != nil {
+		t.Fatal(err)
+	}
+	review.Status = domain.ReviewApproved
+	review.Verdict = domain.VerdictApproved
+	if err := repo.UpdateReview(review); err != nil {
+		t.Fatal(err)
+	}
+
+	tardio := &domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultFailure,
+	}
+	if err := repo.UpsertReviewerResultAtomically(
+		"proj", review.ID, domain.ReviewAwaitingReviewers, 0, tardio,
+	); err == nil || !strings.Contains(err.Error(), "terminal") {
+		t.Fatalf("un resultado tardío debe rechazarse antes de escribir, got %v", err)
+	}
+	results, err := repo.ListReviewerResults("proj", review.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Status != domain.ReviewerResultSuccess {
+		t.Fatalf("el resultado terminal fue mutado: %#v", results)
+	}
+}
+
+func TestReviewerResultsMarkCambiaConElLedger(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewReviewRepository(db)
+	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+	review := &domain.Review{
+		ID: "acr_marca_resultados", Project: "proj", Target: target,
+		Status: domain.ReviewAwaitingReviewers,
+	}
+	if err := repo.CreateReview(review); err != nil {
+		t.Fatal(err)
+	}
+	result := &domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultSuccess,
+	}
+	if err := repo.UpsertReviewerResult("proj", review.ID, result); err != nil {
+		t.Fatal(err)
+	}
+	antes, err := repo.ReviewerResultsMark("proj", review.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Status = domain.ReviewerResultFailure
+	if err := repo.UpsertReviewerResult("proj", review.ID, result); err != nil {
+		t.Fatal(err)
+	}
+	despues, err := repo.ReviewerResultsMark("proj", review.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if antes == despues {
+		t.Fatal("la marca no cambió al cambiar el estado del resultado")
+	}
+}
+
 // TestReviewRedactaSecretosEnTextoLibre cubre FR-041 y el §35 de la entrada.
 //
 // Un revisor cita el código que analiza: si esa línea trae una credencial, la

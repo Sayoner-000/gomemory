@@ -2,6 +2,10 @@
 
 <!-- Capture patterns, gotchas, and rules after each user correction. -->
 
+## 2026-08-30
+
+- **Un conjunto amplio de bugs sigue siendo mantenimiento correctivo, no una feature.** La spec 029 se creó como excepción al protocolo del proyecto porque los defectos atravesaban dominio, puertos, persistencia y CLI; el usuario la retiró: el tamaño o la transversalidad no cambian la naturaleza del trabajo. **Regla: si el objetivo es restaurar comportamiento ya prometido o cerrar defectos, corregir y verificar directamente contra el sistema real; no abrir una feature ni una spec SDD.**
+
 ## 2026-08-29
 
 - **Una medición puede dar verde por idempotencia y no probar nada.** Para comprobar si `go test ./...` contaminaba el `~/.codex/config.toml` real se comparó su hash antes y después: sin cambios, «la suite está limpia». Era falso. La suite SÍ escribía, pero el hook que habría añadido ya estaba presente y `ensureCodexGomemoryHooks` es idempotente, así que no había diferencia que detectar. La medición correcta partió de un HOME de sacrificio con el estado ANTERIOR (3 hooks en vez de 4): pasó a 4 y el fallo quedó confirmado. **Regla: para medir si algo escribe donde no debe, partir de un estado que OBLIGUE a escribir. Un «no cambió nada» sobre una operación idempotente no distingue «no la ejecutó» de «la ejecutó sin efecto», y las dos conclusiones son opuestas.**

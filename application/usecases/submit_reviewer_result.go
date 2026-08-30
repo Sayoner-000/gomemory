@@ -87,7 +87,9 @@ func SubmitReviewerResult(repo ports.ReviewRepository, input SubmitReviewerResul
 	}
 	input.Result.Round = review.Round
 	input.Result.ReviewID = review.ID
-	if err := repo.UpsertReviewerResult(input.Project, input.ReviewID, &input.Result); err != nil {
+	if err := repo.UpsertReviewerResultAtomically(
+		input.Project, input.ReviewID, review.Status, review.Round, &input.Result,
+	); err != nil {
 		return SubmitReviewerResultOutput{}, err
 	}
 	findingIDs := make(map[string]int64, len(input.Result.Findings))

@@ -119,6 +119,62 @@ func rejudgmentMark(q querier, internalID int64) (string, error) {
 	return fmt.Sprintf("%d:%d:%x", total, maxID, sha256.Sum256([]byte(estados))), nil
 }
 
+// ReviewerResultsMark resume los resultados y hallazgos de una ronda. Incluye
+// todos los campos semánticos que pueden cambiar el veredicto o la cobertura del
+// consenso; omite submitted_at porque un reintento idéntico no cambia el juicio.
+func (r *ReviewRepository) ReviewerResultsMark(project, reviewID string, round int) (string, error) {
+	internalID, err := r.lookupReviewID(project, reviewID)
+	if err != nil {
+		return "", err
+	}
+	return reviewerResultsMark(r.db, internalID, round)
+}
+
+func reviewerResultsMark(q querier, internalID int64, round int) (string, error) {
+	rows, err := q.Query(`
+		SELECT rr.id, rr.reviewer, rr.provider, rr.model, rr.status,
+		       f.id, f.local_id, f.location, f.severity, f.category, f.claim,
+		       f.evidence_class, f.evidence, f.confidence
+		FROM reviewer_results rr
+		LEFT JOIN findings f ON f.reviewer_result_id = rr.id
+		WHERE rr.review_id = ? AND rr.round = ?
+		ORDER BY rr.id, f.id`, internalID, round)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	hash := sha256.New()
+	for rows.Next() {
+		var resultID int64
+		var reviewer, provider, model, status string
+		var findingID sql.NullInt64
+		var localID, location, severity, category, claim sql.NullString
+		var evidenceClass, evidence, confidence sql.NullString
+		if err := rows.Scan(
+			&resultID, &reviewer, &provider, &model, &status,
+			&findingID, &localID, &location, &severity, &category, &claim,
+			&evidenceClass, &evidence, &confidence,
+		); err != nil {
+			return "", err
+		}
+		fila, err := json.Marshal([]any{
+			resultID, reviewer, provider, model, status,
+			findingID.Valid, findingID.Int64,
+			localID.String, location.String, severity.String, category.String,
+			claim.String, evidenceClass.String, evidence.String, confidence.String,
+		})
+		if err != nil {
+			return "", err
+		}
+		hash.Write(fila)
+		hash.Write([]byte{0})
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
 // SetReviewStatusAtomically escribe el estado de una revisión bajo comparación-y-cambio.
 //
 // La superficie de escritura es deliberadamente mínima: verdict, status y updated_at.
@@ -203,6 +259,19 @@ func (r *ReviewRepository) SetReviewStatusAtomically(
 			)
 		}
 	}
+	// Los resultados de revisor también forman parte del veredicto. Antes podían
+	// cambiar después de la lectura sin tocar ninguna de las guardas anteriores.
+	if transition.ExpectedReviewerResultsMark != "" {
+		marca, err := reviewerResultsMark(connQuerier{ctx, conn}, internalID, ronda)
+		if err != nil {
+			return err
+		}
+		if marca != transition.ExpectedReviewerResultsMark {
+			return fmt.Errorf(
+				"los resultados de revisor cambiaron mientras se finalizaba: vuelve a derivar el veredicto",
+			)
+		}
+	}
 
 	result, err := conn.ExecContext(ctx,
 		`UPDATE reviews SET status = ?, verdict = ?, updated_at = `+Now+` WHERE id = ?`,
@@ -258,8 +327,99 @@ func (r *ReviewRepository) UpsertReviewerResult(project, reviewID string, result
 	if err != nil {
 		return err
 	}
+	if err := persistReviewerResult(context.Background(), tx, internalID, reviewID, result); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit reviewer result: %w", err)
+	}
+	return nil
+}
+
+// UpsertReviewerResultAtomically comprueba la fase y la ronda bajo el mismo
+// BEGIN IMMEDIATE que persiste el resultado. La comprobación previa del caso de
+// uso sigue dando errores tempranos, pero esta es la que cierra la carrera.
+func (r *ReviewRepository) UpsertReviewerResultAtomically(
+	project, reviewID string,
+	expectedStatus domain.ReviewStatus,
+	expectedRound int,
+	result *domain.ReviewerResult,
+) error {
+	ctx := context.Background()
+	conn, err := r.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
+	}
+	comprometida := false
+	defer func() {
+		if !comprometida {
+			conn.ExecContext(ctx, `ROLLBACK`)
+		}
+	}()
+
+	var internalID int64
+	var status string
+	var round int
+	err = conn.QueryRowContext(ctx,
+		`SELECT id, status, round FROM reviews WHERE project = ? AND review_id = ?`,
+		project, reviewID,
+	).Scan(&internalID, &status, &round)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("review %s not found", reviewID)
+	}
+	if err != nil {
+		return err
+	}
+	actualStatus := domain.ReviewStatus(status)
+	if actualStatus.Terminal() {
+		return fmt.Errorf("la revisión está en estado terminal %s y no admite cambios", status)
+	}
+	if actualStatus != expectedStatus || round != expectedRound {
+		return fmt.Errorf(
+			"la revisión cambió a %s ronda %d mientras se enviaba el resultado; vuelve a intentarlo",
+			status, round,
+		)
+	}
+	faseEsperada := domain.ReviewAwaitingReviewers
+	if round > 0 {
+		faseEsperada = domain.ReviewRejudging
+	}
+	if actualStatus != faseEsperada {
+		return fmt.Errorf(
+			"la revisión está en %s y los resultados de la ronda %d ya no se pueden modificar",
+			status, round,
+		)
+	}
+	if result.Round != round {
+		return fmt.Errorf("el resultado pertenece a la ronda %d, la vigente es la %d", result.Round, round)
+	}
+	if err := persistReviewerResult(ctx, conn, internalID, reviewID, result); err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("commit reviewer result: %w", err)
+	}
+	comprometida = true
+	return nil
+}
+
+type reviewerResultWriter interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func persistReviewerResult(
+	ctx context.Context,
+	writer reviewerResultWriter,
+	internalID int64,
+	reviewID string,
+	result *domain.ReviewerResult,
+) error {
 	var resultID int64
-	err = tx.QueryRow(`
+	err := writer.QueryRowContext(ctx, `
 		INSERT INTO reviewer_results (review_id, reviewer, round, provider, model, status, submitted_at)
 		VALUES (?, ?, ?, ?, ?, ?, `+Now+`)
 		ON CONFLICT(review_id, reviewer, round) DO UPDATE SET
@@ -278,7 +438,7 @@ func (r *ReviewRepository) UpsertReviewerResult(project, reviewID string, result
 		if err != nil {
 			return fmt.Errorf("encode finding evidence: %w", err)
 		}
-		err = tx.QueryRow(`
+		err = writer.QueryRowContext(ctx, `
 			INSERT INTO findings (reviewer_result_id, local_id, location, severity, category, claim, evidence_class, evidence, confidence)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(reviewer_result_id, local_id) DO UPDATE SET
@@ -291,9 +451,6 @@ func (r *ReviewRepository) UpsertReviewerResult(project, reviewID string, result
 			return fmt.Errorf("upsert finding %s: %w", finding.LocalID, err)
 		}
 		finding.ReviewerResultID = resultID
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit reviewer result: %w", err)
 	}
 	return nil
 }

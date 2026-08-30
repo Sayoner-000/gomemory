@@ -349,3 +349,45 @@ func TestUnaMarcaDeReJuiciosObsoletaRechazaElCierre(t *testing.T) {
 			previa.Status, previa.Verdict, final.Status, final.Verdict)
 	}
 }
+
+func TestUnaMarcaDeResultadosObsoletaRechazaElCierre(t *testing.T) {
+	db, err := persistence.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	const proyecto = "marca-resultados"
+	reviews, _ := revisionConHallazgo(t, db, proyecto, "acr_marca_resultados")
+
+	marca, err := reviews.ReviewerResultsMark(proyecto, "acr_marca_resultados", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	falloTardio := domain.ReviewerResult{
+		Reviewer: domain.ReviewerA, Round: 0, Status: domain.ReviewerResultFailure,
+	}
+	// Escritura de bajo nivel para simular exactamente el cambio que puede caer
+	// entre la lectura y el CAS de finalización.
+	if err := reviews.UpsertReviewerResult(proyecto, "acr_marca_resultados", &falloTardio); err != nil {
+		t.Fatal(err)
+	}
+
+	err = reviews.SetReviewStatusAtomically(proyecto, "acr_marca_resultados", ports.StatusTransition{
+		ExpectedStatus:              domain.ReviewConsensusReady,
+		ExpectedRound:               0,
+		ExpectedDigest:              "sha256:v0",
+		ExpectedReviewerResultsMark: marca,
+		Verdict:                     domain.VerdictApproved,
+		NextStatus:                  domain.ReviewApproved,
+	})
+	if err == nil {
+		t.Fatal("se aprobó con una marca de resultados obsoleta: el fallo tardío quedó invisible")
+	}
+	final, err := reviews.GetReview(proyecto, "acr_marca_resultados")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if final.Status != domain.ReviewConsensusReady || final.Verdict != "" {
+		t.Fatalf("un cierre rechazado dejó rastro: status=%s verdict=%q", final.Status, final.Verdict)
+	}
+}

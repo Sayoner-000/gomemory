@@ -32,6 +32,10 @@ type StatusTransition struct {
 	// y persistía APPROVED sobre un hallazgo severo que el ledger registra como
 	// reaparecido. Reproducido en 7 de cada 300 ejecuciones.
 	ExpectedRejudgmentMark string
+	// ExpectedReviewerResultsMark identifica los resultados y hallazgos de revisor
+	// usados para derivar el veredicto. Un resultado tardío no cambia status, round
+	// ni digest, así que necesita su propia guarda.
+	ExpectedReviewerResultsMark string
 	// Verdict vacío deja el veredicto sin fijar: un avance de estado intermedio no
 	// emite juicio.
 	Verdict    domain.Verdict
@@ -53,6 +57,15 @@ type ReviewRepository interface {
 	SetReviewStatusAtomically(project, reviewID string, transition StatusTransition) error
 
 	UpsertReviewerResult(project, reviewID string, result *domain.ReviewerResult) error
+	// UpsertReviewerResultAtomically persiste un resultado solo si la revisión sigue
+	// exactamente en el estado y ronda observados por el caso de uso. La comprobación
+	// y la escritura comparten el mismo bloqueo de escritura.
+	UpsertReviewerResultAtomically(
+		project, reviewID string,
+		expectedStatus domain.ReviewStatus,
+		expectedRound int,
+		result *domain.ReviewerResult,
+	) error
 	ListReviewerResults(project, reviewID string, round int) ([]domain.ReviewerResult, error)
 	GetFinding(project, reviewID string, findingID int64) (*domain.Finding, error)
 	ListFindings(project, reviewID string, round int) ([]domain.Finding, error)
@@ -61,6 +74,9 @@ type ReviewRepository interface {
 	// comparable. Cambia con cualquier alta o modificación de un re-juicio, que es lo
 	// que permite detectar que el veredicto se dedujo de un estado ya superado.
 	RejudgmentMark(project, reviewID string) (string, error)
+	// ReviewerResultsMark resume los resultados y hallazgos de la ronda indicada.
+	// Cambia con cualquier escritura que pueda alterar el veredicto.
+	ReviewerResultsMark(project, reviewID string, round int) (string, error)
 
 	// CountPromotedMemories devuelve cuántas memorias promovió esta revisión y
 	// cuántas de esas promociones reforzaron una memoria existente en vez de crear

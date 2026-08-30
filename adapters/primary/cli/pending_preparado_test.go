@@ -63,6 +63,28 @@ func TestPendingDistingueElContenidoPreparado(t *testing.T) {
 	}
 }
 
+// TestBlobsPreparadosDistingueElModo evita que dos índices con el mismo blob pero
+// permisos distintos vuelvan a compartir identidad. Git conserva el modo en la
+// entrada del índice aunque los bytes sean idénticos.
+func TestBlobsPreparadosDistingueElModo(t *testing.T) {
+	root := repoConPreparado(t, "MISMOS-BYTES\n")
+	gitEnRepo(t, root, "update-index", "--chmod=+x", "f.txt")
+	ejecutable, err := blobsPreparados(root, []string{"f.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gitEnRepo(t, root, "update-index", "--chmod=-x", "f.txt")
+	normal, err := blobsPreparados(root, []string{"f.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ejecutable["f.txt"] == normal["f.txt"] {
+		t.Fatal("misma identidad preparada con modos 100755 y 100644")
+	}
+}
+
 // TestPendingSigueDistinguiendoElArbol es el control: mezclar el blob preparado no
 // puede haber dejado de mirar el árbol de trabajo, que era lo único que miraba antes.
 func TestPendingSigueDistinguiendoElArbol(t *testing.T) {

@@ -146,7 +146,7 @@ func cmdReviewShow(deps *Deps, args []string) {
 		// El linaje por revisor es la mitad de la auditoría: sin él no se puede
 		// saber si un RESOLVED lo respaldan dos revisores o uno solo (FR-023).
 		porRevisor, err := usecases.ReJudgmentsByReviewer(
-			deps.ConsensusRepo, deps.Project, review.ID, finding.ConsensusLocalID)
+			deps.ConsensusRepo, deps.Project, review.ID, finding.ConsensusLocalID, review.Round)
 		if err != nil {
 			fail("listar re-juicios: %v", err)
 		}
