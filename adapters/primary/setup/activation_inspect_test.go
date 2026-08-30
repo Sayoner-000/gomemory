@@ -339,3 +339,129 @@ func TestActivationInspect_InstruccionesDeUsuarioSiguenEvaluandose(t *testing.T)
 	}
 	t.Fatal("no se encontró ningún canal instructions de ámbito usuario")
 }
+
+// TestActivationInspect_CodexEntryComprubaElHookRealInstalado cubre el falso
+// negativo que reportó `mem doctor`: con el hook UserPromptSubmit escrito en
+// ~/.codex/config.toml —el mecanismo que el registro de agentes declara para el
+// nivel 2 de Codex— el canal salía en rojo con "no se conoce el mecanismo de
+// entrada de este agente", porque el inspector solo sabía comprobar mecanismos
+// basados en archivo. Peor que el hueco era el remedio: proponía reinstalar algo
+// que ya estaba, y el canal seguía rojo tras ejecutarlo.
+func TestActivationInspect_CodexEntryComprubaElHookRealInstalado(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0755); err != nil {
+		t.Fatalf("mkdir ~/.codex: %v", err)
+	}
+	config := "[[hooks.UserPromptSubmit]]\n" +
+		"[[hooks.UserPromptSubmit.hooks]]\n" +
+		"type = 'command'\n" +
+		"command = 'mem hook user-prompt-submit --emit=text'\n"
+	if err := os.WriteFile(filepath.Join(codexDir, "config.toml"), []byte(config), 0644); err != nil {
+		t.Fatalf("write config.toml: %v", err)
+	}
+
+	for _, c := range NewActivationInspector().Inspect(root) {
+		if c.Agent == "codex" && c.Kind == domain.KindPlanEntry && c.Scope == domain.ScopeUser {
+			if c.State != domain.StateOK {
+				t.Fatalf("con el hook UserPromptSubmit instalado, plan_entry de codex debe ser ok, got %v (%q)", c.State, c.Detail)
+			}
+			if !strings.Contains(c.Detail, "user-prompt-submit") {
+				t.Errorf("el detalle debe nombrar el hook que sostiene el canal, got %q", c.Detail)
+			}
+			return
+		}
+	}
+	t.Fatal("no se encontró el canal plan_entry de codex/user")
+}
+
+// TestActivationInspect_CodexEntryFaltaSinElHook es el camino negativo: el
+// resto del ciclo instalado NO debe bastar para dar por sostenido el nivel 2.
+// Sin este caso, un inspector que devolviera ok a ciegas pasaría el test
+// anterior y el canal volvería a mentir, esta vez en verde.
+func TestActivationInspect_CodexEntryFaltaSinElHook(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0755); err != nil {
+		t.Fatalf("mkdir ~/.codex: %v", err)
+	}
+	config := "[[hooks.Stop]]\n" +
+		"[[hooks.Stop.hooks]]\n" +
+		"type = 'command'\n" +
+		"command = 'mem hook turn-end --emit=text'\n"
+	if err := os.WriteFile(filepath.Join(codexDir, "config.toml"), []byte(config), 0644); err != nil {
+		t.Fatalf("write config.toml: %v", err)
+	}
+
+	for _, c := range NewActivationInspector().Inspect(root) {
+		if c.Agent == "codex" && c.Kind == domain.KindPlanEntry && c.Scope == domain.ScopeUser {
+			if c.State == domain.StateOK {
+				t.Fatalf("sin el hook UserPromptSubmit, plan_entry de codex no debe ser ok, detail=%q", c.Detail)
+			}
+			return
+		}
+	}
+	t.Fatal("no se encontró el canal plan_entry de codex/user")
+}
+
+// TestActivationInspect_CodexLifecycleDetalleDerivaDeLaTabla ata el detalle del
+// canal a la declaración vigente. La enumeración estaba escrita a mano y ya se
+// había quedado corta: nombraba tres hooks cuando la tabla declaraba cuatro.
+//
+// El test altera la tabla a propósito. Comprobarla tal como está hoy no
+// demostraría nada —el literal viejo coincidía con ella por casualidad—: lo que
+// distingue un detalle derivado de uno escrito a mano es qué pasa cuando la
+// tabla cambia, que es justo el momento en el que el informe empezó a mentir.
+func TestActivationInspect_CodexLifecycleDetalleDerivaDeLaTabla(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+
+	original := codexGomemoryHooks
+	t.Cleanup(func() { codexGomemoryHooks = original })
+	codexGomemoryHooks = append(append([]CodexHook{}, original...),
+		CodexHook{Event: "PreCompact", Sub: "pre-compact-ficticio"})
+
+	codexDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(codexDir, 0755); err != nil {
+		t.Fatalf("mkdir ~/.codex: %v", err)
+	}
+	var b strings.Builder
+	for _, h := range CodexGomemoryHooks() {
+		b.WriteString("[[hooks." + h.Event + "]]\n")
+		if h.Matcher != "" {
+			b.WriteString("matcher = '" + h.Matcher + "'\n")
+		}
+		b.WriteString("[[hooks." + h.Event + ".hooks]]\ntype = 'command'\n")
+		b.WriteString("command = '" + CodexHookCommand(h, "mem") + "'\n")
+	}
+	if err := os.WriteFile(filepath.Join(codexDir, "config.toml"), []byte(b.String()), 0644); err != nil {
+		t.Fatalf("write config.toml: %v", err)
+	}
+
+	for _, c := range NewActivationInspector().Inspect(root) {
+		if c.Agent == "codex" && c.Kind == domain.KindLifecycleHook && c.Scope == domain.ScopeUser {
+			if c.State != domain.StateOK {
+				t.Fatalf("con el ciclo completo instalado el canal debe ser ok, got %v (%q)", c.State, c.Detail)
+			}
+			for _, sub := range CodexLifecycleHookSubs() {
+				if !strings.Contains(c.Detail, sub) {
+					t.Errorf("el detalle debe nombrar el subcomando %q declarado en la tabla, got %q", sub, c.Detail)
+				}
+			}
+			// El hook de entrada al modo plan tiene canal propio: nombrarlo
+			// aquí lo contaría dos veces en el informe.
+			if entrada, ok := CodexPlanEntryHook(); ok && strings.Contains(c.Detail, entrada.Sub) {
+				t.Errorf("el detalle del ciclo no debe nombrar %q, que sostiene plan_entry, got %q", entrada.Sub, c.Detail)
+			}
+			return
+		}
+	}
+	t.Fatal("no se encontró el canal lifecycle_hook de codex/user")
+}

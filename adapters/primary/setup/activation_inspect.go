@@ -88,6 +88,10 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 		switch {
 		case agent.Dialect == domain.DialectClaude:
 			out = append(out, a.inspectClaudeHook(agent, dir, scope, domain.KindPlanEntry, "PostToolUse", "EnterPlanMode", "hook plan-entered"))
+		case agent.Name == "codex" && scope == domain.ScopeUser:
+			// Codex sostiene el nivel 2 por un hook de su config.toml, no por
+			// un archivo cuya sola presencia baste: verificarlo donde vive.
+			out = append(out, inspectCodexPlanEntry())
 		case scope == domain.ScopeUser:
 			// inspectClaudeHook busca en .claude/settings.json — un mecanismo
 			// exclusivo de Claude Code. Un agente con otro dialecto (opencode)
@@ -177,14 +181,44 @@ func inspectCodexHooks() domain.ActivationChannel {
 		Arm: domain.ArmGomemory, Agent: "codex", Scope: domain.ScopeUser,
 		Kind: domain.KindLifecycleHook,
 	}
-	faltantes := CodexMissingGomemoryHooks()
+	faltantes := CodexMissingLifecycleHooks()
 	if len(faltantes) == 0 {
 		ch.State = domain.StateOK
-		ch.Detail = "hooks de gomemory en ~/.codex/config.toml (session-start, post-compact, turn-end)"
+		ch.Detail = "hooks de gomemory en ~/.codex/config.toml (" +
+			strings.Join(CodexLifecycleHookSubs(), ", ") + ")"
 		return ch
 	}
 	ch.State = domain.StateMissing
 	ch.Detail = "faltan hooks de gomemory en ~/.codex/config.toml: " + strings.Join(faltantes, ", ")
+	return ch
+}
+
+// inspectCodexPlanEntry comprueba el artefacto REAL que sostiene el nivel 2 en
+// Codex: el hook UserPromptSubmit de ~/.codex/config.toml.
+//
+// Antes caía en inspectAgentEntryFile, que solo sabe de mecanismos basados en
+// archivo, y reportaba "no se conoce el mecanismo de entrada de este agente"
+// CON el hook instalado. Ese falso negativo era peor que un hueco: el informe
+// proponía reinstalar, reinstalar reescribía un hook que ya estaba, y el canal
+// seguía en rojo sin que nada explicara por qué.
+func inspectCodexPlanEntry() domain.ActivationChannel {
+	ch := domain.ActivationChannel{
+		Arm: domain.ArmGomemory, Agent: "codex", Scope: domain.ScopeUser,
+		Kind: domain.KindPlanEntry,
+	}
+	h, declarado := CodexPlanEntryHook()
+	if !declarado {
+		ch.State = domain.StateMissing
+		ch.Detail = "la tabla de hooks de Codex no declara el enganche de entrada al modo plan"
+		return ch
+	}
+	if CodexHookInstalado(h) {
+		ch.State = domain.StateOK
+		ch.Detail = "hook " + h.Event + " → mem hook " + h.Sub + " en ~/.codex/config.toml"
+		return ch
+	}
+	ch.State = domain.StateMissing
+	ch.Detail = "falta el hook " + h.Event + " (mem hook " + h.Sub + ") en ~/.codex/config.toml"
 	return ch
 }
 
