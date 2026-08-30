@@ -5,6 +5,27 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.16.4] - 2026-08-29
+
+### Correcciones
+
+#### La finalización verifica la marca de re-juicios en el orden correcto
+
+`FinalizeReview` leía la marca de re-juicios después de los datos de los que
+se deriva el veredicto. Una retractación que aterrizara entre ambas lecturas
+quedaba dentro de la marca pero el veredicto ya estaba calculado con hallazgos
+obsoletos. Ahora la marca se lee primero.
+
+`SetReviewStatusAtomically` reemplaza a `FinalizeReviewAtomically` y agrega
+`ExpectedRejudgmentMark` a la comparación atómica.
+
+#### Un hallazgo solo se muestra resuelto si lo está en la ronda vigente
+
+`ConsensusFinding` gana `EstadoVigente` y `ResueltoEn`: un solo criterio de
+vigencia. Antes, consultas de estado y de detalle leían la columna a secas y
+mostraban `RESOLVED` mientras la finalización se negaba a cerrar sin decir cuál
+era el hallazgo ni por qué.
+
 ## [2.16.3] - 2026-08-29
 
 ### Correcciones
