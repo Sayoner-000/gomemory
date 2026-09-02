@@ -5,6 +5,28 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.16.10] - 2026-09-02
+
+### Correcciones
+
+#### Pegado funciona en todas las cajas de la TUI
+
+`updateFocusedInput` enruta el pegado por pantalla en vez de recorrer el modelo
+con `Focused()`. Antes, `saveContent` se enfocaba al construir el modelo y
+nunca se desenfocaba al salir de la pantalla de guardar, así que se tragaba el
+pegado de todas las demás cajas (ruta de import, ajustes de IA, documentos),
+que quedaban sin poder pegar.
+
+Dentro de una pantalla con varios inputs se le pasa el mensaje a todos: el
+`textinput` ignora lo que recibe mientras está desenfocado.
+
+#### Foco correcto al guardar
+
+`saveAndReturn` usa `updateFocus()` en lugar de `Focus()` suelto para evitar
+doble foco tras tabular entre cajas de la pantalla de guardado.
+
+---
+
 ## [2.16.7] - 2026-08-30
 
 ### Correcciones
