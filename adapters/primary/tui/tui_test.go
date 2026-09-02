@@ -415,6 +415,130 @@ func TestPasteMsgReachesFocusedInput(t *testing.T) {
 	}
 }
 
+// El pegado debe llegar a la caja de la pantalla activa, no a la que quedó
+// enfocada de arrastre. saveContent se enfoca al construir el modelo y nunca se
+// desenfoca al salir de la pantalla de guardar: si el destino se eligiera por
+// Focused() recorriendo el modelo, se tragaría el pegado de todas las demás.
+func TestPasteMsgLlegaALaCajaDeLaPantallaActiva(t *testing.T) {
+	casos := []struct {
+		nombre  string
+		prepara func(m *model)
+		valor   func(m model) string
+	}{
+		{
+			nombre: "import",
+			prepara: func(m *model) {
+				m.screen = screenImport
+				m.importPath = textinput.New()
+				m.importPath.Focus()
+			},
+			valor: func(m model) string { return m.importPath.Value() },
+		},
+		{
+			nombre: "ajuste de configuración",
+			prepara: func(m *model) {
+				m.screen = screenEditSetting
+				m.editSettingInput = textinput.New()
+				m.editSettingInput.Focus()
+			},
+			valor: func(m model) string { return m.editSettingInput.Value() },
+		},
+		{
+			nombre: "ruta de documento",
+			prepara: func(m *model) {
+				m.screen = screenDocs
+				m.docPendiente = docActionImportar
+				m.docPath = textinput.New()
+				m.docPath.Focus()
+			},
+			valor: func(m model) string { return m.docPath.Value() },
+		},
+		{
+			nombre: "confirmación de mantenimiento",
+			prepara: func(m *model) {
+				m.screen = screenMaintenanceConfirm
+				m.maintConfirm = textinput.New()
+				m.maintConfirm.Focus()
+			},
+			valor: func(m model) string { return m.maintConfirm.Value() },
+		},
+		{
+			nombre: "filtro de la lista",
+			prepara: func(m *model) {
+				m.screen = screenList
+				m.filtering = true
+				m.filterInput.Focus()
+			},
+			valor: func(m model) string { return m.filterInput.Value() },
+		},
+		{
+			nombre: "tarea de uso",
+			prepara: func(m *model) {
+				m.screen = screenUsage
+				m.usageTaskInput = textinput.New()
+				m.usageBudgetInput = textinput.New()
+				m.usageFocus = 0
+				m.updateUsageFocus()
+			},
+			valor: func(m model) string { return m.usageTaskInput.Value() },
+		},
+	}
+
+	const pegado = "/ruta/pegada/desde/el/portapapeles"
+
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			m := newTestModel(nil, 20)
+			// Foco de arrastre: así queda el modelo tras arrancar o tras
+			// visitar la pantalla de guardar.
+			m.saveContent = textinput.New()
+			m.saveContent.Focus()
+			c.prepara(&m)
+
+			next, _ := m.Update(tea.PasteMsg{Content: pegado})
+			got := next.(model)
+			if v := c.valor(got); v != pegado {
+				t.Fatalf("la caja activa no recibió el pegado: %q", v)
+			}
+			if got.saveContent.Value() != "" {
+				t.Fatalf("el pegado se filtró a saveContent: %q", got.saveContent.Value())
+			}
+		})
+	}
+}
+
+// Entrar a la pantalla de guardar debe dejar UNA sola caja enfocada. Enfocar
+// contenido sin tocar saveFocus dejaba dos activas si se había tabulado antes,
+// y el teclado escribía en las dos a la vez.
+func TestPantallaGuardarEnfocaUnaSolaCaja(t *testing.T) {
+	m := newTestModel(nil, 20)
+	m.saveTitle = textinput.New()
+	m.saveType = textinput.New()
+	m.saveContent = textinput.New()
+	m.saveFilepath = textinput.New()
+	m.saveFocus = 0
+	m.updateFocus() // el usuario había tabulado hasta Título
+
+	next, _ := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	got := next.(model)
+
+	if got.screen != screenSave {
+		t.Fatalf("no se entró a la pantalla de guardar: %v", got.screen)
+	}
+	enfocadas := 0
+	for _, in := range []textinput.Model{got.saveTitle, got.saveType, got.saveContent, got.saveFilepath} {
+		if in.Focused() {
+			enfocadas++
+		}
+	}
+	if enfocadas != 1 {
+		t.Fatalf("se esperaba exactamente una caja enfocada, hay %d", enfocadas)
+	}
+	if !got.saveContent.Focused() || got.saveFocus != 2 {
+		t.Fatalf("el foco debía quedar en contenido (saveFocus=%d)", got.saveFocus)
+	}
+}
+
 func TestDetailViewScrollsLongMemory(t *testing.T) {
 	contentLines := make([]string, 60)
 	for i := range contentLines {

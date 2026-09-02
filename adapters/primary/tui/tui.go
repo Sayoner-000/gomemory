@@ -455,40 +455,77 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateFocusedInput entrega también los mensajes asíncronos de pegado y
-// bracketed-paste al input activo. Antes solo se despachaban tea.KeyMsg: el
-// ctrl+v sí leía el portapapeles, pero su respuesta era descartada aquí.
+// updateFocusedInput entrega al input activo los mensajes que no son de
+// teclado: el pegado bracketed del terminal (tea.PasteMsg) y la respuesta
+// asíncrona del portapapeles que dispara ctrl+v.
+//
+// El destino se decide por PANTALLA, igual que el enrutado de teclas. Elegirlo
+// por Focused() recorriendo todo el modelo era incorrecto: saveContent se
+// enfoca al construir el modelo y nunca se desenfoca al salir de la pantalla
+// de guardar, así que se tragaba el pegado de todas las demás cajas (ruta de
+// import, ajustes de IA, documentos), que quedaban sin poder pegar.
+//
+// Dentro de una pantalla con varios inputs se le pasa el mensaje a todos: el
+// textinput ignora lo que recibe mientras está desenfocado.
 func (m model) updateFocusedInput(msg tea.Msg) (model, tea.Cmd, bool) {
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
-	switch {
-	case m.filterInput.Focused():
+
+	switch m.screen {
+	case screenList:
+		if !m.filtering {
+			return m, nil, false
+		}
 		m.filterInput, cmd = m.filterInput.Update(msg)
-	case m.saveTitle.Focused():
+		cmds = append(cmds, cmd)
+		m.applyFilter()
+
+	case screenSave:
 		m.saveTitle, cmd = m.saveTitle.Update(msg)
-	case m.saveType.Focused():
+		cmds = append(cmds, cmd)
 		m.saveType, cmd = m.saveType.Update(msg)
-	case m.saveContent.Focused():
+		cmds = append(cmds, cmd)
 		m.saveContent, cmd = m.saveContent.Update(msg)
-	case m.saveFilepath.Focused():
+		cmds = append(cmds, cmd)
 		m.saveFilepath, cmd = m.saveFilepath.Update(msg)
-	case m.maintConfirm.Focused():
+		cmds = append(cmds, cmd)
+
+	case screenMaintenanceConfirm:
 		m.maintConfirm, cmd = m.maintConfirm.Update(msg)
-	case m.importPath.Focused():
+		cmds = append(cmds, cmd)
+
+	case screenImport:
 		m.importPath, cmd = m.importPath.Update(msg)
-	case m.docPath.Focused():
+		cmds = append(cmds, cmd)
+
+	case screenDocs:
+		// La caja de ruta solo existe mientras hay una acción pendiente
+		// (exportar/importar); fuera de eso la pantalla no tiene entrada.
+		if m.docPendiente == docActionNinguna {
+			return m, nil, false
+		}
 		m.docPath, cmd = m.docPath.Update(msg)
-	case m.editSettingInput.Focused():
+		cmds = append(cmds, cmd)
+
+	case screenEditSetting:
 		m.editSettingInput, cmd = m.editSettingInput.Update(msg)
-	case m.dupConfirm.Focused():
+		cmds = append(cmds, cmd)
+
+	case screenOptimizeConfirm, screenOptimizeAllConfirm:
 		m.dupConfirm, cmd = m.dupConfirm.Update(msg)
-	case m.usageTaskInput.Focused():
+		cmds = append(cmds, cmd)
+
+	case screenUsage:
 		m.usageTaskInput, cmd = m.usageTaskInput.Update(msg)
-	case m.usageBudgetInput.Focused():
+		cmds = append(cmds, cmd)
 		m.usageBudgetInput, cmd = m.usageBudgetInput.Update(msg)
+		cmds = append(cmds, cmd)
+
 	default:
 		return m, nil, false
 	}
-	return m, cmd, true
+
+	return m, tea.Batch(cmds...), true
 }
 
 // ─── List screen ───────────────────────────────────────────────────
@@ -546,7 +583,12 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "s":
 		if m.ready {
 			m.screen = screenSave
-			m.saveContent.Focus()
+			// updateFocus, y no Focus() suelto: deja saveFocus y el foco
+			// real de las cuatro cajas de acuerdo. Enfocar solo contenido
+			// dejaba dos cajas activas a la vez si se volvía a entrar tras
+			// haber tabulado, y el teclado escribía en ambas.
+			m.saveFocus = 2
+			m.updateFocus()
 		}
 
 	case "a":
@@ -1647,7 +1689,7 @@ func (m model) saveAndReturn() (tea.Model, tea.Cmd) {
 	m.saveContent.SetValue("")
 	m.saveFilepath.SetValue("")
 	m.saveFocus = 2
-	m.saveContent.Focus()
+	m.updateFocus()
 	return m, nil
 }
 
