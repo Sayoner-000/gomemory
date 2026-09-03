@@ -5,6 +5,17 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.18.1] - 2026-09-03
+
+### Changed
+
+- Aplica política de delegación Octopus AAR a todos los agentes (Claude Code, OpenCode, Codex)
+- Migra hooks de Codex al sistema compartido `octopusDelegationPolicy` desde `setupCodexGlobal`
+
+### Removed
+
+- Retira workflow de CI independiente (`release.yml`)
+
 ## [2.16.10] - 2026-09-02
 
 ### Correcciones
