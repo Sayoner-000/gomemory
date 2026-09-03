@@ -101,16 +101,18 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "review_submit",
-		Description: "Registra el resultado estructurado de un revisor para el target congelado.",
+		Name: "review_submit",
+		Description: "Registra el resultado final estructurado de un revisor para el target congelado. " +
+			"status debe ser exactamente success (la revisión terminó, incluso sin hallazgos) o failure " +
+			"(no pudo completarse); no acepta submitted, complete ni findings.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
-		ReviewID     string               `json:"review_id"`
-		Reviewer     string               `json:"reviewer"`
-		TargetDigest string               `json:"target_digest"`
-		Status       string               `json:"status"`
-		Provider     string               `json:"provider,omitempty"`
-		Model        string               `json:"model,omitempty"`
-		Findings     []reviewFindingInput `json:"findings,omitempty"`
+		ReviewID     string               `json:"review_id" jsonschema:"Identificador de la revisión abierta"`
+		Reviewer     string               `json:"reviewer" jsonschema:"Revisor que entrega el resultado: A|B"`
+		TargetDigest string               `json:"target_digest" jsonschema:"Digest del target activo devuelto por review_start"`
+		Status       string               `json:"status" jsonschema:"Resultado final obligatorio: success|failure. Usa success aun sin hallazgos; no submitted, complete ni findings"`
+		Provider     string               `json:"provider,omitempty" jsonschema:"Proveedor que ejecutó la revisión"`
+		Model        string               `json:"model,omitempty" jsonschema:"Modelo que ejecutó la revisión"`
+		Findings     []reviewFindingInput `json:"findings,omitempty" jsonschema:"Hallazgos estructurados; omite o envía [] si no hay hallazgos"`
 	}) (*mcp.CallToolResult, any, error) {
 		findings := make([]domain.Finding, 0, len(in.Findings))
 		for _, finding := range in.Findings {

@@ -1,10 +1,15 @@
 package cli
 
 import (
+	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"mem/adapters/secondary/tokens"
 	"mem/domain"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // TestMeasurePublishedSchemas_CountsRealServer levanta el servidor MCP REAL
@@ -39,4 +44,43 @@ func TestMeasurePublishedSchemas_CountsRealServer(t *testing.T) {
 	if schemaTokens <= 0 {
 		t.Fatalf("schemaTokens = %d, se esperaba un costo mayor que cero", schemaTokens)
 	}
+}
+
+func TestReviewSubmitPublishedSchemaExplainsValidStatuses(t *testing.T) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "gomemory-schema-probe", Version: "internal"}, nil)
+	registerReviewTools(server, &Deps{Project: "proj"}, "proj")
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar servidor MCP: %v", err)
+	}
+	defer serverSession.Close()
+	client := mcp.NewClient(&mcp.Implementation{Name: "gomemory-schema-probe-client", Version: "internal"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar cliente MCP: %v", err)
+	}
+	defer clientSession.Close()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("listar tools MCP: %v", err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name != "review_submit" {
+			continue
+		}
+		published, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("serializar descriptor de review_submit: %v", err)
+		}
+		for _, expected := range []string{"success|failure", "no submitted, complete ni findings"} {
+			if !strings.Contains(string(published), expected) {
+				t.Errorf("el descriptor MCP publicado de review_submit no explica %q", expected)
+			}
+		}
+		return
+	}
+	t.Fatal("review_submit no está publicada")
 }

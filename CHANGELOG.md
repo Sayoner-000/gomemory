@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.18.2] - 2026-09-03
+
+### Fixed
+
+- Documenta en el esquema MCP de `review_submit` que los únicos estados válidos
+  son `success` y `failure`. OpenCode ya no necesita probar valores como
+  `submitted`, `complete` o `findings` antes de entregar un resultado.
+- Añade pruebas de contrato y del descriptor MCP publicado para conservar esa
+  guía para clientes y agentes.
+
 ## [2.18.1] - 2026-09-03
 
 ### Changed

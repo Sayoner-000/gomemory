@@ -56,6 +56,23 @@ func TestReviewMCPToolContracts(t *testing.T) {
 	}
 }
 
+func TestReviewSubmitPublishesItsOnlyValidStatuses(t *testing.T) {
+	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "cmd_mcp_review_tools.go")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("leer contrato de review_submit: %v", err)
+	}
+	source := string(data)
+	for _, required := range []string{
+		"Resultado final obligatorio: success|failure",
+		"no submitted, complete ni findings",
+	} {
+		if !strings.Contains(source, required) {
+			t.Errorf("review_submit debe publicar %q para evitar que clientes adivinen estados", required)
+		}
+	}
+}
+
 // TestReviewStatusExponeElLinaje cubre FR-022, FR-023 y SC-006: un auditor debe
 // reconstruir el recorrido completo de cualquier hallazgo con UNA sola consulta.
 //
