@@ -165,6 +165,15 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       // y no que funcionara (feature 024, FR-009 y FR-012).
       mem(["hook", "channel-fired", "opencode", "user", "plan_entry"]).catch(() => {});
       output.system.push(MEMORY_PROTOCOL);
+      // OpenCode inyecta el protocolo fuera de los hooks JSON de Go. Pide la
+      // política condicional al mismo generador para que agentes raíz y
+      // subagentes reciban la misma regla sin duplicarla en TypeScript.
+      const octopusPolicy = await run(["hook", "octopus-delegation-policy", "opencode"]);
+      if (octopusPolicy === null) {
+        mem(["hook", "channel-error", "opencode", "user", "plan_entry", "la política de delegación Octopus no pudo leerse"]).catch(() => {});
+      } else if (octopusPolicy.length > 0) {
+        output.system.push(octopusPolicy);
+      }
       // El contexto histórico es el corazón de este canal: si su lectura
       // falla, no basta con inyectar menos. El fallo se anota para que la
       // vitalidad distinga un canal sano de uno roto (feature 024, FR-012).

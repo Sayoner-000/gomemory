@@ -79,3 +79,31 @@ func TestMemoryToolBootstrap_CompatibleConTestDeContrato(t *testing.T) {
 		t.Error("MemoryToolBootstrap() debe seguir siendo la variante sin proveedor externo")
 	}
 }
+
+func TestOctopusDelegationPolicy_SoloApareceConElModuloEncendido(t *testing.T) {
+	apagada := buildMemoryToolBootstrap(false, false)
+	if strings.Contains(strings.ToLower(apagada), "octopus") {
+		t.Errorf("con Octopus apagado el bootstrap no debe mencionarlo: %q", apagada)
+	}
+
+	encendida := buildMemoryToolBootstrap(false, true)
+	for _, want := range []string{
+		"OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN",
+		"mcp__gomemory__octopus_route_task",
+		"DELEGATE es la única autorización",
+		"INLINE se ejecuta aquí",
+		"WAIT espera las dependencias",
+		"REJECT no se ejecuta",
+	} {
+		if !strings.Contains(encendida, want) {
+			t.Errorf("la política habilitada debe incluir %q", want)
+		}
+	}
+}
+
+func TestOctopusDelegationPolicy_AdaptaElNombreDeToolPorRuntime(t *testing.T) {
+	got := octopusDelegationPolicy(true, "gomemory_octopus_route_task")
+	if !strings.Contains(got, "gomemory_octopus_route_task") {
+		t.Errorf("la política debe usar el nombre de tool del runtime: %q", got)
+	}
+}

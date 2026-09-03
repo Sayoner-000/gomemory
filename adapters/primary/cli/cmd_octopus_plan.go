@@ -147,7 +147,7 @@ func cmdOctopusPlan(deps *Deps, args []string) {
 		req.ContextMaterial = make(map[string]string)
 	}
 	for _, unit := range req.Units {
-		req.ContextMaterial[unit.ID] = unit.Objective + leerAlcance(unit.Scope.Files)
+		req.ContextMaterial[unit.ID] = unit.Objective + leerAlcance(deps.Root, unit.Scope.Files)
 	}
 	uc := usecases.NewRoutePlanUseCase(deps.TokenCounter, deps.SpecKitReader).WithEvidence(deps.OctopusRepo).WithMemoryRepository(deps.MemoryRepo)
 	plan, err := uc.Route(req)

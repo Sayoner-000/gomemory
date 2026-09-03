@@ -317,6 +317,71 @@ func TestHookSubagentStart_BootstrapVaEnAdditionalContext(t *testing.T) {
 	}
 }
 
+func TestHookOctopusEncendido_InyectaLaPoliticaAlAgenteRaizYSubagente(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := dirDeProyecto(t)
+
+	if err := persistence.EnsureDir(target); err != nil {
+		t.Fatalf("ensure dir: %v", err)
+	}
+	settings := filepath.Join(target, ".memory", "settings.json")
+	if err := os.WriteFile(settings, []byte(`{"octopus_enabled":true}`), 0o600); err != nil {
+		t.Fatalf("activar Octopus: %v", err)
+	}
+
+	for _, event := range []string{"user-prompt-submit", "subagent-start"} {
+		out := runHook(t, bin, target, event)
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(out), &payload); err != nil {
+			t.Fatalf("%s debe devolver JSON: %v\\n%s", event, err, out)
+		}
+		hso, _ := payload["hookSpecificOutput"].(map[string]any)
+		ctx, _ := hso["additionalContext"].(string)
+		for _, want := range []string{"OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN", "mcp__gomemory__octopus_route_task", "DELEGATE es la única autorización"} {
+			if !strings.Contains(ctx, want) {
+				t.Errorf("%s debe inyectar %q: %q", event, want, ctx)
+			}
+		}
+	}
+}
+
+// TestHookOctopusEncendido_SiguePresenteEnTurnosPosteriores es la regresión
+// de ACR 029, hallazgo C-002: el bootstrap completo de user-prompt-submit solo
+// se emite una vez por sesión (protegido por el marker), así que si la regla
+// de Octopus viviera solo ahí, activar el módulo a mitad de sesión no le
+// llegaría nunca al agente raíz hasta reiniciar o borrar el marcador. El
+// segundo turno (marker ya escrito por el primero) debe seguir incluyéndola.
+func TestHookOctopusEncendido_SiguePresenteEnTurnosPosteriores(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := dirDeProyecto(t)
+
+	if err := persistence.EnsureDir(target); err != nil {
+		t.Fatalf("ensure dir: %v", err)
+	}
+	settings := filepath.Join(target, ".memory", "settings.json")
+	if err := os.WriteFile(settings, []byte(`{"octopus_enabled":true}`), 0o600); err != nil {
+		t.Fatalf("activar Octopus: %v", err)
+	}
+
+	runHook(t, bin, target, "user-prompt-submit") // primer turno: escribe el marker
+
+	out := runHook(t, bin, target, "user-prompt-submit") // segundo turno
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("user-prompt-submit debe devolver JSON: %v\n%s", err, out)
+	}
+	hso, _ := payload["hookSpecificOutput"].(map[string]any)
+	ctx, _ := hso["additionalContext"].(string)
+	if !strings.Contains(ctx, "OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN") {
+		t.Errorf("el segundo turno también debe incluir la regla de Octopus: %q", ctx)
+	}
+	// ACR 029, hallazgo C-001: sin vía de hook hacia un subagente de Codex, la
+	// única forma de que la reciba es que el agente raíz la copie a mano.
+	if !strings.Contains(ctx, "codex exec") {
+		t.Errorf("debe instruir la propagación manual para subagentes sin hooks propios: %q", ctx)
+	}
+}
+
 // TestHookNudge_IncluyeCompactNudge cubre un gap real de OpenCode: su plugin
 // invoca `mem hook turn-end` en cada session.idle pero descarta la salida (solo
 // la usa para grabar el checkpoint), y session.idle de todos modos ocurre

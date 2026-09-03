@@ -111,7 +111,9 @@ func relevantConstraintLines(path string, taskWords []string) []string {
 		if !(strings.Contains(trimmed, "DEBE") || strings.Contains(trimmed, "MUST")) {
 			continue
 		}
-		if hasOverlap(trimmed, taskWords) {
+		// Mismo criterio que relevantLines: sin palabras de tarea, el
+		// consumidor pide el grafo entero, no "ninguna restricción".
+		if len(taskWords) == 0 || hasOverlap(trimmed, taskWords) {
 			out = append(out, trimmed)
 		}
 	}

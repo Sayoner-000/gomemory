@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"mem/application/usecases"
@@ -147,7 +148,7 @@ func cmdOctopusRoute(deps *Deps, args []string) {
 	// archivos del alcance es una medición real, y esta capa es un adaptador —
 	// tiene acceso al disco de forma legítima. Un archivo ausente se omite: el
 	// alcance puede nombrar artefactos que aún no existen.
-	req.ContextMaterial = req.Unit.Objective + leerAlcance(req.Unit.Scope.Files)
+	req.ContextMaterial = req.Unit.Objective + leerAlcance(deps.Root, req.Unit.Scope.Files)
 
 	ajustes, reparto := politicaDesdeAjustes(deps)
 	req.Policy = combinarPolitica(req.Policy, ajustes)
@@ -283,15 +284,24 @@ func conjuntoDesdeLista(items []string) map[string]bool {
 	return m
 }
 
-// leerAlcance concatena el contenido de los archivos del alcance que existen y
+// leerAlcance resuelve cada ruta relativa contra root antes de leerla — sin
+// esto, el cwd del proceso decide qué se mide (ej. `mem mcp --root <dir>` no
+// cambia el cwd, o una invocación de CLI desde un subdirectorio del proyecto),
+// y el alcance real queda sin leer en silencio: el objetivo cae a ~40 tokens,
+// la unidad nunca alcanza el mínimo delegable y la ruta se decide con una
+// medición que nunca existió (ACR 029, hallazgo A-002). Una ruta absoluta se
+// respeta tal cual. Concatena el contenido de los archivos del alcance que existen y
 // son legibles. Best-effort a propósito: medir mal es mejor que no enrutar, y un
 // archivo que falta no es un error del usuario (FR-032).
-func leerAlcance(files []string) string {
+func leerAlcance(root string, files []string) string {
 	if len(files) == 0 {
 		return ""
 	}
 	var b strings.Builder
 	for _, f := range files {
+		if !filepath.IsAbs(f) {
+			f = filepath.Join(root, f)
+		}
 		data, err := os.ReadFile(f)
 		if err != nil {
 			continue

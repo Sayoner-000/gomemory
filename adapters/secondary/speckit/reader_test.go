@@ -86,6 +86,7 @@ func TestRead_ExtractsRelevantRequirementsScopedToFeature(t *testing.T) {
 func TestRead_EmptyTaskReturnsWholeTaskGraph(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "specs", "027-octopus", "tasks.md"), "- [ ] T001 Crear ruta\n- [ ] T002 Validar salida\n")
+	writeFile(t, filepath.Join(root, ".specify", "memory", "constitution.md"), "- El sistema DEBE registrar toda decisión de arquitectura.\n")
 
 	ctx, err := (Reader{}).Read(root, "027-octopus", "")
 	if err != nil {
@@ -93,5 +94,32 @@ func TestRead_EmptyTaskReturnsWholeTaskGraph(t *testing.T) {
 	}
 	if len(ctx.TaskDependencies) != 2 {
 		t.Fatalf("TaskDependencies = %v; se esperaban todas las tareas", ctx.TaskDependencies)
+	}
+	if len(ctx.Constraints) != 1 {
+		t.Fatalf("Constraints = %v; con tarea vacía se esperaba el grafo completo, igual que TaskDependencies", ctx.Constraints)
+	}
+}
+
+// TestRead_ShortWordsTaskReturnsConstraints reproduce el hallazgo B-001/A-010
+// de la ACR sobre Octopus AAR: taskWords descarta palabras de menos de
+// minWordLength runas, así que una tarea real como "fix the bug" produce un
+// taskWords vacío. relevantLines ya tolera ese caso (bypass len==0);
+// relevantConstraintLines debe tolerarlo también.
+func TestRead_ShortWordsTaskReturnsConstraints(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "specs", "015-context-optimization", "spec.md"),
+		"- **FR-001**: El sistema DEBE hacer algo.\n")
+	writeFile(t, filepath.Join(root, ".specify", "memory", "constitution.md"),
+		"- El sistema DEBE registrar toda decisión de arquitectura.\n")
+
+	ctx, err := (Reader{}).Read(root, "015-context-optimization", "fix the bug")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if len(ctx.Requirements) != 1 {
+		t.Fatalf("Requirements = %v; se esperaba el grafo completo (todas las palabras de la tarea son cortas)", ctx.Requirements)
+	}
+	if len(ctx.Constraints) != 1 {
+		t.Fatalf("Constraints = %v; se esperaba el grafo completo, igual que Requirements", ctx.Constraints)
 	}
 }

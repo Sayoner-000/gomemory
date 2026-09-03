@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -209,5 +210,28 @@ func TestParseOctopusPlanFlags_AutorizaReservaDeValidacion(t *testing.T) {
 	}
 	if !overrides.AllowValidationReserve {
 		t.Error("--allow-validation-reserve debe reflejarse en PolicyOverrides.AllowValidationReserve")
+	}
+}
+
+// Regresión de ACR 029, hallazgo A-002: leerAlcance resolvía rutas relativas
+// contra el cwd del proceso, no contra la raíz del proyecto. En `mem mcp
+// --root <dir>` el cwd nunca cambia, así que el alcance declarado se leía
+// vacío en silencio y el contexto medido caía a la frase del objetivo (~40
+// tokens), cambiando la decisión de enrutamiento sin que nadie lo notara.
+func TestLeerAlcance_ResuelveContraRootNoContraCwd(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(root+"/scope.go", []byte("package x // contenido de alcance"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got := leerAlcance(root, []string{"scope.go"})
+	if !strings.Contains(got, "contenido de alcance") {
+		t.Fatalf("leerAlcance(root, [\"scope.go\"]) = %q; se esperaba el contenido del archivo resuelto contra root", got)
+	}
+
+	absPath := root + "/scope.go"
+	got = leerAlcance("/otra/raiz/que/no/existe", []string{absPath})
+	if !strings.Contains(got, "contenido de alcance") {
+		t.Fatalf("una ruta absoluta debe respetarse tal cual, sin unirla a root: got %q", got)
 	}
 }

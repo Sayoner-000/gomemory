@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"mem/adapters/secondary/persistence"
 	"mem/domain"
 	"mem/version"
 )
@@ -135,14 +136,25 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 	return nil
 }
 
-// ClaudeAutoAllowTools son las tools MCP de gomemory seguras para pre-aprobar
-// automáticamente: de solo lectura, o de escritura acotada y reversible.
-// forget_memory queda deliberadamente afuera por ser destructiva/irreversible.
-// Se deriva de domain para que no pueda desincronizarse del servidor: son todas
-// las tools registradas menos las destructivas (forget_memory). Las de grafo son
-// de solo lectura salvo index_project, que solo escribe en .memory/ y nunca toca
+// claudeAutoAllowToolsFor son las tools MCP de gomemory seguras para
+// pre-aprobar automáticamente cuando Octopus AAR está en el estado dado: de
+// solo lectura, o de escritura acotada y reversible. forget_memory queda
+// deliberadamente afuera por ser destructiva/irreversible. Se deriva de
+// domain para que no pueda desincronizarse del servidor. Las de grafo son de
+// solo lectura salvo index_project, que solo escribe en .memory/ y nunca toca
 // el código fuente.
-var ClaudeAutoAllowTools = domain.MCPPrefixed("mcp__gomemory__", domain.MCPAutoApprovableToolsFor(true))
+func claudeAutoAllowToolsFor(octopusEnabled bool) []string {
+	return domain.MCPPrefixed("mcp__gomemory__", domain.MCPAutoApprovableToolsFor(octopusEnabled))
+}
+
+// ClaudeAutoAllowTools es el superset (incluye las 4 tools de Octopus) usado
+// solo para RemoveClaudePermissions: al desinstalar hay que limpiar cualquier
+// entrada de gomemory, sin importar si Octopus estaba habilitado cuando se
+// instaló. writeClaudePermissions NO usa esta variable — usa
+// claudeAutoAllowToolsFor(octopusEnabled real del proyecto) para no
+// pre-aprobar tools de un módulo apagado (contrato de huella cero,
+// specs/029-octopus-aar/contracts/module-off.md; ACR 029, hallazgo A-001).
+var ClaudeAutoAllowTools = claudeAutoAllowToolsFor(true)
 
 // staleAllowPrefixes son prefijos de entradas de permisos obsoletas de
 // instalaciones/servidores MCP previos que ya no existen, y que se limpian al
@@ -185,7 +197,8 @@ func writeClaudePermissions(root string) error {
 		seen[s] = true
 		allow = append(allow, s)
 	}
-	for _, tool := range ClaudeAutoAllowTools {
+	octopusEnabled := persistence.ReadSettings(root).OctopusEnabled
+	for _, tool := range claudeAutoAllowToolsFor(octopusEnabled) {
 		if seen[tool] {
 			continue
 		}

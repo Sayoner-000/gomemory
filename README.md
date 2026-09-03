@@ -195,7 +195,7 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 ## MCP Tools
 
-27 tools across four groups (`domain/mcp_tools.go` is the single source of truth — `len(domain.MCPAllTools())` is asserted against the live server in CI).
+27 tools across four groups (`domain/mcp_tools.go` is the single source of truth).
 
 **Memory (10)**
 

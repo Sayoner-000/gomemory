@@ -52,6 +52,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookUserPromptSubmit(deps, args[1:])
 	case "nudge":
 		hookNudge(deps)
+	case "octopus-delegation-policy":
+		hookOctopusDelegationPolicy(deps, args[1:])
 	case "channel-fired":
 		hookChannelActivity(deps, args[1:], "")
 	case "channel-error":
@@ -286,6 +288,14 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 		// sin debounce — es el camino que cubre a los agentes sin señal de
 		// entrada observable, y refuerza a los que sí la tienen.
 		if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok {
+			parts = append(parts, msg)
+		}
+		// Regla de delegación de Octopus, leída fresca en CADA turno — no solo
+		// el primero. El bootstrap completo (más abajo) solo se emite una vez
+		// por sesión, protegido por este mismo marker: sin esto, activar
+		// Octopus a mitad de sesión no le llegaba nunca al agente raíz hasta
+		// reiniciar o borrar el marcador (ACR 029, hallazgo C-002).
+		if msg, ok := octopusDelegationReminder(deps.SettingsRepo.Read(root).OctopusEnabled, "mcp__gomemory__octopus_route_task"); ok {
 			parts = append(parts, msg)
 		}
 
@@ -978,7 +988,67 @@ func buildMemoryToolBootstrap(includeCodeGraphProvider, octopusEnabled bool) str
 		`para cargar las tools de memoria del proyecto:
 select:` + strings.Join(names, ",") + `
 Luego llama a get_context() para cargar la memoria previa del proyecto antes de continuar.
-Si entras en modo plan, llama además a get_plan_context() ANTES de redactar el plan.`
+Si entras en modo plan, llama además a get_plan_context() ANTES de redactar el plan.` +
+		octopusDelegationPolicy(octopusEnabled, "mcp__gomemory__octopus_route_task")
+}
+
+// octopusDelegationReminder es la única fuente de la regla de consulta previa
+// a delegar, sin separadores propios — cada llamador decide cómo unirla al
+// resto. El runtime conserva la ejecución de subagentes; Octopus solo decide
+// la ruta y el agente debe respetarla. routeTool cambia únicamente el prefijo
+// que cada runtime usa para la misma tool MCP.
+//
+// El último párrafo (propagación manual) existe porque no hay ningún hook
+// que reinyecte esta regla en un subagente de Codex: Codex no registra
+// SubagentStart (a diferencia de Claude Code, que sí), y un subagente
+// lanzado como `codex exec` no dispara NINGÚN hook, ni siquiera SessionStart
+// (codex_setup.go). Sin esta instrucción, esos subagentes no tienen forma de
+// enterarse de la regla — con ella, queda en manos del agente raíz seguirla
+// (best-effort, no verificable por un hook; ACR 029, hallazgo C-001).
+func octopusDelegationReminder(octopusEnabled bool, routeTool string) (string, bool) {
+	if !octopusEnabled {
+		return "", false
+	}
+	return `OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN: antes de crear cualquier subagente,
+llama a ` + routeTool + ` con el objetivo, task_class, complejidad, riesgo, alcance
+(files), dependencias y presupuesto/contexto conocidos; declara subagents=true si el
+runtime los admite. Respeta su ruta: DELEGATE es la única autorización para crear el
+subagente; INLINE se ejecuta aquí; WAIT espera las dependencias; REJECT no se ejecuta
+y se informa la razón. Octopus recomienda política: no crea ni bloquea subagentes por sí
+mismo.
+
+Si el subagente que vas a crear no arranca su propia sesión con hooks de gomemory
+(por ejemplo, un subproceso no interactivo tipo ` + "`codex exec`" + `, que no dispara
+ningún hook), copia este párrafo completo, literal, en las instrucciones o el
+prompt que le des: es la única forma de que reciba la regla, porque ningún
+hook se la va a inyectar por su cuenta.`, true
+}
+
+// octopusDelegationPolicy envuelve octopusDelegationReminder con los
+// separadores que necesita al concatenarse al final del bootstrap completo
+// (buildMemoryToolBootstrap) o al imprimirse solo (hookOctopusDelegationPolicy).
+func octopusDelegationPolicy(octopusEnabled bool, routeTool string) string {
+	msg, ok := octopusDelegationReminder(octopusEnabled, routeTool)
+	if !ok {
+		return ""
+	}
+	return "\n\n" + msg
+}
+
+// hookOctopusDelegationPolicy permite que runtimes cuyo contexto se inyecta
+// desde fuera de los hooks JSON de Go (OpenCode) consuman la misma política sin
+// copiarla en otro lenguaje. Es de solo lectura y no emite nada con el módulo
+// apagado, preservando su huella cero.
+func hookOctopusDelegationPolicy(deps *Deps, args []string) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		return
+	}
+	routeTool := "mcp__gomemory__octopus_route_task"
+	if firstOr(args, 0, "") == "opencode" {
+		routeTool = "gomemory_octopus_route_task"
+	}
+	fmt.Print(octopusDelegationPolicy(deps.SettingsRepo.Read(root).OctopusEnabled, routeTool))
 }
 
 var memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +

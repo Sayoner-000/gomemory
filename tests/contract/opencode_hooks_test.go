@@ -81,3 +81,17 @@ func TestRiesgo2_LosHooksDelComplementoExistenEnLaInterfazDelAgente(t *testing.T
 	}
 	t.Logf("hooks verificados contra la interfaz del agente: %s", strings.Join(registrados, ", "))
 }
+
+func TestOpenCode_ObtieneLaPoliticaOctopusDelGeneradorComun(t *testing.T) {
+	datos, err := os.ReadFile("../../infrastructure/plugin/opencode/gomemory.ts")
+	if err != nil {
+		t.Fatalf("leer el complemento: %v", err)
+	}
+	texto := string(datos)
+	if !strings.Contains(texto, `["hook", "octopus-delegation-policy", "opencode"]`) {
+		t.Fatal("OpenCode debe pedir la política Octopus condicional al generador común")
+	}
+	if !strings.Contains(texto, "output.system.push(octopusPolicy)") {
+		t.Fatal("OpenCode debe inyectar la política devuelta en el contexto del agente")
+	}
+}

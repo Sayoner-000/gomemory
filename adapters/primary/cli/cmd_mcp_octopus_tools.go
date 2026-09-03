@@ -79,7 +79,7 @@ func registerOctopusTools(server *mcp.Server, deps *Deps) {
 				ContextNeed:  domain.ContextNeed{EstimatedTokens: in.ContextTokens},
 				Optional:     in.Optional,
 			},
-			ContextMaterial: in.Objective + leerAlcance(in.Files),
+			ContextMaterial: in.Objective + leerAlcance(deps.Root, in.Files),
 			Project:         deps.Project,
 			Resolved:        conjuntoDesdeLista(in.Resolved),
 			Capabilities: domain.RuntimeCapabilities{
@@ -169,7 +169,7 @@ func registerOctopusTools(server *mcp.Server, deps *Deps) {
 			if planReq.ContextMaterial == nil {
 				planReq.ContextMaterial = make(map[string]string)
 			}
-			planReq.ContextMaterial[t.ID] = t.Objective + leerAlcance(t.Files)
+			planReq.ContextMaterial[t.ID] = t.Objective + leerAlcance(deps.Root, t.Files)
 			planReq.Units = append(planReq.Units, domain.WorkUnit{
 				ID:           t.ID,
 				Objective:    t.Objective,

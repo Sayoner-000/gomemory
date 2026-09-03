@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"mem/adapters/secondary/persistence"
+	"mem/domain"
 )
 
 func readSettings(t *testing.T, root string) map[string]interface{} {
@@ -51,9 +54,17 @@ func TestWriteClaudePermissionsAddsSafeToolsOnly(t *testing.T) {
 	settings := readSettings(t, root)
 	allow := allowList(t, settings)
 
-	for _, tool := range ClaudeAutoAllowTools {
+	// Octopus está apagado por defecto (sin .memory/settings.json): sus 4
+	// tools NO deben aparecer en permissions.allow (huella cero,
+	// specs/029-octopus-aar/contracts/module-off.md; ACR 029, hallazgo A-001).
+	for _, tool := range claudeAutoAllowToolsFor(false) {
 		if !contains(allow, tool) {
 			t.Errorf("esperaba %q en permissions.allow, no está: %v", tool, allow)
+		}
+	}
+	for _, tool := range domain.MCPPrefixed("mcp__gomemory__", domain.MCPOctopusTools) {
+		if contains(allow, tool) {
+			t.Errorf("Octopus está apagado, %q NO debe estar pre-aprobada: %v", tool, allow)
 		}
 	}
 	if contains(allow, "mcp__gomemory__forget_memory") {
@@ -69,6 +80,23 @@ func TestWriteClaudePermissionsAddsSafeToolsOnly(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("esperaba 'gomemory' en enabledMcpjsonServers, got: %v", servers)
+	}
+}
+
+func TestWriteClaudePermissionsIncludesOctopusToolsWhenEnabled(t *testing.T) {
+	root := t.TempDir()
+	if err := persistence.WriteSettings(root, persistence.Settings{OctopusEnabled: true}); err != nil {
+		t.Fatalf("WriteSettings: %v", err)
+	}
+	if err := writeClaudePermissions(root); err != nil {
+		t.Fatalf("writeClaudePermissions: %v", err)
+	}
+
+	allow := allowList(t, readSettings(t, root))
+	for _, tool := range domain.MCPPrefixed("mcp__gomemory__", domain.MCPOctopusTools) {
+		if !contains(allow, tool) {
+			t.Errorf("Octopus está encendido, esperaba %q pre-aprobada: %v", tool, allow)
+		}
 	}
 }
 
