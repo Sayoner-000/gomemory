@@ -19,11 +19,11 @@ import (
 // real que cubre la redacción del caso de uso.
 type specKitConSecreto struct{}
 
-func (specKitConSecreto) ActiveFeature(string) (string, error) { return "027-octopus-aar", nil }
+func (specKitConSecreto) ActiveFeature(string) (string, error) { return "029-octopus-aar", nil }
 
 func (specKitConSecreto) Read(_, _, _ string) (domain.SpecKitFeatureContext, error) {
 	return domain.SpecKitFeatureContext{
-		Feature: "027-octopus-aar",
+		Feature: "029-octopus-aar",
 		Requirements: []string{
 			"- **FR-001**: el despliegue usa el token ghp_AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIII",
 		},

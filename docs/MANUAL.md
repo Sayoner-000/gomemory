@@ -21,6 +21,7 @@ automática con OpenCode y Claude Code.
 14. [Portabilidad](#14-portabilidad)
 15. [Modo Plan Determinista (mem doctor)](#15-modo-plan-determinista-mem-doctor)
 16. [Benchmark de tokens (mem usage)](#16-benchmark-de-tokens-mem-usage)
+17. [Octopus AAR](#17-octopus-aar)
 
 ---
 
@@ -998,3 +999,26 @@ Dos revisiones del mismo patrón refuerzan una memoria en vez de crear dos, y el
 aprendizaje reaparece solo en `mem context` de sesiones futuras.
 
 Una revisión aprobada **no** autoriza commit, push, merge, PR ni despliegue.
+
+---
+
+## 17. Octopus AAR
+
+Octopus decide si una unidad de trabajo se mantiene inline o se delega. No inicia agentes: devuelve una ruta, un presupuesto y un contrato para que el runtime del agente ejecute el trabajo.
+
+Está apagado por defecto. Actívalo desde Configuración en la TUI o con `octopus_enabled: true` en `.memory/settings.json`. Mientras está apagado, sus tools MCP no se registran y no se guarda telemetría.
+
+```bash
+# Decide la ruta de una tarea
+mem octopus route "Investigar una carrera de expiración" --class investigation --read-only --files a.go,b.go
+
+# Simula un plan JSON; no inicia subagentes
+mem octopus plan --file plan.json
+
+# Consulta límites, uso e historial
+mem octopus status
+mem octopus usage
+mem octopus history -n 20
+```
+
+Las tools MCP disponibles al activar el módulo son `octopus_route_task`, `octopus_route_plan`, `octopus_report` y `octopus_status`.

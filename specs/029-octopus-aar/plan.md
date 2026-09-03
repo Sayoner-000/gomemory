@@ -2,7 +2,7 @@
 
 **Rama**: `main` (sin rama dedicada; el hook `before_specify` de este proyecto es `gomemory-context`, no la extensión git) | **Fecha**: 2026-09-02 | **Spec**: [spec.md](./spec.md)
 
-**Entrada**: Especificación de funcionalidad en `/specs/027-octopus-aar/spec.md`
+**Entrada**: Especificación de funcionalidad en `/specs/029-octopus-aar/spec.md`
 
 ## Resumen
 
@@ -43,7 +43,7 @@ El módulo nace apagado. Apagado significa apagado de verdad: ni tools MCP regis
 | **III. Testing first** | Cada hoja del plan de tareas nace con su prueba. El dominio puro es tabla de casos; el repositorio nuevo lleva prueba con base de datos real desde su creación; el puerto nuevo lleva su mock. Ningún test existente se modifica salvo el de contrato de tools MCP, que **sí** debe cambiar y se declara explícitamente abajo | ⚠️ ver nota |
 | **IV. Configuración y entorno** | Los topes (profundidad, fan-out, concurrencia, reintentos, reparto del presupuesto) no se codifican en los sitios de uso: se declaran una sola vez como constantes de dominio con nombre y se sobrescriben desde `settings.json`, igual que `Budget`, `CompactThreshold` y `DedupWindowDays`. No se introducen variables de entorno porque estos valores cambian por proyecto, no por entorno | ✅ |
 | **V. Principios operativos** | Simplicidad: se reutilizan `BuildContextPack`, `TokenCounter`, `UsageRecorder` y `SpecKitReader` en vez de duplicarlos. Idempotencia: enrutar es una función pura, repetirla no tiene efectos. Fallar rápido: el grafo de tareas se valida en el borde (ciclos, dependencias inexistentes). Fire-and-forget: registrar telemetría nunca bloquea ni invalida una decisión. MCP como integración primaria: la superficie de agente es la vía principal | ✅ |
-| **Documentación en español latino** | Toda la documentación de `specs/027-octopus-aar/` y los comentarios del código en español | ✅ |
+| **Documentación en español latino** | Toda la documentación de `specs/029-octopus-aar/` y los comentarios del código en español | ✅ |
 | **Estilo** | Imports agrupados stdlib → terceros → proyecto, `snake_case` en archivos, línea de 120, `gofumpt` | ✅ |
 
 **Nota sobre el principio III (tests intocables).** Un test existente debe cambiar y se declara aquí antes de tocarlo: el test de contrato que levanta `mem mcp` y compara `domain.MCPAllTools()` contra el `tools/list` real. Al registrar las tools de Octopus de forma condicional, ese test necesita distinguir el caso apagado (base, sin Octopus) del encendido (base + Octopus). El cambio es una **extensión** del contrato, no una relajación: la aserción existente se conserva íntegra para el caso apagado y se le añade una segunda para el caso encendido. Queda como tarea explícita y con justificación en `tasks.md`.
@@ -55,7 +55,7 @@ El módulo nace apagado. Apagado significa apagado de verdad: ni tools MCP regis
 ### Documentación (esta funcionalidad)
 
 ```text
-specs/027-octopus-aar/
+specs/029-octopus-aar/
 ├── plan.md                       # Este archivo
 ├── research.md                   # Fase 0: decisiones de diseño resueltas
 ├── data-model.md                 # Fase 1: entidades, invariantes, esquema

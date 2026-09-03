@@ -840,7 +840,7 @@ Las 13 reglas se evalúan en orden fijo y la primera que aplica gana. El orden e
 parte del contrato: hace la decisión predecible y auditable, y una tabla de casos
 con una fila por regla caza cualquier reordenamiento.
 
-`contracts/routing-policy.md` de `specs/027-octopus-aar/` tiene la tabla completa.
+`contracts/routing-policy.md` de `specs/029-octopus-aar/` tiene la tabla completa.
 En resumen: política del llamador → dependencias → capacidades → profundidad →
 trabajo duplicado → trivialidad → contexto casi completo → costo comparado →
 presupuesto → reserva de validación → tope de agentes → desempate → inline.

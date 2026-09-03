@@ -6,7 +6,7 @@ Patrones aprendidos de correcciones reales. Cada entrada existe para evitar que 
 
 ## L001 — Un comando en documentación operativa se verifica contra el código, no por analogía
 
-**Fecha**: 2026-09-02 · **Contexto**: redacción de `specs/027-octopus-aar/quickstart.md`
+**Fecha**: 2026-09-02 · **Contexto**: redacción de `specs/029-octopus-aar/quickstart.md`
 
 **Qué pasó**: escribí pasos de verificación con `mem mcp --list-tools` y `mem doctor --db-path`, y con la base de datos en `.memory/mem.db`. Ninguna de las tres cosas existe: `mem mcp` habla JSON-RPC por stdio sin bandera de listado, `doctor` no tiene `--db-path`, y la base vive en el store global (`~/.local/share/gomemory/projects/<clave>/mem.db`); `.memory/mem.db` es el legado que `globalstore.go` migra.
 
@@ -16,7 +16,7 @@ Patrones aprendidos de correcciones reales. Cada entrada existe para evitar que 
 
 **Regla preventiva**: antes de escribir un comando en un quickstart, un README o cualquier documento operativo, comprobar que existe: `grep` de la bandera en el adaptador del CLI, o ejecutarlo. Si no se puede ejecutar, no se escribe.
 
-**Aplicada en**: `specs/027-octopus-aar/quickstart.md` §2 y §9 · memoria gomemory id=10
+**Aplicada en**: `specs/029-octopus-aar/quickstart.md` §2 y §9 · memoria gomemory id=10
 
 ---
 

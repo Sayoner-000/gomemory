@@ -4,7 +4,7 @@ description: "Lista de tareas para la implementación de Octopus AAR"
 
 # Tareas: Octopus AAR — Enrutador Adaptativo de Agentes
 
-**Entrada**: documentos de diseño de `/specs/027-octopus-aar/`
+**Entrada**: documentos de diseño de `/specs/029-octopus-aar/`
 
 **Prerrequisitos**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`
 
@@ -143,7 +143,7 @@ description: "Lista de tareas para la implementación de Octopus AAR"
 - [X] T050 [US3] Implementar la lectura del grafo desde Spec Kit vía `ports.SpecKitReader` con degradación silenciosa cuando no hay funcionalidad activa, en `application/usecases/octopus_route_plan.go`
 - [X] T051 [US3] Implementar `mem octopus plan` con `--file`, `--budget`, `--max-parallel`, `--max-agents` y `--json` en `adapters/primary/cli/cmd_octopus.go`
 - [X] T052 [US3] Registrar la tool `octopus_route_plan` y añadir su nombre a `MCPOctopusTools` en el mismo cambio, en `adapters/primary/cli/cmd_mcp_octopus_tools.go` y `domain/mcp_tools.go`
-- [X] T053 [P] [US3] Crear el plan de ejemplo del escenario §66 en `specs/027-octopus-aar/ejemplo-plan.json`, que `quickstart.md` §6 ya referencia
+- [X] T053 [P] [US3] Crear el plan de ejemplo del escenario §66 en `specs/029-octopus-aar/ejemplo-plan.json`, que `quickstart.md` §6 ya referencia
 
 **Punto de control**: un plan real se enruta con dependencias, paralelismo y topes respetados.
 

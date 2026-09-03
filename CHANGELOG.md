@@ -446,7 +446,7 @@ quedaba anotada y no había con qué compararla.
 
 Una compilación desde el árbol reportaba una versión anterior a la publicada, porque la constante interna se había
 quedado atrás respecto de las etiquetas de release.
-## [No publicado]
+## [2.18.0] - 2026-09-03
 
 ### Novedades
 

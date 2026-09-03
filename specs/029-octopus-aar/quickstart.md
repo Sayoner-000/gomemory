@@ -104,7 +104,7 @@ Sin capacidades de subagentes declaradas, la misma llamada debe devolver `INLINE
 Con el escenario extremo a extremo de la especificación (§66):
 
 ```bash
-./mem octopus plan --file specs/027-octopus-aar/ejemplo-plan.json --json
+./mem octopus plan --file specs/029-octopus-aar/ejemplo-plan.json --json
 ```
 
 **Esperado**, según el escenario: T001 y T002 `INLINE`; T003 y T004 en el mismo grupo paralelo; T005 en `WAIT` con T002 y T003 como bloqueantes; T006 `DELEGATE`. Cubre AC-004 y AC-005.

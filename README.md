@@ -378,7 +378,7 @@ subagent costs context transfer, coordination and integration; Octopus
 recommends it only when the expected benefit exceeds that overhead.
 
 See [`docs/architecture.md`](docs/architecture.md) for the design and
-[`specs/027-octopus-aar/`](specs/027-octopus-aar/) for the full specification.
+[`specs/029-octopus-aar/`](specs/029-octopus-aar/) for the full specification.
 
 ## Build from Source
 
