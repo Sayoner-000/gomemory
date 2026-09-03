@@ -71,6 +71,9 @@ func TestFindProjectRootUsesGitRoot(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(base, ".git"), 0755); err != nil {
 		t.Fatalf("crear .git: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(base, ".git", "HEAD"), []byte("ref: refs/heads/main\n"), 0644); err != nil {
+		t.Fatalf("crear .git/HEAD: %v", err)
+	}
 	sub := filepath.Join(base, "a", "b", "c")
 	if err := os.MkdirAll(sub, 0755); err != nil {
 		t.Fatalf("crear subdir: %v", err)

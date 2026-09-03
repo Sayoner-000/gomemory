@@ -142,7 +142,7 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 // las tools registradas menos las destructivas (forget_memory). Las de grafo son
 // de solo lectura salvo index_project, que solo escribe en .memory/ y nunca toca
 // el código fuente.
-var ClaudeAutoAllowTools = domain.MCPPrefixed("mcp__gomemory__", domain.MCPAutoApprovableTools())
+var ClaudeAutoAllowTools = domain.MCPPrefixed("mcp__gomemory__", domain.MCPAutoApprovableToolsFor(true))
 
 // staleAllowPrefixes son prefijos de entradas de permisos obsoletas de
 // instalaciones/servidores MCP previos que ya no existen, y que se limpian al

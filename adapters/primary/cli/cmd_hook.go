@@ -312,8 +312,15 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// ese principio prohíbe.
 	os.WriteFile(marker, []byte("1"), 0644)
 	settings := deps.SettingsRepo.Read(root)
-	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled)
-	emitHookOutput(renderPromptContext(dialect, bootstrap+"\n\n"+memoryProtocolReminder))
+	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
+	out := map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "UserPromptSubmit",
+			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder,
+		},
+	}
+	data, _ := json.Marshal(out)
+	fmt.Print(string(data))
 	os.Exit(0)
 }
 
@@ -445,7 +452,7 @@ func hookSubagentStart(deps *Deps) {
 		os.Exit(0)
 	}
 	settings := deps.SettingsRepo.Read(root)
-	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled)
+	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
 	out := map[string]any{
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "SubagentStart",
@@ -937,11 +944,17 @@ se pierde de la memoria.`
 // MemoryToolBootstrap expone el bootstrap base (sin el proveedor externo de
 // grafo) para el test de contrato que verifica que materialice TODAS las
 // tools registradas por el servidor gomemory.
-func MemoryToolBootstrap() string { return buildMemoryToolBootstrap(false) }
+func MemoryToolBootstrap() string { return buildMemoryToolBootstrap(false, false) }
 
 // gomemoryBootstrapToolNames son los nombres de gomemory ya prefijados, listos
-// para el select: de ToolSearch.
-var gomemoryBootstrapToolNames = domain.MCPPrefixed("mcp__gomemory__", domain.MCPAllTools())
+// para el select: de ToolSearch. Depende del estado del módulo Octopus AAR
+// (feature 027) porque su superficie MCP es condicional: registrar una tool sin
+// materializarla aquí la deja INVOCABLE SOLO SOBRE EL PAPEL — es exactamente el
+// bug de get_plan_context que este archivo documenta más arriba, y por eso se
+// paga en el mismo cambio que introduce el registro condicional.
+func gomemoryBootstrapToolNames(octopusEnabled bool) []string {
+	return domain.MCPPrefixed("mcp__gomemory__", domain.MCPToolsFor(octopusEnabled))
+}
 
 // buildMemoryToolBootstrap arma el bootstrap de ToolSearch que fuerza la carga
 // de las tools MCP diferidas de gomemory. Cuando includeCodeGraphProvider es
@@ -955,8 +968,8 @@ var gomemoryBootstrapToolNames = domain.MCPPrefixed("mcp__gomemory__", domain.MC
 // Si el proveedor no está conectado, ToolSearch simplemente no encuentra esos
 // nombres — degradación silenciosa, sin necesidad de detectar su
 // disponibilidad de antemano (domain.CodebaseMemoryMCPDiscoveryTools).
-func buildMemoryToolBootstrap(includeCodeGraphProvider bool) string {
-	names := gomemoryBootstrapToolNames
+func buildMemoryToolBootstrap(includeCodeGraphProvider, octopusEnabled bool) string {
+	names := gomemoryBootstrapToolNames(octopusEnabled)
 	if includeCodeGraphProvider {
 		names = append(append([]string{}, names...),
 			domain.MCPPrefixed(domain.CodebaseMemoryMCPPrefix, domain.CodebaseMemoryMCPDiscoveryTools)...)

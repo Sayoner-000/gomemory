@@ -88,7 +88,9 @@ func relevantLines(path, prefix string, taskWords []string) []string {
 		if !strings.HasPrefix(trimmed, prefix) {
 			continue
 		}
-		if hasOverlap(trimmed, taskWords) {
+		// Sin consulta concreta el consumidor pide el grafo entero (por
+		// ejemplo `octopus plan` sin --file), no "ninguna tarea".
+		if len(taskWords) == 0 || hasOverlap(trimmed, taskWords) {
 			out = append(out, trimmed)
 		}
 	}

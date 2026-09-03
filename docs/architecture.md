@@ -780,6 +780,117 @@ lectura**: el inspector los detecta (hooks `cbm-*` en `~/.claude/settings.json`)
 los escribe ni los corrige; si el brazo extensor no está instalado, sus canales se omiten del reporte
 sin ningún aviso.
 
+## Octopus AAR — Enrutador Adaptativo de Agentes (feature 027)
+
+Módulo **opt-in** que decide si una unidad de trabajo se ejecuta en el agente
+principal o se delega a un subagente. Nace apagado: se enciende en la TUI, en
+Configuración → "Octopus AAR", o poniendo `octopus_enabled: true` en
+`.memory/settings.json`.
+
+### La frontera que lo define
+
+```
+OCTOPUS                          AGENT RUNTIME
+  decide QUÉ, CUÁNDO,     →        decide CÓMO crear el subagente,
+  con CUÁNTO contexto              qué modelo, qué proceso
+  y con qué contrato
+                          ←        informa consumo real
+```
+
+**Octopus no ejecuta nada.** No crea procesos, no lanza agentes, no espera ni
+cancela. Esa separación es lo que mantiene la política independiente del
+proveedor y del runtime (INV-AAR-017, INV-AAR-018), y es la razón de que el
+binario no tenga que gestionar claves ni modelos.
+
+### Dónde vive cada capa
+
+| Capa | Archivos | Responsabilidad |
+|---|---|---|
+| Dominio | `domain/octopus_*.go` | La política completa: reglas, presupuesto, contrato, compactación, telemetría |
+| Puerto | `application/ports/octopus_repository.go` | Persistencia de decisiones y reportes |
+| Casos de uso | `application/usecases/octopus_*.go` | Medir, empaquetar contexto, orquestar puertos |
+| Persistencia | `adapters/secondary/persistence/octopus.go` | Tabla `octopus_executions` |
+| CLI | `adapters/primary/cli/cmd_octopus*.go` | `mem octopus plan\|route\|status\|usage\|history` |
+| MCP | `adapters/primary/cli/cmd_mcp_octopus_tools.go` | 4 tools, registradas solo con el módulo encendido |
+| TUI | `adapters/primary/tui/tui.go` | Fila `configRowOctopus` |
+
+### El dominio no mide texto
+
+Regla que parece un detalle y no lo es: `domain/octopus_*.go` **no importa
+`application/ports` ni cuenta tokens**.
+
+`ports.TokenCounter` vive en una capa que importa `mem/domain`; invocarlo desde
+el dominio crearía un ciclo de imports. Pero la razón de fondo es otra: la
+política tiene que ser una función pura para poder verificarse con tablas de
+casos y ser reproducible ante entradas idénticas (SC-006). El reparto es
+estricto:
+
+- **el caso de uso mide** — cuenta contexto, contrato y salida esperada con el
+  contador, y deposita las cifras en `WorkUnit`;
+- **el dominio hace aritmética** sobre esas cifras y sobre constantes con nombre.
+
+Por el mismo motivo la política no consulta el reloj, no usa aleatoriedad y
+nunca recorre un mapa para producir salida ordenada: el orden de iteración de un
+mapa en Go es aleatorio a propósito, y un plan construido así saldría distinto en
+cada corrida de forma intermitente.
+
+### Orden de evaluación
+
+Las 13 reglas se evalúan en orden fijo y la primera que aplica gana. El orden es
+parte del contrato: hace la decisión predecible y auditable, y una tabla de casos
+con una fila por regla caza cualquier reordenamiento.
+
+`contracts/routing-policy.md` de `specs/027-octopus-aar/` tiene la tabla completa.
+En resumen: política del llamador → dependencias → capacidades → profundidad →
+trabajo duplicado → trivialidad → contexto casi completo → costo comparado →
+presupuesto → reserva de validación → tope de agentes → desempate → inline.
+
+**Delegar es la excepción justificada, no el comportamiento por omisión.**
+
+### Aislamiento del contexto delegado
+
+`BuildContextPack` (feature 015) **prioriza** por relevancia; **no excluye**. Su
+`MinRelevance` degrada un candidato a `PriorityOptional`, y los tipos `Decision`,
+`Architecture` y `Bugfix` entran siempre como `PriorityCritical`. Eso es correcto
+para `get_context` —donde el techo es el presupuesto y más contexto del proyecto
+ayuda— y es lo contrario de lo que necesita una unidad delegada.
+
+Por eso `octopus_pack_contract.go` añade `excluirLoNoRelacionado()`, que filtra
+por solapamiento léxico entre el objetivo de la unidad y el contenido del item,
+reutilizando `tokenize()` + `jaccardSimilarity()` de `detect_duplicates.go`.
+
+> Para el agente principal, contexto de más es ruido.
+> Para un subagente, contexto de más **anula la razón de haberlo creado**.
+
+### Apagado significa huella cero
+
+Con `octopus_enabled` ausente o `false`:
+
+- las 4 tools MCP **no se registran** — su esquema viaja al agente en cada
+  arranque de sesión, así que registrarlas apagadas pagaría justo el costo de
+  contexto que la funcionalidad promete ahorrar;
+- el bloque de protocolo, el bootstrap de ToolSearch y las listas de
+  auto-aprobación producen texto byte a byte idéntico al previo;
+- no se escribe ninguna fila en `octopus_executions`;
+- `mem octopus` responde que está desactivado y termina con código distinto de cero.
+
+`domain.MCPAllTools()` conserva su significado —la superficie con el módulo
+apagado— y `domain.MCPToolsFor(enabled)` sirve el caso encendido.
+
+### Privacidad como forma del esquema
+
+`octopus_executions` **no tiene ninguna columna de texto libre alimentada por
+contenido**. Sus columnas TEXT son identificadores, enums del dominio
+(`route`, `status`, `quality`), un `reason_code` de catálogo cerrado y marcas de
+tiempo. No existe un hueco por el que pueda colarse una transcripción, contexto o
+una credencial.
+
+Eso convierte INV-AAR-013 en una propiedad verificable con `.schema`, en vez de
+una promesa de quien escribe el código. `tests/contract/octopus_schema_test.go`
+falla en cuanto alguien añada una columna de contenido.
+
+---
+
 ## Modelo de Datos
 
 ### `memories`

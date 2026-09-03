@@ -494,3 +494,51 @@ func TestSettings_FixAuthorizedAusenteEsAutorizado(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// octopus_enabled (feature 027) invierte la polaridad de los ajustes vecinos:
+// es opt-in, como adr_sync_enabled, no opt-out como speckit_context_disabled.
+// Octopus AAR es un flujo nuevo completo y grande, no el refinamiento de uno
+// existente: quien no lo active debe obtener el comportamiento previo exacto.
+// Ausente en el JSON ⇒ APAGADO; explícito en true ⇒ se preserva.
+func TestReadSettings_OctopusEnabled_AbsentDefaultsToDisabled(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{})
+
+	s := ReadSettings(root)
+
+	if s.OctopusEnabled {
+		t.Error("octopus_enabled ausente debería resultar en APAGADO (false)")
+	}
+}
+
+func TestReadSettings_OctopusEnabled_ExplicitTruePreserved(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{
+		"octopus_enabled": true,
+	})
+
+	s := ReadSettings(root)
+
+	if !s.OctopusEnabled {
+		t.Error("octopus_enabled=true explícito debería preservarse")
+	}
+}
+
+func TestWriteReadSettings_OctopusEnabled_Roundtrip(t *testing.T) {
+	root := t.TempDir()
+	s := DefaultSettings()
+
+	if s.OctopusEnabled {
+		t.Fatal("DefaultSettings debería nacer con Octopus APAGADO")
+	}
+
+	s.OctopusEnabled = true
+	if err := WriteSettings(root, s); err != nil {
+		t.Fatalf("WriteSettings: %v", err)
+	}
+
+	got := ReadSettings(root)
+	if !got.OctopusEnabled {
+		t.Error("octopus_enabled=true no sobrevivió al roundtrip")
+	}
+}

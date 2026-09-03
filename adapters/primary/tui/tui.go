@@ -883,8 +883,17 @@ const configRowPlanGuard = configRowEditDedupDays + 1
 // exige la convención de configRowReindexGraph.
 const configRowDocsBase = configRowPlanGuard + 1
 
+// configRowOctopus es la fila del interruptor del módulo Octopus AAR (feature
+// 027): el enrutador adaptativo que decide inline contra delegar. Va al FINAL
+// del menú, después de las filas de documentos, como exige la convención de
+// configRowReindexGraph: nunca insertada en medio.
+//
+// A diferencia del resto de interruptores, este es OPT-IN: nace apagado y
+// enciende una capacidad completa, no refina uno de los flujos existentes.
+var configRowOctopus = configRowDocsBase + len(domain.PinnedDocs)
+
 // configOptions es el número de filas del menú de configuración.
-var configOptions = configRowDocsBase + len(domain.PinnedDocs)
+var configOptions = configRowOctopus + 1
 
 // externalReindexDoneMsg es el mensaje de resultado del primer tea.Cmd
 // asíncrono real de esta TUI (feature 016, US2): IndexRepository puede tardar
@@ -1031,6 +1040,26 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Exigencia de forma del plan desactivada (todo plan se permite)"
 			} else {
 				m.statusMsg = "Exigencia de forma del plan activada (un plan sin árbol se devuelve)"
+			}
+			m.statusTimer = 40
+
+		case configRowOctopus: // Toggle del módulo Octopus AAR (feature 027)
+			s := m.settingsRepo.Read(m.root)
+			s.OctopusEnabled = !s.OctopusEnabled
+			// La lista de auto-aprobación se recalcula con el módulo ya en su
+			// nuevo estado: si no, encender Octopus registraría sus tools pero
+			// las dejaría pidiendo permiso una por una, y apagarlo dejaría
+			// nombres muertos pre-aprobados.
+			s.AutoApproveTools = domain.MCPAutoApprovableToolsFor(s.OctopusEnabled)
+			m.settingsRepo.Write(m.root, s)
+			// Persistir SettingsData no actualiza por sí mismo las configuraciones
+			// de los clientes MCP ya instalados. Igual que los toggles vecinos,
+			// aplicar la lista evita que el estado efectivo quede desfasado.
+			m.settingsRepo.ApplyAutoApprove(m.root, s)
+			if s.OctopusEnabled {
+				m.statusMsg = "Octopus AAR activado (enrutador adaptativo: decide inline o delegar)"
+			} else {
+				m.statusMsg = "Octopus AAR desactivado (sin huella: ni tools MCP ni telemetría)"
 			}
 			m.statusTimer = 40
 
@@ -2062,6 +2091,7 @@ func (m model) configView() string {
 	for _, d := range domain.PinnedDocs {
 		rows = append(rows, fmt.Sprintf("Actualizar %s: %s", d.Label, m.docEstado(d).State))
 	}
+	rows = append(rows, "Octopus AAR: "+onOff(s.OctopusEnabled))
 	for i, label := range rows {
 		if i == m.configCursor {
 			b.WriteString(itemSelected.Render("▸ " + label))

@@ -71,6 +71,12 @@ func newMCPServer(deps *Deps, root, project string) *mcp.Server {
 
 	registerTools(server, deps, project)
 	registerCodeTools(server, deps, root, project)
+	// Octopus AAR (feature 027) se registra SOLO con el módulo encendido: con el
+	// interruptor apagado, la superficie MCP debe ser byte a byte la de antes de
+	// esta funcionalidad (INV-AAR-019). Ver domain.MCPToolsFor.
+	if deps.SettingsRepo != nil && deps.SettingsRepo.Read(root).OctopusEnabled {
+		registerOctopusTools(server, deps)
+	}
 	registerResources(server, deps, project)
 
 	// Huella de contexto (feature 008): choke point único que suma los bytes

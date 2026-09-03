@@ -32,7 +32,7 @@ func FindProjectRoot() (string, error) {
 	}
 	dir := cwd
 	for {
-		if info, statErr := os.Stat(filepath.Join(dir, ".git")); statErr == nil && info != nil {
+		if isGitRoot(dir) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -41,6 +41,24 @@ func FindProjectRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// isGitRoot evita convertir un directorio padre en proyecto solo porque posee
+// un `.git` vacío (algo habitual en sandboxes y directorios temporales). Un
+// repositorio normal tiene HEAD dentro del directorio; un worktree usa el
+// archivo .git que apunta a su gitdir.
+func isGitRoot(dir string) bool {
+	gitPath := filepath.Join(dir, ".git")
+	info, err := os.Stat(gitPath)
+	if err != nil {
+		return false
+	}
+	if !info.IsDir() {
+		data, err := os.ReadFile(gitPath)
+		return err == nil && strings.HasPrefix(strings.TrimSpace(string(data)), "gitdir:")
+	}
+	_, err = os.Stat(filepath.Join(gitPath, "HEAD"))
+	return err == nil
 }
 
 var slugSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)

@@ -314,7 +314,38 @@ func migrate(db *sql.DB) error {
 		UNIQUE(review_id, round, consensus_finding_id, reviewer)
 	);
 	CREATE INDEX IF NOT EXISTS idx_rejudgments_finding ON rejudgments(consensus_finding_id);
-	`, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now)
+	-- Octopus AAR (feature 027): una fila por DECISIÓN de enrutamiento. Las
+	-- columnas del reporte del runtime nacen nulas y se completan cuando llega.
+	--
+	-- La forma de esta tabla ES la garantía de privacidad, no una promesa: NO
+	-- tiene ninguna columna de texto libre alimentada por contenido. reason_code
+	-- viene de un catálogo cerrado del dominio; route, status y quality son
+	-- enums; el resto son identificadores y cifras. No existe un hueco por el
+	-- que pueda colarse contexto, una transcripción o una credencial
+	-- (INV-AAR-013, FR-047). Un test de contrato verifica el esquema.
+	CREATE TABLE IF NOT EXISTS octopus_executions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		plan_id TEXT NOT NULL DEFAULT '',
+		task_id TEXT NOT NULL,
+		task_class TEXT NOT NULL DEFAULT '',
+		route TEXT NOT NULL,
+		reason_code TEXT NOT NULL,
+		parallel_group TEXT NOT NULL DEFAULT '',
+		context_budget INTEGER NOT NULL DEFAULT 0,
+		output_budget INTEGER NOT NULL DEFAULT 0,
+		estimated_tokens INTEGER NOT NULL DEFAULT 0,
+		decided_at TEXT NOT NULL DEFAULT (%s),
+		status TEXT,
+		context_tokens INTEGER,
+		output_tokens INTEGER,
+		duration_ms INTEGER,
+		quality TEXT,
+		reported_at TEXT
+	);
+	CREATE INDEX IF NOT EXISTS idx_octopus_project_class ON octopus_executions(project, task_class);
+	CREATE INDEX IF NOT EXISTS idx_octopus_project_task ON octopus_executions(project, task_id);
+	`, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now)
 	if _, err := db.Exec(schema); err != nil {
 		return err
 	}

@@ -82,3 +82,16 @@ func TestRead_ExtractsRelevantRequirementsScopedToFeature(t *testing.T) {
 		t.Fatalf("no se encontró el requisito relevante entre: %+v", ctx.Requirements)
 	}
 }
+
+func TestRead_EmptyTaskReturnsWholeTaskGraph(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "specs", "027-octopus", "tasks.md"), "- [ ] T001 Crear ruta\n- [ ] T002 Validar salida\n")
+
+	ctx, err := (Reader{}).Read(root, "027-octopus", "")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if len(ctx.TaskDependencies) != 2 {
+		t.Fatalf("TaskDependencies = %v; se esperaban todas las tareas", ctx.TaskDependencies)
+	}
+}

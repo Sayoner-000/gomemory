@@ -30,6 +30,17 @@ import (
 // agente no la tiene, digan lo que digan las constantes.
 func toolsRegistradasEnElServidor(t *testing.T) []string {
 	t.Helper()
+	// Directorio limpio: sin settings.json, así que todo módulo opt-in queda
+	// APAGADO. Es la línea base y el caso por defecto.
+	return toolsRegistradasEnProyecto(t, t.TempDir())
+}
+
+// toolsRegistradasEnProyecto arranca el servidor MCP real con el cwd indicado,
+// para poder observar cómo cambia la superficie según la configuración del
+// proyecto (feature 027: el módulo Octopus AAR registra sus tools solo cuando
+// está encendido).
+func toolsRegistradasEnProyecto(t *testing.T, projectDir string) []string {
+	t.Helper()
 
 	bin := filepath.Join(t.TempDir(), "mem-tools-test")
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
@@ -39,7 +50,7 @@ func toolsRegistradasEnElServidor(t *testing.T) []string {
 	}
 
 	cmd := exec.Command(bin, "mcp")
-	cmd.Dir = t.TempDir()
+	cmd.Dir = projectDir
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		t.Fatalf("stdin: %v", err)
@@ -182,7 +193,7 @@ func TestAutoApproveNoDejaFueraNingunaToolSegura(t *testing.T) {
 // infrastructure/plugin/opencode/gomemory.ts inyecta en el system prompt
 // menciona un nombre pelado o mal prefijado, el modelo intenta invocar una
 // tool que no existe y OpenCode lo reporta como llamada inválida
-// (⚙invalid[tool=, error=Model tried to call unavailable tool '']).
+// (⚙invalid[tool=, error=Model tried to call unavailable tool ”]).
 func TestOpenCodeProtocolNombraTodasLasToolsPrefijadas(t *testing.T) {
 	rutaPlugin := filepath.Join(repoRootContract(t), "infrastructure", "plugin", "opencode", "gomemory.ts")
 	contenido, err := os.ReadFile(rutaPlugin)
@@ -238,5 +249,116 @@ func TestUsage_MencionaReview(t *testing.T) {
 		if !strings.Contains(texto, sub) {
 			t.Errorf("Usage() no menciona %q: el subcomando queda invisible en `mem help`", sub)
 		}
+	}
+}
+
+// --- Feature 027: la superficie MCP depende del interruptor del módulo ---
+//
+// Octopus AAR registra sus tools SOLO con el módulo encendido. La razón no es
+// estética: el esquema de cada tool viaja al agente en el arranque de cada
+// sesión, así que registrarlas apagadas pagaría justo el costo de contexto que
+// esta funcionalidad promete ahorrar, y rompería SC-001 / INV-AAR-019.
+//
+// Estas dos pruebas EXTIENDEN el contrato, no lo relajan:
+// TestDomainReflejaLasToolsRegistradas sigue intacta y cubre el caso apagado.
+
+func prepararProyectoConOctopus(t *testing.T, habilitado bool) string {
+	t.Helper()
+	dir := t.TempDir()
+	memDir := filepath.Join(dir, ".memory")
+	if err := os.MkdirAll(memDir, 0o700); err != nil {
+		t.Fatalf("crear .memory: %v", err)
+	}
+	contenido := `{"octopus_enabled": false}`
+	if habilitado {
+		contenido = `{"octopus_enabled": true}`
+	}
+	if err := os.WriteFile(filepath.Join(memDir, "settings.json"), []byte(contenido), 0o600); err != nil {
+		t.Fatalf("escribir settings.json: %v", err)
+	}
+	return dir
+}
+
+// Módulo APAGADO: la superficie es EXACTAMENTE la base, sin tolerancia.
+func TestOctopusApagado_NoRegistraNingunaTool(t *testing.T) {
+	reales := ordenado(toolsRegistradasEnProyecto(t, prepararProyectoConOctopus(t, false)))
+	base := ordenado(domain.MCPAllTools())
+
+	if strings.Join(reales, ",") != strings.Join(base, ",") {
+		t.Errorf("con el módulo apagado la superficie debe ser la base exacta.\nreal:  %v\nbase:  %v", reales, base)
+	}
+	for _, r := range reales {
+		if strings.HasPrefix(r, "octopus_") {
+			t.Errorf("la tool %q no debería registrarse con el módulo apagado", r)
+		}
+	}
+}
+
+// Módulo ENCENDIDO: la superficie es base + Octopus, ni una más ni una menos.
+func TestOctopusEncendido_RegistraSusTools(t *testing.T) {
+	reales := ordenado(toolsRegistradasEnProyecto(t, prepararProyectoConOctopus(t, true)))
+	esperadas := ordenado(domain.MCPToolsFor(true))
+
+	if strings.Join(reales, ",") != strings.Join(esperadas, ",") {
+		t.Errorf("con el módulo encendido la superficie debe ser base + Octopus.\nreal:      %v\nesperada:  %v", reales, esperadas)
+	}
+
+	registradas := map[string]bool{}
+	for _, r := range reales {
+		registradas[r] = true
+	}
+	for _, tool := range domain.MCPOctopusTools {
+		if !registradas[tool] {
+			t.Errorf("domain.MCPOctopusTools declara %q pero el servidor no la registra con el módulo encendido", tool)
+		}
+	}
+}
+
+// El bootstrap de ToolSearch debe materializar TODAS las tools que el servidor
+// registra, y NINGUNA que no registre. Registrar una tool sin materializarla la
+// deja invocable solo sobre el papel — el bug de get_plan_context que documenta
+// cmd_hook.go. Aquí se verifica en las dos direcciones y para los dos estados
+// del módulo (feature 027).
+func TestBootstrapDeToolSearch_SigueAlEstadoDelModulo(t *testing.T) {
+	apagado := cli.MemoryToolBootstrap()
+
+	for _, tool := range domain.MCPOctopusTools {
+		if strings.Contains(apagado, tool) {
+			t.Errorf("con el módulo apagado el bootstrap no debe mencionar %q", tool)
+		}
+	}
+	for _, tool := range domain.MCPAllTools() {
+		if !strings.Contains(apagado, tool) {
+			t.Errorf("el bootstrap debe materializar %q", tool)
+		}
+	}
+}
+
+// Con el módulo apagado, el texto que gomemory inyecta en la sesión no debe
+// mencionar Octopus en ninguna parte (SC-001). Se comprueba contra el BINARIO
+// REAL, no contra una función interna: lo que importa es lo que llega al agente.
+func TestProtocolo_NoMencionaOctopusConElModuloApagado(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "mem-protocolo-test")
+	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
+	build.Dir = repoRootContract(t)
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("compilar binario: %v\n%s", err, out)
+	}
+
+	dir := prepararProyectoConOctopus(t, false)
+	cmd := exec.Command(bin, "hook", "user-prompt-submit")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("hook user-prompt-submit: %v\n%s", err, out)
+	}
+
+	if strings.Contains(strings.ToLower(string(out)), "octopus") {
+		t.Errorf("el texto inyectado menciona Octopus con el módulo apagado:\n%s", out)
+	}
+	// Control: el texto sí se emitió, así que la ausencia de "octopus" significa
+	// algo. Sin esta comprobación, una salida vacía pasaría el test.
+	if !strings.Contains(string(out), "get_context") {
+		t.Fatalf("el hook no emitió el bootstrap esperado:\n%s", out)
 	}
 }

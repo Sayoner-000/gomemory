@@ -111,6 +111,9 @@ Uso:
                                     Sin --apply solo previsualiza (nada se modifica)
   mem usage [--session ID|--all] [--json]
                                     Cuántos tokens ahorró gomemory al emitir contexto (medido)
+  mem octopus route <objetivo> [--class C] [--files a,b] [--read-only] [--json]
+                                    Enrutar una unidad de trabajo: inline o delegar
+                                    Módulo opt-in: se activa en TUI → Configuración → "Octopus AAR"
   mem doctor                       Diagnóstico del estado de la integración
   mem tui                          Abrir interfaz TUI explícitamente
   mem update [--check] [--version vX.Y.Z]

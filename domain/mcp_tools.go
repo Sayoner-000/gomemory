@@ -42,6 +42,12 @@ const (
 	ToolReviewFixRecord = "review_fix_record"
 	ToolReviewRejudge   = "review_rejudge"
 	ToolReviewPromote   = "review_promote_memory"
+	// Octopus AAR (feature 027). Se registran SOLO con el módulo encendido —
+	// ver MCPToolsFor.
+	ToolOctopusRouteTask = "octopus_route_task"
+	ToolOctopusRoutePlan = "octopus_route_plan"
+	ToolOctopusReport    = "octopus_report"
+	ToolOctopusStatus    = "octopus_status"
 )
 
 // MCPMemoryTools son las tools del núcleo de memoria.
@@ -89,6 +95,30 @@ var MCPReviewTools = []string{
 	ToolReviewPromote,
 }
 
+// MCPOctopusTools son las tools del enrutador adaptativo (feature 027). A
+// diferencia de todas las demás, NO se registran siempre: solo cuando el módulo
+// está encendido (SettingsData.OctopusEnabled).
+//
+// La razón no es estética. El esquema de cada tool viaja al agente en la
+// respuesta de initialize, en CADA sesión: registrar cuatro tools que nadie va a
+// usar pagaría exactamente el costo de contexto que esta funcionalidad promete
+// ahorrar, y contradiría el trabajo de las features 008, 015, 020 y 023.
+// Apagado tiene que significar huella observable cero (INV-AAR-019).
+//
+// Por eso MCPAllTools() conserva su significado — la superficie con el módulo
+// apagado, que es el default — y quien conozca el estado del interruptor usa
+// MCPToolsFor.
+// La lista crece EN LA MISMA TAREA que registra cada tool en el servidor, nunca
+// por adelantado: el test de contrato compara esta lista contra el tools/list
+// real, así que declarar aquí una tool que todavía no se registra deja el
+// contrato en rojo — que es exactamente lo que debe pasar.
+var MCPOctopusTools = []string{
+	ToolOctopusRouteTask,
+	ToolOctopusRoutePlan,
+	ToolOctopusReport,
+	ToolOctopusStatus,
+}
+
 // MCPDestructiveTools nunca se pre-aprueban: son irreversibles y deben pasar
 // siempre por confirmación explícita de la persona.
 var MCPDestructiveTools = []string{ToolForgetMemory}
@@ -103,12 +133,33 @@ func MCPAllTools() []string {
 	return out
 }
 
+// MCPToolsFor es el conjunto que registra el servidor DADO el estado del módulo
+// Octopus AAR. Con el módulo apagado devuelve exactamente MCPAllTools(), byte a
+// byte, para que ningún consumidor derivado (protocolo, bootstrap de ToolSearch,
+// listas de auto-aprobación) cambie su salida por la mera existencia de la
+// funcionalidad.
+func MCPToolsFor(octopusEnabled bool) []string {
+	base := MCPAllTools()
+	if !octopusEnabled {
+		return base
+	}
+	return append(base, MCPOctopusTools...)
+}
+
 // MCPAutoApprovableTools es el conjunto completo menos las destructivas: lo que
 // puede pre-aprobarse sin riesgo por ser de solo lectura o de escritura acotada
 // y reversible.
 func MCPAutoApprovableTools() []string {
-	out := make([]string, 0, len(MCPAllTools()))
-	for _, t := range MCPAllTools() {
+	return MCPAutoApprovableToolsFor(false)
+}
+
+// MCPAutoApprovableToolsFor es la variante consciente del módulo. Las tools de
+// Octopus son auto-aprobables: tres solo leen y calculan, y la cuarta solo
+// inserta telemetría propia — ninguna es destructiva.
+func MCPAutoApprovableToolsFor(octopusEnabled bool) []string {
+	todas := MCPToolsFor(octopusEnabled)
+	out := make([]string, 0, len(todas))
+	for _, t := range todas {
 		if !isDestructiveTool(t) {
 			out = append(out, t)
 		}

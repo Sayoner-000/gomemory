@@ -20,7 +20,7 @@ import (
 // nombrarlas igualmente sería ruido sin sentido si nunca va a haber servidor
 // que las resuelva.
 func TestBuildMemoryToolBootstrap_SinProveedorSoloGomemory(t *testing.T) {
-	got := buildMemoryToolBootstrap(false)
+	got := buildMemoryToolBootstrap(false, false)
 
 	if strings.Contains(got, domain.CodebaseMemoryMCPPrefix) {
 		t.Error("sin el proveedor habilitado, el bootstrap no debe nombrar sus tools")
@@ -38,7 +38,7 @@ func TestBuildMemoryToolBootstrap_SinProveedorSoloGomemory(t *testing.T) {
 // search_code) deben quedar en el MISMO select:, y las de gomemory se
 // conservan — una sola llamada de ToolSearch cubre ambos servidores.
 func TestBuildMemoryToolBootstrap_ConProveedorIncluyeDescubrimiento(t *testing.T) {
-	got := buildMemoryToolBootstrap(true)
+	got := buildMemoryToolBootstrap(true, false)
 
 	for _, tool := range domain.CodebaseMemoryMCPDiscoveryTools {
 		prefijada := domain.CodebaseMemoryMCPPrefix + tool
@@ -60,7 +60,7 @@ func TestBuildMemoryToolBootstrap_ConProveedorIncluyeDescubrimiento(t *testing.T
 // alcance deliberadamente acotado: forzar materialización no debe extenderse a
 // las operaciones de escritura/administración de otro servidor.
 func TestBuildMemoryToolBootstrap_NoIncluyeOperacionesDeAdministracion(t *testing.T) {
-	got := buildMemoryToolBootstrap(true)
+	got := buildMemoryToolBootstrap(true, false)
 
 	for _, admin := range []string{"index_repository", "delete_project", "manage_adr", "ingest_traces"} {
 		if strings.Contains(got, domain.CodebaseMemoryMCPPrefix+admin) {
@@ -75,7 +75,7 @@ func TestBuildMemoryToolBootstrap_NoIncluyeOperacionesDeAdministracion(t *testin
 // que el propio servidor gomemory registra), y el proveedor externo nunca
 // aparecerá ahí porque es un servidor distinto.
 func TestMemoryToolBootstrap_CompatibleConTestDeContrato(t *testing.T) {
-	if MemoryToolBootstrap() != buildMemoryToolBootstrap(false) {
+	if MemoryToolBootstrap() != buildMemoryToolBootstrap(false, false) {
 		t.Error("MemoryToolBootstrap() debe seguir siendo la variante sin proveedor externo")
 	}
 }

@@ -446,6 +446,18 @@ quedaba anotada y no había con qué compararla.
 
 Una compilación desde el árbol reportaba una versión anterior a la publicada, porque la constante interna se había
 quedado atrás respecto de las etiquetas de release.
+## [No publicado]
+
+### Novedades
+
+#### Octopus AAR, enrutador adaptativo de agentes
+
+- Añade un módulo opt-in que decide si una unidad se ejecuta en el agente principal o se delega, con presupuesto de contexto y contrato de ejecución. Octopus produce la política; el runtime ejecuta e informa el coste real.
+- La política es determinista: aplica 13 reglas en orden fijo y devuelve una razón de un catálogo cerrado.
+- Permite enrutar planes con dependencias y grupos paralelos, reutiliza el Context Optimization Engine, protege una reserva de validación y registra resultados para comparar estimaciones con consumo real.
+- El módulo empieza apagado. Se activa desde Configuración en la TUI o con `octopus_enabled: true` en `.memory/settings.json`. Mientras está apagado no registra sus tools MCP, no altera el protocolo ni el bootstrap de ToolSearch y no escribe filas en la base.
+- Añade `mem octopus plan|route|status|usage|history` y las tools MCP `octopus_route_task`, `octopus_route_plan`, `octopus_report` y `octopus_status`.
+- La tabla `octopus_executions` guarda identificadores, enums y cifras, sin columnas de texto libre alimentadas por contenido. Una prueba de contrato protege ese esquema.
 
 ## [2.12.0] - 2026-08-25
 

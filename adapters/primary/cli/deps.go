@@ -48,6 +48,10 @@ type Deps struct {
 	TokenCounter  ports.TokenCounter
 	SpecKitReader ports.SpecKitReader
 	// UsageRepo/UsageRecorder (feature 020): opcionales, admiten nil.
-	UsageRepo     ports.UsageRepository
+	UsageRepo ports.UsageRepository
+	// OctopusRepo (feature 027): telemetría del enrutador adaptativo. Admite
+	// nil — sin él, Octopus enruta igual, solo que sin memoria de lo ocurrido
+	// (INV-AAR-015). Nunca se consulta con el módulo apagado.
+	OctopusRepo   ports.OctopusRepository
 	UsageRecorder ports.UsageRecorder
 }

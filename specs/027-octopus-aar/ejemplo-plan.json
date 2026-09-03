@@ -1,0 +1,69 @@
+{
+  "plan_id": "expiracion-de-memorias",
+  "_comentario": "Escenario extremo a extremo de spec.md §66. Sirve de entrada a `mem octopus plan --file`.",
+  "budget": {
+    "total_tokens": 50000
+  },
+  "capabilities": {
+    "subagents": true,
+    "parallel": true,
+    "isolated_context": true,
+    "max_parallel": 3
+  },
+  "tasks": [
+    {
+      "id": "T001",
+      "objective": "Definir el modelo de expiración de memorias",
+      "task_class": "architecture",
+      "files": ["internal/memory/expiration.go"],
+      "complexity": "medium",
+      "context_tokens": 5200,
+      "nearly_full_parent": true
+    },
+    {
+      "id": "T002",
+      "objective": "Implementar el almacenamiento de la expiración",
+      "task_class": "implementation",
+      "dependencies": ["T001"],
+      "files": ["internal/memory/store.go"],
+      "complexity": "high",
+      "context_tokens": 4800
+    },
+    {
+      "id": "T003",
+      "objective": "Añadir la integración MCP de la expiración",
+      "task_class": "integration",
+      "files": ["adapters/primary/cli/cmd_mcp.go"],
+      "complexity": "medium",
+      "context_tokens": 2800
+    },
+    {
+      "id": "T004",
+      "objective": "Investigar riesgos de concurrencia entre limpieza y refresco",
+      "task_class": "investigation",
+      "files": ["internal/memory/expiration.go", "internal/memory/store.go"],
+      "read_only": true,
+      "complexity": "medium",
+      "context_tokens": 2200
+    },
+    {
+      "id": "T005",
+      "objective": "Añadir pruebas de integración de la expiración",
+      "task_class": "testing",
+      "dependencies": ["T002", "T003"],
+      "files": ["tests/integration/expiration_test.go"],
+      "complexity": "medium",
+      "context_tokens": 2400
+    },
+    {
+      "id": "T006",
+      "objective": "Actualizar la documentación de expiración",
+      "task_class": "documentation",
+      "files": ["docs/ARQUITECTURA.md"],
+      "read_only": true,
+      "complexity": "low",
+      "context_tokens": 1600,
+      "optional": true
+    }
+  ]
+}

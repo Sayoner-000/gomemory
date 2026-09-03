@@ -196,6 +196,14 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		ReviewMaxFixRounds:           s.ReviewMaxFixRounds,
 		ReviewAutoFixSeverities:      s.ReviewAutoFixSeverities,
 		ReviewFixAuthorized:          s.ReviewFixAuthorized,
+		OctopusEnabled:               s.OctopusEnabled,
+		OctopusMaxSubagents:          s.OctopusMaxSubagents,
+		OctopusMaxParallel:           s.OctopusMaxParallel,
+		OctopusMaxDepth:              s.OctopusMaxDepth,
+		OctopusMaxRetries:            s.OctopusMaxRetries,
+		OctopusMainAgentPct:          s.OctopusMainAgentPct,
+		OctopusDelegationPct:         s.OctopusDelegationPct,
+		OctopusValidationPct:         s.OctopusValidationPct,
 	}
 }
 
@@ -225,6 +233,14 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		ReviewMaxFixRounds:           s.ReviewMaxFixRounds,
 		ReviewAutoFixSeverities:      s.ReviewAutoFixSeverities,
 		ReviewFixAuthorized:          s.ReviewFixAuthorized,
+		OctopusEnabled:               s.OctopusEnabled,
+		OctopusMaxSubagents:          s.OctopusMaxSubagents,
+		OctopusMaxParallel:           s.OctopusMaxParallel,
+		OctopusMaxDepth:              s.OctopusMaxDepth,
+		OctopusMaxRetries:            s.OctopusMaxRetries,
+		OctopusMainAgentPct:          s.OctopusMainAgentPct,
+		OctopusDelegationPct:         s.OctopusDelegationPct,
+		OctopusValidationPct:         s.OctopusValidationPct,
 	})
 }
 

@@ -100,6 +100,31 @@ type Settings struct {
 	// ContextIndexMode: emisión de contexto en modo índice. Ausente/false =
 	// modo completo, el comportamiento actual (feature 020, FR-034).
 	ContextIndexMode bool `json:"context_index_mode,omitempty"`
+	// OctopusEnabled activa el módulo Octopus AAR: el enrutador adaptativo que
+	// decide si una unidad de trabajo se ejecuta inline o se delega a un
+	// subagente (feature 027). Ausente/false = APAGADO.
+	//
+	// Polaridad en POSITIVO, a diferencia de los ajustes vecinos `...Disabled`:
+	// aquellos refinan un flujo que ya existe y debe seguir activo sin que nadie
+	// opte por él; Octopus es un flujo nuevo completo y grande, y apagado debe
+	// significar huella observable cero (INV-AAR-019). Mismo patrón opt-in que
+	// AdrSyncEnabled.
+	OctopusEnabled bool `json:"octopus_enabled,omitempty"`
+	// --- Octopus AAR: topes y reparto del presupuesto (feature 027) ---
+	//
+	// Misma semántica de ausencia que Budget/CompactThreshold: 0 o ausente = el
+	// valor de fábrica que declara el dominio. No se repiten aquí las cifras;
+	// la única fuente son las constantes de domain/octopus_policy.go y
+	// domain/octopus_budget.go.
+	OctopusMaxSubagents int `json:"octopus_max_subagents,omitempty"`
+	OctopusMaxParallel  int `json:"octopus_max_parallel,omitempty"`
+	OctopusMaxDepth     int `json:"octopus_max_depth,omitempty"`
+	OctopusMaxRetries   int `json:"octopus_max_retries,omitempty"`
+	// Reparto porcentual de la sesión. Si los tres no suman 100, el dominio cae
+	// al reparto de fábrica en vez de producir un presupuesto roto.
+	OctopusMainAgentPct  int `json:"octopus_main_agent_pct,omitempty"`
+	OctopusDelegationPct int `json:"octopus_delegation_pct,omitempty"`
+	OctopusValidationPct int `json:"octopus_validation_pct,omitempty"`
 }
 
 // Defaults de la huella de contexto (feature 008). En CARACTERES emitidos salvo

@@ -74,8 +74,15 @@ func TestConfigRows_DocumentosVanAlFinal(t *testing.T) {
 	if configRowDocsBase != configRowPlanGuard+1 {
 		t.Errorf("las filas de documentos deben empezar justo después de configRowPlanGuard")
 	}
-	if configOptions != configRowDocsBase+len(domain.PinnedDocs) {
-		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowDocsBase+len(domain.PinnedDocs))
+	// Feature 027: la última fila del menú ya no es la de documentos sino el
+	// interruptor de Octopus AAR, añadido al final según la misma convención.
+	// La intención de la aserción no cambia: el menú se dimensiona por nombre,
+	// nunca por literales.
+	if configRowOctopus != configRowDocsBase+len(domain.PinnedDocs) {
+		t.Errorf("configRowOctopus = %d, esperaba %d", configRowOctopus, configRowDocsBase+len(domain.PinnedDocs))
+	}
+	if configOptions != configRowOctopus+1 {
+		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowOctopus+1)
 	}
 	if configRowAtomicPlan != 6 || configRowPlanGuard <= configRowAtomicPlan {
 		t.Error("las filas preexistentes se desplazaron: los tests que las referencian por nombre quedarían inválidos")

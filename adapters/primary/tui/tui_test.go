@@ -1035,3 +1035,75 @@ func TestUpdateEditSetting_Esc_CancelaSinGuardar(t *testing.T) {
 		t.Fatalf("Esc no debería guardar nada, CompactThreshold quedó en %d", data.CompactThreshold)
 	}
 }
+
+// --- Feature 027: interruptor del módulo Octopus AAR ---
+
+// El módulo nace APAGADO y la fila lo dice. Es la única presencia visible de la
+// funcionalidad con el interruptor en off, y es intencional: es el interruptor.
+func TestConfigScreen_OctopusNaceApagado(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := model{
+		screen:       screenConfig,
+		settingsRepo: tuiSettingsStub{data: data},
+		width:        100,
+		height:       40,
+		ready:        true,
+	}
+
+	vista := m.configView()
+
+	if !strings.Contains(ansi.Strip(vista), "Octopus AAR: OFF") {
+		t.Errorf("la fila debe mostrar el módulo apagado por defecto:\n%s", vista)
+	}
+}
+
+// Alternar la fila persiste el ajuste y recalcula la lista de auto-aprobación:
+// registrar las tools sin pre-aprobarlas las dejaría pidiendo permiso una a una,
+// y apagarlas dejaría nombres muertos en la lista.
+func TestConfigScreen_OctopusAlternaYPersiste(t *testing.T) {
+	data := &ports.SettingsData{}
+	m := model{
+		screen:       screenConfig,
+		settingsRepo: tuiSettingsStub{data: data},
+		configCursor: configRowOctopus,
+		width:        100,
+		height:       40,
+		ready:        true,
+	}
+
+	updated, _ := m.updateConfig(keyMsg("enter"))
+	if !data.OctopusEnabled {
+		t.Fatal("al confirmar sobre el interruptor el módulo debe encenderse")
+	}
+
+	m2 := updated.(model)
+	if !strings.Contains(m2.statusMsg, "Octopus AAR activado") {
+		t.Errorf("statusMsg = %q, debería confirmar la activación", m2.statusMsg)
+	}
+	if !strings.Contains(ansi.Strip(m2.configView()), "Octopus AAR: ON") {
+		t.Error("la vista debería reflejar el nuevo estado")
+	}
+
+	aprobables := map[string]bool{}
+	for _, tool := range data.AutoApproveTools {
+		aprobables[tool] = true
+	}
+	for _, tool := range domain.MCPOctopusTools {
+		if !aprobables[tool] {
+			t.Errorf("al encender el módulo, %q debería quedar pre-aprobada", tool)
+		}
+	}
+
+	// Y de vuelta: apagar no debe dejar nombres muertos pre-aprobados.
+	m2.configCursor = configRowOctopus
+	if _, _ = m2.updateConfig(keyMsg("enter")); data.OctopusEnabled {
+		t.Fatal("al confirmar de nuevo el módulo debe apagarse")
+	}
+	for _, tool := range data.AutoApproveTools {
+		for _, oct := range domain.MCPOctopusTools {
+			if tool == oct {
+				t.Errorf("con el módulo apagado %q no debería seguir pre-aprobada", tool)
+			}
+		}
+	}
+}

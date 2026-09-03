@@ -43,6 +43,7 @@ type Container struct {
 	// construcción de UsageRecorder (research.md §1); este es el ÚNICO lugar
 	// del proyecto donde se nombra un canal.
 	UsageRepo     ports.UsageRepository
+	OctopusRepo   ports.OctopusRepository
 	UsageRecorder ports.UsageRecorder
 }
 
@@ -130,6 +131,7 @@ func NewContainer(root, channel string) (*Container, error) {
 	// resuelve EN EL MOMENTO de registrar (no aquí), porque la sesión puede
 	// empezar después de construir el Container.
 	usageRepo := persistence.NewUsageRepository(db)
+	octopusRepo := persistence.NewOctopusRepository(db)
 	usageRecorder := usage.NewRecorder(usageRepo, project, channel, func() string {
 		if sess, _ := sessRepo.Active(project); sess != nil {
 			return sess.ID
@@ -165,6 +167,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		TokenCounter:    tokens.ApproximateTokenCounter{},
 		SpecKitReader:   speckit.Reader{},
 		UsageRepo:       usageRepo,
+		OctopusRepo:     octopusRepo,
 		UsageRecorder:   usageRecorder,
 	}
 	if settings.AdrSyncEnabled {
@@ -201,6 +204,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		TokenCounter:    c.TokenCounter,
 		SpecKitReader:   c.SpecKitReader,
 		UsageRepo:       c.UsageRepo,
+		OctopusRepo:     c.OctopusRepo,
 		UsageRecorder:   c.UsageRecorder,
 	}
 }

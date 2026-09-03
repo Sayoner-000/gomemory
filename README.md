@@ -338,8 +338,47 @@ Main settings (via `mem settings` or the interactive TUI):
 | `adr_sync_enabled` | `false` | Opt-in bidirectional sync of architecture memories with the external provider's ADR document |
 | `review_max_fix_rounds` | `2` | Round budget for `mem review` fix/re-judgment cycles |
 | `review_auto_fix_severities` | `["CRITICAL","HIGH"]` | Severities eligible for automatic correction without explicit authorization |
+| `octopus_enabled` | `false` | Opt-in **Octopus AAR** adaptive agent router — decides inline vs. delegate. Off means zero footprint: no MCP tools, no protocol text, no telemetry |
 
 The table above lists every user-facing setting; `mem settings --show` prints the live values for your project.
+
+## Octopus AAR — Adaptive Agent Router
+
+Opt-in module that decides whether a unit of work should stay with the primary
+agent or be delegated to a subagent, and with how much context. **It never
+executes agents** — it produces routing policy; the agent runtime executes and
+reports back what it actually cost.
+
+Enable it in the TUI under Configuration → "Octopus AAR". While it is off,
+gomemory behaves exactly as it did before the feature: no MCP tools registered,
+no protocol text, no rows written.
+
+```bash
+mem octopus route "Investigate the expiration race" --class investigation --read-only --files a.go,b.go
+mem octopus plan --file plan.json     # simulation: never starts a subagent
+mem octopus status                    # effective limits + telemetry
+mem octopus usage                     # estimated vs. actual token consumption
+mem octopus history -n 20             # past decisions and their outcomes
+```
+
+Every decision comes with a reason from a closed catalogue, so you can always
+tell why a task stayed inline:
+
+```
+T001 → DELEGATE
+  Razón: investigación independiente con contexto fuertemente aislable
+  Presupuesto de contexto: 2200 tokens
+  Presupuesto de salida: 1000 tokens
+  Contrato de ejecución
+    permisos: sistema de archivos read-only · red false
+```
+
+The guiding rule: **delegation is an optimization, not a default.** Creating a
+subagent costs context transfer, coordination and integration; Octopus
+recommends it only when the expected benefit exceeds that overhead.
+
+See [`docs/architecture.md`](docs/architecture.md) for the design and
+[`specs/027-octopus-aar/`](specs/027-octopus-aar/) for the full specification.
 
 ## Build from Source
 
