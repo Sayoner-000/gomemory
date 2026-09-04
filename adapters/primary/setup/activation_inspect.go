@@ -338,12 +338,20 @@ func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, 
 		if loc == "" {
 			continue
 		}
-		if loc == domain.ProtocolVersionMarker {
-			ch.State = domain.StateOK
-			ch.Detail = fname + ": " + loc
-		} else {
+		universal := domain.UniversalInstructionsVersionPattern.FindString(content)
+		switch {
+		case loc != domain.ProtocolVersionMarker:
 			ch.State = domain.StateOutdated
 			ch.Detail = fname + ": " + loc + "; vigente " + domain.ProtocolVersionMarker
+		case universal == "":
+			ch.State = domain.StateOutdated
+			ch.Detail = fname + ": falta baseline universal " + domain.UniversalInstructionsVersionMarker
+		case universal != domain.UniversalInstructionsVersionMarker:
+			ch.State = domain.StateOutdated
+			ch.Detail = fname + ": baseline " + universal + "; vigente " + domain.UniversalInstructionsVersionMarker
+		default:
+			ch.State = domain.StateOK
+			ch.Detail = fname + ": baseline " + universal + "; protocolo " + loc
 		}
 		return ch
 	}

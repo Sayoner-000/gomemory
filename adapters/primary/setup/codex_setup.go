@@ -30,10 +30,10 @@ type CodexHook struct {
 	Event   string
 	Matcher string
 	Sub     string
-	// Emit fija el dialecto de salida del subcomando. Vacío deja el JSON de
-	// hooks, que Codex valida también para Stop y UserPromptSubmit. Esos eventos
-	// no admiten texto plano: una salida no vacía con --emit=text aborta el hook
-	// como JSON inválido.
+	// Emit fija el dialecto de salida del subcomando. Stop y UserPromptSubmit de
+	// Codex exigen JSON incluso cuando no hay contexto que inyectar; por eso sus
+	// entradas usan "json" de forma explícita. El dialecto text aborta esos
+	// eventos como salida JSON inválida.
 	Emit string
 }
 
@@ -43,12 +43,12 @@ type CodexHook struct {
 var codexGomemoryHooks = []CodexHook{
 	{Event: "SessionStart", Matcher: "startup|resume|clear", Sub: "session-start"},
 	{Event: "SessionStart", Matcher: "compact", Sub: "post-compact"},
-	{Event: "Stop", Sub: "turn-end"},
+	{Event: "Stop", Sub: "turn-end", Emit: "json"},
 	// Inyección por turno. Sin ella, Codex recibía el protocolo una sola vez al
 	// arrancar, en un archivo estático que compite con todo el contexto y se
 	// diluye según crece la conversación — la diferencia observable entre "el
 	// agente sigue el método" y "lo siguió al principio".
-	{Event: "UserPromptSubmit", Sub: "user-prompt-submit"},
+	{Event: "UserPromptSubmit", Sub: "user-prompt-submit", Emit: "json"},
 }
 
 // CodexGomemoryHooks expone la tabla para quien tenga que escribirla. Vive en

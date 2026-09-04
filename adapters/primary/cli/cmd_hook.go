@@ -419,10 +419,12 @@ func hookTurnEnd(deps *Deps, args []string) {
 	// (sin nombrar comandos de cliente) y no bloqueante. Va ANTES de
 	// recordActivityCheckpoint (que consume stdin y hace os.Exit); computeCompactNudge
 	// NO consume stdin, así el checkpoint sigue viendo el payload intacto.
+	emitted := false
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		threshold := deps.SettingsRepo.Read(root).CompactThreshold
 		if msg, ok := computeCompactNudge(root, threshold); ok {
 			fmt.Print(renderTurnEnd(dialect, msg, true))
+			emitted = true
 		} else if msg, ok := computePreferenceReinforcement(deps, root, deps.Project, threshold); ok {
 			// Solo uno de los dos por turno: si ya se sugirió compactar, no
 			// compite por espacio con el refuerzo de preferencias — la
@@ -436,7 +438,15 @@ func hookTurnEnd(deps *Deps, args []string) {
 			// conversation"), a diferencia de decision:"block", que forzaría
 			// una iteración extra no deseada aquí.
 			fmt.Print(renderTurnEnd(dialect, msg, false))
+			emitted = true
 		}
+	}
+	// Codex valida la salida de Stop como JSON aun cuando el turno no generó
+	// recordatorio. Un stdout vacío hace fallar el hook antes de que pueda
+	// registrar el checkpoint; el objeto vacío expresa el silencio sin añadir
+	// contexto al modelo.
+	if !emitted && dialect == dialectJSON {
+		fmt.Print("{}")
 	}
 
 	recordActivityCheckpoint(deps, "Checkpoint automático")

@@ -231,7 +231,7 @@ func runGlobalScopeSetup(agentList []string) {
 	// el mismo bloque de protocolo en .cursorrules/.windsurfrules — así que no
 	// pierden la funcionalidad, solo el "habilitar una sola vez".
 	written, err := setup.InstallAtomicPlanGlobal(PlanMethod(), func(existing string) (string, bool) {
-		return composeAgentFile(existing, "", buildIntegrationBlock())
+		return composeAgentFile(existing, embeddedTemplate("universal-agent-instructions.md"), buildIntegrationBlock())
 	})
 	if err != nil {
 		fmt.Printf("  ⚠️  planificación atómica (scope global): %v\n", err)

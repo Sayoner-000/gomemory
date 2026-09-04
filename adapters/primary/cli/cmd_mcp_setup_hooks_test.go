@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"mem/domain"
 )
@@ -31,6 +32,34 @@ func TestRunGlobalScopeSetup_InstructionsQuedaEnVersionVigente(t *testing.T) {
 	}
 	if !strings.Contains(string(data), domain.ProtocolVersionMarker) {
 		t.Errorf("~/.claude/CLAUDE.md no contiene la versión vigente %q", domain.ProtocolVersionMarker)
+	}
+}
+
+func TestRunGlobalScopeSetup_InstalaBaselineUniversalAntesDelProtocolo(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0755); err != nil {
+		t.Fatalf("mkdir ~/.claude: %v", err)
+	}
+
+	previousTemplates := TemplatesFS
+	TemplatesFS = fstest.MapFS{
+		"templates/universal-agent-instructions.md": &fstest.MapFile{Data: []byte("<!-- gomemory-universal-agent-instructions-v1 -->\n# Universal\n<!-- gomemory-universal-agent-instructions-end -->\n")},
+	}
+	t.Cleanup(func() { TemplatesFS = previousTemplates })
+
+	runGlobalScopeSetup([]string{"claude"})
+	data, err := os.ReadFile(filepath.Join(home, ".claude", "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("leer instrucciones globales: %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, "gomemory-universal-agent-instructions-v1") {
+		t.Fatal("falta el baseline universal")
+	}
+	if strings.Index(text, "gomemory-universal-agent-instructions-v1") > strings.Index(text, domain.ProtocolVersionMarker) {
+		t.Error("el baseline universal debe aparecer antes del protocolo de GoMemory")
 	}
 }
 

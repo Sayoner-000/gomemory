@@ -134,3 +134,25 @@ func TestComposeAgentFile_EsIdempotente(t *testing.T) {
 		t.Error("la segunda composición alteró el contenido")
 	}
 }
+
+func TestComposeAgentFile_InstalaYActualizaBaselineUniversal(t *testing.T) {
+	const universalV1 = "<!-- gomemory-universal-agent-instructions-v1 -->\n# Universal\n<!-- gomemory-universal-agent-instructions-end -->"
+	const universalV2 = "<!-- gomemory-universal-agent-instructions-v2 -->\n# Universal actualizado\n<!-- gomemory-universal-agent-instructions-end -->"
+
+	base := "# Instrucciones\n\nTexto propio.\n"
+	once, changed := composeAgentFile(base, universalV1, buildIntegrationBlock())
+	if !changed || !strings.Contains(once, universalV1) {
+		t.Fatal("debía instalar el baseline universal")
+	}
+	if strings.Index(once, universalV1) > strings.Index(once, integrationVersionMarker) {
+		t.Error("el baseline universal debe preceder al protocolo de memoria")
+	}
+
+	updated, changed := composeAgentFile(once, universalV2, buildIntegrationBlock())
+	if !changed || strings.Contains(updated, universalV1) || !strings.Contains(updated, universalV2) {
+		t.Error("debía reemplazar solamente la versión gestionada del baseline")
+	}
+	if !strings.Contains(updated, "Texto propio.") {
+		t.Error("la actualización no debe perder instrucciones ajenas")
+	}
+}

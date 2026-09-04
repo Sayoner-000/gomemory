@@ -242,7 +242,7 @@ func TestRenderTurnEndPorDialecto(t *testing.T) {
 		}
 	})
 
-	t.Run("el silencio nunca imprime llaves", func(t *testing.T) {
+	t.Run("el silencio del render no imprime llaves", func(t *testing.T) {
 		for _, d := range []hookDialect{dialectClaude, dialectJSON, dialectText, dialectNeutral} {
 			if got := renderTurnEnd(d, "", false); got != "" {
 				t.Fatalf("dialecto %q: el silencio salió como %q", d, got)

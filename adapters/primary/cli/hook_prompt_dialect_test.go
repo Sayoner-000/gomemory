@@ -115,16 +115,17 @@ func TestCodexHooks_IncluyenInyeccionPorTurno(t *testing.T) {
 		t.Errorf("Sub = %q, se esperaba user-prompt-submit", encontrado.Sub)
 	}
 
-	// Codex necesita el JSON del protocolo de hooks; --emit=text lo convertiría
-	// en salida inválida cuando hubiera contexto que inyectar.
+	// Codex necesita JSON incluso cuando este hook no tenga contexto que
+	// inyectar; el adaptador lo declara explícitamente para no depender de un
+	// dialecto por defecto.
 	cmd, _ := setup.CodexHookGroup(*encontrado, "mem")["hooks"].([]any)
 	if len(cmd) == 0 {
 		t.Fatal("el grupo TOML no declara ningún comando")
 	}
 	primero, _ := cmd[0].(map[string]any)
 	linea, _ := primero["command"].(string)
-	if strings.Contains(linea, "--emit") {
-		t.Errorf("el comando %q fuerza un dialecto plano: Codex espera JSON de hooks", linea)
+	if !strings.Contains(linea, "--emit=json") {
+		t.Errorf("el comando %q debe declarar JSON para Codex", linea)
 	}
 }
 

@@ -144,8 +144,8 @@ command = "mem hook turn-end --emit=text"
 	if strings.Count(texto, "hook turn-end") != 1 {
 		t.Fatalf("turn-end debe actualizarse sin duplicarse:\n%s", texto)
 	}
-	if strings.Contains(texto, "hook turn-end --emit") {
-		t.Fatalf("turn-end debe emitir JSON de hooks, sin --emit:\n%s", texto)
+	if !strings.Contains(texto, "hook turn-end --emit=json") {
+		t.Fatalf("turn-end debe declarar el dialecto JSON de Codex:\n%s", texto)
 	}
 	if !setup.CodexHookPresente(decodeTOML(t, got)["hooks"].(map[string]any), setup.CodexGomemoryHooks()[2]) {
 		t.Fatalf("el hook actualizado debe satisfacer el diagnóstico de setup:\n%s", got)
@@ -200,9 +200,9 @@ func TestHooksDeCodexQueInyectanContextoUsanJSON(t *testing.T) {
 		if !inyectanTexto[hook.Sub] {
 			continue
 		}
-		if hook.Emit != "" {
+		if hook.Emit != "json" {
 			t.Errorf("el hook %q emite contexto a Codex y se registró con Emit=%q: "+
-				"Codex espera JSON de hooks", hook.Sub, hook.Emit)
+				"Codex exige JSON aun cuando el hook no tenga contexto", hook.Sub, hook.Emit)
 		}
 	}
 	for sub := range inyectanTexto {
@@ -282,7 +282,7 @@ command = "/usr/local/bin/mem hook turn-end"
 	if n := strings.Count(texto, "hook turn-end"); n != 1 {
 		t.Fatalf("turn-end se duplicó (%d apariciones):\n%s", n, texto)
 	}
-	if strings.Contains(texto, "/usr/local/bin/mem hook turn-end --emit") {
-		t.Fatalf("la reconciliación debe retirar el dialecto plano sin tocar la ruta del binario:\n%s", texto)
+	if !strings.Contains(texto, "/usr/local/bin/mem hook turn-end --emit=json") {
+		t.Fatalf("la reconciliación debe usar JSON sin tocar la ruta del binario:\n%s", texto)
 	}
 }

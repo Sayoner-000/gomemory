@@ -244,12 +244,14 @@ func runIn(dir, bin string, args ...string) error {
 }
 
 const integrationMarker = "## Memoria Persistente"
+
 // integrationVersionMarker es un alias local de domain.ProtocolVersionMarker
 // (feature 019): la fuente única vive en domain/protocol.go para que este
 // instalador y el inspector de cobertura (adapters/primary/setup) nunca
 // puedan divergir sobre cuál es la versión vigente del bloque de protocolo.
 const integrationVersionMarker = domain.ProtocolVersionMarker
-const workRulesMarker = "<!-- gomemory-workrules-v1 -->"
+const universalInstructionsMarker = domain.UniversalInstructionsVersionMarker
+const universalInstructionsEndMarker = "<!-- gomemory-universal-agent-instructions-end -->"
 
 // integrationEndMarker delimita el final del bloque de protocolo desde la
 // versión v8 (feature 019, FR-015). Los bloques v1..v7 no lo llevan: para
@@ -275,22 +277,31 @@ func embeddedTemplate(name string) string {
 }
 
 // composeAgentFile garantiza que el archivo de agente contenga, en orden, el
-// preámbulo de reglas de trabajo y luego el bloque del protocolo de memoria.
-// Es idempotente: si ambos marcadores ya están presentes, no cambia nada.
+// baseline universal y luego el bloque dinámico del protocolo de memoria.
+// Es idempotente y actualiza únicamente los bloques gestionados por gomemory.
 // Devuelve el contenido resultante y si hubo cambios.
-func composeAgentFile(existing, preamble, integration string) (string, bool) {
+func composeAgentFile(existing, universal, integration string) (string, bool) {
 	out := existing
 	changed := false
 
-	// 1. Preámbulo de reglas, SIEMPRE antes del protocolo de memoria.
-	if preamble != "" && !strings.Contains(out, workRulesMarker) {
-		block := strings.TrimRight(preamble, "\n")
-		if idx := protocolStart(out); idx != -1 {
+	// 1. Baseline universal, SIEMPRE antes del protocolo de memoria. A
+	// diferencia de las reglas específicas de un proyecto, este bloque vive en
+	// las instrucciones globales y no se reinyecta por hook en cada turno.
+	if universal != "" {
+		block := strings.TrimRight(universal, "\n")
+		if idx := universalInstructionsStart(out); idx != -1 {
+			end := universalInstructionsEnd(out, idx)
+			if strings.TrimSpace(out[idx:end]) != strings.TrimSpace(block) {
+				out = strings.TrimRight(out[:idx], "\n") + "\n\n" + block + "\n" + strings.TrimLeft(out[end:], "\n")
+				changed = true
+			}
+		} else if idx := protocolStart(out); idx != -1 {
 			out = strings.TrimRight(out[:idx], "\n") + "\n\n" + block + "\n\n" + out[idx:]
+			changed = true
 		} else {
 			out = strings.TrimRight(out, "\n") + "\n\n" + block + "\n"
+			changed = true
 		}
-		changed = true
 	}
 
 	// 2. Protocolo de memoria (versionado). Reemplaza bloques de cualquier
@@ -315,6 +326,24 @@ func composeAgentFile(existing, preamble, integration string) (string, bool) {
 	}
 
 	return out, changed
+}
+
+func universalInstructionsStart(content string) int {
+	if loc := domain.UniversalInstructionsVersionPattern.FindStringIndex(content); loc != nil {
+		return loc[0]
+	}
+	return strings.Index(content, universalInstructionsMarker)
+}
+
+func universalInstructionsEnd(content string, start int) int {
+	if loc := strings.Index(content[start:], universalInstructionsEndMarker); loc != -1 {
+		end := start + loc + len(universalInstructionsEndMarker)
+		if end < len(content) && content[end] == '\n' {
+			end++
+		}
+		return end
+	}
+	return len(content)
 }
 
 // versionMarkerPattern reconoce el marcador de versión del protocolo sin

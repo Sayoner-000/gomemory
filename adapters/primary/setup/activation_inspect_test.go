@@ -359,7 +359,7 @@ func TestActivationInspect_CodexEntryComprubaElHookRealInstalado(t *testing.T) {
 	config := "[[hooks.UserPromptSubmit]]\n" +
 		"[[hooks.UserPromptSubmit.hooks]]\n" +
 		"type = 'command'\n" +
-		"command = 'mem hook user-prompt-submit'\n"
+		"command = 'mem hook user-prompt-submit --emit=json'\n"
 	if err := os.WriteFile(filepath.Join(codexDir, "config.toml"), []byte(config), 0644); err != nil {
 		t.Fatalf("write config.toml: %v", err)
 	}

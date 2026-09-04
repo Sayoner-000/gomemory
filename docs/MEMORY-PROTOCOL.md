@@ -7,6 +7,10 @@ del agente AI para definir cuándo y cómo interactuar con el sistema de memoria
 de gomemory. Su objetivo es maximizar el valor del contexto persistido mientras
 se minimiza el consumo de tokens.
 
+El protocolo se apoya en un [baseline universal de agentes](./UNIVERSAL-AGENT-INSTRUCTIONS.md)
+instalado una vez por usuario. Ese baseline es neutral; este documento describe
+la capa específica de GoMemory y sus inyecciones dinámicas.
+
 ## Estructura del Protocolo
 
 ```
