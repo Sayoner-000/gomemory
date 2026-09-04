@@ -120,8 +120,8 @@ func TestEnsureCodexGomemoryHooks_ReconoceOtraRutaDelBinario(t *testing.T) {
 }
 
 // TestEnsureCodexGomemoryHooks_ActualizaElDialectoHeredado fija la migración
-// desde v2.16.6: el mismo subcomando sin --emit=text emitía el sobre JSON de
-// Claude y Codex descartaba la inyección de turn-end.
+// desde v2.18.2: --emit=text hace que Codex rechace la salida de Stop como
+// JSON inválido. El hook debe usar el sobre JSON que Codex valida.
 func TestEnsureCodexGomemoryHooks_ActualizaElDialectoHeredado(t *testing.T) {
 	const heredado = `[features]
 hooks = true
@@ -130,7 +130,7 @@ hooks = true
 [[hooks.Stop]]
 [[hooks.Stop.hooks]]
 type = "command"
-command = "mem hook turn-end"
+command = "mem hook turn-end --emit=text"
 `
 
 	got, cambios, err := ensureCodexGomemoryHooks([]byte(heredado), "mem")
@@ -144,9 +144,8 @@ command = "mem hook turn-end"
 	if strings.Count(texto, "hook turn-end") != 1 {
 		t.Fatalf("turn-end debe actualizarse sin duplicarse:\n%s", texto)
 	}
-	if !strings.Contains(texto, "command = 'mem hook turn-end --emit=text'") &&
-		!strings.Contains(texto, `command = "mem hook turn-end --emit=text"`) {
-		t.Fatalf("turn-end debe usar el dialecto plano:\n%s", texto)
+	if strings.Contains(texto, "hook turn-end --emit") {
+		t.Fatalf("turn-end debe emitir JSON de hooks, sin --emit:\n%s", texto)
 	}
 	if !setup.CodexHookPresente(decodeTOML(t, got)["hooks"].(map[string]any), setup.CodexGomemoryHooks()[2]) {
 		t.Fatalf("el hook actualizado debe satisfacer el diagnóstico de setup:\n%s", got)
@@ -185,17 +184,12 @@ func TestEnsureCodexGomemoryHooks_ActivaLaBandera(t *testing.T) {
 	}
 }
 
-// TestHooksDeCodexQueInyectanTextoPidenElDialectoPlano fija la regla que el propio
-// campo Emit documenta y que turn-end incumplía.
-//
-// Codex toma el stdout del hook COMO CONTEXTO TAL CUAL. Un hook que inyecta texto
-// al modelo y se registra sin Emit emite el sobre JSON de Claude Code, que Codex no
-// reconoce: rechaza la salida entera y el mensaje no llega nunca. `turn-end` inyecta
-// el refuerzo de preferencias y estaba registrado sin pedir el dialecto plano; el
-// fallo era silencioso salvo por un error del runtime ajeno a este repositorio.
-func TestHooksDeCodexQueInyectanTextoPidenElDialectoPlano(t *testing.T) {
-	// Subcomandos cuyo stdout va dirigido al MODELO. Si añades uno, decide de qué
-	// lado está: si inyecta texto, va aquí y necesita Emit.
+// TestHooksDeCodexQueInyectanContextoUsanJSON fija el contrato de Codex: sus
+// hooks de ciclo validan stdout como JSON, por lo que --emit=text solo falla
+// cuando hay un mensaje que emitir.
+func TestHooksDeCodexQueInyectanContextoUsanJSON(t *testing.T) {
+	// Subcomandos cuyo stdout llega a Codex. Si añades uno, debe conservar el
+	// dialecto JSON de hooks salvo que el evento documente otro contrato.
 	inyectanTexto := map[string]bool{
 		"user-prompt-submit": true,
 		"turn-end":           true,
@@ -206,9 +200,9 @@ func TestHooksDeCodexQueInyectanTextoPidenElDialectoPlano(t *testing.T) {
 		if !inyectanTexto[hook.Sub] {
 			continue
 		}
-		if hook.Emit != "text" {
-			t.Errorf("el hook %q inyecta texto al modelo y se registró con Emit=%q: "+
-				"Codex recibiría el sobre JSON de Claude Code", hook.Sub, hook.Emit)
+		if hook.Emit != "" {
+			t.Errorf("el hook %q emite contexto a Codex y se registró con Emit=%q: "+
+				"Codex espera JSON de hooks", hook.Sub, hook.Emit)
 		}
 	}
 	for sub := range inyectanTexto {
@@ -288,7 +282,7 @@ command = "/usr/local/bin/mem hook turn-end"
 	if n := strings.Count(texto, "hook turn-end"); n != 1 {
 		t.Fatalf("turn-end se duplicó (%d apariciones):\n%s", n, texto)
 	}
-	if !strings.Contains(texto, "/usr/local/bin/mem hook turn-end --emit=text") {
-		t.Fatalf("la reconciliación debe añadir el dialecto SIN tocar la ruta del binario:\n%s", texto)
+	if strings.Contains(texto, "/usr/local/bin/mem hook turn-end --emit") {
+		t.Fatalf("la reconciliación debe retirar el dialecto plano sin tocar la ruta del binario:\n%s", texto)
 	}
 }

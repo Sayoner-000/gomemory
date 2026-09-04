@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.18.3] - 2026-09-03
+
+### Fixed
+
+- Corrige los hooks `Stop` y `UserPromptSubmit` de Codex para emitir el JSON
+  que el runtime valida. Se elimina `--emit=text`, que hacía fallar `Stop` con
+  una salida JSON inválida cuando GoMemory inyectaba contexto.
+- Reconciliar la configuración global de Codex ahora migra instalaciones que
+  todavía forzaban salida de texto plano y conserva la ruta del binario.
+
 ## [2.18.2] - 2026-09-03
 
 ### Fixed

@@ -243,11 +243,9 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// un `{}` impreso a un agente que lee stdout como contexto le inyectaría
 	// esas dos llaves como si fueran una instrucción.
 	//
-	// El defecto es Claude y NO el neutral de detectDialect: este hook nació
-	// para Claude Code, que lo invoca sin bandera y solo inyecta lo que venga
-	// en additionalContext. Quien necesite texto plano —Codex— lo pide
-	// explícitamente con --emit=text. Invertir este defecto deja a Claude Code
-	// sin inyección por turno sin que nada falle a la vista.
+	// El defecto es Claude y NO el neutral de detectDialect: Claude Code y Codex
+	// validan el sobre JSON del protocolo de hooks. Los adaptadores que reciben
+	// texto plano deben pedirlo explícitamente con --emit=text.
 	dialect := dialectClaude
 	if v := emitFlagValue(args); isKnownDialect(v) {
 		dialect = hookDialect(v)
@@ -386,9 +384,8 @@ func hookNudge(deps *Deps) {
 // actividad que el agente no llegó a resumir con save_memory. Turnos de puro
 // chat (sin ediciones ni comandos) no generan checkpoint.
 func hookTurnEnd(deps *Deps, args []string) {
-	// Mismo defecto y mismo motivo que en hookUserPromptSubmit: Claude Code
-	// invoca sin bandera y solo lee el sobre JSON, así que es el defecto; quien
-	// toma stdout como contexto —Codex— pide el dialecto plano con --emit=text.
+	// Igual que hookUserPromptSubmit, Codex valida el sobre JSON del protocolo
+	// en Stop; el texto plano solo corresponde a adaptadores que lo documenten.
 	dialect := dialectClaude
 	if v := emitFlagValue(args); isKnownDialect(v) {
 		dialect = hookDialect(v)

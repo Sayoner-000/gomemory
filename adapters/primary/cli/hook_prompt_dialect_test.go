@@ -97,9 +97,9 @@ func dialectoDePrompt(args []string) hookDialect {
 }
 
 // TestCodexHooks_IncluyenInyeccionPorTurno cubre el hueco que cerró la
-// verificación en vivo: Codex SÍ dispara UserPromptSubmit y SÍ entrega su
-// stdout al modelo, así que limitarlo a SessionStart y Stop lo dejaba con el
-// protocolo solo en un archivo estático que se diluye al crecer la conversación.
+// verificación en vivo: Codex SÍ dispara UserPromptSubmit. Su stdout se valida
+// como JSON de hook, por lo que limitarlo a SessionStart y Stop lo dejaba con
+// el protocolo solo en un archivo estático que se diluye con la conversación.
 func TestCodexHooks_IncluyenInyeccionPorTurno(t *testing.T) {
 	var encontrado *setup.CodexHook
 	for _, h := range setup.CodexGomemoryHooks() {
@@ -115,16 +115,16 @@ func TestCodexHooks_IncluyenInyeccionPorTurno(t *testing.T) {
 		t.Errorf("Sub = %q, se esperaba user-prompt-submit", encontrado.Sub)
 	}
 
-	// El dialecto NO es opcional aquí: sin él, Codex recibiría el JSON de
-	// Claude Code como texto de contexto.
+	// Codex necesita el JSON del protocolo de hooks; --emit=text lo convertiría
+	// en salida inválida cuando hubiera contexto que inyectar.
 	cmd, _ := setup.CodexHookGroup(*encontrado, "mem")["hooks"].([]any)
 	if len(cmd) == 0 {
 		t.Fatal("el grupo TOML no declara ningún comando")
 	}
 	primero, _ := cmd[0].(map[string]any)
 	linea, _ := primero["command"].(string)
-	if !strings.Contains(linea, "--emit=text") {
-		t.Errorf("el comando %q no fija --emit=text: Codex recibiría JSON crudo", linea)
+	if strings.Contains(linea, "--emit") {
+		t.Errorf("el comando %q fuerza un dialecto plano: Codex espera JSON de hooks", linea)
 	}
 }
 
