@@ -5,6 +5,29 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.19.0] - 2026-09-03
+
+### Added
+
+- Instala un baseline universal portable en las instrucciones globales de
+  Claude Code, OpenCode y Codex. El instalador lo actualiza de forma idempotente
+  sin sobrescribir instrucciones del usuario.
+
+### Changed
+
+- Normaliza las reglas específicas de GoMemory: conserva los invariantes
+  operativos comprobados y deja las prácticas generales en el baseline común.
+- El diagnóstico de activación ahora comprueba tanto el protocolo de GoMemory
+  como la versión vigente del baseline universal.
+- Actualiza la documentación de integración y el recuento publicado a 27
+  herramientas MCP.
+
+### Fixed
+
+- Los hooks `Stop` y `UserPromptSubmit` de Codex declaran explícitamente JSON;
+  cuando `Stop` no tiene recordatorios que emitir, devuelve un objeto JSON vacío
+  válido en lugar de fallar antes de registrar el checkpoint.
+
 ## [2.18.3] - 2026-09-03
 
 ### Fixed

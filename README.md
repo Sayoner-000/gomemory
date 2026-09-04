@@ -9,7 +9,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-19_tools-blueviolet)](https://modelcontextprotocol.io/)
+[![MCP](https://img.shields.io/badge/MCP-27_tools-blueviolet)](https://modelcontextprotocol.io/)
 [![TUI](https://img.shields.io/badge/TUI-bubbletea_v2-FF6B9D?logo=charmbracelet&logoColor=white)](https://github.com/charmbracelet/bubbletea)
 
 gomemory gives AI coding agents persistent memory across sessions.
@@ -93,7 +93,7 @@ That's it. Your memory is stored outside the repository:
 - **Linux / macOS:** `~/.local/share/gomemory/`
 - **Windows:** `%LOCALAPPDATA%\gomemory\`
 
-> **`mem setup-mcp` vs `mem setup`:** `setup-mcp` registers the **MCP tools** for all 6 supported agents. The **auto-checkpoints** and **plan capture** features additionally require the hooks/plugin from `mem setup <agent>`, currently available for `opencode` and `claude-code`. In Cursor/Windsurf/Cline/Codex you get memory via MCP, but without that automatic per-turn capture.
+> **`mem setup-mcp` vs `mem setup`:** `setup-mcp` registers the **MCP tools** for all 6 supported agents. The **auto-checkpoints** and **plan capture** features additionally require the compatible lifecycle integration from `mem setup <agent>`, available for Claude Code, OpenCode and Codex. Cursor, Windsurf and Cline receive memory through MCP only.
 
 ### 3. Try it
 
@@ -405,9 +405,13 @@ go test ./...
 | Cursor | ✅ | — |
 | Windsurf | ✅ | — |
 | Cline | ✅ | — |
-| Codex | ✅ | — |
+| Codex | ✅ | ✅ |
 
-MCP provides persistent memory across all supported agents. Automatic checkpoint and plan capture currently depend on the agent integration.
+MCP provides persistent memory across all supported agents. Claude Code, OpenCode,
+and Codex also receive their compatible automatic lifecycle integration. A
+portable universal baseline is installed once in their user-level instructions;
+GoMemory and optional Octopus context are injected dynamically rather than
+repeating that baseline on every turn.
 
 ## Security & Privacy
 
