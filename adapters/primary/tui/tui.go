@@ -148,11 +148,13 @@ type model struct {
 	filtered    []domain.Memory // memorias tras el filtro activo
 	listCursor  int             // índice seleccionado dentro de filtered
 
-	selected     domain.Memory
-	detailScroll int
-	autoApprove  bool
-	statusMsg    string
-	statusTimer  int
+	selected      domain.Memory
+	detailScroll  int
+	deleteTarget  domain.Memory
+	deleteConfirm bool
+	autoApprove   bool
+	statusMsg     string
+	statusTimer   int
 
 	saveTitle    textinput.Model
 	saveType     textinput.Model
@@ -183,6 +185,7 @@ type model struct {
 	docPath         textinput.Model
 	docErr          string
 	docVista        string
+	docScroll       int
 	docPendiente    docAction
 	docConfirmReset bool
 	docTemplates    map[string]string
@@ -531,6 +534,10 @@ func (m model) updateFocusedInput(msg tea.Msg) (model, tea.Cmd, bool) {
 // ─── List screen ───────────────────────────────────────────────────
 
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.deleteConfirm {
+		return m.updateDeleteConfirm(msg)
+	}
+
 	// Si el filtro está activo, las teclas van al textinput
 	if m.filtering {
 		switch msg.String() {
@@ -578,6 +585,12 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.selected = m.filtered[m.listCursor]
 			m.detailScroll = 0
 			m.screen = screenDetail
+		}
+
+	case "d":
+		if m.listCursor >= 0 && m.listCursor < len(m.filtered) {
+			m.deleteTarget = m.filtered[m.listCursor]
+			m.deleteConfirm = true
 		}
 
 	case "s":
@@ -638,6 +651,39 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.usageFocus = 0
 			m.updateUsageFocus()
 		}
+	}
+
+	return m, nil
+}
+
+func (m model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+
+	case "n", "esc":
+		m.deleteConfirm = false
+		m.statusMsg = "Eliminación cancelada"
+		m.statusTimer = 30
+		return m, nil
+
+	case "s":
+		deleted, err := m.memRepo.Delete(m.project, m.deleteTarget.ID)
+		m.deleteConfirm = false
+		m.statusTimer = 30
+		if err != nil {
+			m.statusMsg = fmt.Sprintf("Error al eliminar la memoria: %v", err)
+			return m, nil
+		}
+		if !deleted {
+			m.statusMsg = fmt.Sprintf("La memoria %d ya no existe", m.deleteTarget.ID)
+			return m, nil
+		}
+
+		m.memories, _ = m.memRepo.List(m.project, 200)
+		m.applyFilter()
+		m.statusMsg = fmt.Sprintf("Memoria %d eliminada", m.deleteTarget.ID)
+		return m, nil
 	}
 
 	return m, nil
@@ -1809,7 +1855,11 @@ func (m model) listView() string {
 	}
 
 	// Footer
-	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  ctrl+y copiar  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  u uso  ·  q salir")
+	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  d eliminar  ·  ctrl+y copiar  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  u uso  ·  q salir")
+	if m.deleteConfirm {
+		footer = errorStyle.Render(fmt.Sprintf("  ¿Eliminar \"%s\"? Esta acción es irreversible.", m.deleteTarget.Title)) +
+			"\n" + helpStyle.Render("  s confirmar  ·  n o esc cancelar")
+	}
 	if status := m.statusLine(); status != "" {
 		footer = status + "\n" + footer
 	}

@@ -5,6 +5,18 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.20.0] - 2026-09-04
+
+### Added
+
+- La TUI permite eliminar una memoria individual desde la lista, incluso tras
+  buscarla. Pulsa `d` y confirma con `s`; `n` o Esc cancelan la operación.
+
+### Fixed
+
+- Constitución y Reglas IA ahora se desplazan en la TUI con flechas, Page Up,
+  Page Down, inicio y fin. El texto se ajusta al tamaño de la terminal.
+
 ## [2.19.1] - 2026-09-04
 
 ### Changed

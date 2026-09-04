@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"mem/application/ports"
 	"mem/application/usecases"
@@ -102,8 +103,39 @@ func (m model) updateDocs(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.docVista = res.Content
+		m.docScroll = 0
 		m.docErr = ""
 		return m, nil
+
+	case "j", "down":
+		if m.docVista != "" && m.docScroll < m.docLastLine() {
+			m.docScroll++
+		}
+
+	case "k", "up":
+		if m.docVista != "" && m.docScroll > 0 {
+			m.docScroll--
+		}
+
+	case "pgdown", "ctrl+f":
+		if m.docVista != "" {
+			m.docScroll = min(m.docLastLine(), m.docScroll+max(1, m.docBodyBudget()-2))
+		}
+
+	case "pgup", "ctrl+b":
+		if m.docVista != "" {
+			m.docScroll = max(0, m.docScroll-max(1, m.docBodyBudget()-2))
+		}
+
+	case "home", "g":
+		if m.docVista != "" {
+			m.docScroll = 0
+		}
+
+	case "end", "G":
+		if m.docVista != "" {
+			m.docScroll = m.docLastLine()
+		}
 
 	case "e":
 		m.docPendiente = docActionExportar
@@ -141,6 +173,26 @@ func (m model) updateDocs(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m model) docContentLines() []string {
+	width := m.width - 6
+	if width < 20 {
+		width = 20
+	}
+	return strings.Split(ansi.Wrap(m.docVista, width, ""), "\n")
+}
+
+func (m model) docBodyBudget() int {
+	budget := m.height - 10
+	if budget < 3 {
+		return 3
+	}
+	return budget
+}
+
+func (m model) docLastLine() int {
+	return max(0, len(m.docContentLines())-1)
 }
 
 func (m model) updateDocsRuta(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -302,9 +354,9 @@ func (m model) docsView() string {
 	}
 
 	if m.docVista != "" {
-		b.WriteString(m.docVista)
+		b.WriteString(windowLines(m.docContentLines(), m.docScroll, m.docBodyBudget()))
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("  ctrl+y copiar  ·  esc volver"))
+		b.WriteString(helpStyle.Render("  ↑/↓ scroll  ·  pgup/pgdown página  ·  ctrl+y copiar  ·  esc volver"))
 		return appStyle.Render(b.String())
 	}
 

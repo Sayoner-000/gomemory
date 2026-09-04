@@ -1,13 +1,15 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
@@ -97,6 +99,35 @@ func TestDocsView_MuestraLasCuatroOperaciones(t *testing.T) {
 		if !strings.Contains(vista, op) {
 			t.Errorf("falta la operación %q en la pantalla:\n%s", op, vista)
 		}
+	}
+}
+
+func TestDocsView_DesplazaContenidoLargo(t *testing.T) {
+	lineas := make([]string, 60)
+	for i := range lineas {
+		lineas[i] = fmt.Sprintf("línea de documento %02d", i)
+	}
+
+	m := modeloDocs(t)
+	m.height = 18
+	m.docVista = strings.Join(lineas, "\n")
+
+	primera := ansi.Strip(m.docsView())
+	if !strings.Contains(primera, "línea de documento 00") || strings.Contains(primera, "línea de documento 59") {
+		t.Fatalf("la vista inicial no está acotada al comienzo:\n%s", primera)
+	}
+
+	next, _ := m.updateDocs(keyMsg("G"))
+	m = next.(model)
+	ultima := ansi.Strip(m.docsView())
+	if !strings.Contains(ultima, "línea de documento 59") || !strings.Contains(ultima, "más arriba") {
+		t.Fatalf("end no desplazó el documento hasta el final:\n%s", ultima)
+	}
+
+	next, _ = m.updateDocs(keyMsg("g"))
+	m = next.(model)
+	if m.docScroll != 0 {
+		t.Fatalf("g debe volver al inicio, docScroll=%d", m.docScroll)
 	}
 }
 

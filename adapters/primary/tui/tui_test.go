@@ -118,6 +118,55 @@ func TestFilterEscapeRestores(t *testing.T) {
 	}
 }
 
+func TestList_EliminaMemoriaFiltradaTrasConfirmar(t *testing.T) {
+	mems := []domain.Memory{
+		{ID: 1, Type: domain.Preference, Title: "Preferencia de idioma", Content: "español"},
+		{ID: 2, Type: domain.Learning, Title: "Aprendizaje", Content: "otro"},
+	}
+	repo := &fakeMemRepo{mems: mems}
+	m := newTestModel(mems, 20)
+	m.memRepo = repo
+	m.filterInput.SetValue("preferencia")
+	m.applyFilter()
+
+	next, _ := m.updateList(keyMsg("d"))
+	m = next.(model)
+	if !m.deleteConfirm || m.deleteTarget.ID != 1 {
+		t.Fatalf("d debe pedir confirmación para la memoria filtrada, target=%d confirm=%t", m.deleteTarget.ID, m.deleteConfirm)
+	}
+
+	next, _ = m.updateList(keyMsg("s"))
+	m = next.(model)
+	if m.deleteConfirm || len(repo.deleted) != 1 || repo.deleted[0] != 1 {
+		t.Fatalf("la confirmación debe eliminar solo la memoria elegida: %+v", repo.deleted)
+	}
+	if len(m.memories) != 1 || len(m.filtered) != 0 || m.listCursor != 0 {
+		t.Fatalf("la lista filtrada debe quedar sincronizada tras borrar el último resultado: memorias=%d filtradas=%d cursor=%d", len(m.memories), len(m.filtered), m.listCursor)
+	}
+	if !strings.Contains(m.statusMsg, "Memoria 1 eliminada") {
+		t.Fatalf("faltó el mensaje de éxito: %q", m.statusMsg)
+	}
+}
+
+func TestList_CancelaEliminacionIndividual(t *testing.T) {
+	mems := manyMemories(1)
+	repo := &fakeMemRepo{mems: mems}
+	m := newTestModel(mems, 20)
+	m.memRepo = repo
+
+	next, _ := m.updateList(keyMsg("d"))
+	m = next.(model)
+	next, _ = m.updateList(keyMsg("n"))
+	m = next.(model)
+
+	if m.deleteConfirm || len(repo.deleted) != 0 || len(m.memories) != 1 {
+		t.Fatalf("cancelar no debe borrar la memoria: confirm=%t deleted=%v memorias=%d", m.deleteConfirm, repo.deleted, len(m.memories))
+	}
+	if m.statusMsg != "Eliminación cancelada" {
+		t.Fatalf("mensaje de cancelación inesperado: %q", m.statusMsg)
+	}
+}
+
 // ─── fakeMemRepo ──────────────────────────────────────────────────
 
 type fakeMemRepo struct {
