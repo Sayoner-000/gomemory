@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.19.1] - 2026-09-04
+
+### Changed
+
+- La constitución predeterminada ahora exige identificadores de código en
+  inglés. Los comentarios necesarios se mantienen en español latino claro y
+  explican el porqué sin repetir el código.
+- La regla forma parte de la plantilla embebida, por lo que acompaña a cada
+  binario portable de GoMemory.
+
 ## [2.19.0] - 2026-09-03
 
 ### Added

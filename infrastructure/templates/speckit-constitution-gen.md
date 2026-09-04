@@ -481,6 +481,11 @@ Toda la documentación técnica, especificaciones, planes y tareas dentro de `do
 - **Especificaciones (`spec.md`)**: describir el problema y la solución en español. Los nombres técnicos (variables, endpoints, tablas) pueden ir en inglés, pero la narrativa es en español.
 - **Tasks y planes**: redactados como instrucciones accionables en español. Ej: "Agregar validación de email en el endpoint de registro" en lugar de "Add email validation to register endpoint".
 
+### Código y comentarios
+
+- **Código en inglés**: declarar en inglés los nombres de paquetes, módulos, archivos, clases, estructuras, interfaces, métodos, funciones, variables, constantes, tipos, rutas y tablas. Esta convención permite reutilizar el código en equipos internacionales.
+- **Comentarios en español latino**: escribir solo comentarios necesarios y centrados en el porqué. Usar oraciones cortas, voz activa y lenguaje natural. No traducir identificadores ni repetir lo que ya expresa el código.
+
 ### Archivos obligatorios por feature (bajo `specs/`)
 ```
 specs/{NNN}-{nombre}/
