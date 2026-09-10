@@ -21,7 +21,7 @@ type usageSettingsStub struct {
 func (s usageSettingsStub) Read(string) ports.SettingsData {
 	return ports.SettingsData{UsageWindowTokens: s.windowTokens}
 }
-func (s usageSettingsStub) Write(string, ports.SettingsData) error { return nil }
+func (s usageSettingsStub) Write(string, ports.SettingsData) error      { return nil }
 func (s usageSettingsStub) ApplyAutoApprove(string, ports.SettingsData) {}
 
 func newUsageTestDeps(t *testing.T, windowTokens int) (*Deps, func()) {
@@ -39,13 +39,13 @@ func newUsageTestDeps(t *testing.T, windowTokens int) (*Deps, func()) {
 		SettingsRepo: usageSettingsStub{windowTokens: windowTokens},
 		TokenCounter: tokens.ApproximateTokenCounter{},
 	}
-	return deps, func() { db.Close() }
+	return deps, func() { _ = db.Close() }
 }
 
 func TestCmdUsage_HeaderDeclaresApproximateCounting(t *testing.T) {
 	deps, closeDB := newUsageTestDeps(t, 0)
 	defer closeDB()
-	deps.UsageRepo.Record(domain.UsageRecord{
+	_ = deps.UsageRepo.Record(domain.UsageRecord{
 		Project: "proj", SessionID: "sess-1", Operation: domain.OpSaveMemory,
 		Channel: "cli", BaselineTokens: 10, EmittedTokens: 10,
 	})
@@ -63,7 +63,7 @@ func TestCmdUsage_HeaderDeclaresApproximateCounting(t *testing.T) {
 func TestCmdUsage_NoWindow_OmitsPercentageLine(t *testing.T) {
 	deps, closeDB := newUsageTestDeps(t, 0) // ventana en su valor por defecto: 0
 	defer closeDB()
-	deps.UsageRepo.Record(domain.UsageRecord{
+	_ = deps.UsageRepo.Record(domain.UsageRecord{
 		Project: "proj", SessionID: "sess-1", Operation: domain.OpBuildContext,
 		Channel: "cli", BaselineTokens: 1000, EmittedTokens: 400,
 	})
@@ -81,7 +81,7 @@ func TestCmdUsage_NoWindow_OmitsPercentageLine(t *testing.T) {
 func TestCmdUsage_WithWindow_ShowsEstimatedLine(t *testing.T) {
 	deps, closeDB := newUsageTestDeps(t, 200000)
 	defer closeDB()
-	deps.UsageRepo.Record(domain.UsageRecord{
+	_ = deps.UsageRepo.Record(domain.UsageRecord{
 		Project: "proj", SessionID: "sess-1", Operation: domain.OpBuildContext,
 		Channel: "cli", BaselineTokens: 1000, EmittedTokens: 400,
 	})
@@ -96,11 +96,11 @@ func TestCmdUsage_WithWindow_ShowsEstimatedLine(t *testing.T) {
 func TestCmdUsage_JSON_MatchesContractGuarantees(t *testing.T) {
 	deps, closeDB := newUsageTestDeps(t, 0)
 	defer closeDB()
-	deps.UsageRepo.Record(domain.UsageRecord{
+	_ = deps.UsageRepo.Record(domain.UsageRecord{
 		Project: "proj", SessionID: "sess-1", Operation: domain.OpBuildContext,
 		Channel: "mcp", BaselineTokens: 6000, EmittedTokens: 3500,
 	})
-	deps.UsageRepo.Record(domain.UsageRecord{
+	_ = deps.UsageRepo.Record(domain.UsageRecord{
 		Project: "proj", SessionID: "sess-1", Operation: domain.OpSaveMemory,
 		Channel: "cli", BaselineTokens: 320, EmittedTokens: 310,
 	})

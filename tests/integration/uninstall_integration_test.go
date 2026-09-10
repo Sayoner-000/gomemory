@@ -33,7 +33,7 @@ func buildFakeInstall(t *testing.T, target string) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	if err := os.WriteFile(filepath.Join(target, "mem"), []byte("fake binary"), 0755); err != nil {
 		t.Fatalf("write fake mem binary: %v", err)
@@ -127,8 +127,8 @@ func TestUninstallCancelsWithoutConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pipe: %v", err)
 	}
-	w.WriteString("no\n")
-	w.Close()
+	_, _ = w.WriteString("no\n")
+	_ = w.Close()
 
 	origStdin := os.Stdin
 	os.Stdin = stdin
@@ -170,7 +170,7 @@ func TestUninstallRemovesPermissionsAndStopHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	settingsContent := `{
 		"hooks": {

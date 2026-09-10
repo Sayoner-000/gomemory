@@ -25,11 +25,11 @@ func TestMCPServer_SearchAndList_RecordUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	long := strings.Repeat("contenido bastante largo para forzar que el extracto de search/list sea menor que el original. ", 5)
-	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "una decisión", Content: long})
+	_, _ = memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "una decisión", Content: long})
 
 	usageRepo := persistence.NewUsageRepository(db)
 	recorder := usage.NewRecorder(usageRepo, "proj", "mcp", func() string { return "" })
@@ -51,14 +51,14 @@ func TestMCPServer_SearchAndList_RecordUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server.Connect: %v", err)
 	}
-	defer serverSession.Close()
+	defer func() { _ = serverSession.Close() }()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client.Connect: %v", err)
 	}
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	if _, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "search_memories",
@@ -134,7 +134,7 @@ func TestMCPServer_GetMemory_TranslatesToOwnOperation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	id, _ := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "d", Content: "contenido"})
@@ -157,13 +157,13 @@ func TestMCPServer_GetMemory_TranslatesToOwnOperation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server.Connect: %v", err)
 	}
-	defer ss.Close()
+	defer func() { _ = ss.Close() }()
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0"}, nil)
 	cs, err := client.Connect(ctx, ct, nil)
 	if err != nil {
 		t.Fatalf("client.Connect: %v", err)
 	}
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 
 	if _, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "get_memory", Arguments: map[string]any{"id": id}}); err != nil {
 		t.Fatalf("CallTool get_memory: %v", err)
@@ -174,4 +174,3 @@ func TestMCPServer_GetMemory_TranslatesToOwnOperation(t *testing.T) {
 		t.Fatalf("get_memory debe registrarse como domain.OpGetMemory, got %+v", recs)
 	}
 }
-

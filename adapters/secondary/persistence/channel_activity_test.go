@@ -44,8 +44,12 @@ func TestChannelActivity_RegistraElFallo(t *testing.T) {
 func TestChannelActivity_UnFalloNoBorraLaUltimaActividad(t *testing.T) {
 	db := openTestDB(t)
 
-	RecordChannelActivity(db, "p", "opencode", "user", "plan_entry")
-	RecordChannelError(db, "p", "opencode", "user", "plan_entry", "fallo posterior")
+	if err := RecordChannelActivity(db, "p", "opencode", "user", "plan_entry"); err != nil {
+		t.Fatalf("registrar actividad: %v", err)
+	}
+	if err := RecordChannelError(db, "p", "opencode", "user", "plan_entry", "fallo posterior"); err != nil {
+		t.Fatalf("registrar fallo: %v", err)
+	}
 
 	a, _ := LastChannelActivity(db, "p", "opencode", "user", "plan_entry")
 	if a.FiredAt.IsZero() {
@@ -61,7 +65,9 @@ func TestChannelActivity_UnFalloNoBorraLaUltimaActividad(t *testing.T) {
 func TestChannelActivity_AcotadaAlProyecto(t *testing.T) {
 	db := openTestDB(t)
 
-	RecordChannelActivity(db, "p1", "opencode", "user", "plan_entry")
+	if err := RecordChannelActivity(db, "p1", "opencode", "user", "plan_entry"); err != nil {
+		t.Fatalf("registrar actividad: %v", err)
+	}
 	if _, ok := LastChannelActivity(db, "p2", "opencode", "user", "plan_entry"); ok {
 		t.Error("la actividad de un proyecto se filtró a otro")
 	}

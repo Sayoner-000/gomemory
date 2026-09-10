@@ -16,7 +16,7 @@ import (
 func TestConsolidateMemories_TopicKeyGroup_MergesIntoOne(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	// Tres revisiones del mismo tópico, insertadas SIN pasar por el upsert
@@ -38,7 +38,7 @@ func TestConsolidateMemories_TopicKeyGroup_MergesIntoOne(t *testing.T) {
 func TestConsolidateMemories_Preview_DoesNotModifyAnything(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	insertRawTopicDuplicate(t, db, "proj", "same-topic", "versión vieja")
@@ -69,7 +69,7 @@ func TestConsolidateMemories_Preview_DoesNotModifyAnything(t *testing.T) {
 func TestConsolidateMemories_Apply_MergesWithoutLosingContent(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	idOld := insertRawTopicDuplicate(t, db, "proj", "same-topic", "contenido antiguo único")
@@ -105,10 +105,12 @@ func TestConsolidateMemories_Apply_MergesWithoutLosingContent(t *testing.T) {
 func TestConsolidateMemories_MemoriesWithoutTopicKey_AreUntouched(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
-	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Learning, Title: "sin tópico", Content: "..."})
+	if _, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Learning, Title: "sin tópico", Content: "..."}); err != nil {
+		t.Fatalf("insert memory: %v", err)
+	}
 
 	report, err := usecases.ConsolidateMemories(memRepo, "proj", true)
 	if err != nil {
@@ -132,7 +134,7 @@ func TestConsolidateMemories_MemoriesWithoutTopicKey_AreUntouched(t *testing.T) 
 func TestConsolidateMemories_CheckpointDuplicates_ByExactContent(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	// Filas RAW por el mismo motivo que insertRawTopicDuplicate: desde que

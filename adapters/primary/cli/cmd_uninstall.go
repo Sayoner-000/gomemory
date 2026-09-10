@@ -53,13 +53,11 @@ func buildUninstallMCPConfigs() []uninstallMCPConfig {
 	}
 	// Los agentes sin canales propios más allá del registro del servidor no
 	// tienen fila en la matriz todavía; se conservan aquí hasta que la tengan.
-	for _, extra := range []uninstallMCPConfig{
+	out = append(out, []uninstallMCPConfig{
 		{filepath.Join(".cursor", "mcp.json"), "mcpServers"},
 		{filepath.Join(".windsurf", "mcp_config.json"), "mcpServers"},
 		{filepath.Join(".cline", "mcp_settings.json"), "mcpServers"},
-	} {
-		out = append(out, extra)
-	}
+	}...)
 	return out
 }
 
@@ -343,7 +341,7 @@ func removeNativeWrappers(target string) {
 		// queda vacío, era nuestro por completo.
 		if dir := filepath.Dir(ruta); dir != target {
 			if entradas, err := os.ReadDir(dir); err == nil && len(entradas) == 0 {
-				os.Remove(dir)
+				_ = os.Remove(dir)
 			}
 		}
 	}

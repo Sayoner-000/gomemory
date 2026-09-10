@@ -72,7 +72,7 @@ func importNewBlock(provider ports.ADRSyncProvider, adrRepo ports.ADRSyncReposit
 	hash := contentHashOf(stored)
 
 	memID := id
-	adrRepo.Insert(&domain.ADRSyncRecord{
+	_, _ = adrRepo.Insert(&domain.ADRSyncRecord{
 		Project: project, MemoryID: &memID, Provider: provider.Name(),
 		Section: section, BlockKey: blockKey, Origin: domain.SyncOriginProvider,
 		Status: domain.SyncStatusOK, ContentHash: hash,
@@ -94,16 +94,16 @@ func updateImportedBlock(adrRepo ports.ADRSyncRepository, memRepo ports.MemoryRe
 		// proveedor también cambió: conflicto. Se conserva la copia local sin
 		// pisarla — ninguna de las dos versiones se pierde: la del proveedor
 		// sigue en su documento, disponible para revisión manual.
-		adrRepo.UpdateStatus(existing.ID, domain.SyncStatusConflictResolved, existing.ContentHash)
+		_ = adrRepo.UpdateStatus(existing.ID, domain.SyncStatusConflictResolved, existing.ContentHash)
 		return
 	}
 
 	if err := memRepo.UpdateContent(project, *existing.MemoryID, block.Heading, block.Body); err != nil {
-		adrRepo.UpdateStatus(existing.ID, domain.SyncStatusFailed, existing.ContentHash)
+		_ = adrRepo.UpdateStatus(existing.ID, domain.SyncStatusFailed, existing.ContentHash)
 		return
 	}
 	stored, _ := memRepo.Get(project, *existing.MemoryID)
-	adrRepo.UpdateStatus(existing.ID, domain.SyncStatusOK, contentHashOf(stored))
+	_ = adrRepo.UpdateStatus(existing.ID, domain.SyncStatusOK, contentHashOf(stored))
 }
 
 func contentHashOf(m *domain.Memory) string {

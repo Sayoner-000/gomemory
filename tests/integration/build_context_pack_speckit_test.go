@@ -51,7 +51,7 @@ func TestBuildContextPack_SpecKit_ScopedToActiveFeature(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	reader := speckit.Reader{}

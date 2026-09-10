@@ -32,7 +32,7 @@ func TestMCPStartsWithoutPriorInstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("mem mcp debió arrancar sin instalación previa, pero: %v", err)
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	tools, err := session.ListTools(ctx, nil)
 	if err != nil {

@@ -49,16 +49,6 @@ func extractAdditionalContext(t *testing.T, stdout string) string {
 	return ctx
 }
 
-func claudeEnteredEnvelope() string {
-	env := map[string]any{
-		"hook_event_name": "PostToolUse",
-		"tool_name":       "EnterPlanMode",
-		"tool_input":      map[string]any{},
-	}
-	b, _ := json.Marshal(env)
-	return string(b)
-}
-
 // gitInitProject crea un directorio temporal con `.git`, para que FindRoot lo
 // reconozca como proyecto propio en vez de resolver a un ancestro compartido.
 func gitInitProject(t *testing.T) string {

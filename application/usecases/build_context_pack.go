@@ -251,8 +251,10 @@ func newContextCandidate(m domain.Memory, index, total int, minRelevance float32
 		relevance = 1 - float32(index)/float32(total)
 	}
 
-	var importance float32
-	priority := domain.PriorityOptional
+	var (
+		importance float32
+		priority   domain.Priority
+	)
 	switch m.Type {
 	case domain.Decision, domain.Architecture, domain.Bugfix:
 		importance = 1

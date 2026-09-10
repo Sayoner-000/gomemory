@@ -97,10 +97,10 @@ func TestPendingSigueDistinguiendoElArbol(t *testing.T) {
 		gitEnRepo(t, root, "config", "user.email", "prueba@local")
 		gitEnRepo(t, root, "config", "user.name", "prueba")
 		ruta := filepath.Join(root, "f.txt")
-		os.WriteFile(ruta, []byte("V0\n"), 0o644)
+		_ = os.WriteFile(ruta, []byte("V0\n"), 0o644)
 		gitEnRepo(t, root, "add", "f.txt")
 		gitEnRepo(t, root, "commit", "-qm", "base")
-		os.WriteFile(ruta, []byte(arbol), 0o644)
+		_ = os.WriteFile(ruta, []byte(arbol), 0o644)
 		return root
 	}
 	_, digestA, _, err := resolvePendingTarget(repo(t, "ARBOL-A\n"))
@@ -127,11 +127,11 @@ func TestPendingDistingueSinSeguimientoDeBorradoPreparado(t *testing.T) {
 		gitEnRepo(t, root, "init", "-q", ".")
 		gitEnRepo(t, root, "config", "user.email", "prueba@local")
 		gitEnRepo(t, root, "config", "user.name", "prueba")
-		os.WriteFile(filepath.Join(root, "otro.txt"), []byte("ancla\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(root, "otro.txt"), []byte("ancla\n"), 0o644)
 		gitEnRepo(t, root, "add", "otro.txt")
 		gitEnRepo(t, root, "commit", "-qm", "base")
 		// f.txt nunca entró en el repositorio.
-		os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
 		return root
 	}
 	borradoPreparado := func(t *testing.T) string {
@@ -140,14 +140,14 @@ func TestPendingDistingueSinSeguimientoDeBorradoPreparado(t *testing.T) {
 		gitEnRepo(t, root, "init", "-q", ".")
 		gitEnRepo(t, root, "config", "user.email", "prueba@local")
 		gitEnRepo(t, root, "config", "user.name", "prueba")
-		os.WriteFile(filepath.Join(root, "otro.txt"), []byte("ancla\n"), 0o644)
-		os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(root, "otro.txt"), []byte("ancla\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
 		gitEnRepo(t, root, "add", ".")
 		gitEnRepo(t, root, "commit", "-qm", "base")
 		// f.txt se prepara para borrar, pero vuelve a existir en el árbol con el
 		// mismo contenido: lo único que los diferencia es el índice.
 		gitEnRepo(t, root, "rm", "--cached", "-q", "f.txt")
-		os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(root, "f.txt"), []byte("CONTENIDO\n"), 0o644)
 		return root
 	}
 

@@ -39,7 +39,9 @@ func TestLatestReleaseTag(t *testing.T) {
 		if r.URL.Path != "/repos/Sayoner-000/gomemory/releases/latest" {
 			t.Errorf("ruta inesperada: %s", r.URL.Path)
 		}
-		json.NewEncoder(w).Encode(map[string]string{"tag_name": "v1.9.0"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"tag_name": "v1.9.0"}); err != nil {
+			t.Errorf("encode: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -59,7 +61,7 @@ func TestLatestReleaseTag(t *testing.T) {
 func TestLatestReleaseTagErrorStatus(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("not found"))
+		_, _ = w.Write([]byte("not found"))
 	}))
 	defer srv.Close()
 
@@ -83,10 +85,18 @@ func TestExtractBinaryFromTarGz(t *testing.T) {
 	if err := tw.WriteHeader(&tar.Header{Name: "mem", Mode: 0755, Size: int64(len(content))}); err != nil {
 		t.Fatalf("tar header: %v", err)
 	}
-	tw.Write(content)
-	tw.Close()
-	gz.Close()
-	os.WriteFile(archivePath, buf.Bytes(), 0644)
+	if _, err := tw.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(archivePath, buf.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	destPath, err := extractBinary(archivePath, dir)
 	if err != nil {
@@ -112,9 +122,15 @@ func TestExtractBinaryFromZip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zip create: %v", err)
 	}
-	fw.Write(content)
-	zw.Close()
-	os.WriteFile(archivePath, buf.Bytes(), 0644)
+	if _, err := fw.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(archivePath, buf.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := extractBinaryFromZip(archivePath, "mem.exe", filepath.Join(dir, "mem.exe")); err != nil {
 		t.Fatalf("extractBinaryFromZip: %v", err)
@@ -135,9 +151,15 @@ func TestExtractBinaryMissingFromArchive(t *testing.T) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	tw.Close()
-	gz.Close()
-	os.WriteFile(archivePath, buf.Bytes(), 0644)
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(archivePath, buf.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := extractBinary(archivePath, dir); err == nil {
 		t.Fatal("esperaba error: el archivo no contiene el binario mem")
@@ -152,8 +174,12 @@ func TestReplaceSelfUnix(t *testing.T) {
 	current := filepath.Join(dir, "mem")
 	newBin := filepath.Join(dir, "mem-new")
 
-	os.WriteFile(current, []byte("old content"), 0755)
-	os.WriteFile(newBin, []byte("new content"), 0755)
+	if err := os.WriteFile(current, []byte("old content"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newBin, []byte("new content"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := replaceSelf(current, newBin); err != nil {
 		t.Fatalf("replaceSelf: %v", err)

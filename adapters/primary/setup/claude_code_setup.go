@@ -105,9 +105,11 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 	// plugin (scripts .sh, .mcp.json con ruta absoluta, hooks.json): ya no se
 	// generan, pero pueden sobrevivir de una instalación previa sincronizada
 	// desde otra máquina. InstallPlugin solo agrega/actualiza, no borra.
-	os.RemoveAll(filepath.Join(pluginDir, "scripts"))
-	os.RemoveAll(filepath.Join(pluginDir, "hooks"))
-	os.Remove(filepath.Join(pluginDir, ".mcp.json"))
+	// La limpieza de artefactos legacy no es requisito para una instalación
+	// fresca: no debe bloquearla si el filesystem impide borrar residuos.
+	_ = os.RemoveAll(filepath.Join(pluginDir, "scripts"))
+	_ = os.RemoveAll(filepath.Join(pluginDir, "hooks"))
+	_ = os.Remove(filepath.Join(pluginDir, ".mcp.json"))
 
 	count, err := InstallPlugin(PluginFS, "plugin/claude-code", pluginDir, ctx)
 	if err != nil {
@@ -178,7 +180,9 @@ func writeClaudePermissions(root string) error {
 
 	settings := map[string]interface{}{}
 	if data, _ := os.ReadFile(settingsPath); len(data) > 0 {
-		json.Unmarshal(data, &settings)
+		if err := json.Unmarshal(data, &settings); err != nil {
+			return fmt.Errorf("decode claude settings: %w", err)
+		}
 	}
 
 	perms, _ := settings["permissions"].(map[string]interface{})
@@ -315,7 +319,9 @@ func writeMCPConfig(mcpPath string, ref AgentRef) error {
 
 	existing := map[string]interface{}{}
 	if data, _ := os.ReadFile(mcpPath); len(data) > 0 {
-		json.Unmarshal(data, &existing)
+		if err := json.Unmarshal(data, &existing); err != nil {
+			return fmt.Errorf("decode existing claude mcp config: %w", err)
+		}
 	}
 	ms, _ := existing["mcpServers"].(map[string]interface{})
 	if ms == nil {
@@ -357,7 +363,9 @@ func writeClaudeHooks(root string, ref AgentRef) error {
 
 	settings := map[string]interface{}{}
 	if data, _ := os.ReadFile(settingsPath); len(data) > 0 {
-		json.Unmarshal(data, &settings)
+		if err := json.Unmarshal(data, &settings); err != nil {
+			return fmt.Errorf("decode existing claude settings: %w", err)
+		}
 	}
 	hooks, _ := settings["hooks"].(map[string]interface{})
 	if hooks == nil {

@@ -23,7 +23,7 @@ func TestBuildContextPack_RelevantWithinBudget_IrrelevantExcluded(t *testing.T) 
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	relevantID, err := memRepo.Insert(&domain.Memory{
@@ -86,7 +86,7 @@ func TestBuildContextPack_CriticalOverflow_ExplicitError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	longContent := strings.Repeat("El servicio de auth usa Redis para rotar refresh tokens. ", 200)

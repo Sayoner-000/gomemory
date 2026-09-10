@@ -30,10 +30,10 @@ func TestRenderPromptContext_TextoPlanoParaAgentesNoClaude(t *testing.T) {
 	}
 }
 
-// TestRenderPromptContext_ClaudeConservaSuEnvoltura: el dialecto por defecto no
-// cambia. Claude Code solo inyecta lo que venga en additionalContext.
-func TestRenderPromptContext_ClaudeConservaSuEnvoltura(t *testing.T) {
-	out := renderPromptContext(dialectClaude, "recordatorio")
+// TestRenderPromptContext_JSONUsaElSobreDeUserPromptSubmit verifica el contrato
+// que Codex valida: JSON con hookSpecificOutput, no un objeto {"context": ...}.
+func TestRenderPromptContext_JSONUsaElSobreDeUserPromptSubmit(t *testing.T) {
+	out := renderPromptContext(dialectJSON, "recordatorio")
 
 	var payload struct {
 		HookSpecificOutput struct {
@@ -42,7 +42,7 @@ func TestRenderPromptContext_ClaudeConservaSuEnvoltura(t *testing.T) {
 		} `json:"hookSpecificOutput"`
 	}
 	if err := json.Unmarshal([]byte(out.stdout), &payload); err != nil {
-		t.Fatalf("la salida de Claude no es JSON válido: %v (%q)", err, out.stdout)
+		t.Fatalf("la salida JSON no es válida: %v (%q)", err, out.stdout)
 	}
 	if payload.HookSpecificOutput.HookEventName != "UserPromptSubmit" {
 		t.Errorf("hookEventName = %q, se esperaba UserPromptSubmit", payload.HookSpecificOutput.HookEventName)
@@ -59,6 +59,9 @@ func TestRenderPromptContext_ClaudeConservaSuEnvoltura(t *testing.T) {
 func TestRenderPromptContext_SilencioPorDialecto(t *testing.T) {
 	if out := renderPromptContext(dialectClaude, ""); out.stdout != "{}" {
 		t.Errorf("silencio en Claude = %q, se esperaba {}", out.stdout)
+	}
+	if out := renderPromptContext(dialectJSON, ""); out.stdout != "{}" {
+		t.Errorf("silencio en JSON = %q, se esperaba {}", out.stdout)
 	}
 	for _, d := range []hookDialect{dialectText, dialectNeutral} {
 		if out := renderPromptContext(d, ""); out.stdout != "" {

@@ -48,14 +48,14 @@ func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
 			}, nil, nil
 		}
 		var sb strings.Builder
-		sb.WriteString(fmt.Sprintf("Archivos: %d\nSímbolos: %d\nRelaciones: %d\n", status.Files, status.Nodes, status.Edges))
+		fmt.Fprintf(&sb, "Archivos: %d\nSímbolos: %d\nRelaciones: %d\n", status.Files, status.Nodes, status.Edges)
 		if status.LastIndexedAt != "" {
-			sb.WriteString(fmt.Sprintf("Última indexación: %s\n", status.LastIndexedAt))
+			fmt.Fprintf(&sb, "Última indexación: %s\n", status.LastIndexedAt)
 		}
 		if len(status.TopPackages) > 0 {
 			sb.WriteString("\nPaquetes principales:\n")
 			for _, p := range status.TopPackages {
-				sb.WriteString(fmt.Sprintf("  %s: %d símbolos\n", p.Package, p.Symbols))
+				fmt.Fprintf(&sb, "  %s: %d símbolos\n", p.Package, p.Symbols)
 			}
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}, nil, nil
@@ -164,7 +164,7 @@ func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
 			if err != nil {
 				continue
 			}
-			sb.WriteString(fmt.Sprintf("%s (%s) — %d relaciones %s, profundidad %d:\n", start.Name, edgeKind, len(edges), direction, depth))
+			fmt.Fprintf(&sb, "%s (%s) — %d relaciones %s, profundidad %d:\n", start.Name, edgeKind, len(edges), direction, depth)
 			for _, n := range neighbors {
 				sb.WriteString("  " + formatCodeNodeLine(n))
 			}
@@ -184,19 +184,19 @@ func formatCodeNodeLine(n domain.CodeNode) string {
 
 func formatCodeNodeDefinition(n domain.CodeNode) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("[%d] %s %s\n", n.ID, n.Kind, n.Name))
+	fmt.Fprintf(&sb, "[%d] %s %s\n", n.ID, n.Kind, n.Name)
 	if n.Package != "" {
-		sb.WriteString(fmt.Sprintf("  Paquete: %s\n", n.Package))
+		fmt.Fprintf(&sb, "  Paquete: %s\n", n.Package)
 	}
 	if n.File != "" {
 		loc := n.File
 		if n.StartLine > 0 {
 			loc = fmt.Sprintf("%s:%d-%d", n.File, n.StartLine, n.EndLine)
 		}
-		sb.WriteString(fmt.Sprintf("  Ubicación: %s\n", loc))
+		fmt.Fprintf(&sb, "  Ubicación: %s\n", loc)
 	}
 	if n.Signature != "" {
-		sb.WriteString(fmt.Sprintf("  Firma: %s\n", n.Signature))
+		fmt.Fprintf(&sb, "  Firma: %s\n", n.Signature)
 	}
 	return sb.String()
 }

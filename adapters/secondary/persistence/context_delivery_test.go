@@ -42,8 +42,12 @@ func TestContextDelivery_AcotadaALaSesion(t *testing.T) {
 func TestContextDelivery_LaUltimaEntregaGana(t *testing.T) {
 	db := openTestDB(t)
 
-	RecordContextDelivery(db, "sesion-1", "context", "hash-a")
-	RecordContextDelivery(db, "sesion-1", "context", "hash-b")
+	if err := RecordContextDelivery(db, "sesion-1", "context", "hash-a"); err != nil {
+		t.Fatalf("registrar primera entrega: %v", err)
+	}
+	if err := RecordContextDelivery(db, "sesion-1", "context", "hash-b"); err != nil {
+		t.Fatalf("registrar segunda entrega: %v", err)
+	}
 
 	if h, _ := LastContextDelivery(db, "sesion-1", "context"); h != "hash-b" {
 		t.Errorf("esperaba hash-b, obtuve %q", h)
@@ -55,7 +59,9 @@ func TestContextDelivery_LaUltimaEntregaGana(t *testing.T) {
 func TestContextDelivery_CanalesIndependientes(t *testing.T) {
 	db := openTestDB(t)
 
-	RecordContextDelivery(db, "sesion-1", "context", "hash-a")
+	if err := RecordContextDelivery(db, "sesion-1", "context", "hash-a"); err != nil {
+		t.Fatalf("registrar entrega: %v", err)
+	}
 	if _, ok := LastContextDelivery(db, "sesion-1", "plan_context"); ok {
 		t.Error("el registro de un canal se leyó como el de otro")
 	}

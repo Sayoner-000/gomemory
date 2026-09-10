@@ -28,10 +28,10 @@ func TestHookSessionEndCreatesBackupSnapshot(t *testing.T) {
 	if _, err := persistence.InsertMemory(db, &domain.Memory{
 		Project: project, Type: domain.Decision, Title: "backup e2e", Content: "contenido de prueba",
 	}); err != nil {
-		db.Close()
+		_ = db.Close()
 		t.Fatalf("insert memory: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	runHook(t, bin, target, "session-start")
 	runHook(t, bin, target, "session-end")
@@ -71,7 +71,7 @@ func TestHookSessionEndWithoutActiveSessionSkipsBackup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	project := persistence.ProjectKey(target)
 	runHook(t, bin, target, "session-end") // sin session-start previo

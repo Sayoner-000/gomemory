@@ -235,8 +235,8 @@ func resolvePendingTarget(root string) (string, string, []string, error) {
 	// identidad congelada. Con el tamaño delante, cada campo solo se puede leer de
 	// una manera.
 	campo := func(etiqueta string, valor []byte) {
-		fmt.Fprintf(hash, "%s:%d:", etiqueta, len(valor))
-		hash.Write(valor)
+		_, _ = fmt.Fprintf(hash, "%s:%d:", etiqueta, len(valor))
+		_, _ = hash.Write(valor)
 	}
 	scope := make([]string, 0, len(rutas))
 	for _, rel := range rutas {

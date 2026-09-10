@@ -19,12 +19,12 @@ func copyFileForTest(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	_, err = io.Copy(out, in)
 	return err
 }
@@ -35,10 +35,10 @@ func buildFakeTarGz(content []byte) []byte {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	tw.WriteHeader(&tar.Header{Name: "mem", Mode: 0755, Size: int64(len(content))})
-	tw.Write(content)
-	tw.Close()
-	gz.Close()
+	_ = tw.WriteHeader(&tar.Header{Name: "mem", Mode: 0755, Size: int64(len(content))})
+	_, _ = tw.Write(content)
+	_ = tw.Close()
+	_ = gz.Close()
 	return buf.Bytes()
 }
 
@@ -54,14 +54,14 @@ func TestUpdateIntegration(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/Sayoner-000/gomemory/releases/latest", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"tag_name": "v9.9.9"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v9.9.9"})
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
 	downloadMux := http.NewServeMux()
 	downloadMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write(asset)
+		_, _ = w.Write(asset)
 	})
 	downloadSrv := httptest.NewServer(downloadMux)
 	defer downloadSrv.Close()
@@ -74,7 +74,9 @@ func TestUpdateIntegration(t *testing.T) {
 	if err := copyFileForTest(bin, dummyBin); err != nil {
 		t.Fatalf("copiar binario dummy: %v", err)
 	}
-	os.Chmod(dummyBin, 0755)
+	if err := os.Chmod(dummyBin, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	cmd := exec.Command(dummyBin, "update", "--version", "v9.9.9")
 	cmd.Dir = target
@@ -106,7 +108,7 @@ func TestUpdateCheckDoesNotMutate(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/Sayoner-000/gomemory/releases/latest", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"tag_name": "v9.9.9"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"tag_name": "v9.9.9"})
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -116,7 +118,9 @@ func TestUpdateCheckDoesNotMutate(t *testing.T) {
 	if err := copyFileForTest(bin, dummyBin); err != nil {
 		t.Fatalf("copiar binario dummy: %v", err)
 	}
-	os.Chmod(dummyBin, 0755)
+	if err := os.Chmod(dummyBin, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	before, err := os.ReadFile(dummyBin)
 	if err != nil {

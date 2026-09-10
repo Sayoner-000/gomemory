@@ -32,7 +32,7 @@ func seedLegacyDb(t *testing.T, root string, n int) {
 	if err := os.Setenv("GOMEMORY_DATA_HOME", seedHome); err != nil {
 		t.Fatalf("setenv: %v", err)
 	}
-	defer os.Setenv("GOMEMORY_DATA_HOME", origDataHome)
+	defer func() { _ = os.Setenv("GOMEMORY_DATA_HOME", origDataHome) }()
 
 	db, err := persistence.Open(root)
 	if err != nil {
@@ -47,11 +47,11 @@ func seedLegacyDb(t *testing.T, root string, n int) {
 			Content: "contenido de la memoria legada",
 		}
 		if _, err := persistence.InsertMemory(db, &mem); err != nil {
-			db.Close()
+			_ = db.Close()
 			t.Fatalf("insertar memoria legada: %v", err)
 		}
 	}
-	db.Close()
+	_ = db.Close()
 
 	seededPath, err := persistence.GlobalDbPath(persistence.ProjectKey(root))
 	if err != nil {

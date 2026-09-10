@@ -186,17 +186,16 @@ func renderPromptContext(d hookDialect, texto string) hookRenderedOutput {
 		if texto == "" {
 			return hookRenderedOutput{stdout: "{}"}
 		}
-		out, _ := json.Marshal(map[string]any{
-			"hookSpecificOutput": map[string]any{
-				"hookEventName":     "UserPromptSubmit",
-				"additionalContext": texto,
-			},
-		})
-		return hookRenderedOutput{stdout: string(out)}
+		return promptHookJSON(texto)
 
 	case dialectJSON:
-		out, _ := json.Marshal(map[string]any{"context": texto})
-		return hookRenderedOutput{stdout: string(out)}
+		// Codex exige JSON, pero `{ "context": ... }` no es un resultado
+		// válido de UserPromptSubmit. Comparte el sobre compatible con Claude:
+		// ambos runtimes validan hookSpecificOutput/additionalContext.
+		if texto == "" {
+			return hookRenderedOutput{stdout: "{}"}
+		}
+		return promptHookJSON(texto)
 
 	default:
 		// dialectNeutral y dialectText: el texto va desnudo a stdout. El
@@ -204,6 +203,16 @@ func renderPromptContext(d hookDialect, texto string) hookRenderedOutput {
 		// contexto se tragaría esas dos llaves como si fueran una instrucción.
 		return hookRenderedOutput{stdout: texto}
 	}
+}
+
+func promptHookJSON(texto string) hookRenderedOutput {
+	out, _ := json.Marshal(map[string]any{
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "UserPromptSubmit",
+			"additionalContext": texto,
+		},
+	})
+	return hookRenderedOutput{stdout: string(out)}
 }
 
 // renderTurnEnd traduce la salida del hook de fin de turno al dialecto d.
@@ -242,7 +251,10 @@ func renderTurnEnd(d hookDialect, texto string, paraElHumano bool) string {
 		return string(out)
 
 	case dialectJSON:
-		out, _ := json.Marshal(map[string]any{"context": texto})
+		// Codex valida la salida de Stop con un esquema distinto al de
+		// UserPromptSubmit: no admite `context` ni `hookSpecificOutput`.
+		// systemMessage es el único canal de texto aceptado en ambos casos.
+		out, _ := json.Marshal(map[string]any{"systemMessage": texto})
 		return string(out)
 
 	default:

@@ -17,7 +17,7 @@ const memListExtractChars = 160
 func renderSearchResults(mems []domain.Memory) string {
 	var sb strings.Builder
 	for _, m := range mems {
-		sb.WriteString(fmt.Sprintf("[%d] %s | %s\n  %s\n\n", m.ID, m.Type, m.Title, domain.Extract(m.Content, memListExtractChars)))
+		fmt.Fprintf(&sb, "[%d] %s | %s\n  %s\n\n", m.ID, m.Type, m.Title, domain.Extract(m.Content, memListExtractChars))
 	}
 	return sb.String()
 }
@@ -27,7 +27,7 @@ func renderSearchResults(mems []domain.Memory) string {
 func renderMemoryList(mems []domain.Memory) string {
 	var sb strings.Builder
 	for _, m := range mems {
-		sb.WriteString(fmt.Sprintf("[%d] %s | %s\n  %s\n\n", m.ID, m.Type, m.Title, domain.Extract(m.Content, memListExtractChars)))
+		fmt.Fprintf(&sb, "[%d] %s | %s\n  %s\n\n", m.ID, m.Type, m.Title, domain.Extract(m.Content, memListExtractChars))
 	}
 	return sb.String()
 }

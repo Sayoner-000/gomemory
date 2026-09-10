@@ -27,7 +27,7 @@ func newTestIndexer(t *testing.T) (*Indexer, string) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	repo := persistence.NewCodeGraphRepository(db)
 	return NewIndexer(repo, root, "test-project"), root
 }

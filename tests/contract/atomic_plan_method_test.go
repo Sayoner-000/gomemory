@@ -30,13 +30,13 @@ func TestAtomicPlanMethod_CubreLaLineaBase(t *testing.T) {
 	c := atomicPlanMethod(t)
 
 	obligatorios := map[string]string{
-		"test de atomicidad":     "atómica",
-		"verbo de acción":        "verbo",
-		"resultado verificable":  "verificable",
-		"límite de profundidad":  "6 niveles",
-		"umbral de priorización": "25",
+		"test de atomicidad":      "atómica",
+		"verbo de acción":         "verbo",
+		"resultado verificable":   "verificable",
+		"límite de profundidad":   "6 niveles",
+		"umbral de priorización":  "25",
 		"notación de dependencia": "dep:",
-		"marca de hoja atómica":  "✓",
+		"marca de hoja atómica":   "✓",
 	}
 	for nombre, aguja := range obligatorios {
 		if !strings.Contains(c, aguja) {

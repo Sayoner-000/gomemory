@@ -76,7 +76,9 @@ func TestSetupCodexGlobalConsolidatesHooksJSONWithBackupAndIsIdempotent(t *testi
 	}
 
 	ref := BinRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}
-	if !setupCodexGlobal(ref) || !setupCodexGlobal(ref) {
+	installed := setupCodexGlobal(ref)
+	reinstalled := setupCodexGlobal(ref)
+	if !installed || !reinstalled {
 		t.Fatal("la instalación y su repetición debían completar")
 	}
 	if _, err := os.Stat(hooksPath); !os.IsNotExist(err) {

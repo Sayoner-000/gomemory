@@ -24,10 +24,6 @@ type ConsolidationGroup struct {
 	Memories []domain.Memory
 }
 
-func (g ConsolidationGroup) keptID() int64 {
-	return g.Memories[len(g.Memories)-1].ID
-}
-
 // ConsolidationReport es el resultado de ConsolidateMemories, tanto en
 // previsualización como tras aplicar.
 type ConsolidationReport struct {

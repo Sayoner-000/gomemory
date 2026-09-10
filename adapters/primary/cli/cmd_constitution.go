@@ -54,7 +54,7 @@ func runPinnedShortcut(deps *Deps, alias string, args []string, stdout, stderr i
 		return err
 	}
 	if !res.FromMemory {
-		fmt.Fprintf(stderr, "⚠️  No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Label)
+		_, _ = fmt.Fprintf(stderr, "⚠️  No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Label)
 	}
 
 	if _, err := io.WriteString(stdout, res.Content); err != nil {
@@ -75,7 +75,7 @@ func runPinnedShortcut(deps *Deps, alias string, args []string, stdout, stderr i
 func syncSpeckitConstitution(root, contenido string, stderr io.Writer) error {
 	info, err := os.Stat(filepath.Join(root, ".specify"))
 	if err != nil || !info.IsDir() {
-		fmt.Fprintln(stderr, "ℹ️  Este proyecto no usa spec-kit; no se sincronizó ningún archivo.")
+		_, _ = fmt.Fprintln(stderr, "ℹ️  Este proyecto no usa spec-kit; no se sincronizó ningún archivo.")
 		return nil
 	}
 
@@ -87,6 +87,6 @@ func syncSpeckitConstitution(root, contenido string, stderr io.Writer) error {
 	if err := os.WriteFile(destino, []byte(contenido), 0o644); err != nil {
 		return fmt.Errorf("escribir %s: %w", destino, err)
 	}
-	fmt.Fprintf(stderr, "✅ %s actualizado\n", destino)
+	_, _ = fmt.Fprintf(stderr, "✅ %s actualizado\n", destino)
 	return nil
 }

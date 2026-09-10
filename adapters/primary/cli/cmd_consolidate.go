@@ -29,7 +29,7 @@ func CmdConsolidate(deps *Deps, args []string) {
 		return
 	}
 
-	fmt.Fprint(os.Stdout, FormatConsolidationReport(report, *apply))
+	_, _ = fmt.Fprint(os.Stdout, FormatConsolidationReport(report, *apply))
 }
 
 // FormatConsolidationReport renderiza el resultado de ConsolidateMemories en

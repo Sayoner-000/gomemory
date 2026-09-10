@@ -55,7 +55,7 @@ func CmdPlanContext(deps *Deps, args []string) {
 	if out == "" {
 		return
 	}
-	os.Stdout.WriteString(out + "\n")
+	_, _ = os.Stdout.WriteString(out + "\n")
 }
 
 // buildPlanContextDoc arma el documento aplicando el gate de configuración.

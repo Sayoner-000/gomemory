@@ -106,8 +106,8 @@ func cmdPackBuild(deps *Deps, args []string) {
 		if err != nil {
 			fail("serializar ContextPack: %v", err)
 		}
-		os.Stdout.Write(data)
-		os.Stdout.WriteString("\n")
+		_, _ = os.Stdout.Write(data)
+		_, _ = os.Stdout.WriteString("\n")
 		return
 	}
 
@@ -143,7 +143,7 @@ func cmdPackShow(_ *Deps, args []string) {
 	if err != nil {
 		fail("abrir input: %v", err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	pack, err := ParseContextPackInput(in)
 	if err != nil {
@@ -157,7 +157,7 @@ func cmdPackStats(_ *Deps, args []string) {
 	if err != nil {
 		fail("abrir input: %v", err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	pack, err := ParseContextPackInput(in)
 	if err != nil {
@@ -183,7 +183,7 @@ func cmdPackCompress(deps *Deps, args []string) {
 	if err != nil {
 		fail("abrir input: %v", err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	raw, err := io.ReadAll(in)
 	if err != nil {
@@ -198,7 +198,7 @@ func cmdPackCompress(deps *Deps, args []string) {
 		deps.UsageRecorder.Record(domain.OpCompressPack, result.RawTokens, result.Tokens)
 	}
 
-	os.Stdout.WriteString(result.Content)
+	_, _ = os.Stdout.WriteString(result.Content)
 	fmt.Fprintf(os.Stderr, "tokens: %d → %d\n", result.RawTokens, result.Tokens)
 }
 

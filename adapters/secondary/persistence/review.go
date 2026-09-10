@@ -104,7 +104,7 @@ func rejudgmentMark(q querier, internalID int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		return "", rows.Err()
 	}
@@ -142,7 +142,7 @@ func reviewerResultsMark(q querier, internalID int64, round int) (string, error)
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	hash := sha256.New()
 	for rows.Next() {
 		var resultID int64
@@ -198,14 +198,14 @@ func (r *ReviewRepository) SetReviewStatusAtomically(
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
 		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
 	}
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			conn.ExecContext(ctx, `ROLLBACK`)
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
 		}
 	}()
 
@@ -300,7 +300,7 @@ func (r *ReviewRepository) ListReviews(project string, limit int) ([]domain.Revi
 	if err != nil {
 		return nil, fmt.Errorf("list reviews: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.Review
 	for rows.Next() {
 		var reviewID string
@@ -322,7 +322,7 @@ func (r *ReviewRepository) UpsertReviewerResult(project, reviewID string, result
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	internalID, err := reviewInternalID(tx, project, reviewID)
 	if err != nil {
 		return err
@@ -350,14 +350,14 @@ func (r *ReviewRepository) UpsertReviewerResultAtomically(
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
 		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
 	}
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			conn.ExecContext(ctx, `ROLLBACK`)
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
 		}
 	}()
 
@@ -494,7 +494,7 @@ func resultadoCoincideConElPersistido(
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	type hallazgoGuardado struct {
 		localID, location, severity, category, claim string
@@ -612,7 +612,7 @@ func (r *ReviewRepository) ListReviewerResults(project, reviewID string, round i
 	if err != nil {
 		return nil, fmt.Errorf("list reviewer results: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.ReviewerResult
 	for rows.Next() {
 		var result domain.ReviewerResult
@@ -659,7 +659,7 @@ func (r *ReviewRepository) ListFindings(project, reviewID string, round int) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.Finding
 	for rows.Next() {
 		finding, err := scanFinding(rows)
@@ -737,14 +737,14 @@ func (r *ReviewRepository) ReplaceConsensusRound(
 	if err != nil {
 		return nil, false, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
 		return nil, false, fmt.Errorf("tomar el bloqueo de escritura: %w", err)
 	}
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			conn.ExecContext(ctx, `ROLLBACK`)
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
 		}
 	}()
 
@@ -854,7 +854,7 @@ func consensusDeRonda(q querier, internalID int64, reviewID string, round int) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.ConsensusFinding
 	for rows.Next() {
 		finding, err := scanConsensus(rows, reviewID)
@@ -875,7 +875,7 @@ func (r *ReviewRepository) ListAllConsensusFindings(project, reviewID string) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.ConsensusFinding
 	for rows.Next() {
 		finding, err := scanConsensus(rows, reviewID)
@@ -922,7 +922,7 @@ func (r *ReviewRepository) ListFixDeltas(project, reviewID string) ([]domain.Fix
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.FixDelta
 	for rows.Next() {
 		var delta domain.FixDelta
@@ -1064,7 +1064,7 @@ func (r *ReviewRepository) findingsForResult(resultID int64) ([]domain.Finding, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.Finding
 	for rows.Next() {
 		finding, err := scanFinding(rows)
@@ -1211,14 +1211,14 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
 		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
 	}
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			conn.ExecContext(ctx, `ROLLBACK`)
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
 		}
 	}()
 
@@ -1338,7 +1338,7 @@ func reJudgmentsForFinding(
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []domain.ReJudgment
 	for rows.Next() {
 		judgment := domain.ReJudgment{ReviewID: reviewID, ConsensusLocalID: consensusLocalID}
@@ -1377,14 +1377,14 @@ func (r *ReviewRepository) RecordFixAtomically(
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
 		return fmt.Errorf("tomar el bloqueo de escritura: %w", err)
 	}
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			conn.ExecContext(ctx, `ROLLBACK`)
+			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
 		}
 	}()
 

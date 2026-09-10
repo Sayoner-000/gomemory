@@ -101,7 +101,9 @@ func TestRemoveMCPEntries_SigueLimpiandoElEsquemaLegado(t *testing.T) {
 	datos, _ := json.MarshalIndent(map[string]any{
 		"mcpServers": map[string]any{"gomemory": map[string]any{"command": "mem"}},
 	}, "", "  ")
-	os.WriteFile(ruta, datos, 0o644)
+	if err := os.WriteFile(ruta, datos, 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	captureStdout(t, func() { removeMCPEntries(dir) })
 
@@ -155,8 +157,12 @@ func TestRemoveOpenCodeArtifacts_NoTocaElAmbitoDeUsuario(t *testing.T) {
 
 	escribirOpenCodeJSON(t, dir, nil)
 	plugin := filepath.Join(home, ".config", "opencode", "plugins", "gomemory.ts")
-	os.MkdirAll(filepath.Dir(plugin), 0o755)
-	os.WriteFile(plugin, []byte("// plugin"), 0o644)
+	if err := os.MkdirAll(filepath.Dir(plugin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plugin, []byte("// plugin"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	salida := captureStdout(t, func() { removeOpenCodeArtifacts(dir) })
 
@@ -206,8 +212,12 @@ func TestRemoveNativeWrappers_RetiraLosDeAmbosAgentes(t *testing.T) {
 	}
 	for _, rel := range append(append([]string{}, generados...), ajenos...) {
 		ruta := filepath.Join(dir, rel)
-		os.MkdirAll(filepath.Dir(ruta), 0o755)
-		os.WriteFile(ruta, []byte("contenido"), 0o644)
+		if err := os.MkdirAll(filepath.Dir(ruta), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(ruta, []byte("contenido"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	captureStdout(t, func() { removeNativeWrappers(dir) })

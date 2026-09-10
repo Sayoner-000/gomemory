@@ -3,13 +3,11 @@ package usecases
 import (
 	"testing"
 
-	"mem/application/ports"
 	"mem/domain"
 )
 
 func TestFinalizeReviewDerivesVerdictFromPersistedState(t *testing.T) {
-	var finalizeSignature func(ports.ReviewRepository, ports.ConsensusRepository, string, string) (*domain.Review, error)
-	finalizeSignature = FinalizeReview
+	finalizeSignature := FinalizeReview
 	_ = finalizeSignature
 
 	reviews := newMemoryReviewRepository()

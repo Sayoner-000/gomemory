@@ -19,7 +19,7 @@ func TestPortability_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	relRepo := persistence.NewRelationRepository(db)

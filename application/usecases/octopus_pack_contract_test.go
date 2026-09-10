@@ -37,7 +37,7 @@ func repoOctopus(t *testing.T) ports.MemoryRepository {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return persistence.NewMemoryRepository(db)
 }
 

@@ -37,15 +37,15 @@ func CmdSearch(deps *Deps, args []string) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintf(w, "ID\tTipo\tTítulo\tContenido\n")
-	fmt.Fprintf(w, "--\t----\t------\t--------\n")
+	_, _ = fmt.Fprintln(w, "ID\tTipo\tTítulo\tContenido")
+	_, _ = fmt.Fprintln(w, "--\t----\t------\t--------")
 	for _, m := range mems {
 		content := m.Content
 		if len(content) > 60 {
 			content = content[:57] + "..."
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", m.ID, m.Type, m.Title, content)
+		_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", m.ID, m.Type, m.Title, content)
 	}
-	w.Flush()
+	_ = w.Flush()
 	fmt.Printf("\n(%d resultados)\n", len(mems))
 }

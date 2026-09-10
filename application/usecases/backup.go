@@ -38,10 +38,14 @@ func CreateSnapshot(memRepo ports.MemoryRepository, relRepo ports.RelationReposi
 	if err != nil {
 		return "", fmt.Errorf("create snapshot: crear archivo: %w", err)
 	}
-	defer f.Close()
-
 	if err := EncodeBundle(f, bundle); err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			return "", fmt.Errorf("create snapshot: escribir bundle: %w; cerrar archivo: %v", err, closeErr)
+		}
 		return "", fmt.Errorf("create snapshot: escribir bundle: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return "", fmt.Errorf("create snapshot: cerrar archivo: %w", err)
 	}
 
 	if keep > 0 {
@@ -82,6 +86,6 @@ func pruneSnapshots(dir string, keep int) {
 
 	sort.Slice(files, func(i, j int) bool { return files[i].modTime.Before(files[j].modTime) })
 	for _, f := range files[:len(files)-keep] {
-		os.Remove(f.path)
+		_ = os.Remove(f.path)
 	}
 }

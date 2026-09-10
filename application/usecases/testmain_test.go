@@ -14,10 +14,14 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	os.Setenv("GOMEMORY_DATA_HOME", dir)
+	if err := os.Setenv("GOMEMORY_DATA_HOME", dir); err != nil {
+		panic(err)
+	}
 
 	code := m.Run()
 
-	os.RemoveAll(dir)
+	if err := os.RemoveAll(dir); err != nil {
+		panic(err)
+	}
 	os.Exit(code)
 }

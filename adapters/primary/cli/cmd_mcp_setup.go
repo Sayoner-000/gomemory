@@ -432,7 +432,6 @@ func setupCodexGlobal(ref BinRef) bool {
 		if migrateErr != nil {
 			fmt.Printf("  ⚠️  codex: hooks.json no se migró; se conserva intacto: %v\n", migrateErr)
 		} else {
-			data = candidate
 			original = string(candidate)
 			hooksMigrated = count
 			hooksConsolidated = true
@@ -681,7 +680,10 @@ func setupClaude(root string) bool {
 func setupCursor(root string) bool {
 	ref := binRefFor(root)
 	cursorDir := filepath.Join(root, ".cursor")
-	os.MkdirAll(cursorDir, 0755)
+	if err := os.MkdirAll(cursorDir, 0755); err != nil {
+		fmt.Printf("  ⚠️  cursor: error al crear directorio: %v\n", err)
+		return false
+	}
 	mcpPath := filepath.Join(cursorDir, "mcp.json")
 
 	mcpCfg := map[string]interface{}{
@@ -695,7 +697,10 @@ func setupCursor(root string) bool {
 
 	var existing map[string]interface{}
 	if data, _ := os.ReadFile(mcpPath); data != nil {
-		json.Unmarshal(data, &existing)
+		if err := json.Unmarshal(data, &existing); err != nil {
+			fmt.Printf("  ⚠️  cursor: configuración inválida: %v\n", err)
+			return false
+		}
 	}
 	if existing == nil {
 		existing = mcpCfg
@@ -727,7 +732,10 @@ func setupCursor(root string) bool {
 func setupWindsurf(root string) bool {
 	ref := binRefFor(root)
 	windsufDir := filepath.Join(root, ".windsurf")
-	os.MkdirAll(windsufDir, 0755)
+	if err := os.MkdirAll(windsufDir, 0755); err != nil {
+		fmt.Printf("  ⚠️  windsurf: error al crear directorio: %v\n", err)
+		return false
+	}
 	mcpPath := filepath.Join(windsufDir, "mcp_config.json")
 
 	mcpCfg := map[string]interface{}{
@@ -741,7 +749,10 @@ func setupWindsurf(root string) bool {
 
 	var existing map[string]interface{}
 	if data, _ := os.ReadFile(mcpPath); data != nil {
-		json.Unmarshal(data, &existing)
+		if err := json.Unmarshal(data, &existing); err != nil {
+			fmt.Printf("  ⚠️  windsurf: configuración inválida: %v\n", err)
+			return false
+		}
 	}
 	if existing == nil {
 		existing = mcpCfg
@@ -773,7 +784,10 @@ func setupWindsurf(root string) bool {
 func setupCline(root string) bool {
 	ref := binRefFor(root)
 	clineDir := filepath.Join(root, ".cline")
-	os.MkdirAll(clineDir, 0755)
+	if err := os.MkdirAll(clineDir, 0755); err != nil {
+		fmt.Printf("  ⚠️  cline: error al crear directorio: %v\n", err)
+		return false
+	}
 	mcpPath := filepath.Join(clineDir, "mcp_settings.json")
 
 	mcpCfg := map[string]interface{}{
@@ -789,7 +803,10 @@ func setupCline(root string) bool {
 
 	var existing map[string]interface{}
 	if data, _ := os.ReadFile(mcpPath); data != nil {
-		json.Unmarshal(data, &existing)
+		if err := json.Unmarshal(data, &existing); err != nil {
+			fmt.Printf("  ⚠️  cline: configuración inválida: %v\n", err)
+			return false
+		}
 	}
 	if existing == nil {
 		existing = mcpCfg

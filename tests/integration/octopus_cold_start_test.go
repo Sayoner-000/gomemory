@@ -16,7 +16,7 @@ func TestOctopusArranqueEnFrio(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := persistence.NewOctopusRepository(db)
 
 	if len(repo.Evidence("proj")) != 0 {
@@ -61,7 +61,7 @@ func TestOctopusEvidenciaAcumuladaLlegaALaPolitica(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := persistence.NewOctopusRepository(db)
 
 	const proyecto = "proj"

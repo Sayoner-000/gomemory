@@ -112,9 +112,11 @@ func (f *fakeMemRepo) ImportMemory(m *domain.Memory) (int64, error) {
 	f.byID[cp.ID] = &cp
 	return cp.ID, nil
 }
-func (f *fakeMemRepo) Search(project, query string, limit int) ([]domain.Memory, error) { return nil, nil }
-func (f *fakeMemRepo) Delete(project string, id int64) (bool, error)                    { return false, nil }
-func (f *fakeMemRepo) SecondsSinceLastSave(project string) (int64, bool, error)          { return 0, false, nil }
+func (f *fakeMemRepo) Search(project, query string, limit int) ([]domain.Memory, error) {
+	return nil, nil
+}
+func (f *fakeMemRepo) Delete(project string, id int64) (bool, error)            { return false, nil }
+func (f *fakeMemRepo) SecondsSinceLastSave(project string) (int64, bool, error) { return 0, false, nil }
 func (f *fakeMemRepo) UpdateContent(project string, id int64, title, content string) error {
 	m, ok := f.byID[id]
 	if !ok {

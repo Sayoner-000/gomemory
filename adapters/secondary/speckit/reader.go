@@ -108,7 +108,7 @@ func relevantConstraintLines(path string, taskWords []string) []string {
 	var out []string
 	for _, line := range strings.Split(string(data), "\n") {
 		trimmed := strings.TrimSpace(line)
-		if !(strings.Contains(trimmed, "DEBE") || strings.Contains(trimmed, "MUST")) {
+		if !strings.Contains(trimmed, "DEBE") && !strings.Contains(trimmed, "MUST") {
 			continue
 		}
 		// Mismo criterio que relevantLines: sin palabras de tarea, el

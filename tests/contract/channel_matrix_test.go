@@ -17,13 +17,15 @@ import (
 func inventario(t *testing.T, dir string) []string {
 	t.Helper()
 	var out []string
-	filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
 		if err != nil || info == nil || info.IsDir() {
 			return nil
 		}
 		out = append(out, strings.TrimPrefix(p, dir))
 		return nil
-	})
+	}); err != nil {
+		t.Fatalf("walk %s: %v", dir, err)
+	}
 	sort.Strings(out)
 	return out
 }

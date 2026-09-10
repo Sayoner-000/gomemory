@@ -32,7 +32,7 @@ func CmdExport(deps *Deps, args []string) {
 	if err != nil {
 		fail("crear %s: %v", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := usecases.EncodeBundle(f, bundle); err != nil {
 		fail("escribir bundle: %v", err)

@@ -32,11 +32,11 @@ func CmdContext(deps *Deps, args []string) {
 		// Se anota lo entregado para que la operación de contexto para
 		// planificar no lo reenvíe en esta misma sesión (feature 023, FR-006).
 		if err == nil && deps.DeliveryLog != nil {
-			deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
+			_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
 		}
 		if err != nil {
 			fail("generar contexto: %v", err)
 		}
-		os.Stdout.WriteString(output)
+		_, _ = os.Stdout.WriteString(output)
 	}
 }

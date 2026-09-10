@@ -22,14 +22,16 @@ func TestMigrate_IsIdempotent(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("insertar memoria previa: %v", err)
 	}
-	db1.Close()
+	if err := db1.Close(); err != nil {
+		t.Fatalf("cerrar primera base: %v", err)
+	}
 
 	// Segunda apertura sobre el MISMO directorio: vuelve a correr migrate().
 	db2, err := Open(dir)
 	if err != nil {
 		t.Fatalf("segunda apertura (migración repetida) no debe fallar: %v", err)
 	}
-	defer db2.Close()
+	defer func() { _ = db2.Close() }()
 
 	var count int
 	if err := db2.QueryRow(`SELECT COUNT(*) FROM memories WHERE project = 'proj'`).Scan(&count); err != nil {

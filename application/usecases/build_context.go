@@ -37,8 +37,8 @@ func writeCodeProviderSection(sb *strings.Builder, snap domain.CodeProviderSnaps
 func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 	var sb strings.Builder
 	a := snap.Architecture
-	sb.WriteString(fmt.Sprintf("## Grafo de código externo (%s)\n\n", snap.Provider))
-	sb.WriteString(fmt.Sprintf("Grafo estructural indexado: %d nodos, %d relaciones.", a.TotalNodes, a.TotalEdges))
+	fmt.Fprintf(&sb, "## Grafo de código externo (%s)\n\n", snap.Provider)
+	fmt.Fprintf(&sb, "Grafo estructural indexado: %d nodos, %d relaciones.", a.TotalNodes, a.TotalEdges)
 	if len(a.Languages) > 0 {
 		parts := make([]string, 0, len(a.Languages))
 		for _, l := range a.Languages {
@@ -286,8 +286,8 @@ func (b *Builder) Build() (string, error) {
 				for _, r := range conflicts {
 					titleA := titleByID[r.MemoryIDA]
 					titleB := titleByID[r.MemoryIDB]
-					sb.WriteString(fmt.Sprintf("- [%d] %q ↔ [%d] %q — relee el código actual y llama a judge_memories para resolverlo\n",
-						r.MemoryIDA, titleA, r.MemoryIDB, titleB))
+					fmt.Fprintf(&sb, "- [%d] %q ↔ [%d] %q — relee el código actual y llama a judge_memories para resolverlo\n",
+						r.MemoryIDA, titleA, r.MemoryIDB, titleB)
 				}
 				sb.WriteString("\n")
 			}
@@ -301,8 +301,8 @@ func (b *Builder) Build() (string, error) {
 					if r.Relation == domain.Supersedes {
 						link = "⇒ supera a"
 					}
-					sb.WriteString(fmt.Sprintf("- [%d] %s %s [%d] %s\n",
-						r.MemoryIDA, relTitle(titleByID, r.MemoryIDA), link, r.MemoryIDB, relTitle(titleByID, r.MemoryIDB)))
+					fmt.Fprintf(&sb, "- [%d] %s %s [%d] %s\n",
+						r.MemoryIDA, relTitle(titleByID, r.MemoryIDA), link, r.MemoryIDB, relTitle(titleByID, r.MemoryIDB))
 				}
 				sb.WriteString("\n")
 			}
@@ -321,7 +321,7 @@ func (b *Builder) Build() (string, error) {
 			}
 			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
 			if !b.fits(&sb, len(line)) {
-				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(prefs)-i))
+				fmt.Fprintf(&sb, "- (+%d memorias; usa search_memories/get_memory)\n", len(prefs)-i)
 				break
 			}
 			sb.WriteString(line)
@@ -337,7 +337,7 @@ func (b *Builder) Build() (string, error) {
 				line += fmt.Sprintf("  → `%s`\n", m.Filepath)
 			}
 			if !b.fits(&sb, len(line)) {
-				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(arch)-i))
+				fmt.Fprintf(&sb, "- (+%d memorias; usa search_memories/get_memory)\n", len(arch)-i)
 				break
 			}
 			sb.WriteString(line)
@@ -350,7 +350,7 @@ func (b *Builder) Build() (string, error) {
 		for i, m := range dec {
 			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
 			if !b.fits(&sb, len(line)) {
-				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(dec)-i))
+				fmt.Fprintf(&sb, "- (+%d memorias; usa search_memories/get_memory)\n", len(dec)-i)
 				break
 			}
 			sb.WriteString(line)
@@ -363,7 +363,7 @@ func (b *Builder) Build() (string, error) {
 		for i, m := range pat {
 			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))
 			if !b.fits(&sb, len(line)) {
-				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(pat)-i))
+				fmt.Fprintf(&sb, "- (+%d memorias; usa search_memories/get_memory)\n", len(pat)-i)
 				break
 			}
 			sb.WriteString(line)
@@ -379,7 +379,7 @@ func (b *Builder) Build() (string, error) {
 				line += fmt.Sprintf("  → `%s`\n", m.Filepath)
 			}
 			if !b.fits(&sb, len(line)) {
-				sb.WriteString(fmt.Sprintf("- (+%d memorias; usa search_memories/get_memory)\n", len(bugs)-i))
+				fmt.Fprintf(&sb, "- (+%d memorias; usa search_memories/get_memory)\n", len(bugs)-i)
 				break
 			}
 			sb.WriteString(line)
@@ -426,7 +426,7 @@ func (b *Builder) Build() (string, error) {
 			}
 			if b.IndexMode {
 				b.discardedChars += len(m.Content)
-				sb.WriteString(fmt.Sprintf("- %s → `get_memory %d`\n", displayTitle(m), m.ID))
+				fmt.Fprintf(&sb, "- %s → `get_memory %d`\n", displayTitle(m), m.ID)
 				continue
 			}
 			// El cuerpo pasa por acota() y fits() igual que el de cualquier otra
@@ -446,7 +446,7 @@ func (b *Builder) Build() (string, error) {
 	if b.Graph != nil && b.fits(&sb, 120) {
 		if status, err := b.Graph.Status(b.Project); err == nil && status.Nodes > 0 {
 			sb.WriteString("## Código indexado\n\n")
-			sb.WriteString(fmt.Sprintf("%d archivos, %d símbolos, %d relaciones.", status.Files, status.Nodes, status.Edges))
+			fmt.Fprintf(&sb, "%d archivos, %d símbolos, %d relaciones.", status.Files, status.Nodes, status.Edges)
 			if len(status.TopPackages) > 0 {
 				names := make([]string, 0, len(status.TopPackages))
 				for _, p := range status.TopPackages {
@@ -527,7 +527,7 @@ func (b *Builder) Build() (string, error) {
 
 	sess, _ := b.Session.Active(b.Project)
 	if sess != nil {
-		sb.WriteString(fmt.Sprintf("## Sesión Activa\n\n- Iniciada: %s\n", sess.CreatedAt))
+		fmt.Fprintf(&sb, "## Sesión Activa\n\n- Iniciada: %s\n", sess.CreatedAt)
 		sb.WriteString("\n")
 	}
 

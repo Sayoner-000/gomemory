@@ -83,7 +83,7 @@ func CmdUpdate(deps *Deps, args []string) {
 	if err != nil {
 		fail("crear directorio temporal: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	asset := assetName()
 	url := fmt.Sprintf("%s/download/%s/%s", releaseDownloadBase, target, asset)
@@ -147,7 +147,7 @@ func latestReleaseTag(client *http.Client) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -177,7 +177,7 @@ func downloadFile(client *http.Client, url, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("descarga respondió %d (¿existe el asset %s?)", resp.StatusCode, filepath.Base(destPath))
@@ -187,7 +187,7 @@ func downloadFile(client *http.Client, url, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	if _, err := io.Copy(out, resp.Body); err != nil {
 		return err
@@ -221,7 +221,9 @@ func extractBinary(archivePath, destDir string) (string, error) {
 	if info.Size() == 0 {
 		return "", fmt.Errorf("el binario extraído %s está vacío", binName)
 	}
-	os.Chmod(destPath, 0755)
+	if err := os.Chmod(destPath, 0755); err != nil {
+		return "", err
+	}
 	return destPath, nil
 }
 
@@ -230,13 +232,13 @@ func extractBinaryFromTarGz(archivePath, binName, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	gz, err := gzip.NewReader(f)
 	if err != nil {
 		return err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	for {
@@ -254,7 +256,7 @@ func extractBinaryFromTarGz(archivePath, binName, destPath string) error {
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer func() { _ = out.Close() }()
 		_, err = io.Copy(out, tr)
 		return err
 	}
@@ -265,7 +267,7 @@ func extractBinaryFromZip(archivePath, binName, destPath string) error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 
 	for _, f := range r.File {
 		if filepath.Base(f.Name) != binName {
@@ -275,13 +277,13 @@ func extractBinaryFromZip(archivePath, binName, destPath string) error {
 		if err != nil {
 			return err
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 
 		out, err := os.Create(destPath)
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer func() { _ = out.Close() }()
 		_, err = io.Copy(out, rc)
 		return err
 	}
@@ -300,7 +302,7 @@ func replaceSelf(currentPath, newPath string) error {
 			return err
 		}
 		return fmt.Errorf(
-			"Windows bloquea el binario en ejecución. El nuevo binario quedó en %s.\n"+
+			"windows bloquea el binario en ejecución. El nuevo binario quedó en %s.\n"+
 				"Cierra este proceso y ejecuta:\n"+
 				"  move /Y \"%s\" \"%s\"",
 			finalPath, finalPath, currentPath,
@@ -308,15 +310,17 @@ func replaceSelf(currentPath, newPath string) error {
 	}
 
 	backup := currentPath + ".old"
-	os.Remove(backup)
+	_ = os.Remove(backup)
 	if err := os.Rename(currentPath, backup); err != nil {
 		return fmt.Errorf("respaldar binario actual: %w", err)
 	}
 	if err := copyFile(newPath, currentPath); err != nil {
-		os.Rename(backup, currentPath)
+		_ = os.Rename(backup, currentPath)
 		return fmt.Errorf("instalar binario nuevo: %w", err)
 	}
-	os.Chmod(currentPath, 0755)
-	os.Remove(backup)
+	if err := os.Chmod(currentPath, 0755); err != nil {
+		return err
+	}
+	_ = os.Remove(backup)
 	return nil
 }

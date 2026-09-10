@@ -29,7 +29,7 @@ func TestReviewLearningLlegaAlContextoNormal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	const project = "proj-aprendizaje"
 	repo := persistence.NewReviewRepository(db)

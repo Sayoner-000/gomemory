@@ -43,9 +43,9 @@ func callGetPlanContext(t *testing.T, dir string) string {
 		t.Fatalf("arrancar servidor MCP: %v", err)
 	}
 	defer func() {
-		stdin.Close()
-		cmd.Process.Kill()
-		cmd.Wait()
+		_ = stdin.Close()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 	}()
 
 	peticiones := []string{

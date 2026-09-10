@@ -31,7 +31,15 @@ import (
 // servidor MCP (memoryProtocolReminder, cmd_hook.go / cmd_mcp.go).
 func TestMCPInstructions_GrafoYArbolSecuenciados(t *testing.T) {
 	bin := buildPlanGuardBinary(t)
-	dir := t.TempDir()
+	// hook plan-entered dispara un refresco del grafo en un proceso detached.
+	// Ese hijo puede seguir escribiendo el snapshot bajo .memory cuando termina
+	// este test, por lo que t.TempDir puede fallar durante su limpieza. La
+	// aserción no depende de ese artefacto; la limpieza explícita es best-effort.
+	dir, err := os.MkdirTemp("", "gomemory-contract-*")
+	if err != nil {
+		t.Fatalf("crear directorio temporal: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0755); err != nil {
 		t.Fatalf("mkdir .git: %v", err)
 	}

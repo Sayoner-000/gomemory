@@ -17,7 +17,7 @@ type fakeSettingsRepo struct {
 func (f fakeSettingsRepo) Read(string) ports.SettingsData {
 	return ports.SettingsData{AtomicPlanDisabled: f.atomicPlanDisabled}
 }
-func (f fakeSettingsRepo) Write(string, ports.SettingsData) error { return nil }
+func (f fakeSettingsRepo) Write(string, ports.SettingsData) error      { return nil }
 func (f fakeSettingsRepo) ApplyAutoApprove(string, ports.SettingsData) {}
 
 // planCtxStub es el doble del constructor de contexto para las pruebas del
@@ -58,7 +58,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	fn()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = orig
 	return <-done
 }

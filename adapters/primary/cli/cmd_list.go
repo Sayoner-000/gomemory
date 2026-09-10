@@ -31,8 +31,8 @@ func CmdList(deps *Deps, args []string) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintf(w, "ID\tTipo\tTítulo\tFecha\tContenido\n")
-	fmt.Fprintf(w, "--\t----\t------\t-----\t--------\n")
+	_, _ = fmt.Fprintln(w, "ID\tTipo\tTítulo\tFecha\tContenido")
+	_, _ = fmt.Fprintln(w, "--\t----\t------\t-----\t--------")
 	for _, m := range mems {
 		content := m.Content
 		if len(content) > 50 {
@@ -42,8 +42,8 @@ func CmdList(deps *Deps, args []string) {
 		if len(date) > 10 {
 			date = date[:10]
 		}
-		fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", m.ID, m.Type, m.Title, date, content)
+		_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", m.ID, m.Type, m.Title, date, content)
 	}
-	w.Flush()
+	_ = w.Flush()
 	fmt.Printf("\n(%d memorias)\n", len(mems))
 }

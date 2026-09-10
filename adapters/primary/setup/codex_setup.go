@@ -30,10 +30,8 @@ type CodexHook struct {
 	Event   string
 	Matcher string
 	Sub     string
-	// Emit fija el dialecto de salida del subcomando. Stop y UserPromptSubmit de
-	// Codex exigen JSON incluso cuando no hay contexto que inyectar; por eso sus
-	// entradas usan "json" de forma explícita. El dialecto text aborta esos
-	// eventos como salida JSON inválida.
+	// Emit fija el dialecto de salida. Stop y UserPromptSubmit de Codex exigen
+	// JSON incluso cuando no hay contexto que inyectar.
 	Emit string
 }
 

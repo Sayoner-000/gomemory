@@ -55,13 +55,13 @@ func TestReviewSubmitPublishedSchemaExplainsValidStatuses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("conectar servidor MCP: %v", err)
 	}
-	defer serverSession.Close()
+	defer func() { _ = serverSession.Close() }()
 	client := mcp.NewClient(&mcp.Implementation{Name: "gomemory-schema-probe-client", Version: "internal"}, nil)
 	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
 	if err != nil {
 		t.Fatalf("conectar cliente MCP: %v", err)
 	}
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	tools, err := clientSession.ListTools(context.Background(), nil)
 	if err != nil {

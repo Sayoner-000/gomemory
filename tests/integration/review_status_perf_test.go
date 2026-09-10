@@ -23,7 +23,7 @@ func TestReviewStatusYFinalizeConMilHallazgos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	reviews := persistence.NewReviewRepository(db)
 	ledger := persistence.NewConsensusRepository(db)
 

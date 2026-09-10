@@ -405,11 +405,11 @@ func (a *ActivationInspector) inspectClaudeHook(agent domain.AgentCapability, di
 		}
 	}
 
-	switch {
-	case count == 0:
+	switch count {
+	case 0:
 		ch.State = domain.StateMissing
 		ch.Detail = event + ":" + matcher + " no registrado"
-	case count == 1:
+	case 1:
 		ch.State = domain.StateOK
 		ch.Detail = event + ":" + matcher + " → " + cmdSuffix
 	default:

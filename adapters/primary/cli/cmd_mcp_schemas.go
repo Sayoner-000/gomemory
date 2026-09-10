@@ -34,14 +34,14 @@ func measurePublishedSchemas(deps *Deps, root, project string, counter ports.Tok
 	if err != nil {
 		return 0, 0, err
 	}
-	defer serverSession.Close()
+	defer func() { _ = serverSession.Close() }()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "gomemory-schema-probe-client", Version: "internal"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		return 0, 0, err
 	}
-	defer clientSession.Close()
+	defer func() { _ = clientSession.Close() }()
 
 	result, err := clientSession.ListTools(ctx, nil)
 	if err != nil {

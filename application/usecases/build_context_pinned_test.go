@@ -23,7 +23,7 @@ func builderConSemilla(t *testing.T, extra int) *usecases.Builder {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)

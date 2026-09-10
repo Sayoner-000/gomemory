@@ -20,13 +20,13 @@ func TestOctopusExecutions_EsquemaSinTextoLibreDeContenido(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	rows, err := db.Query(`SELECT name, type FROM pragma_table_info('octopus_executions')`)
 	if err != nil {
 		t.Fatalf("leer esquema: %v", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// Lista blanca EXPLÍCITA de columnas. Añadir una obliga a declararla aquí y,
 	// con ello, a justificar que no transporta contenido.
@@ -94,13 +94,13 @@ func TestOctopusExecutions_MigracionIdempotente(t *testing.T) {
 	if err != nil {
 		t.Fatalf("primera init: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	db2, err := persistence.Init(root)
 	if err != nil {
 		t.Fatalf("segunda init sobre la misma base: %v", err)
 	}
-	defer db2.Close()
+	defer func() { _ = db2.Close() }()
 
 	var n int
 	if err := db2.QueryRow(`SELECT COUNT(*) FROM octopus_executions`).Scan(&n); err != nil {

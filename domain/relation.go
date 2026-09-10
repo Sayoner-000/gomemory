@@ -21,12 +21,12 @@ func ValidRelationType(s string) RelationType {
 }
 
 type Relation struct {
-	ID          int64        `json:"id"`
-	Project     string       `json:"project"`
-	MemoryIDA   int64        `json:"memory_id_a"`
-	MemoryIDB   int64        `json:"memory_id_b"`
-	Relation    RelationType `json:"relation"`
-	Confidence  float64      `json:"confidence"`
-	Reasoning   string       `json:"reasoning"`
-	CreatedAt   string       `json:"created_at"`
+	ID         int64        `json:"id"`
+	Project    string       `json:"project"`
+	MemoryIDA  int64        `json:"memory_id_a"`
+	MemoryIDB  int64        `json:"memory_id_b"`
+	Relation   RelationType `json:"relation"`
+	Confidence float64      `json:"confidence"`
+	Reasoning  string       `json:"reasoning"`
+	CreatedAt  string       `json:"created_at"`
 }

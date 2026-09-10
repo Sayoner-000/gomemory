@@ -73,11 +73,11 @@ func TestEnviarUnResultadoNoReabreLoTerminal(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			usecases.FinalizeReview(reviews, ledger, proyecto, "acr_ciegas")
+			_, _ = usecases.FinalizeReview(reviews, ledger, proyecto, "acr_ciegas")
 		}()
 		go func() {
 			defer wg.Done()
-			usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+			_, _ = usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
 				Project: proyecto, ReviewID: "acr_ciegas", TargetDigest: "sha256:v0",
 				Result: domain.ReviewerResult{
 					Reviewer: domain.ReviewerA, Status: domain.ReviewerResultSuccess,
@@ -100,7 +100,7 @@ func TestEnviarUnResultadoNoReabreLoTerminal(t *testing.T) {
 			t.Fatalf("intento %d: estado terminal %s sin veredicto: se borró por una escritura tardía",
 				intento, final.Status)
 		}
-		db.Close()
+		_ = db.Close()
 	}
 }
 
@@ -119,14 +119,14 @@ func TestUnResultadoTardioNoRevierteUnaCorreccion(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			usecases.RecordFix(reviews, ledger, usecases.RecordFixInput{
+			_, _ = usecases.RecordFix(reviews, ledger, usecases.RecordFixInput{
 				Project: proyecto, ReviewID: "acr_cf", AddressedConsensusIDs: []string{"C-001"},
 				BaseTargetDigest: "sha256:v0", FixedTargetDigest: "sha256:v1",
 			})
 		}()
 		go func() {
 			defer wg.Done()
-			usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
+			_, _ = usecases.SubmitReviewerResult(reviews, usecases.SubmitReviewerResultInput{
 				Project: proyecto, ReviewID: "acr_cf", TargetDigest: "sha256:v0",
 				Result: domain.ReviewerResult{
 					Reviewer: domain.ReviewerB, Status: domain.ReviewerResultSuccess,
@@ -154,7 +154,7 @@ func TestUnResultadoTardioNoRevierteUnaCorreccion(t *testing.T) {
 					intento, final.ActiveTargetDigest(), ultima.FixedTargetDigest)
 			}
 		}
-		db.Close()
+		_ = db.Close()
 	}
 }
 
@@ -233,11 +233,11 @@ func TestUnaRetractacionEnLaVentanaImpideAprobar(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			usecases.FinalizeReview(reviews, ledger, proyecto, review.ID)
+			_, _ = usecases.FinalizeReview(reviews, ledger, proyecto, review.ID)
 		}()
 		go func() {
 			defer wg.Done()
-			usecases.RejudgeReview(reviews, ledger, usecases.RejudgeReviewInput{
+			_, _ = usecases.RejudgeReview(reviews, ledger, usecases.RejudgeReviewInput{
 				Project: proyecto, ReviewID: review.ID, Reviewer: domain.ReviewerA,
 				Judgments: map[string]usecases.ReJudgeEntry{
 					"C-001": {State: domain.ReJudgmentRegressed, Evidence: []string{"vuelve a reproducir"}},
@@ -264,7 +264,7 @@ func TestUnaRetractacionEnLaVentanaImpideAprobar(t *testing.T) {
 					hallazgo.RejudgmentRound, final.Round)
 			}
 		}
-		db.Close()
+		_ = db.Close()
 	}
 }
 
@@ -282,7 +282,7 @@ func TestUnaMarcaDeReJuiciosObsoletaRechazaElCierre(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	const proyecto = "marca"
 	reviews, ledger := revisionConHallazgo(t, db, proyecto, "acr_marca")
 
@@ -355,7 +355,7 @@ func TestUnaMarcaDeResultadosObsoletaRechazaElCierre(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	const proyecto = "marca-resultados"
 	reviews, _ := revisionConHallazgo(t, db, proyecto, "acr_marca_resultados")
 
@@ -405,7 +405,7 @@ func TestUnFailureTrasConsensusReadyAlcanzaIncomplete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	const proyecto = "failure-tardio"
 	reviews := persistence.NewReviewRepository(db)
 	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
@@ -457,7 +457,7 @@ func TestUnReenvioIdenticoTrasConsensusReadySigueSiendoNoOp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	const proyecto = "reenvio-identico"
 	reviews := persistence.NewReviewRepository(db)
 	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
@@ -533,7 +533,7 @@ func TestUnFailureFueraDeFaseNoPuedeTraerHallazgos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	const proyecto = "failure-con-hallazgos"
 	reviews := persistence.NewReviewRepository(db)
 	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)

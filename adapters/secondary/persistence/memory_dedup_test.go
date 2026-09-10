@@ -14,7 +14,7 @@ func TestInsertMemory_DedupPorIdentidad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := persistence.NewMemoryRepository(db)
 
 	// 3 memorias equivalentes (mismo proyecto+tipo+título) ⇒ 1 fila consolidada.
@@ -38,7 +38,9 @@ func TestInsertMemory_DedupPorIdentidad(t *testing.T) {
 	// de identidad de un checkpoint es su contenido, y dos turnos distintos no
 	// deben fundirse jamás.
 	for i := 0; i < 2; i++ {
-		repo.Insert(&domain.Memory{Project: "p", Type: domain.Checkpoint, Title: "chk", Content: fmt.Sprintf("actividad %d", i)})
+		if _, err := repo.Insert(&domain.Memory{Project: "p", Type: domain.Checkpoint, Title: "chk", Content: fmt.Sprintf("actividad %d", i)}); err != nil {
+			t.Fatalf("insertar memoria %d: %v", i, err)
+		}
 	}
 	mems, _ = repo.List("p", 100)
 	cc := 0
@@ -63,7 +65,7 @@ func TestInsertMemory_DedupCheckpointPorContenido(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := persistence.NewMemoryRepository(db)
 
 	actividad := "Editó: main.go. Comandos: go build ./..."
@@ -98,7 +100,7 @@ func TestInsertMemory_UpsertPorTopicKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := persistence.NewMemoryRepository(db)
 
 	id1, _ := repo.Insert(&domain.Memory{Project: "p", Type: domain.Decision, Title: "t1", Content: "primera", TopicKey: "arq-cache"})

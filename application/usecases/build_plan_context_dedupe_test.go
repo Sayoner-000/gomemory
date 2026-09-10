@@ -77,7 +77,9 @@ func TestPlanContext_SiCambioEntregaDeNuevo(t *testing.T) {
 // siguiente operación de la sesión pueda decidir.
 func TestPlanContext_RegistraLoQueEntrega(t *testing.T) {
 	log := nuevoLog(nil)
-	NewPlanContext("MÉTODO", ctxFijo{historial}, log).Build(false)
+	if _, err := NewPlanContext("MÉTODO", ctxFijo{historial}, log).Build(false); err != nil {
+		t.Fatalf("construir plan context: %v", err)
+	}
 
 	if log.grabado[ports.DeliveryPlanContext] == "" {
 		t.Error("no anotó lo que entregó")

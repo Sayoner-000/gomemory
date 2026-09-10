@@ -139,7 +139,9 @@ func TestRunGlobalScopeSetup_PreservesForeignHooksAndIsIdempotent(t *testing.T) 
 
 	data, _ := os.ReadFile(filepath.Join(claudeDir, "settings.json"))
 	var settings map[string]any
-	json.Unmarshal(data, &settings)
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatalf("decode settings: %v", err)
+	}
 	hooks, _ := settings["hooks"].(map[string]any)
 	preToolUse, _ := hooks["PreToolUse"].([]any)
 

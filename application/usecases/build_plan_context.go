@@ -88,7 +88,7 @@ func (p *PlanContext) Build(disabled bool) (string, error) {
 		if previo, ok := p.log.Last(ports.DeliveryContext); ok && previo == actual {
 			context = avisoDeSupresion
 		}
-		p.log.Record(ports.DeliveryPlanContext, actual)
+		_ = p.log.Record(ports.DeliveryPlanContext, actual)
 	}
 
 	switch {

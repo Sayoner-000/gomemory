@@ -182,7 +182,9 @@ func writeOpenCodePermissions(cfgPath string) error {
 	cfg := map[string]interface{}{}
 	previo, _ := os.ReadFile(cfgPath)
 	if len(previo) > 0 {
-		json.Unmarshal(previo, &cfg)
+		if err := json.Unmarshal(previo, &cfg); err != nil {
+			return fmt.Errorf("decode existing opencode config: %w", err)
+		}
 	}
 	if _, ok := cfg["$schema"]; !ok {
 		cfg["$schema"] = "https://opencode.ai/config.json"
@@ -284,7 +286,9 @@ func WriteOpenCodeMCP(root string, ref AgentRef) error {
 func writeOpenCodeMCPFile(cfgPath string, ref AgentRef) error {
 	cfg := map[string]interface{}{}
 	if data, _ := os.ReadFile(cfgPath); len(data) > 0 {
-		json.Unmarshal(data, &cfg)
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return fmt.Errorf("decode existing opencode config: %w", err)
+		}
 	}
 	if _, ok := cfg["$schema"]; !ok {
 		cfg["$schema"] = "https://opencode.ai/config.json"

@@ -19,7 +19,11 @@ func openTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("init test db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("cerrar base de prueba: %v", err)
+		}
+	})
 	return db
 }
 
@@ -107,9 +111,11 @@ type fakeImpactProvider struct {
 	called []string
 }
 
-func (f *fakeImpactProvider) Name() string                          { return "fake" }
-func (f *fakeImpactProvider) Snapshot() domain.CodeProviderSnapshot { return domain.CodeProviderSnapshot{} }
-func (f *fakeImpactProvider) MaybeRefresh()                         {}
+func (f *fakeImpactProvider) Name() string { return "fake" }
+func (f *fakeImpactProvider) Snapshot() domain.CodeProviderSnapshot {
+	return domain.CodeProviderSnapshot{}
+}
+func (f *fakeImpactProvider) MaybeRefresh() {}
 func (f *fakeImpactProvider) ImpactFor(filepath string) (domain.CodeImpactAnnotation, bool) {
 	f.called = append(f.called, filepath)
 	ann, ok := f.byFile[filepath]

@@ -66,11 +66,11 @@ func TestFinalizarYCorregirNoSePisan(t *testing.T) {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			usecases.FinalizeReview(reviews, ledger, proyecto, review.ID)
+			_, _ = usecases.FinalizeReview(reviews, ledger, proyecto, review.ID)
 		}()
 		go func() {
 			defer wg.Done()
-			usecases.RecordFix(reviews, ledger, usecases.RecordFixInput{
+			_, _ = usecases.RecordFix(reviews, ledger, usecases.RecordFixInput{
 				Project: proyecto, ReviewID: review.ID, AddressedConsensusIDs: []string{"C-001"},
 				BaseTargetDigest: "sha256:v0", FixedTargetDigest: "sha256:v1",
 			})
@@ -111,7 +111,7 @@ func TestFinalizarYCorregirNoSePisan(t *testing.T) {
 		// finalización se derivó después sobre ese estado—; lo que no puede pasar es
 		// que la revisión quede terminal con la ronda o el target de antes, y eso ya
 		// lo afirma la comprobación de arriba.
-		db.Close()
+		_ = db.Close()
 	}
 }
 
@@ -127,7 +127,7 @@ func TestUnaCorreccionTardiaNoReabreLoTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	reviews := persistence.NewReviewRepository(db)
 	ledger := persistence.NewConsensusRepository(db)
 	const proyecto = "tardia"

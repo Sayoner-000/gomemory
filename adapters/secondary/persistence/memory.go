@@ -94,7 +94,7 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback() // noop si ya commiteó
+	defer func() { _ = tx.Rollback() }() // noop si ya commiteó
 
 	// Dedup/upsert en la fuente (feature 008): consolida una memoria equivalente
 	// ya existente en vez de crear una fila nueva, para que el contexto no se
@@ -160,7 +160,7 @@ func upsertMemorySearch(db *sql.DB, id int64, title, content string) {
 	if n, _ := res.RowsAffected(); n > 0 {
 		return
 	}
-	db.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
+	_, _ = db.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
 }
 
 // upsertMemorySearchTx variante transaccional de upsertMemorySearch.
@@ -172,13 +172,13 @@ func upsertMemorySearchTx(tx *sql.Tx, id int64, title, content string) {
 	if n, _ := res.RowsAffected(); n > 0 {
 		return
 	}
-	tx.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
+	_, _ = tx.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
 }
 
 // deleteMemorySearch borra la fila de índice asociada a una memoria borrada.
 // Best-effort: ver upsertMemorySearch.
 func deleteMemorySearch(db *sql.DB, id int64) {
-	db.Exec(`DELETE FROM memory_search WHERE memory_id = ?`, id)
+	_, _ = db.Exec(`DELETE FROM memory_search WHERE memory_id = ?`, id)
 }
 
 // dedupWindowDays es la ventana (días) del dedup por identidad. Singleton de
@@ -325,11 +325,11 @@ func exportToADR(project string, memType domain.MemoryType, title, content strin
 // fallo acá nunca se propaga.
 func recordADRSyncAttempt(project string, memID int64, section string, existing *domain.ADRSyncRecord, status domain.SyncStatus, hash string) {
 	if existing != nil {
-		adrSyncRepo.UpdateStatus(existing.ID, status, hash)
+		_ = adrSyncRepo.UpdateStatus(existing.ID, status, hash)
 		return
 	}
 	id := memID
-	adrSyncRepo.Insert(&domain.ADRSyncRecord{
+	_, _ = adrSyncRepo.Insert(&domain.ADRSyncRecord{
 		Project: project, MemoryID: &id, Provider: adrSyncProvider.Name(),
 		Section: section, BlockKey: fmt.Sprintf("id=%d", memID),
 		Origin: domain.SyncOriginGomemory, Status: status, ContentHash: hash,
@@ -339,70 +339,6 @@ func recordADRSyncAttempt(project string, memID int64, section string, existing 
 func contentHash(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return fmt.Sprintf("%x", sum)
-}
-
-// findDuplicate localiza una memoria existente que la nueva debe consolidar en
-// lugar de duplicar:
-//   - por topic_key (explícito, cualquier tipo): agrupa revisiones del mismo tópico;
-//   - por contenido exacto (solo checkpoints): la actividad de un MISMO turno se
-//     registra por dos vías —agente principal y subagente— con títulos distintos
-//     y cuerpo idéntico. Medido en un proyecto real: 106 de 120 grupos duplicados
-//     diferían solo en el título, 178 filas redundantes y 265 KB desperdiciados.
-//     Antes se excluía el tipo entero razonando que "su contenido varía por
-//     turno": cierto entre turnos distintos, falso para el mismo turno visto dos
-//     veces.
-//   - por identidad (mismo project+type+title dentro de la ventana): no aplica a
-//     memorias sin título (un título vacío no es una clave de dedup fiable).
-//
-// content es el contenido YA redactado y anotado, el mismo que se persistiría:
-// compararlo contra m.Content daría siempre falso negativo.
-//
-// Best-effort: ante cualquier error o ausencia de match, (0,false) ⇒ INSERT normal.
-func findDuplicate(db *sql.DB, m *domain.Memory, title, content string) (int64, bool) {
-	if tk := strings.TrimSpace(m.TopicKey); tk != "" {
-		var id int64
-		if err := db.QueryRow(
-			`SELECT id FROM memories WHERE project = ? AND topic_key = ? ORDER BY id DESC LIMIT 1`,
-			m.Project, tk,
-		).Scan(&id); err == nil {
-			return id, true
-		}
-		return 0, false // topic explícito sin match: no cae a identidad, el tópico manda.
-	}
-
-	if dedupWindowDays <= 0 {
-		return 0, false
-	}
-
-	// Checkpoint: la clave de identidad es el CONTENIDO, no el título.
-	if m.Type == domain.Checkpoint {
-		var id int64
-		if err := db.QueryRow(
-			`SELECT id FROM memories
-			 WHERE project = ? AND type = 'checkpoint' AND content = ?
-			   AND julianday(`+Now+`) - julianday(created_at) <= ?
-			 ORDER BY id DESC LIMIT 1`,
-			m.Project, content, dedupWindowDays,
-		).Scan(&id); err == nil {
-			return id, true
-		}
-		return 0, false
-	}
-
-	if strings.TrimSpace(title) == "" {
-		return 0, false
-	}
-	var id int64
-	if err := db.QueryRow(
-		`SELECT id FROM memories
-		 WHERE project = ? AND type = ? AND title = ? AND type != 'checkpoint'
-		   AND julianday(`+Now+`) - julianday(created_at) <= ?
-		 ORDER BY id DESC LIMIT 1`,
-		m.Project, string(m.Type), title, dedupWindowDays,
-	).Scan(&id); err == nil {
-		return id, true
-	}
-	return 0, false
 }
 
 // findDuplicateTx variante transaccional de findDuplicate.
@@ -623,7 +559,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 	if err != nil {
 		return nil, fmt.Errorf("list memories: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var mems []domain.Memory
 	for rows.Next() {
@@ -656,7 +592,7 @@ func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list all memories: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var mems []domain.Memory
 	for rows.Next() {
@@ -756,7 +692,7 @@ func searchMemoriesFTS(db *sql.DB, project, query string, limit int) ([]domain.M
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMemories(rows)
 }
 
@@ -799,7 +735,7 @@ func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.
 	if err != nil {
 		return nil, fmt.Errorf("search memories: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMemories(rows)
 }
 

@@ -29,7 +29,6 @@ var (
 	pink      color.Color = lipgloss.Color("#c770ff") // rainPurple / accent — Preferencia
 	gray      color.Color = lipgloss.Color("#1e2a1b") // matrixInk3 / border — fondo de selección
 	white     color.Color = lipgloss.Color("#62ff94") // rainGreenHi / text — texto sobre selección
-	bg        color.Color = lipgloss.Color("#0a0e0a") // matrixInk0 / background
 )
 
 func typeColor(t string) color.Color {
@@ -108,12 +107,6 @@ var (
 			Foreground(faint).
 			Italic(true)
 
-	groupHeaderStyle = lipgloss.NewStyle().
-				Foreground(faint).
-				Padding(0, 1).
-				MarginTop(1).
-				MarginBottom(1)
-
 	typeTag = func(t string) string {
 		return lipgloss.NewStyle().
 			Background(typeColor(t)).
@@ -130,11 +123,6 @@ var (
 			Padding(0, 2).
 			Background(gray).
 			Foreground(white)
-
-	itemContent = lipgloss.NewStyle().
-			Foreground(faint).
-			Padding(0, 2).
-			MaxWidth(80)
 
 	detailBorder = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

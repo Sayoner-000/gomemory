@@ -58,7 +58,7 @@ func CmdADRSync(deps *Deps, args []string) {
 		if r.MemoryID != nil {
 			memID = fmt.Sprintf("%d", *r.MemoryID)
 		}
-		fmt.Fprintf(w, "[%s]\t%s\t%s %s\t%s\t%s\n", memID, r.Section, arrow, r.Provider, r.Status, r.LastSyncedAt)
+		_, _ = fmt.Fprintf(w, "[%s]\t%s\t%s %s\t%s\t%s\n", memID, r.Section, arrow, r.Provider, r.Status, r.LastSyncedAt)
 	}
-	w.Flush()
+	_ = w.Flush()
 }

@@ -16,7 +16,7 @@ func TestOctopusCicloDeFalloCompleto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := persistence.NewOctopusRepository(db)
 	uc := usecases.NewReportUseCase(repo)
 

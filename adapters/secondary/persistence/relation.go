@@ -80,7 +80,7 @@ func ListRelations(db *sql.DB, project string, limit int) ([]domain.Relation, er
 	if err != nil {
 		return nil, fmt.Errorf("list relations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rels []domain.Relation
 	for rows.Next() {
@@ -108,7 +108,7 @@ func ListAllRelations(db *sql.DB, project string) ([]domain.Relation, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list all relations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var rels []domain.Relation
 	for rows.Next() {

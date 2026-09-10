@@ -19,7 +19,7 @@ func depsDocs(t *testing.T) *Deps {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	return &Deps{
 		Root:        root,

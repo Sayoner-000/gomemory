@@ -38,7 +38,7 @@ func PurgeMemories(db *sql.DB, filter ports.PurgeFilter) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("purge: begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	query := `DELETE FROM memories WHERE 1=1`
 	args := []interface{}{}

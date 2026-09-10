@@ -77,7 +77,7 @@ func cmdSessionEnd(deps *Deps, args []string) {
 	if finalSummary == "" {
 		fmt.Print("Resumen de la sesión (o Enter para omitir): ")
 		var input string
-		fmt.Scanln(&input)
+		_, _ = fmt.Scanln(&input)
 		finalSummary = strings.TrimSpace(input)
 	}
 
@@ -115,8 +115,8 @@ func cmdSessionList(deps *Deps, args []string) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintf(w, "ID\tInicio\tFin\tResumen\n")
-	fmt.Fprintf(w, "--\t------\t---\t-------\n")
+	_, _ = fmt.Fprintln(w, "ID\tInicio\tFin\tResumen")
+	_, _ = fmt.Fprintln(w, "--\t------\t---\t-------")
 	for _, s := range sessions {
 		endStr := "activa"
 		if s.EndedAt != nil {
@@ -126,7 +126,7 @@ func cmdSessionList(deps *Deps, args []string) {
 		if len(summary) > 50 {
 			summary = summary[:47] + "..."
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ID[:8], s.CreatedAt, endStr, summary)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ID[:8], s.CreatedAt, endStr, summary)
 	}
-	w.Flush()
+	_ = w.Flush()
 }

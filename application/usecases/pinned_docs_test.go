@@ -20,7 +20,7 @@ func repoDocs(t *testing.T) (ports.MemoryRepository, ports.MemoryTopicQuerier, p
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	repo := persistence.NewMemoryRepository(db)
 	topics, ok := repo.(ports.MemoryTopicQuerier)
@@ -261,7 +261,7 @@ func TestImportPinnedDoc_UsaLaViaInerte(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	repo := persistence.NewMemoryRepository(db)
 	topics := repo.(ports.MemoryTopicQuerier)

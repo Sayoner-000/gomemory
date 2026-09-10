@@ -67,8 +67,8 @@ func CmdUsage(deps *Deps, args []string) {
 		if err != nil {
 			fail("serializar reporte de uso: %v", err)
 		}
-		os.Stdout.Write(data)
-		os.Stdout.WriteString("\n")
+		_, _ = os.Stdout.Write(data)
+		_, _ = os.Stdout.WriteString("\n")
 		return
 	}
 

@@ -128,8 +128,8 @@ func chdirTemp(t *testing.T) (*cli.Deps, string, func()) {
 	}
 
 	return deps, target, func() {
-		db.Close()
-		os.Chdir(origWd)
+		_ = db.Close()
+		_ = os.Chdir(origWd)
 	}
 }
 
@@ -144,8 +144,8 @@ func TestCmdPurgeRequiresConfirmationThenDeletes(t *testing.T) {
 	}
 
 	stdin, w, _ := os.Pipe()
-	w.WriteString("no\n")
-	w.Close()
+	_, _ = w.WriteString("no\n")
+	_ = w.Close()
 	origStdin := os.Stdin
 	os.Stdin = stdin
 	cli.CmdPurge(deps, []string{})

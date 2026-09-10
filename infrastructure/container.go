@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 
 	"mem/adapters/primary/cli"
@@ -252,8 +251,4 @@ func (c *Container) RunTUI() error {
 		Compressor:    c.Compressor,
 		SpecKitReader: c.SpecKitReader,
 	})
-}
-
-func isMockMode() bool {
-	return os.Getenv("USE_MOCK_ADAPTERS") == "true"
 }

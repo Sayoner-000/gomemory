@@ -74,7 +74,7 @@ func ListADRSyncRecords(db *sql.DB, project string) ([]domain.ADRSyncRecord, err
 	if err != nil {
 		return nil, fmt.Errorf("list adr sync records: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var recs []domain.ADRSyncRecord
 	for rows.Next() {

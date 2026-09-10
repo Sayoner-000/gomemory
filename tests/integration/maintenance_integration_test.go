@@ -28,7 +28,7 @@ func TestMaintenanceStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memA1 := memoryFixture("proj-a", domain.Learning)
 	memA2 := memoryFixture("proj-a", domain.Decision)
@@ -73,7 +73,7 @@ func TestMaintenancePurgeByProjectAndType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memA1 := memoryFixture("proj-a", domain.Learning)
 	memA2 := memoryFixture("proj-a", domain.Decision)
@@ -122,7 +122,7 @@ func TestMaintenancePurgeCleansOrphanRelations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memD := memoryFixture("proj-c", domain.Pattern)
 	memE := memoryFixture("proj-c", domain.Pattern)
@@ -170,7 +170,7 @@ func TestMaintenancePurgeAllProjectsRequiresAllFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memA := memoryFixture("proj-a", domain.Learning)
 	memB := memoryFixture("proj-b", domain.Learning)
@@ -199,7 +199,7 @@ func TestMaintenancePurgeWithoutScopeFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := persistence.NewMaintenanceRepository(db, persistence.DbPath(root))
 	if _, err := repo.Purge(ports.PurgeFilter{}); err == nil {
@@ -214,7 +214,7 @@ func TestMaintenanceCompactReclaimsDiskSpace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := persistence.NewMaintenanceRepository(db, persistence.DbPath(root))
 
@@ -262,7 +262,7 @@ func TestMaintenanceCompactNoopOnAlreadyCompactDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	repo := persistence.NewMaintenanceRepository(db, persistence.DbPath(root))
 
@@ -282,7 +282,7 @@ func TestMaintenanceGCOnlyDeletesOlderThanThreshold(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memOld := memoryFixture("proj-gc", domain.Learning)
 	memRecent := memoryFixture("proj-gc", domain.Learning)
@@ -322,7 +322,7 @@ func TestMaintenanceGCNoopWhenNothingExceedsThreshold(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	mem := memoryFixture("proj-gc2", domain.Learning)
 	if _, err := persistence.InsertMemory(db, &mem); err != nil {

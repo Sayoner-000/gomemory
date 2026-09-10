@@ -285,7 +285,7 @@ func (f fakeMaintenanceRepo) Stats(project string) (ports.StorageStats, error) {
 	return ports.StorageStats{}, nil
 }
 func (f fakeMaintenanceRepo) Purge(filter ports.PurgeFilter) (int64, error) { return 0, nil }
-func (f fakeMaintenanceRepo) Compact() (int64, int64, error)             { return 0, 0, nil }
+func (f fakeMaintenanceRepo) Compact() (int64, int64, error)                { return 0, 0, nil }
 
 func TestUpdateMaintenance_ConsolidateRow_NoGroups_ShowsStatusWithoutLeavingScreen(t *testing.T) {
 	root := t.TempDir()
@@ -293,7 +293,7 @@ func TestUpdateMaintenance_ConsolidateRow_NoGroups_ShowsStatusWithoutLeavingScre
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	m := model{
 		screen:          screenMaintenance,
@@ -322,7 +322,7 @@ func TestUpdateMaintenance_ConsolidateRow_WithGroups_GoesToConfirmAndApplies(t *
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	insertRawTopicDup(t, db, "proj", "same-topic", "v1")
 	insertRawTopicDup(t, db, "proj", "same-topic", "v2")
 

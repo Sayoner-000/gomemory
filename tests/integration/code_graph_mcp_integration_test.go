@@ -29,7 +29,7 @@ func TestCodeGraphMCPIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	writeFixtureFile(t, target, "pkg/lib.go", `package pkg
 
@@ -53,7 +53,7 @@ func UseHelper() int {
 	if err != nil {
 		t.Fatalf("connect to mcp server: %v", err)
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	tools, err := session.ListTools(ctx, nil)
 	if err != nil {

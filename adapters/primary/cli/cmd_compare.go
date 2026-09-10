@@ -118,28 +118,15 @@ func cmdCompareList(deps *Deps, args []string) {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintf(w, "ID\tMemoria A\tMemoria B\tRelación\tConfianza\tRazonamiento\n")
-	fmt.Fprintf(w, "--\t---------\t---------\t--------\t---------\t------------\n")
+	_, _ = fmt.Fprintln(w, "ID\tMemoria A\tMemoria B\tRelación\tConfianza\tRazonamiento")
+	_, _ = fmt.Fprintln(w, "--\t---------\t---------\t--------\t---------\t------------")
 	for _, r := range rels {
 		reason := r.Reasoning
 		if len(reason) > 40 {
 			reason = reason[:37] + "..."
 		}
-		date := r.CreatedAt
-		if len(date) > 10 {
-			date = date[:10]
-		}
-		fmt.Fprintf(w, "%d\t%d\t%d\t%s\t%.2f\t%s\n", r.ID, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, reason)
+		_, _ = fmt.Fprintf(w, "%d\t%d\t%d\t%s\t%.2f\t%s\n", r.ID, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, reason)
 	}
-	w.Flush()
+	_ = w.Flush()
 	fmt.Printf("\n(%d relaciones)\n", len(rels))
-}
-
-var relationDescriptions = map[string]string{
-	"related":        "Las memorias están semanticamente relacionadas",
-	"compatible":     "Las memorias son compatibles entre sí",
-	"scoped":         "Una memoria es un caso específico o alcance de la otra",
-	"conflicts_with": "Las memorias entran en conflicto",
-	"supersedes":     "Una memoria reemplaza o invalida a la otra",
-	"not_conflict":   "Se evaluaron y no hay conflicto",
 }

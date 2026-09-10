@@ -140,7 +140,6 @@ type model struct {
 
 	screen   screen
 	memories []domain.Memory
-	err      error
 
 	// Filtro
 	filterInput textinput.Model
@@ -608,7 +607,11 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.autoApprove = !m.autoApprove
 		settings := m.settingsRepo.Read(m.root)
 		settings.AutoApprove = m.autoApprove
-		m.settingsRepo.Write(m.root, settings)
+		if err := m.settingsRepo.Write(m.root, settings); err != nil {
+			m.statusMsg = "No se pudo guardar auto-approve: " + err.Error()
+			m.statusTimer = 40
+			return m, nil
+		}
 		m.settingsRepo.ApplyAutoApprove(m.root, settings)
 		if m.autoApprove {
 			m.statusMsg = "Auto-approve activado ✓"
@@ -1009,7 +1012,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 0: // Toggle grafo de código externo
 			s := m.settingsRepo.Read(m.root)
 			s.CodeGraphDisabled = !s.CodeGraphDisabled
-			m.settingsRepo.Write(m.root, s)
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			if s.CodeGraphDisabled {
 				m.statusMsg = "Grafo externo desactivado (aplica en próximas sesiones)"
 			} else {
@@ -1021,7 +1028,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.autoApprove = !m.autoApprove
 			s := m.settingsRepo.Read(m.root)
 			s.AutoApprove = m.autoApprove
-			m.settingsRepo.Write(m.root, s)
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar auto-approve: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			m.settingsRepo.ApplyAutoApprove(m.root, s)
 			if m.autoApprove {
 				m.statusMsg = "Auto-approve activado ✓"
@@ -1048,7 +1059,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 4: // Toggle sinapsis automática
 			s := m.settingsRepo.Read(m.root)
 			s.SynapseDisabled = !s.SynapseDisabled
-			m.settingsRepo.Write(m.root, s)
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			if s.SynapseDisabled {
 				m.statusMsg = "Sinapsis desactivada (ahorra 1-3 queries por save)"
 			} else {
@@ -1059,7 +1074,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 5: // Toggle brazo extensor spec-kit
 			s := m.settingsRepo.Read(m.root)
 			s.SpeckitContextDisabled = !s.SpeckitContextDisabled
-			m.settingsRepo.Write(m.root, s)
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			if s.SpeckitContextDisabled {
 				m.statusMsg = "Brazo extensor spec-kit desactivado"
 			} else {
@@ -1070,7 +1089,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case configRowAtomicPlan: // Toggle planificación atómica en modo plan
 			s := m.settingsRepo.Read(m.root)
 			s.AtomicPlanDisabled = !s.AtomicPlanDisabled
-			m.settingsRepo.Write(m.root, s)
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			if s.AtomicPlanDisabled {
 				m.statusMsg = "Planificación atómica desactivada en este proyecto"
 			} else {
@@ -1081,7 +1104,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case configRowPlanGuard: // Toggle exigencia de forma del plan (feature 019)
 			s := m.settingsRepo.Read(m.root)
 			s.PlanGuardDisabled = !s.PlanGuardDisabled
-			m.settingsRepo.Write(m.root, s)
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			if s.PlanGuardDisabled {
 				m.statusMsg = "Exigencia de forma del plan desactivada (todo plan se permite)"
 			} else {
@@ -1097,7 +1124,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// las dejaría pidiendo permiso una por una, y apagarlo dejaría
 			// nombres muertos pre-aprobados.
 			s.AutoApproveTools = domain.MCPAutoApprovableToolsFor(s.OctopusEnabled)
-			m.settingsRepo.Write(m.root, s)
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar Octopus AAR: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			// Persistir SettingsData no actualiza por sí mismo las configuraciones
 			// de los clientes MCP ya instalados. Igual que los toggles vecinos,
 			// aplicar la lista evita que el estado efectivo quede desfasado.
@@ -1176,8 +1207,13 @@ func (m model) exportMemories() (string, int, int, error) {
 	if err != nil {
 		return "", 0, 0, err
 	}
-	defer f.Close()
 	if err := usecases.EncodeBundle(f, bundle); err != nil {
+		if closeErr := f.Close(); closeErr != nil {
+			return "", 0, 0, fmt.Errorf("exportar memorias: escribir bundle: %w; cerrar archivo: %v", err, closeErr)
+		}
+		return "", 0, 0, err
+	}
+	if err := f.Close(); err != nil {
 		return "", 0, 0, err
 	}
 	return path, len(bundle.Memories), len(bundle.Relations), nil
@@ -1231,7 +1267,10 @@ func (m model) updateEditSetting(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case editFieldDedupDays:
 			s.DedupWindowDays = val
 		}
-		m.settingsRepo.Write(m.root, s)
+		if err := m.settingsRepo.Write(m.root, s); err != nil {
+			m.editSettingErr = "No se pudo guardar: " + err.Error()
+			return m, nil
+		}
 		m.statusMsg = fmt.Sprintf("%s actualizado: %d", editSettingLabel(m.editSettingField), val)
 		m.statusTimer = 40
 		m.editSettingErr = ""
@@ -1287,7 +1326,7 @@ func (m model) importMemories(path string) (domain.ImportReport, error) {
 	if err != nil {
 		return domain.ImportReport{}, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	bundle, err := usecases.DecodeBundle(f)
 	if err != nil {
 		return domain.ImportReport{}, err
@@ -1612,7 +1651,7 @@ func (m model) optimizeDetailView() string {
 	var bodyLines []string
 	cursorLine := 0
 	for i, mem := range group.Memories {
-		tag := "        "
+		var tag string
 		switch {
 		case i == m.dupKeepIdx:
 			tag = lipgloss.NewStyle().Foreground(green).Bold(true).Render("[CANÓNICA]")
@@ -2281,15 +2320,6 @@ func (m model) renderField(label string, input *textinput.Model) string {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────
-
-func groupByType(mems []domain.Memory) map[string][]domain.Memory {
-	g := make(map[string][]domain.Memory)
-	for _, m := range mems {
-		t := string(m.Type)
-		g[t] = append(g[t], m)
-	}
-	return g
-}
 
 func truncate(s string, n int) string {
 	r := []rune(s)

@@ -23,7 +23,7 @@ func modeloDocs(t *testing.T) model {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 
 	return model{
 		screen:       screenDocs,

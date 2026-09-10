@@ -294,7 +294,7 @@ func ApplyAutoApprove(root string, s Settings) {
 		ms["gomemory"] = entry
 		cfg["mcpServers"] = ms
 		out, _ := json.MarshalIndent(cfg, "", "  ")
-		os.WriteFile(path, out, 0644)
+		_ = os.WriteFile(path, out, 0644)
 	}
 	removeAAP := func(path string) {
 		data, err := os.ReadFile(path)
@@ -317,7 +317,7 @@ func ApplyAutoApprove(root string, s Settings) {
 		ms["gomemory"] = entry
 		cfg["mcpServers"] = ms
 		out, _ := json.MarshalIndent(cfg, "", "  ")
-		os.WriteFile(path, out, 0644)
+		_ = os.WriteFile(path, out, 0644)
 	}
 
 	paths := []string{

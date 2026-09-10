@@ -38,7 +38,7 @@ func TestUnResueltoNoSobreviveALaRondaSiguiente(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	reviews := persistence.NewReviewRepository(db)
 	ledger := persistence.NewConsensusRepository(db)
 	const proyecto = "vigencia"
@@ -159,7 +159,7 @@ func TestElResueltoDeLaRondaVigenteSiAprueba(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	reviews := persistence.NewReviewRepository(db)
 	ledger := persistence.NewConsensusRepository(db)
 	const proyecto = "vigencia-ok"
@@ -241,7 +241,7 @@ func TestDosDefectosEnRondasDistintasSiPuedenAprobar(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	reviews := persistence.NewReviewRepository(db)
 	ledger := persistence.NewConsensusRepository(db)
 	const proyecto = "dos-rondas"

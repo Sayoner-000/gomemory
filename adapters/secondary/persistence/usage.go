@@ -34,7 +34,7 @@ func UsageBySession(db *sql.DB, project, sessionID string) ([]domain.UsageRecord
 	if err != nil {
 		return nil, fmt.Errorf("usage by session: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanUsageRecords(rows)
 }
 
@@ -53,7 +53,7 @@ func UsageSessions(db *sql.DB, project string, limit int) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("usage sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []string
 	for rows.Next() {
@@ -77,7 +77,7 @@ func UsageTotals(db *sql.DB, project string) ([]domain.UsageRecord, error) {
 	if err != nil {
 		return nil, fmt.Errorf("usage totals: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanUsageRecords(rows)
 }
 

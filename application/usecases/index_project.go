@@ -119,9 +119,9 @@ func (ix *Indexer) indexFilesInternal(relPaths []string) (IndexReport, error) {
 	}
 
 	type fileResult struct {
-		path    string
-		nodes   []domain.CodeNode
-		parsed  parsedFile
+		path   string
+		nodes  []domain.CodeNode
+		parsed parsedFile
 	}
 	var results []fileResult
 

@@ -14,7 +14,7 @@ func TestCmdGet_ExistingID_PrintsDetail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	id, _ := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "una decisión", Content: "contenido de prueba"})

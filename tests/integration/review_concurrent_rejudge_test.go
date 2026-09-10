@@ -88,7 +88,7 @@ func TestReJuiciosConcurrentesNoSePierden(t *testing.T) {
 		errs := []error{nil, nil}
 		if len(fallos) > 0 {
 			t.Errorf("intento %d: %d re-juicios fallaron, primero: %v", intento, len(fallos), fallos[0])
-			db.Close()
+			_ = db.Close()
 			return
 		}
 
@@ -104,10 +104,10 @@ func TestReJuiciosConcurrentesNoSePierden(t *testing.T) {
 		if errs[0] == nil && errs[1] == nil && f.RejudgmentState != domain.ReJudgmentResolved {
 			t.Errorf("intento %d: los dos revisores dieron RESOLVED pero el agregado quedó %s",
 				intento, f.RejudgmentState)
-			db.Close()
+			_ = db.Close()
 			return
 		}
-		db.Close()
+		_ = db.Close()
 	}
 
 }

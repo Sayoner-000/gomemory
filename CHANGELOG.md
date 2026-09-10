@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.20.1] - 2026-09-10
+
+### Security
+
+- Actualiza Go a 1.27.1 y renueva dependencias de SQLite, MCP y TUI para
+  incorporar las correcciones de vulnerabilidades disponibles.
+- Cierra los errores previamente descartados en rutas de persistencia, hooks,
+  sincronización e inicialización, preservando el comportamiento best-effort
+  donde corresponde.
+
 ## [2.20.0] - 2026-09-04
 
 ### Added

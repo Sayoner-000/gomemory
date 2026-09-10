@@ -48,8 +48,8 @@ func TestInsertMemoryBackfillsOriginPromptFromActiveSession(t *testing.T) {
 
 func TestInsertMemoryKeepsExplicitOriginPrompt(t *testing.T) {
 	db := openTestDB(t)
-	StartSession(db, "proj")
-	SetSessionLastPrompt(db, "proj", "prompt de la sesión")
+	_, _ = StartSession(db, "proj")
+	_ = SetSessionLastPrompt(db, "proj", "prompt de la sesión")
 
 	got := insertAndGet(t, db, &domain.Memory{
 		Project: "proj", Type: domain.Learning, Title: "t", Content: "c",
@@ -72,7 +72,7 @@ func TestInsertMemoryNoActiveSessionLeavesOriginEmpty(t *testing.T) {
 
 func TestSetSessionLastPromptRedactsPrivate(t *testing.T) {
 	db := openTestDB(t)
-	StartSession(db, "proj")
+	_, _ = StartSession(db, "proj")
 	if err := SetSessionLastPrompt(db, "proj", "usa el token <private>sk-secreto</private> aquí"); err != nil {
 		t.Fatalf("set last prompt: %v", err)
 	}

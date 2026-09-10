@@ -112,6 +112,6 @@ func TestConsensoConcurrenteEscribeUnaSolaClasificacion(t *testing.T) {
 			}
 			vistos[hallazgo.ConsensusLocalID] = true
 		}
-		db.Close()
+		_ = db.Close()
 	}
 }

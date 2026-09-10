@@ -24,7 +24,7 @@ func TestCmdConsolidate_Preview_DoesNotModify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	insertRawTopicDup(t, db, "proj", "same-topic", "v1")
 	insertRawTopicDup(t, db, "proj", "same-topic", "v2")
@@ -49,7 +49,7 @@ func TestCmdConsolidate_Apply_MergesGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	insertRawTopicDup(t, db, "proj", "same-topic", "v1")
 	insertRawTopicDup(t, db, "proj", "same-topic", "v2")
@@ -74,7 +74,7 @@ func TestCmdConsolidate_NoGroups_SaysSoWithoutError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	deps := &Deps{Root: root, Project: "proj", MemoryRepo: persistence.NewMemoryRepository(db)}
 

@@ -117,7 +117,7 @@ func TestHookMarkerResetsPerSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	marker := filepath.Join(target, ".memory", ".session-tools-injected")
 
@@ -167,7 +167,7 @@ func TestHookSessionEndResetsMarker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	marker := filepath.Join(target, ".memory", ".session-tools-injected")
 
@@ -202,7 +202,7 @@ func TestHookUserPromptSubmit_BootstrapVaEnAdditionalContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	runHook(t, bin, target, "session-start")
 	out := runHook(t, bin, target, "user-prompt-submit")
@@ -252,8 +252,8 @@ func TestHookUserPromptSubmit_NudgeDeGuardadoVaEnAdditionalContext(t *testing.T)
 	if _, err := db.Exec("UPDATE sessions SET created_at = datetime(created_at, '-1000 seconds')"); err != nil {
 		t.Fatalf("backdate session: %v", err)
 	}
-	db.Close()
-	os.Remove(filepath.Join(target, ".memory", ".last-nudge"))
+	_ = db.Close()
+	_ = os.Remove(filepath.Join(target, ".memory", ".last-nudge"))
 
 	out := runHook(t, bin, target, "user-prompt-submit") // segundo prompt: rama del nudge
 
@@ -293,7 +293,7 @@ func TestHookSubagentStart_BootstrapVaEnAdditionalContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	out := runHook(t, bin, target, "subagent-start")
 
@@ -402,7 +402,7 @@ func TestHookNudge_IncluyeCompactNudge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	// Huella por encima del umbral por defecto (48000): la huella se persiste
 	// en un archivo plano, así que se puede simular sin pasar por el servidor MCP.

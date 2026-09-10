@@ -31,20 +31,20 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	os.Setenv("GOMEMORY_DATA_HOME", dir)
+	_ = os.Setenv("GOMEMORY_DATA_HOME", dir)
 
 	home, err := os.MkdirTemp("", "gomemory-test-home-integration-*")
 	if err != nil {
 		panic(err)
 	}
 	anclarCachesDeGo()
-	os.Setenv("HOME", home)
-	os.Setenv("USERPROFILE", home) // Windows
+	_ = os.Setenv("HOME", home)
+	_ = os.Setenv("USERPROFILE", home) // Windows
 
 	code := m.Run()
 
-	os.RemoveAll(dir)
-	os.RemoveAll(home)
+	_ = os.RemoveAll(dir)
+	_ = os.RemoveAll(home)
 	os.Exit(code)
 }
 
@@ -62,6 +62,6 @@ func anclarCachesDeGo() {
 	if len(valores) != 2 {
 		return
 	}
-	os.Setenv("GOCACHE", valores[0])
-	os.Setenv("GOMODCACHE", valores[1])
+	_ = os.Setenv("GOCACHE", valores[0])
+	_ = os.Setenv("GOMODCACHE", valores[1])
 }

@@ -52,7 +52,6 @@ func runDocs(deps *Deps, args []string, stdout, stderr io.Writer) error {
 	}
 }
 
-
 // flagsConValor son los flags de `mem docs` que consumen el argumento siguiente.
 var flagsConValor = map[string]bool{"-o": true, "--o": true, "-topic": true, "--topic": true}
 
@@ -94,8 +93,8 @@ func docsList(deps *Deps, stdout io.Writer) error {
 	}
 
 	w := tabwriter.NewWriter(stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintf(w, "ALIAS\tDOCUMENTO\tESTADO\tLÍNEAS\tÚLTIMA MODIFICACIÓN\n")
-	fmt.Fprintf(w, "-----\t---------\t------\t------\t-------------------\n")
+	_, _ = fmt.Fprintln(w, "ALIAS\tDOCUMENTO\tESTADO\tLÍNEAS\tÚLTIMA MODIFICACIÓN")
+	_, _ = fmt.Fprintln(w, "-----\t---------\t------\t------\t-------------------")
 	for _, d := range domain.PinnedDocs {
 		st := usecases.PinnedDocState(topics, deps.Project, d.TopicKey, embeddedTemplate(d.Template))
 		fecha := st.UpdatedAt
@@ -105,7 +104,7 @@ func docsList(deps *Deps, stdout io.Writer) error {
 		if fecha == "" {
 			fecha = "—"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n", d.Alias, d.Label, st.State, st.Lines, fecha)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n", d.Alias, d.Label, st.State, st.Lines, fecha)
 	}
 	return w.Flush()
 }
@@ -146,7 +145,7 @@ func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
 			if err := os.WriteFile(destino, []byte(res.Content), 0o644); err != nil {
 				return fmt.Errorf("escribir %s: %w", destino, err)
 			}
-			fmt.Fprintf(stderr, "✅ %s → %s\n", d.Alias, destino)
+			_, _ = fmt.Fprintf(stderr, "✅ %s → %s\n", d.Alias, destino)
 		}
 		return nil
 	}
@@ -161,7 +160,7 @@ func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if !res.FromMemory {
-		fmt.Fprintf(stderr, "⚠️  No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Alias)
+		_, _ = fmt.Fprintf(stderr, "⚠️  No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Alias)
 	}
 
 	if *out == "" {
@@ -171,7 +170,7 @@ func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
 	if err := os.WriteFile(*out, []byte(res.Content), 0o644); err != nil {
 		return fmt.Errorf("escribir %s: %w", *out, err)
 	}
-	fmt.Fprintf(stderr, "✅ %s → %s (%d líneas)\n", doc.Alias, *out, contarLineasCLI(res.Content))
+	_, _ = fmt.Fprintf(stderr, "✅ %s → %s (%d líneas)\n", doc.Alias, *out, contarLineasCLI(res.Content))
 	return nil
 }
 
@@ -234,11 +233,11 @@ func docsImport(deps *Deps, args []string, stderr io.Writer) error {
 	}
 	switch {
 	case res.Unchanged:
-		fmt.Fprintf(stderr, "ℹ️  %s sin cambios\n", nombre)
+		_, _ = fmt.Fprintf(stderr, "ℹ️  %s sin cambios\n", nombre)
 	case res.Created:
-		fmt.Fprintf(stderr, "✅ %s creado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
+		_, _ = fmt.Fprintf(stderr, "✅ %s creado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
 	default:
-		fmt.Fprintf(stderr, "✅ %s actualizado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
+		_, _ = fmt.Fprintf(stderr, "✅ %s actualizado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
 	}
 	return nil
 }
@@ -260,10 +259,10 @@ func docsReset(deps *Deps, args []string, stderr io.Writer) error {
 		return fmt.Errorf("restaurar %s: %w", doc.Alias, err)
 	}
 	if res.Unchanged {
-		fmt.Fprintf(stderr, "ℹ️  %s ya estaba en su contenido por defecto\n", doc.Alias)
+		_, _ = fmt.Fprintf(stderr, "ℹ️  %s ya estaba en su contenido por defecto\n", doc.Alias)
 		return nil
 	}
-	fmt.Fprintf(stderr, "✅ %s restaurado al contenido por defecto (%d líneas)\n", doc.Alias, res.Lines)
+	_, _ = fmt.Fprintf(stderr, "✅ %s restaurado al contenido por defecto (%d líneas)\n", doc.Alias, res.Lines)
 	return nil
 }
 

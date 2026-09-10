@@ -79,7 +79,7 @@ func arrancarMCPUnaVez(t *testing.T, bin, dir string) {
 	if _, err := session.ListTools(ctx, nil); err != nil {
 		t.Fatalf("handshake MCP: %v", err)
 	}
-	session.Close()
+	_ = session.Close()
 }
 
 func runMem(t *testing.T, bin, dir string, args ...string) string {

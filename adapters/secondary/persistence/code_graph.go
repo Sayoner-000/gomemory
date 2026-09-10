@@ -13,7 +13,7 @@ func FileHashesQuery(db *sql.DB, project string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("file hashes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out := map[string]string{}
 	for rows.Next() {
@@ -34,7 +34,7 @@ func ReplaceFileNodes(db *sql.DB, project, path, hash string, nodes []domain.Cod
 	if err != nil {
 		return nil, fmt.Errorf("replace file nodes: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var fileID int64
 	err = tx.QueryRow(`SELECT id FROM code_files WHERE project = ? AND path = ?`, project, path).Scan(&fileID)
@@ -106,7 +106,8 @@ func insertNode(tx *sql.Tx, fileID int64, n domain.CodeNode) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("insert code_nodes: %w", err)
 	}
-	tx.Exec(`INSERT INTO code_search (rowid, name, signature, package, node_id) VALUES (?, ?, ?, ?, ?)`,
+	// FTS5 es opcional: la búsqueda cae a LIKE cuando no está disponible.
+	_, _ = tx.Exec(`INSERT INTO code_search (rowid, name, signature, package, node_id) VALUES (?, ?, ?, ?, ?)`,
 		id, n.Name, n.Signature, n.Package, id)
 	return id, nil
 }
@@ -116,7 +117,7 @@ func queryNodeIDsByFile(tx *sql.Tx, fileID int64) ([]int64, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query node ids: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []int64
 	for rows.Next() {
@@ -155,7 +156,7 @@ func DeleteCodeFile(db *sql.DB, project, path string) error {
 	if err != nil {
 		return fmt.Errorf("delete code file: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var fileID int64
 	err = tx.QueryRow(`SELECT id FROM code_files WHERE project = ? AND path = ?`, project, path).Scan(&fileID)
@@ -194,7 +195,7 @@ func InsertCodeEdges(db *sql.DB, project, srcPath string, edges []domain.CodeEdg
 	if err != nil {
 		return fmt.Errorf("insert code edges: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var srcFileID int64
 	err = tx.QueryRow(`SELECT id FROM code_files WHERE project = ? AND path = ?`, project, srcPath).Scan(&srcFileID)
@@ -244,7 +245,7 @@ func searchCodeNodesFTS(db *sql.DB, project, query string, limit int) ([]domain.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanCodeNodes(rows)
 }
 
@@ -263,7 +264,7 @@ func searchCodeNodesLike(db *sql.DB, project, query string, limit int) ([]domain
 	if err != nil {
 		return nil, fmt.Errorf("search code nodes (like): %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanCodeNodes(rows)
 }
 
@@ -310,7 +311,7 @@ func NodesByName(db *sql.DB, project, name string) ([]domain.CodeNode, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nodes by name: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanCodeNodes(rows)
 }
 
@@ -395,7 +396,7 @@ func Neighbors(db *sql.DB, project string, nodeID int64, kind domain.CodeEdgeKin
 	if err != nil {
 		return nil, nil, fmt.Errorf("neighbors nodes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	nodes, err := scanCodeNodes(rows)
 	return nodes, allEdges, err
 }
@@ -437,7 +438,7 @@ func edgesForFrontier(db *sql.DB, project string, frontier []int64, kind domain.
 	if err != nil {
 		return nil, fmt.Errorf("edges for frontier: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var edges []domain.CodeEdge
 	for rows.Next() {
@@ -469,7 +470,9 @@ func CodeGraphStatus(db *sql.DB, project string) (domain.GraphStatus, error) {
 	}
 
 	var lastIndexed sql.NullString
-	db.QueryRow(`SELECT MAX(indexed_at) FROM code_files WHERE project = ?`, project).Scan(&lastIndexed)
+	if err := db.QueryRow(`SELECT MAX(indexed_at) FROM code_files WHERE project = ?`, project).Scan(&lastIndexed); err != nil {
+		return status, fmt.Errorf("latest indexed file: %w", err)
+	}
 	if lastIndexed.Valid {
 		status.LastIndexedAt = lastIndexed.String
 	}
@@ -481,7 +484,7 @@ func CodeGraphStatus(db *sql.DB, project string) (domain.GraphStatus, error) {
 		project,
 	)
 	if err == nil {
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		for rows.Next() {
 			var ps domain.PackageStat
 			if err := rows.Scan(&ps.Package, &ps.Symbols); err == nil {

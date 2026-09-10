@@ -67,7 +67,7 @@ func TestPlanContext_ConMemoria_EmiteMetodoYContexto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	out, code := runPlanContext(t, dir)
 

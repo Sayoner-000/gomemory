@@ -103,7 +103,7 @@ func RecentSessions(db *sql.DB, project string, limit int) ([]domain.Session, er
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var sessions []domain.Session
 	for rows.Next() {

@@ -105,13 +105,13 @@ func hookSessionStart(deps *Deps) {
 	project := deps.ProjectRepo.Key(root)
 
 	if active, _ := deps.SessionRepo.Active(project); active == nil {
-		deps.SessionRepo.Start(project)
+		_, _ = deps.SessionRepo.Start(project)
 	}
 
 	// Nueva sesión: el recordatorio del protocolo debe volver a inyectarse en
 	// el primer prompt (best-effort; si no existe, os.Remove no falla nada).
-	os.Remove(sessionMarkerPath(deps, root))
-	os.Remove(planEnteredMarkerPath(deps, root))
+	_ = os.Remove(sessionMarkerPath(deps, root))
+	_ = os.Remove(planEnteredMarkerPath(deps, root))
 
 	if ctx := entregaContextoDeArranque(deps); ctx != "" {
 		fmt.Print(ctx)
@@ -137,7 +137,7 @@ func entregaContextoDeArranque(deps *Deps) string {
 		return ""
 	}
 	if deps.DeliveryLog != nil {
-		deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(ctx))
+		_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(ctx))
 	}
 	return ctx
 }
@@ -155,7 +155,7 @@ func hookSessionEnd(deps *Deps) {
 	// Best-effort defensivo: cubre compactación/cierre sin un session-start
 	// intermedio, para que el próximo primer prompt vuelva a inyectar el
 	// recordatorio del protocolo.
-	os.Remove(sessionMarkerPath(deps, root))
+	_ = os.Remove(sessionMarkerPath(deps, root))
 
 	active, err := deps.SessionRepo.Active(project)
 	if err != nil || active == nil {
@@ -169,7 +169,7 @@ func hookSessionEnd(deps *Deps) {
 		}
 	}
 
-	deps.SessionRepo.End(active.ID, summary)
+	_ = deps.SessionRepo.End(active.ID, summary)
 	backupSessionSnapshot(deps, project)
 	os.Exit(0)
 }
@@ -192,7 +192,7 @@ func backupSessionSnapshot(deps *Deps, project string) {
 		}
 	}
 
-	usecases.CreateSnapshot(deps.MemoryRepo, deps.RelationRepo, project, dir, keep)
+	_, _ = usecases.CreateSnapshot(deps.MemoryRepo, deps.RelationRepo, project, dir, keep)
 }
 
 // hookPreCompact se ejecuta ANTES de la compactación del contexto. Es el
@@ -212,10 +212,10 @@ func hookPreCompact(deps *Deps) {
 // diferidas (que la compactación descarta) vía el bootstrap de ToolSearch.
 func hookPostCompact(deps *Deps) {
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
-		os.Remove(sessionMarkerPath(deps, root))
-		os.Remove(planEnteredMarkerPath(deps, root))
-		footprintReset(root)                      // tras compactar, la huella cuenta desde cero
-		os.Remove(preferenceNudgeStatePath(root)) // el refuerzo también arranca de cero
+		_ = os.Remove(sessionMarkerPath(deps, root))
+		_ = os.Remove(planEnteredMarkerPath(deps, root))
+		footprintReset(root)                          // tras compactar, la huella cuenta desde cero
+		_ = os.Remove(preferenceNudgeStatePath(root)) // el refuerzo también arranca de cero
 	}
 	printRecoveryAndContext(deps)
 	os.Exit(0)
@@ -262,7 +262,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// InsertMemory lo adjunte a lo que se guarde. Transversal con OpenCode, que
 	// hace lo mismo vía `mem hook prompt` desde su evento chat.message.
 	if prompt := promptFromStdin(); strings.TrimSpace(prompt) != "" {
-		deps.SessionRepo.SetLastPrompt(project, prompt)
+		_ = deps.SessionRepo.SetLastPrompt(project, prompt)
 	}
 
 	marker := sessionMarkerPath(deps, root)
@@ -318,7 +318,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// ACTIVO" sin excepción por tipo de tarea, y materializar las tools bajo
 	// demanda según el propósito detectado sería precisamente la excepción que
 	// ese principio prohíbe.
-	os.WriteFile(marker, []byte("1"), 0644)
+	_ = os.WriteFile(marker, []byte("1"), 0644)
 	settings := deps.SettingsRepo.Read(root)
 	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
 	out := map[string]any{
@@ -410,7 +410,7 @@ func hookTurnEnd(deps *Deps, args []string) {
 	// disponible) se ignora en silencio, nunca aborta el cierre del turno.
 	if deps.ADRSyncProvider != nil && deps.ADRSyncRepo != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		usecases.ImportADRs(ctx, deps.ADRSyncProvider, deps.ADRSyncRepo, deps.MemoryRepo, deps.Project)
+		_ = usecases.ImportADRs(ctx, deps.ADRSyncProvider, deps.ADRSyncRepo, deps.MemoryRepo, deps.Project)
 		cancel()
 	}
 
@@ -545,7 +545,7 @@ func hookPlanApproved(deps *Deps) {
 		Title:     planTitle(plan),
 		Content:   plan,
 	}
-	deps.MemoryRepo.Insert(&mem)
+	_, _ = deps.MemoryRepo.Insert(&mem)
 	os.Exit(0)
 }
 
@@ -601,7 +601,7 @@ func hookPrompt(deps *Deps) {
 		os.Exit(0)
 	}
 	if prompt := promptFromStdin(); strings.TrimSpace(prompt) != "" {
-		deps.SessionRepo.SetLastPrompt(deps.ProjectRepo.Key(root), prompt)
+		_ = deps.SessionRepo.SetLastPrompt(deps.ProjectRepo.Key(root), prompt)
 	}
 	os.Exit(0)
 }
@@ -667,7 +667,7 @@ func recordActivityCheckpoint(deps *Deps, title string) {
 		Content:   formatCheckpoint(activity),
 		Filepath:  filePath,
 	}
-	deps.MemoryRepo.Insert(&mem)
+	_, _ = deps.MemoryRepo.Insert(&mem)
 
 	reindexTouchedGoFiles(deps, root, project, activity.Files)
 	os.Exit(0)
@@ -699,7 +699,7 @@ func reindexTouchedGoFiles(deps *Deps, root, project string, files []string) {
 	if len(goFiles) == 0 {
 		return
 	}
-	usecases.NewIndexer(deps.CodeGraphRepo, root, project).IndexFiles(goFiles)
+	_, _ = usecases.NewIndexer(deps.CodeGraphRepo, root, project).IndexFiles(goFiles)
 }
 
 func stringSliceFromPayload(v any) []string {
@@ -1111,8 +1111,8 @@ func hookChannelActivity(deps *Deps, args []string, errMsg string) {
 	}
 	agente, ambito, canal := args[0], args[1], args[2]
 	if errMsg != "" {
-		deps.ChannelActivity.RecordError(agente, ambito, canal, errMsg)
+		_ = deps.ChannelActivity.RecordError(agente, ambito, canal, errMsg)
 		return
 	}
-	deps.ChannelActivity.RecordFired(agente, ambito, canal)
+	_ = deps.ChannelActivity.RecordFired(agente, ambito, canal)
 }

@@ -1,8 +1,9 @@
 package domain
 
-import "strings"
-
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // T058 — AC-013: un resultado que excede el presupuesto de integración se reduce
 // preservando lo que las tareas posteriores necesitan y descartando el relleno.

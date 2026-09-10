@@ -242,6 +242,13 @@ func TestRenderTurnEndPorDialecto(t *testing.T) {
 		}
 	})
 
+	t.Run("codex stop usa el sobre admitido", func(t *testing.T) {
+		got := renderTurnEnd(dialectJSON, refuerzo, false)
+		if !strings.Contains(got, `"systemMessage"`) || strings.Contains(got, `"context"`) {
+			t.Fatalf("Codex Stop debe usar systemMessage, salió %s", got)
+		}
+	})
+
 	t.Run("el silencio del render no imprime llaves", func(t *testing.T) {
 		for _, d := range []hookDialect{dialectClaude, dialectJSON, dialectText, dialectNeutral} {
 			if got := renderTurnEnd(d, "", false); got != "" {

@@ -11,7 +11,7 @@ import (
 // Vive bajo infrastructure/templates/ (cubierta por "go:embed all:templates"
 // en infrastructure/main.go), con el mismo prefijo "templates/" que ya usa
 // embeddedTemplate() en cmd_install.go — no hace falta una directiva
-// go:embed nueva.
+// directiva adicional de go:embed.
 const speckitExtensionTemplatesBase = "templates/gomemory-context"
 
 // speckitExtensionScriptPath es la ruta, relativa a la raíz del proyecto

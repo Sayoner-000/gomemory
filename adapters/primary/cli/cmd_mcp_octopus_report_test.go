@@ -26,7 +26,7 @@ func TestOctopusReport_FALLBACK_INLINE_DevuelveResultadoParcial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	deps := &Deps{
 		Root: root, Project: "proj",
@@ -41,13 +41,13 @@ func TestOctopusReport_FALLBACK_INLINE_DevuelveResultadoParcial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server.Connect: %v", err)
 	}
-	defer ss.Close()
+	defer func() { _ = ss.Close() }()
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0"}, nil)
 	cs, err := client.Connect(ctx, ct, nil)
 	if err != nil {
 		t.Fatalf("client.Connect: %v", err)
 	}
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 
 	// Reintentos ya agotados (retries=1 >= DefaultMaxDelegationRetries=1) y
 	// parent_can_do_it=true: la política recomienda FALLBACK_INLINE.
@@ -98,7 +98,7 @@ func TestOctopusReport_InsufficientContext_DevuelveLoFaltante(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	deps := &Deps{
 		Root: root, Project: "proj",
@@ -113,13 +113,13 @@ func TestOctopusReport_InsufficientContext_DevuelveLoFaltante(t *testing.T) {
 	if err != nil {
 		t.Fatalf("server.Connect: %v", err)
 	}
-	defer ss.Close()
+	defer func() { _ = ss.Close() }()
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0"}, nil)
 	cs, err := client.Connect(ctx, ct, nil)
 	if err != nil {
 		t.Fatalf("client.Connect: %v", err)
 	}
-	defer cs.Close()
+	defer func() { _ = cs.Close() }()
 
 	// Ampliación ya agotada (expansions=1 >= DefaultMaxContextExpansions=1) y
 	// parent_can_do_it=true: la política recomienda FALLBACK_INLINE.

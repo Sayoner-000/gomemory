@@ -13,7 +13,7 @@ func TestRecordVerdict_InsertsNewRelation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	relRepo := persistence.NewRelationRepository(db)
 
 	rel, updated, err := usecases.RecordVerdict(relRepo, "proj", 1, 2, domain.ConflictsWith, 0.8, "se contradicen")
@@ -33,7 +33,7 @@ func TestRecordVerdict_UpdatesExistingRelationForPair(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	relRepo := persistence.NewRelationRepository(db)
 
 	first, _, err := usecases.RecordVerdict(relRepo, "proj", 1, 2, domain.ConflictsWith, 0.5, "conflicto inicial")
@@ -69,7 +69,7 @@ func TestRecordVerdict_RejectsSelfComparison(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	relRepo := persistence.NewRelationRepository(db)
 
 	if _, _, err := usecases.RecordVerdict(relRepo, "proj", 5, 5, domain.Related, 1.0, "x"); err == nil {

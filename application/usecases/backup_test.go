@@ -21,7 +21,7 @@ func TestCreateSnapshot_WritesValidBundleAndRestores(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	relRepo := persistence.NewRelationRepository(db)
@@ -54,7 +54,9 @@ func TestCreateSnapshot_WritesValidBundleAndRestores(t *testing.T) {
 		t.Fatalf("open snapshot: %v", err)
 	}
 	decoded, err := usecases.DecodeBundle(f)
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatalf("cerrar snapshot: %v", err)
+	}
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -84,7 +86,7 @@ func TestCreateSnapshot_PrunesOldestBeyondKeep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	relRepo := persistence.NewRelationRepository(db)
@@ -124,7 +126,7 @@ func TestCreateSnapshot_NeverBlocksOnBadDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	relRepo := persistence.NewRelationRepository(db)

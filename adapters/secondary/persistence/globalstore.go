@@ -255,13 +255,15 @@ func doMigrateLegacy(root, key string) error {
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = moveFile(legacyPath+suffix, globalPath+suffix)
 	}
-	os.Chmod(globalPath, 0o600) // hardening: el legado migrado hereda los permisos del mem.db nuevo
+	if err := os.Chmod(globalPath, 0o600); err != nil {
+		return fmt.Errorf("endurecer permisos de mem.db migrado: %w", err)
+	}
 
 	db, err := sql.Open("sqlite", globalPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return fmt.Errorf("abrir mem.db migrado: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	for _, table := range legacyProjectTables {
 		query := fmt.Sprintf("UPDATE %s SET project = ? WHERE project = ?", table)
@@ -288,14 +290,14 @@ func moveFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
+		_ = out.Close()
 		return err
 	}
 	if err := out.Close(); err != nil {

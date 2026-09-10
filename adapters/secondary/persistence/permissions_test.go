@@ -23,7 +23,7 @@ func TestOpen_HardensFilePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	dbPath := DbPath(root)
 	info, err := os.Stat(dbPath)

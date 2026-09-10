@@ -77,12 +77,14 @@ func Open(root string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	if err := migrate(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	// El driver sqlite no expone un modo de creación de archivo: se endurece
 	// explícitamente a 0600 tras abrir (idempotente sobre una BD ya existente).
-	os.Chmod(path, 0o600)
+	// Endurecer permisos es deseable, pero no debe impedir abrir una BD ya
+	// utilizable cuando el filesystem no permite chmod (p. ej. read-only).
+	_ = os.Chmod(path, 0o600)
 	return db, nil
 }
 
@@ -380,25 +382,25 @@ func migrate(db *sql.DB) error {
 	// parcial: solo indexa filas con tópico. Idempotente (IF NOT EXISTS).
 	addColumnIfMissing(db, "memories", "topic_key", "TEXT")
 	addColumnIfMissing(db, "memories", "source_review_id", "INTEGER")
-	db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
+	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
 
 	// Unique index para INSERT OR IGNORE en formSynapse: evita duplicar
 	// relaciones sinápticas sin necesidad de SELECT previo. Best-effort: si
 	// ya existen filas duplicadas, el índice se crea de todos modos.
-	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_pair ON memory_relations(project, memory_id_a, memory_id_b)`)
+	_, _ = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_pair ON memory_relations(project, memory_id_a, memory_id_b)`)
 
 	// FTS5 es best-effort y separado del schema principal: si la build de
 	// sqlite en uso no lo soporta, code_search simplemente no existe y
 	// SearchNodes cae a LIKE — no debe romper la migración del resto de
 	// gomemory (memorias, sesiones, relaciones).
-	db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(
+	_, _ = db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(
 		name, signature, package, node_id UNINDEXED
 	)`)
 
 	// FTS5 para memorias (specs/009-mitigacion-riesgos, Historia de Usuario 3):
 	// mismo trato best-effort que code_search — si el build no soporta FTS5,
 	// memory_search simplemente no existe y SearchMemories cae a LIKE.
-	db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_search USING fts5(
+	_, _ = db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_search USING fts5(
 		title, content, memory_id UNINDEXED
 	)`)
 
@@ -410,5 +412,5 @@ func migrate(db *sql.DB) error {
 // columna duplicada (base ya migrada) se ignora en silencio. Best-effort: no
 // debe romper la migración del resto del esquema.
 func addColumnIfMissing(db *sql.DB, table, column, typ string) {
-	db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, typ))
+	_, _ = db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, typ))
 }

@@ -8,7 +8,9 @@ import (
 
 func TestProjectKeyIsDeterministic(t *testing.T) {
 	root := "/home/user/projects/foo"
-	if ProjectKey(root) != ProjectKey(root) {
+	first := ProjectKey(root)
+	second := ProjectKey(root)
+	if first != second {
 		t.Fatal("ProjectKey debe ser determinística para la misma ruta")
 	}
 }
@@ -80,7 +82,11 @@ func TestFindProjectRootUsesGitRoot(t *testing.T) {
 	}
 
 	origWd, _ := os.Getwd()
-	defer os.Chdir(origWd)
+	t.Cleanup(func() {
+		if err := os.Chdir(origWd); err != nil {
+			t.Errorf("restaurar directorio: %v", err)
+		}
+	})
 	if err := os.Chdir(sub); err != nil {
 		t.Fatalf("chdir: %v", err)
 	}
@@ -100,7 +106,11 @@ func TestFindProjectRootFallsBackToCwdWithoutGit(t *testing.T) {
 	dir := t.TempDir()
 
 	origWd, _ := os.Getwd()
-	defer os.Chdir(origWd)
+	t.Cleanup(func() {
+		if err := os.Chdir(origWd); err != nil {
+			t.Errorf("restaurar directorio: %v", err)
+		}
+	})
 	if err := os.Chdir(dir); err != nil {
 		t.Fatalf("chdir: %v", err)
 	}

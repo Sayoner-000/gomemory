@@ -30,8 +30,8 @@ func CmdMCP(deps *Deps, args []string) {
 	// Auto-start session on MCP server start (best-effort, no debe romper el server)
 	if active, _ := deps.SessionRepo.Active(project); active == nil {
 		if sess, err := deps.SessionRepo.Start(project); err == nil {
-			footprintReset(root)                      // sesión nueva ⇒ huella desde cero
-			os.Remove(preferenceNudgeStatePath(root)) // idem para el refuerzo de preferencias
+			footprintReset(root)                          // sesión nueva ⇒ huella desde cero
+			_ = os.Remove(preferenceNudgeStatePath(root)) // idem para el refuerzo de preferencias
 			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
 		}
 	}
@@ -367,7 +367,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		// el agente lo pide de verdad, así que sin esto la supresión no se
 		// aplicaría nunca en uso real.
 		if deps.DeliveryLog != nil {
-			deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
+			_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + output}},

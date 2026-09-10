@@ -40,7 +40,7 @@ func TestBuildContextPack_NoCodeGraph_ExcludesArchitectureAndBoost(t *testing.T)
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	if _, err := memRepo.Insert(&domain.Memory{

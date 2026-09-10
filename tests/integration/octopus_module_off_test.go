@@ -91,9 +91,9 @@ func TestOctopusModuloApagado(t *testing.T) {
 
 	t.Run("no se escribe ninguna fila de telemetría", func(t *testing.T) {
 		// Intentar usarlo por todas las vías antes de mirar la base.
-		correr("octopus", "route", "investigar algo", "--class", "investigation")
-		correr("octopus", "plan")
-		correr("octopus", "status")
+		_, _ = correr("octopus", "route", "investigar algo", "--class", "investigation")
+		_, _ = correr("octopus", "plan")
+		_, _ = correr("octopus", "status")
 
 		db := baseDelStore(t, env)
 		if db == nil {
@@ -102,7 +102,7 @@ func TestOctopusModuloApagado(t *testing.T) {
 			// evidencia más fuerte de huella cero, no un caso sin comprobar.
 			return
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		var n int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM octopus_executions`).Scan(&n); err != nil {
@@ -137,7 +137,7 @@ func TestOctopusModuloApagado(t *testing.T) {
 		if db == nil {
 			t.Fatal("con el módulo encendido la decisión debería haberse registrado")
 		}
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 
 		var n int
 		if err := db.QueryRow(`SELECT COUNT(*) FROM octopus_executions`).Scan(&n); err != nil {

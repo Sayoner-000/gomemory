@@ -63,7 +63,9 @@ func CmdInstall(deps *Deps, args []string) {
 		if err := copyFile(self, destBin); err != nil {
 			fail("copiar binario: %v", err)
 		}
-		os.Chmod(destBin, 0755)
+		if err := os.Chmod(destBin, 0755); err != nil {
+			fail("ajustar permisos del binario: %v", err)
+		}
 		fmt.Printf("  ✅ Binario copiado a %s\n", destBin)
 	}
 
@@ -220,13 +222,13 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	_, err = io.Copy(out, in)
 	if err != nil {

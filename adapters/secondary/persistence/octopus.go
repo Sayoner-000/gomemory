@@ -31,7 +31,7 @@ func (r *OctopusRepository) RecordDecision(project, planID string, class domain.
 	if d.Route.Delegada() {
 		estimated = d.EstimatedCost.Total()
 	}
-	r.db.Exec(`
+	_, _ = r.db.Exec(`
 		INSERT INTO octopus_executions
 			(project, plan_id, task_id, task_class, route, reason_code,
 			 parallel_group, context_budget, output_budget, estimated_tokens, decided_at)
@@ -49,7 +49,7 @@ func (r *OctopusRepository) RecordReport(project string, rep domain.ExecutionRep
 	if r == nil || r.db == nil || project == "" || rep.TaskID == "" {
 		return
 	}
-	r.db.Exec(`
+	_, _ = r.db.Exec(`
 		UPDATE octopus_executions
 		SET route = CASE WHEN ? <> '' THEN ? ELSE route END,
 		    status = ?, context_tokens = ?, output_tokens = ?,
@@ -84,7 +84,7 @@ func (r *OctopusRepository) Evidence(project string) map[domain.TaskClass]*domai
 	if err != nil {
 		return out
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var clase string
@@ -120,7 +120,7 @@ func (r *OctopusRepository) Stats(project string) domain.RoutingStats {
 	if err != nil {
 		return stats
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var route string
@@ -139,7 +139,7 @@ func (r *OctopusRepository) Stats(project string) domain.RoutingStats {
 	}
 
 	// Ancho de paralelismo: el grupo más grande observado.
-	r.db.QueryRow(`
+	_ = r.db.QueryRow(`
 		SELECT COALESCE(MAX(n), 0) FROM (
 			SELECT COUNT(*) AS n FROM octopus_executions
 			WHERE project = ? AND parallel_group <> ''
@@ -177,7 +177,7 @@ func (r *OctopusRepository) History(project string, class domain.TaskClass, limi
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []domain.ExecutionRecord
 	for rows.Next() {

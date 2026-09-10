@@ -33,7 +33,7 @@ func TestReviewSchemaMigrationIsAdditive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("abrir una BD preexistente: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	for _, table := range []string{"reviews", "reviewer_results", "findings", "consensus_findings", "fix_rounds"} {
 		var count int
@@ -68,7 +68,7 @@ func TestReviewRepositoryRoundTripAndIdempotentResubmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	target, err := domain.NewTarget(domain.TargetDiff, "working-tree", "sha256:frozen", []string{"domain/"})
 	if err != nil {
@@ -179,7 +179,7 @@ func TestReviewerResultAtomicoRechazaTerminalSinMutarElLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewReviewRepository(db)
 	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
 	review := &domain.Review{
@@ -223,7 +223,7 @@ func TestReviewerResultsMarkCambiaConElLedger(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewReviewRepository(db)
 	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
 	review := &domain.Review{
@@ -319,15 +319,15 @@ func TestReviewRedactaSecretosEnTextoLibre(t *testing.T) {
 		for rows.Next() {
 			var valor string
 			if err := rows.Scan(&valor); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				t.Fatalf("%s: %v", consulta.nombre, err)
 			}
 			if strings.Contains(valor, secreto) {
-				rows.Close()
+				_ = rows.Close()
 				t.Fatalf("%s guardó el secreto en claro: %s", consulta.nombre, valor)
 			}
 		}
-		rows.Close()
+		_ = rows.Close()
 	}
 }
 
@@ -377,7 +377,7 @@ func TestMigracion028EsAditivaSobreEsquemaPrevio(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reabrir una base previa a 028: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	columnasNuevas := map[string][]string{
 		"reviews": {
@@ -397,12 +397,12 @@ func TestMigracion028EsAditivaSobreEsquemaPrevio(t *testing.T) {
 			var nombre string
 			var notNull int
 			if err := rows.Scan(&nombre, &notNull); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				t.Fatal(err)
 			}
 			info[nombre] = notNull == 1
 		}
-		rows.Close()
+		_ = rows.Close()
 		for _, columna := range columnas {
 			obligatoria, existe := info[columna]
 			if !existe {
@@ -524,7 +524,7 @@ func TestListConsensusFindings_RevisionInexistenteDevuelveVacio(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	ledger := NewConsensusRepository(db)
 
 	out, err := ledger.ListConsensusFindings("proj", "acr_no_existe", 0)
@@ -548,7 +548,7 @@ func TestUnFailureNoSeSobrescribeDentroDeLaTransaccion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repo := NewReviewRepository(db)
 	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
 	review := &domain.Review{
@@ -603,7 +603,7 @@ func TestGuardaDeFaseYRondaEnElAdaptadorReal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { db.Close() })
+		t.Cleanup(func() { _ = db.Close() })
 		repo := NewReviewRepository(db)
 		target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
 		review := &domain.Review{

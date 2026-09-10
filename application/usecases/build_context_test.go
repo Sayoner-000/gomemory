@@ -40,7 +40,7 @@ func TestBuild_SurfacesUnresolvedConflicts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)
@@ -79,7 +79,7 @@ func TestBuild_NoConflictsSectionWhenResolved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)
@@ -109,7 +109,7 @@ func TestBuild_ExternalGraphSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	builder := usecases.New(persistence.NewMemoryRepository(db), persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 	fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{
@@ -160,7 +160,7 @@ func TestBuild_RespetaPresupuestoYConservaConflictos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)
@@ -175,7 +175,9 @@ func TestBuild_RespetaPresupuestoYConservaConflictos(t *testing.T) {
 	// Muchas memorias largas (títulos ÚNICOS para que el dedup por identidad no
 	// las colapse) para exceder el techo sin acotar.
 	for i := 0; i < 100; i++ {
-		memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: fmt.Sprintf("decisión de relleno %d", i), Content: longContent()})
+		if _, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: fmt.Sprintf("decisión de relleno %d", i), Content: longContent()}); err != nil {
+			t.Fatalf("insertar memoria %d: %v", i, err)
+		}
 	}
 
 	builder := usecases.New(memRepo, sessRepo, relRepo, root, "proj")
@@ -203,11 +205,13 @@ func TestBuild_SinLimiteYProyectoPequeno(t *testing.T) {
 	t.Run("opt-out sin límite", func(t *testing.T) {
 		root := t.TempDir()
 		db, _ := persistence.Init(root)
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		memRepo := persistence.NewMemoryRepository(db)
 		full := longContent()
 		for i := 0; i < 30; i++ {
-			memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: fmt.Sprintf("d%d", i), Content: full})
+			if _, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: fmt.Sprintf("d%d", i), Content: full}); err != nil {
+				t.Fatalf("insertar memoria %d: %v", i, err)
+			}
 		}
 		builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 		builder.Budget = -1
@@ -221,9 +225,11 @@ func TestBuild_SinLimiteYProyectoPequeno(t *testing.T) {
 	t.Run("proyecto pequeño sin truncado", func(t *testing.T) {
 		root := t.TempDir()
 		db, _ := persistence.Init(root)
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		memRepo := persistence.NewMemoryRepository(db)
-		memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "chica", Content: "contenido corto y completo"})
+		if _, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "chica", Content: "contenido corto y completo"}); err != nil {
+			t.Fatalf("insertar memoria chica: %v", err)
+		}
 		builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 		builder.Budget = 24000
 		out, _ := builder.Build()
@@ -242,7 +248,7 @@ func TestBuild_ExternalGraphAbsentWhenUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	builder := usecases.New(persistence.NewMemoryRepository(db), persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 	fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "codebase-memory-mcp", Available: false}}
@@ -271,14 +277,14 @@ func TestBuild_HotCodeSection_MatchAparece(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
-	memRepo.Insert(&domain.Memory{
+	_, _ = memRepo.Insert(&domain.Memory{
 		Project: "proj", Type: domain.Bugfix, Title: "fix parser de rutas",
 		Content: "...", Filepath: "adapters/secondary/persistence/memory.go",
 	})
-	memRepo.Insert(&domain.Memory{
+	_, _ = memRepo.Insert(&domain.Memory{
 		Project: "proj", Type: domain.Decision, Title: "no toca hotspot",
 		Content: "...", Filepath: "docs/README.md",
 	})
@@ -325,9 +331,9 @@ func TestBuild_HotCodeSection_AusenteSinMatchNiProveedor(t *testing.T) {
 	t.Run("proveedor presente pero sin match", func(t *testing.T) {
 		root := t.TempDir()
 		db, _ := persistence.Init(root)
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		memRepo := persistence.NewMemoryRepository(db)
-		memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "algo", Content: "...", Filepath: "no/existe.go"})
+		_, _ = memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "algo", Content: "...", Filepath: "no/existe.go"})
 
 		builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 		fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "codebase-memory-mcp", Available: true, Architecture: &domain.CodeArchitecture{}}}
@@ -345,9 +351,9 @@ func TestBuild_HotCodeSection_AusenteSinMatchNiProveedor(t *testing.T) {
 	t.Run("sin CodeProviders configurados", func(t *testing.T) {
 		root := t.TempDir()
 		db, _ := persistence.Init(root)
-		defer db.Close()
+		defer func() { _ = db.Close() }()
 		memRepo := persistence.NewMemoryRepository(db)
-		memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "algo", Content: "...", Filepath: "cualquier/archivo.go"})
+		_, _ = memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "algo", Content: "...", Filepath: "cualquier/archivo.go"})
 
 		builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 		out, err := builder.Build()
@@ -383,7 +389,7 @@ func (f *fakeUsageRecorder) Record(operation string, baselineTokens, emittedToke
 func TestBuild_TightBudget_RecordsBaselineGreaterThanEmitted(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	// Contenido largo a propósito: debe superar entryExtractChars (200) para
@@ -391,7 +397,7 @@ func TestBuild_TightBudget_RecordsBaselineGreaterThanEmitted(t *testing.T) {
 	// presupuesto para forzar además el descarte en fits().
 	long := strings.Repeat("contenido largo de sobra para forzar el truncado del extracto. ", 20)
 	for i := 0; i < 6; i++ {
-		memRepo.Insert(&domain.Memory{
+		_, _ = memRepo.Insert(&domain.Memory{
 			Project: "proj", Type: domain.Decision,
 			Title: fmt.Sprintf("decisión %d", i), Content: long,
 		})
@@ -422,9 +428,9 @@ func TestBuild_TightBudget_RecordsBaselineGreaterThanEmitted(t *testing.T) {
 func TestBuild_UnlimitedBudget_BaselineNeverBelowEmitted(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
-	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "d", Content: "contenido corto"})
+	_, _ = memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "d", Content: "contenido corto"})
 
 	rec := &fakeUsageRecorder{}
 	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
@@ -449,7 +455,7 @@ func TestBuild_UnlimitedBudget_BaselineNeverBelowEmitted(t *testing.T) {
 func TestBuild_NilRecorder_DoesNotPanic(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
@@ -466,7 +472,7 @@ func TestBuild_NilRecorder_DoesNotPanic(t *testing.T) {
 func TestBuild_IndexMode_NoBodiesButAllIDsPresent(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	secretBody := "CONTENIDO-SECRETO-QUE-NO-DEBE-APARECER-JAMAS-EN-MODO-INDICE"
@@ -502,7 +508,7 @@ func TestBuild_IndexMode_NoBodiesButAllIDsPresent(t *testing.T) {
 func TestBuild_IndexMode_StructureUnaffectedOutsideContent(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 	relRepo := persistence.NewRelationRepository(db)
 
@@ -547,9 +553,9 @@ func TestBuild_IndexMode_StructureUnaffectedOutsideContent(t *testing.T) {
 func TestBuild_IndexMode_ReversibleToIdenticalOutput(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
-	memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Learning, Title: "algo", Content: "contenido de prueba"})
+	_, _ = memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Learning, Title: "algo", Content: "contenido de prueba"})
 
 	before := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 	outBefore, err := before.Build()
@@ -576,7 +582,7 @@ func TestBuild_IndexMode_ReversibleToIdenticalOutput(t *testing.T) {
 func TestBuild_IndexMode_EmptyProject_ExplicitEmptyIndex(t *testing.T) {
 	root := t.TempDir()
 	db, _ := persistence.Init(root)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	memRepo := persistence.NewMemoryRepository(db)
 
 	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
@@ -602,7 +608,7 @@ func TestBuild_CheckpointsRespectBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	memRepo := persistence.NewMemoryRepository(db)
 	sessRepo := persistence.NewSessionRepository(db)

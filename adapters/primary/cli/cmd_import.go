@@ -25,7 +25,7 @@ func CmdImport(deps *Deps, args []string) {
 	if err != nil {
 		fail("abrir %s: %v", rest[0], err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	bundle, err := usecases.DecodeBundle(f)
 	if err != nil {

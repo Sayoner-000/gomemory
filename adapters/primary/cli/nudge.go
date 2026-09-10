@@ -97,7 +97,7 @@ func computeSaveNudge(deps *Deps, root, project string) (string, bool) {
 			}
 		}
 	}
-	os.WriteFile(state, []byte(strconv.FormatInt(now, 10)), 0644)
+	_ = os.WriteFile(state, []byte(strconv.FormatInt(now, 10)), 0644)
 	return saveNudgeMessage, true
 }
 
