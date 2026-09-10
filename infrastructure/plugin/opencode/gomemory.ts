@@ -360,5 +360,10 @@ persists. It rejects a CONFIRMED finding without two independent sources, a fix
 on an unconfirmed finding, and any verdict you try to pass in as a parameter —
 so do not work around it, the rejection is the point.
 
+${T_REVIEW_START} INPUT: provide target_type, revision, and digest. Omit scope
+unless the review must be narrowed. If scope is needed, it is a JSON array of
+repository-relative paths — use scope: ["."] for the repository root, never
+scope: . or any other bare path.
+
 SESSION CLOSE: before saying "done", call ${T_END_SESSION}(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;

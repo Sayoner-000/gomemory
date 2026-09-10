@@ -63,13 +63,15 @@ type reviewUnmatchedInput struct {
 
 func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "review_start",
-		Description: "Congela un target y abre una revisión adversarial sin ejecutar modelos.",
+		Name: "review_start",
+		Description: "Congela un target y abre una revisión adversarial sin ejecutar modelos. " +
+			"scope es opcional: si se proporciona, debe ser un arreglo JSON de rutas relativas, " +
+			"por ejemplo [\".\"]; nunca una ruta suelta.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		TargetType        string              `json:"target_type"`
 		Revision          string              `json:"revision"`
 		Digest            string              `json:"digest"`
-		Scope             []string            `json:"scope,omitempty"`
+		Scope             []string            `json:"scope,omitempty" jsonschema:"Opcional: arreglo JSON de rutas relativas; omitir para todo el target. Ejemplo: [\".\"]"`
 		ReviewerA         reviewIdentityInput `json:"reviewer_a,omitempty"`
 		ReviewerB         reviewIdentityInput `json:"reviewer_b,omitempty"`
 		MaxFixRounds      int                 `json:"max_fix_rounds,omitempty"`

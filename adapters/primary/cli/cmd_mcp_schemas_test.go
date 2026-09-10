@@ -84,3 +84,42 @@ func TestReviewSubmitPublishedSchemaExplainsValidStatuses(t *testing.T) {
 	}
 	t.Fatal("review_submit no está publicada")
 }
+
+func TestReviewStartPublishedSchemaExplainsScopeArray(t *testing.T) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "gomemory-schema-probe", Version: "internal"}, nil)
+	registerReviewTools(server, &Deps{Project: "proj"}, "proj")
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar servidor MCP: %v", err)
+	}
+	defer func() { _ = serverSession.Close() }()
+	client := mcp.NewClient(&mcp.Implementation{Name: "gomemory-schema-probe-client", Version: "internal"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar cliente MCP: %v", err)
+	}
+	defer func() { _ = clientSession.Close() }()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("listar tools MCP: %v", err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name != "review_start" {
+			continue
+		}
+		published, err := json.Marshal(tool)
+		if err != nil {
+			t.Fatalf("serializar descriptor de review_start: %v", err)
+		}
+		for _, expected := range []string{"scope es opcional", "arreglo JSON", "[\\\".\\\"]"} {
+			if !strings.Contains(string(published), expected) {
+				t.Errorf("el descriptor MCP publicado de review_start no explica %q", expected)
+			}
+		}
+		return
+	}
+	t.Fatal("review_start no está publicada")
+}

@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [2.20.2] - 2026-09-10
+
+### Fixed
+
+- Aclara el contrato MCP de `review_start`: `scope` es opcional y, cuando se
+  usa, debe ser un arreglo JSON de rutas relativas. OpenCode ya no recibe una
+  guía que pueda inducir una ruta suelta e inválida como `scope: .`.
+- El plugin de OpenCode incluye un ejemplo válido (`scope: ["."]`) y una prueba
+  verifica que el esquema MCP publicado conserve esta aclaración.
+
 ## [2.20.1] - 2026-09-10
 
 ### Security
