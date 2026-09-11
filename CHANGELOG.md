@@ -5,6 +5,30 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.22.3] - 2026-09-11
+
+### Fixed
+
+- Las transacciones de revisión descartan del pool cualquier conexión cuyo
+  `ROLLBACK` falle, evitando que escrituras posteriores queden dentro de una
+  transacción abandonada y se pierdan al cerrar la conexión.
+- La creación automática de sinapsis comprueba el par de memorias en la misma
+  sentencia de inserción. Esto evita relaciones duplicadas incluso si una base
+  heredada no pudo crear `idx_relations_pair` por contener duplicados previos.
+- `ConsensusRepository` ya no expone `UpsertFixDelta`, que permitía escribir una
+  ronda sin validar estado, presupuesto ni digest. La vía de producción queda
+  limitada a `RecordFixAtomically`.
+- Los errores de conflicto de `RecordFixAtomically` incluyen los valores reales
+  y esperados del digest o del número de rondas.
+- Los tests de `adapters/primary/setup` usan un `GOMEMORY_DATA_HOME` temporal y
+  ya no crean proyectos de prueba en el almacén global del usuario.
+
+### Added
+
+- Pruebas de regresión para el descarte de conexiones tras un `ROLLBACK`
+  fallido, la idempotencia de sinapsis sin índice único y la serialización de
+  listas vacías mediante la transición atómica de producción.
+
 ## [v2.22.2] - 2026-09-11
 
 ### Fixed
