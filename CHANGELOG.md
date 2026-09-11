@@ -5,6 +5,35 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.22.1] - 2026-09-11
+
+### Fixed
+
+- `Container.Close()` retorna error; `closeContainer` wrapper lo registra
+  en stderr sin ensuciar stdout (hooks JSON).
+- `tuiProvider` reutiliza `settings` leída una vez en `NewContainer` en
+  vez de re-leer `settings.json` en cada llamada.
+- Mutex en `lastAnchorCache` corrige condición de carrera bajo llamadas
+  MCP paralelas.
+- `formSynapse` ignora checkpoints como ancla: un checkpoint nunca gobierna
+  las memorias que vienen después en la sesión.
+- `StartSession` retorna `CreatedAt` usando `RETURNING` en vez de dejarlo
+  vacío.
+- MCP resource handler: `Get` por ID en vez de `List` de 200 memorias
+  para resolver un recurso por URI.
+- `dropNullUnions` recursivo en `Defs`, `AllOf`, `AnyOf` y `OneOf` —
+  cierra la vía de escape que dejaba uniones con null en composición.
+- `build_context`: `relTitle` formatea títulos de conflictos sin depender
+  de que ambos extremos estén en la ventana cargada.
+- Plugin OpenCode: `T_REVIEW_PROMOTE` renombrado a `T_REVIEW_PROMOTE_MEMORY`
+  para alinearse con el nombre real de la tool MCP.
+
+### Added
+
+- Tests: cobertura de MCP schemas (null unions en composición), resource
+  handler por ID, concurrencia de sinapsis, sesión con `CreatedAt` y
+  nombres de tools OpenCode.
+
 ## [v2.22.0] - 2026-09-11
 
 ### Fixed
