@@ -22,7 +22,7 @@ import (
 // Ninguna de estas tools ejecuta nada: Octopus produce política, el runtime
 // ejecuta (INV-AAR-018).
 func registerOctopusTools(server *mcp.Server, deps *Deps) {
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: domain.ToolOctopusRouteTask,
 		Description: "Decide si una unidad de trabajo debe ejecutarse en el agente principal (INLINE) o " +
 			"delegarse a un subagente (DELEGATE), esperar dependencias (WAIT) o rechazarse (REJECT). " +
@@ -110,7 +110,7 @@ func registerOctopusTools(server *mcp.Server, deps *Deps) {
 			Content: []mcp.Content{&mcp.TextContent{Text: RenderRouteDecision(decision, nil)}},
 		}, nil, nil
 	})
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: domain.ToolOctopusRoutePlan,
 		Description: "Enruta un grafo de tareas completo: devuelve la decisión de cada unidad (INLINE, " +
 			"DELEGATE, PARALLEL, WAIT o REJECT) con su razón, los grupos que pueden ejecutarse a la vez y " +
@@ -202,7 +202,7 @@ func registerOctopusTools(server *mcp.Server, deps *Deps) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: domain.ToolOctopusReport,
 		Description: "Informa a Octopus del resultado real de una unidad ya ejecutada: consumo, duración y " +
 			"calidad. Sirve para contrastar lo estimado con lo ocurrido y mejorar las estimaciones futuras. " +
@@ -271,7 +271,7 @@ func registerOctopusTools(server *mcp.Server, deps *Deps) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: domain.ToolOctopusStatus,
 		Description: "Estado del enrutador: topes efectivos y agregados de telemetría — conteos por ruta, " +
 			"consumo estimado frente a real, éxitos, fallos y ancho de paralelismo observado.",

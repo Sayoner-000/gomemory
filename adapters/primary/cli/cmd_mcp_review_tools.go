@@ -62,7 +62,7 @@ type reviewUnmatchedInput struct {
 }
 
 func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "review_start",
 		Description: "Congela un target y abre una revisión adversarial sin ejecutar modelos. " +
 			"scope es opcional: si se proporciona, debe ser un arreglo JSON de rutas relativas, " +
@@ -102,7 +102,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		})
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "review_submit",
 		Description: "Registra el resultado final estructurado de un revisor para el target congelado. " +
 			"status debe ser exactamente success (la revisión terminó, incluso sin hallazgos) o failure " +
@@ -137,7 +137,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		})
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "review_consensus",
 		Description: "Valida y persiste una clasificación de consenso propuesta por el agente orquestador.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -170,7 +170,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		})
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "review_fix_record",
 		Description: "Registra una corrección ya aplicada fuera de gomemory y avanza la revisión a re-revisión. " +
 			"Rechaza hallazgos no confirmados, severidades fuera de política sin autorización explícita, " +
@@ -201,7 +201,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		return reviewToolResult(map[string]any{"fix_delta": delta})
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "review_rejudge",
 		Description: "Registra el resultado de la revalidación de los hallazgos confirmados tras una corrección " +
 			"(RESOLVED, UNRESOLVED o REGRESSED). Exige una corrección previa registrada.",
@@ -240,7 +240,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		return reviewToolResult(map[string]any{"rejudged": salida})
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "review_status",
 		Description: "Consulta el estado persistido de una revisión sin ejecutar transiciones.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -256,7 +256,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		return construirEstadoDeRevision(deps, project, review)
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "review_finalize",
 		Description: "Deriva el veredicto terminal exclusivamente desde el estado persistido.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -282,7 +282,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		})
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "review_promote_memory",
 		Description: "Convierte defectos confirmados Y resueltos en memoria reutilizable del proyecto. " +
 			"Solo acepta problema, causa raíz, resolución y verificación: no hay dónde poner un transcript " +

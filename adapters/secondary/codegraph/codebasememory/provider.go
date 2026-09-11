@@ -174,6 +174,7 @@ func (p *Provider) Refresh(ctx context.Context) {
 	if !ok {
 		return // repo no indexado o CLI falló → no disponible (sin indexar)
 	}
+	snap.Project = project
 	arch, qualifiedNames, ok := p.fetchArchitecture(ctx, project)
 	if !ok {
 		return

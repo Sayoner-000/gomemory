@@ -124,7 +124,7 @@ func newMCPServer(deps *Deps, root, project string) *mcp.Server {
 func registerTools(server *mcp.Server, deps *Deps, project string) {
 	registerReviewTools(server, deps, project)
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "save_memory",
 		Description: "Guarda un aprendizaje, decisión, bugfix, patrón o descubrimiento en la memoria del " +
 			"proyecto. Llámala PROACTIVAMENTE, sin esperar a que el usuario lo pida, inmediatamente después " +
@@ -161,7 +161,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "search_memories",
 		Description: "Busca en todas las memorias del proyecto por texto",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -188,7 +188,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "list_memories",
 		Description: "Lista las memorias más recientes del proyecto",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -214,7 +214,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "get_memory",
 		Description: "Obtiene una memoria específica por su ID",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -234,7 +234,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "start_session",
 		Description: "Inicia una nueva sesión de trabajo (las próximas memorias se asocian a ella). " +
 			"Normalmente no hace falta llamarla a mano: el servidor ya abre una sesión automáticamente " +
@@ -255,7 +255,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "end_session",
 		Description: "Finaliza la sesión de trabajo activa con un resumen. Llámala antes de dar la tarea " +
 			"por terminada, no solo cuando el usuario lo pida explícitamente. Estructura el resumen en " +
@@ -287,7 +287,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	// memoria guardada después quedaba sin sesión asociada (research.md R4).
 	// Igual que save_memory, si no hay sesión activa abre una — así el
 	// resumen nunca se pierde por no haber una sesión previa.
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: domain.ToolSaveSessionSummary,
 		Description: "Guarda o actualiza el resumen de la sesión de memoria activa sin cerrarla. " +
 			"Úsala tras una compactación de la conversación, con el resumen de lo trabajado hasta ese punto.",
@@ -318,7 +318,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "forget_memory",
 		Description: "Borra una memoria específica del proyecto por su ID (irreversible)",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -338,7 +338,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "judge_memories",
 		Description: "Actúa como juez imparcial entre dos memorias que se contradicen: relee el código/archivo " +
 			"fuente actual para verificar cuál refleja los hechos reales (no asumas que la más reciente gana) y " +
@@ -389,7 +389,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "get_context",
 		Description: "Obtiene el contexto completo del proyecto como markdown: arquitectura, decisiones, " +
 			"bugs, aprendizajes, sesiones previas. Llámala SIEMPRE al inicio de una sesión de trabajo, " +
@@ -416,7 +416,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	// vez al entrar en modo plan en vez de encadenar dos pasos que puede
 	// ejecutar a medias. La descripción es parte del contrato: es lo que el
 	// agente lee para decidir cuándo llamarla, así que enumera el disparador.
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "get_plan_context",
 		Description: "Obtiene el método de descomposición atómica y el contexto histórico del proyecto " +
 			"para planificar. Llámala SIEMPRE al entrar en modo plan, ANTES de redactar el plan: " +
@@ -452,7 +452,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	// pack_build (feature 015): Context Optimization Engine. Mismo caso de uso
 	// que `mem pack build` (agnóstico de cliente MCP y de proveedor de LLM —
 	// ver specs/015-context-optimization/contracts/mcp-tools.md "Regla de oro").
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "pack_build",
 		Description: "Construye un ContextPack: recupera memorias relevantes a una tarea, elimina " +
 			"duplicados, clasifica por prioridad, comprime lo no crítico y arma un paquete que nunca " +
@@ -493,7 +493,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	// pack_show/pack_stats (feature 015): igual que sus contrapartes CLI, son
 	// stateless — reciben un ContextPack ya construido (p. ej. por pack_build)
 	// y solo lo reformatean. Ningún estado se recuerda entre llamadas.
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "pack_show",
 		Description: "Reformatea en Markdown legible un ContextPack ya construido (p. ej. por pack_build).",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -504,7 +504,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "pack_stats",
 		Description: "Devuelve solo el bloque de estadísticas de reducción de un ContextPack ya construido.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -515,7 +515,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name: "pack_compress",
 		Description: "Comprime un texto arbitrario de forma determinista (sin retrieval ni presupuesto) " +
 			"y reporta el costo en tokens antes/después.",

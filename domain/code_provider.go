@@ -13,6 +13,10 @@ type CodeProviderSnapshot struct {
 	Available    bool              `json:"available"`
 	CheckedAt    time.Time         `json:"checked_at"`
 	Architecture *CodeArchitecture `json:"architecture,omitempty"`
+	// Project es el nombre con que el proveedor indexó RootPath (p. ej.
+	// "Users-x-repo"), el valor que sus tools exigen en `project`. Sin él los
+	// agentes adivinan el nombre corto del repo y la llamada falla.
+	Project string `json:"project,omitempty"`
 }
 
 // Stale indica si el snapshot superó el TTL y conviene disparar un refresco en

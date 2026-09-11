@@ -16,7 +16,7 @@ import (
 // registerTools. Todas son de solo lectura salvo index_project, que solo
 // escribe en .memory/ — ninguna toca el código fuente del proyecto.
 func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "index_project",
 		Description: "Indexa (o reindexa) el código Go del proyecto en el grafo de símbolos: funciones, métodos, tipos, imports y llamadas",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -34,7 +34,7 @@ func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "graph_status",
 		Description: "Muestra el tamaño del grafo de código indexado: archivos, símbolos, relaciones y paquetes principales",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
@@ -61,7 +61,7 @@ func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "search_code",
 		Description: "Busca símbolos de código (funciones, métodos, tipos) por nombre, firma o paquete",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -88,7 +88,7 @@ func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "get_symbol",
 		Description: "Obtiene la definición de un símbolo (función/método/tipo) por nombre, con sus callers y callees directos",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -129,7 +129,7 @@ func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}, nil, nil
 	})
 
-	mcp.AddTool(server, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "list_dependencies",
 		Description: "Recorre el grafo de dependencias de un símbolo (llamadas o imports) hasta cierta profundidad",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {

@@ -1048,15 +1048,19 @@ func hookPlanGuard(deps *Deps, args []string) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
 		permit()
+		return
 	}
 	if deps.SettingsRepo.Read(root).PlanGuardDisabled {
 		permit()
+		return
 	}
 	if planEpisodeDenied(root) {
 		permit()
+		return
 	}
 	if domain.EvaluatePlanShape(plan) != domain.ShapeMissing {
 		permit()
+		return
 	}
 
 	planEpisodeMarkDenied(root)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"path/filepath"
 
 	"mem/adapters/primary/cli"
@@ -18,6 +19,7 @@ import (
 type Container struct {
 	Root    string
 	Project string
+	db      *sql.DB
 
 	MemoryRepo      ports.MemoryRepository
 	SessionRepo     ports.SessionRepository
@@ -169,6 +171,7 @@ func NewContainer(root, channel string) (*Container, error) {
 	c := &Container{
 		Root:    root,
 		Project: project,
+		db:      db,
 
 		MemoryRepo:      memRepo,
 		SessionRepo:     sessRepo,
@@ -203,6 +206,9 @@ func NewContainer(root, channel string) (*Container, error) {
 }
 
 func (c *Container) Close() {
+	if c.db != nil {
+		c.db.Close()
+	}
 }
 
 func (c *Container) ToDeps() *cli.Deps {

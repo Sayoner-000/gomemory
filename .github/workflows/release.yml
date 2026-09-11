@@ -30,3 +30,29 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Tras publicar, lleva el literal de version/version.go a la release "latest"
+  # para que los `go build` locales no se anuncien con una versión vieja. Usa la
+  # release latest (no el tag del push): un prerelease o un hotfix de una línea
+  # anterior no hace retroceder la versión.
+  sync-version:
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout rama por defecto
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Sincronizar version/version.go
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          scripts/sync_version.sh
+          if git diff --quiet -- version/version.go; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(version): sincroniza version.go con ${GITHUB_REF_NAME}" -- version/version.go
+          git push origin "HEAD:${DEFAULT_BRANCH}"

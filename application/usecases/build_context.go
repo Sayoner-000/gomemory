@@ -38,6 +38,9 @@ func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 	var sb strings.Builder
 	a := snap.Architecture
 	fmt.Fprintf(&sb, "## Grafo de código externo (%s)\n\n", snap.Provider)
+	if snap.Project != "" {
+		fmt.Fprintf(&sb, "Proyecto indexado: `%s` — pásalo tal cual en el parámetro `project` de sus tools.\n\n", snap.Project)
+	}
 	fmt.Fprintf(&sb, "Grafo estructural indexado: %d nodos, %d relaciones.", a.TotalNodes, a.TotalEdges)
 	if len(a.Languages) > 0 {
 		parts := make([]string, 0, len(a.Languages))

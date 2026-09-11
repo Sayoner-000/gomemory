@@ -123,3 +123,61 @@ func TestReviewStartPublishedSchemaExplainsScopeArray(t *testing.T) {
 	}
 	t.Fatal("review_start no está publicada")
 }
+
+// TestPublishedSchemasHaveNoNullUnions protege contra la regresión vista en
+// OpenCode: ante {"type":["null","boolean"]} el modelo emitió
+// `"fix_authorized": .` y review_start murió como JSON inválido. Recorre lo que
+// el servidor REAL publica, así que cubre también las tools que se añadan.
+func TestPublishedSchemasHaveNoNullUnions(t *testing.T) {
+	deps := &Deps{Project: "proj"}
+	server := mcp.NewServer(&mcp.Implementation{Name: "gomemory-schema-probe", Version: "internal"}, nil)
+	registerTools(server, deps, "proj")
+	registerCodeTools(server, deps, "", "proj")
+	registerOctopusTools(server, deps)
+
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar servidor MCP: %v", err)
+	}
+	defer func() { _ = serverSession.Close() }()
+	client := mcp.NewClient(&mcp.Implementation{Name: "gomemory-schema-probe-client", Version: "internal"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar cliente MCP: %v", err)
+	}
+	defer func() { _ = clientSession.Close() }()
+
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("listar tools MCP: %v", err)
+	}
+	for _, tool := range tools.Tools {
+		data, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatalf("serializar esquema de %s: %v", tool.Name, err)
+		}
+		var schema any
+		if err := json.Unmarshal(data, &schema); err != nil {
+			t.Fatalf("decodificar esquema de %s: %v", tool.Name, err)
+		}
+		assertNoNullUnion(t, tool.Name, schema)
+	}
+}
+
+func assertNoNullUnion(t *testing.T, path string, node any) {
+	t.Helper()
+	switch v := node.(type) {
+	case map[string]any:
+		if types, ok := v["type"].([]any); ok {
+			t.Errorf("%s publica una unión de tipos %v; los modelos esperan un tipo simple", path, types)
+		}
+		for key, child := range v {
+			assertNoNullUnion(t, path+"."+key, child)
+		}
+	case []any:
+		for _, child := range v {
+			assertNoNullUnion(t, path, child)
+		}
+	}
+}

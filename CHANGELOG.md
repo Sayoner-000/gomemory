@@ -5,6 +5,27 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.22.0] - 2026-09-11
+
+### Fixed
+
+- MCP schemas: `addTool` elimina uniones con "null" (`["null","boolean"]` →
+  `"boolean"`) de los esquemas publicados. OpenCode emitía valores vacíos
+  (`"fix_authorized": .`) ante estos tipos, causando JSON inválido.
+- `Container.Close()` cierra la conexión SQLite; antes quedaba abierta.
+- `hookPlanGuard` retornaba después de `permit()` para evitar caer en la
+  marca denegada.
+
+### Added
+
+- `CodeProviderSnapshot.Project` expone el nombre canónico con que el
+  grafo externo indexó el repo — los agentes ya no necesitan adivinar el
+  parámetro `project` de las herramientas del grafo.
+- Scripts `bump_version.sh` y `sync_version.sh` para mantener
+  `version/version.go` alineado con la release latest.
+- CI: job `sync-version` en la workflow de release que sincroniza
+  `version/version.go` tras cada publicación.
+
 ## [v2.21.0] - 2026-09-11
 
 ### Added
