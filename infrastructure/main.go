@@ -120,7 +120,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error al abrir TUI: %v\n", err)
 			os.Exit(1)
 		}
-		defer container.Close()
+		defer closeContainer(container)
 
 		if err := container.RunTUI(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error en TUI: %v\n", err)
@@ -140,9 +140,17 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error al inicializar: %v\n", err)
 		os.Exit(1)
 	}
-	defer container.Close()
+	defer closeContainer(container)
 
 	cli.Run(os.Args[1], os.Args[2:], container.ToDeps())
+}
+
+// closeContainer cierra la base de datos y deja constancia en stderr si falla:
+// stdout queda libre para los hooks que emiten JSON.
+func closeContainer(c *Container) {
+	if err := c.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Aviso: no se pudo cerrar la base de datos: %v\n", err)
+	}
 }
 
 // resolveRootForCommand determina la raíz de proyecto a usar antes de

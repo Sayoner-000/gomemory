@@ -16,17 +16,18 @@ func newID() string {
 
 func StartSession(db *sql.DB, project string) (*domain.Session, error) {
 	id := newID()
-	_, err := db.Exec(
-		`INSERT INTO sessions (id, project, created_at) VALUES (?, ?, `+Now+`)`,
+	var createdAt string
+	err := db.QueryRow(
+		`INSERT INTO sessions (id, project, created_at) VALUES (?, ?, `+Now+`) RETURNING created_at`,
 		id, project,
-	)
+	).Scan(&createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("start session: %w", err)
 	}
 	return &domain.Session{
 		ID:        id,
 		Project:   project,
-		CreatedAt: "",
+		CreatedAt: createdAt,
 	}, nil
 }
 

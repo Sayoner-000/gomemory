@@ -73,6 +73,58 @@ func TestBuild_SurfacesUnresolvedConflicts(t *testing.T) {
 	}
 }
 
+// TestBuild_ConflictoConMemoriaFueraDeLaVentana: si un extremo del conflicto
+// quedó fuera de las memorias cargadas, la línea no puede mostrar comillas
+// vacías; usa el mismo marcador que las sinapsis.
+func TestBuild_ConflictoConMemoriaFueraDeLaVentana(t *testing.T) {
+	root := t.TempDir()
+	db, err := persistence.Init(root)
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	memRepo := persistence.NewMemoryRepository(db)
+	sessRepo := persistence.NewSessionRepository(db)
+	relRepo := persistence.NewRelationRepository(db)
+
+	idA, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "decisión antigua", Content: "..."})
+	if err != nil {
+		t.Fatalf("insert a: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE memories SET created_at = datetime('now', '-30 days') WHERE id = ?`, idA); err != nil {
+		t.Fatalf("envejecer a: %v", err)
+	}
+	for i := 0; i < 105; i++ {
+		if _, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Learning, Title: fmt.Sprintf("relleno %d", i), Content: fmt.Sprintf("contenido %d", i)}); err != nil {
+			t.Fatalf("insert relleno %d: %v", i, err)
+		}
+	}
+	// Orden temporal explícito (el empate en el mismo segundo es arbitrario):
+	// A hace 30 días, el relleno hace 1 día, B ahora.
+	if _, err := db.Exec(`UPDATE memories SET created_at = datetime('now', '-1 day') WHERE title LIKE 'relleno %'`); err != nil {
+		t.Fatalf("envejecer relleno: %v", err)
+	}
+	idB, err := memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Decision, Title: "decisión reciente", Content: "..."})
+	if err != nil {
+		t.Fatalf("insert b: %v", err)
+	}
+	if _, _, err := usecases.RecordVerdict(relRepo, "proj", idA, idB, domain.ConflictsWith, 0.9, "se contradicen"); err != nil {
+		t.Fatalf("record verdict: %v", err)
+	}
+
+	out, err := usecases.New(memRepo, sessRepo, relRepo, root, "proj").Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if strings.Contains(out, fmt.Sprintf(`[%d] ""`, idA)) {
+		t.Errorf("el conflicto muestra un título vacío para la memoria %d fuera de la ventana:\n%s", idA, out)
+	}
+	if !strings.Contains(out, fmt.Sprintf(`[%d] (memoria previa)`, idA)) || !strings.Contains(out, `"decisión reciente"`) {
+		t.Errorf("esperaba el marcador de memoria previa y el título reciente en el conflicto:\n%s", out)
+	}
+}
+
 func TestBuild_NoConflictsSectionWhenResolved(t *testing.T) {
 	root := t.TempDir()
 	db, err := persistence.Init(root)

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"mem/application/ports"
@@ -139,7 +140,7 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	// Ambas son canales laterales: la vía inerte los omite por completo.
 	if !opts.inerte {
 		if synapseEnabled {
-			formSynapse(db, m.Project, m.SessionID, id)
+			formSynapse(db, m.Project, m.SessionID, id, m.Type)
 		}
 		exportToADR(m.Project, m.Type, title, content, id)
 	}
@@ -200,7 +201,11 @@ func SetSynapseEnabled(v bool) { synapseEnabled = v }
 // lastAnchorCache guarda el último ID de ancla por sesión para evitar la query
 // de lookup en cada inserción. Clave: "project:sessionID", valor: ID del ancla.
 // Se resetea al reiniciar el proceso (inofensivo: las sesiones son por proceso).
-var lastAnchorCache = make(map[string]int64)
+// anchorMu la protege: el servidor MCP atiende llamadas en paralelo.
+var (
+	anchorMu        sync.Mutex
+	lastAnchorCache = make(map[string]int64)
+)
 
 // codeImpactProvider es el proveedor de grafo de código "activo" para
 // anotación de impacto (feature 010, Historia 1). nil = capacidad
@@ -404,7 +409,7 @@ func nullableTopic(tk string) any {
 // hilo de decisiones de una sesión y cada checkpoint queda enlazado a la decisión
 // que lo gobierna, sin generar ruido checkpoint↔checkpoint. Idempotente (no
 // duplica una arista existente) y best-effort (traga cualquier error).
-func formSynapse(db *sql.DB, project, sessionID string, newID int64) {
+func formSynapse(db *sql.DB, project, sessionID string, newID int64, memType domain.MemoryType) {
 	if strings.TrimSpace(sessionID) == "" {
 		return // Sin sesión no hay co-activación que enlazar.
 	}
@@ -412,7 +417,9 @@ func formSynapse(db *sql.DB, project, sessionID string, newID int64) {
 	cacheKey := project + ":" + sessionID
 
 	// Buscar ancla: primero en caché, luego en DB.
+	anchorMu.Lock()
 	anchorID := lastAnchorCache[cacheKey]
+	anchorMu.Unlock()
 	if anchorID == 0 {
 		err := db.QueryRow(
 			`SELECT id FROM memories
@@ -436,8 +443,14 @@ func formSynapse(db *sql.DB, project, sessionID string, newID int64) {
 		return // best-effort: tragar error.
 	}
 
-	// Actualizar caché: el nuevo ID se convierte en el ancla de esta sesión.
+	// Actualizar caché: el nuevo ID pasa a ser el ancla de esta sesión solo si
+	// es sustantivo; un checkpoint nunca gobierna a los que vienen después.
+	if memType == domain.Checkpoint {
+		return
+	}
+	anchorMu.Lock()
 	lastAnchorCache[cacheKey] = newID
+	anchorMu.Unlock()
 }
 
 // activeSessionLastPrompt devuelve el último prompt registrado en la sesión

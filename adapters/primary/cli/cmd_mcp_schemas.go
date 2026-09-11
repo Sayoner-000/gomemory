@@ -45,6 +45,16 @@ func dropNullUnions(s *jsonschema.Schema) {
 	}
 	dropNullUnions(s.Items)
 	dropNullUnions(s.AdditionalProperties)
+	// Composición y definiciones: hoy el SDK no las genera, pero si un tipo
+	// de entrada llegara a producirlas la unión con null quedaría escondida ahí.
+	for _, def := range s.Defs {
+		dropNullUnions(def)
+	}
+	for _, group := range [][]*jsonschema.Schema{s.AllOf, s.AnyOf, s.OneOf} {
+		for _, sub := range group {
+			dropNullUnions(sub)
+		}
+	}
 }
 
 // measurePublishedSchemas mide el costo en tokens de los descriptores de

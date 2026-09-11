@@ -287,10 +287,8 @@ func (b *Builder) Build() (string, error) {
 			if len(conflicts) > 0 {
 				sb.WriteString("## ⚠ Conflictos sin resolver\n\n")
 				for _, r := range conflicts {
-					titleA := titleByID[r.MemoryIDA]
-					titleB := titleByID[r.MemoryIDB]
-					fmt.Fprintf(&sb, "- [%d] %q ↔ [%d] %q — relee el código actual y llama a judge_memories para resolverlo\n",
-						r.MemoryIDA, titleA, r.MemoryIDB, titleB)
+					fmt.Fprintf(&sb, "- [%d] %s ↔ [%d] %s — relee el código actual y llama a judge_memories para resolverlo\n",
+						r.MemoryIDA, relTitle(titleByID, r.MemoryIDA), r.MemoryIDB, relTitle(titleByID, r.MemoryIDB))
 				}
 				sb.WriteString("\n")
 			}

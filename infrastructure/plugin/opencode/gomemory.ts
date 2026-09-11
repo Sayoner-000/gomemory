@@ -370,7 +370,7 @@ const [
   T_REVIEW_FINALIZE,
   T_REVIEW_FIX_RECORD,
   T_REVIEW_REJUDGE,
-  T_REVIEW_PROMOTE,
+  T_REVIEW_PROMOTE_MEMORY,
 ] = [
   "gomemory_review_start",
   "gomemory_review_submit",
@@ -459,7 +459,7 @@ ${T_REVIEW_CONSENSUS} classifies them, ${T_REVIEW_STATUS} reports progress and
 ${T_REVIEW_FINALIZE} derives the verdict. Only after a CONFIRMED defect exists may
 ${T_REVIEW_FIX_RECORD} register a correction, and ${T_REVIEW_REJUDGE} record whether it
 resolved, failed, or regressed. When a defect ends CONFIRMED and RESOLVED,
-${T_REVIEW_PROMOTE} turns it into reusable project memory — problem, root cause,
+${T_REVIEW_PROMOTE_MEMORY} turns it into reusable project memory — problem, root cause,
 resolution and verification only; there is nowhere to put a transcript. You propose; gomemory validates and
 persists. It rejects a CONFIRMED finding without two independent sources, a fix
 on an unconfirmed finding, and any verdict you try to pass in as a parameter —

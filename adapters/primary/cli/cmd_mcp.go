@@ -564,20 +564,20 @@ func registerResources(server *mcp.Server, deps *Deps, project string) {
 		if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
 			return nil, fmt.Errorf("id inválido: %s", idStr)
 		}
-		mems, err := deps.MemoryRepo.List(project, 200)
+		// Get por ID, no List: una memoria fuera de las más recientes también
+		// debe resolverse.
+		m, err := deps.MemoryRepo.Get(project, int64(id))
 		if err != nil {
 			return nil, err
 		}
-		for _, m := range mems {
-			if m.ID == int64(id) {
-				text := fmt.Sprintf("ID: %d\nTipo: %s\nTítulo: %s\nFecha: %s\n\n%s", m.ID, m.Type, m.Title, m.CreatedAt, m.Content)
-				return &mcp.ReadResourceResult{
-					Contents: []*mcp.ResourceContents{
-						{URI: req.Params.URI, Text: text},
-					},
-				}, nil
-			}
+		if m == nil {
+			return nil, fmt.Errorf("memoria %d no encontrada", id)
 		}
-		return nil, fmt.Errorf("memoria %d no encontrada", id)
+		text := fmt.Sprintf("ID: %d\nTipo: %s\nTítulo: %s\nFecha: %s\n\n%s", m.ID, m.Type, m.Title, m.CreatedAt, m.Content)
+		return &mcp.ReadResourceResult{
+			Contents: []*mcp.ResourceContents{
+				{URI: req.Params.URI, Text: text},
+			},
+		}, nil
 	})
 }

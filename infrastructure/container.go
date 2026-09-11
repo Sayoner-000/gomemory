@@ -20,6 +20,9 @@ type Container struct {
 	Root    string
 	Project string
 	db      *sql.DB
+	// settings es la lectura única de settings.json hecha en NewContainer; el
+	// resto del Container la reutiliza para no ver dos versiones del archivo.
+	settings persistence.Settings
 
 	MemoryRepo      ports.MemoryRepository
 	SessionRepo     ports.SessionRepository
@@ -169,9 +172,10 @@ func NewContainer(root, channel string) (*Container, error) {
 	sessionMemories, _ := memRepo.(ports.SessionMemoryLister)
 
 	c := &Container{
-		Root:    root,
-		Project: project,
-		db:      db,
+		Root:     root,
+		Project:  project,
+		db:       db,
+		settings: settings,
 
 		MemoryRepo:      memRepo,
 		SessionRepo:     sessRepo,
@@ -205,10 +209,11 @@ func NewContainer(root, channel string) (*Container, error) {
 	return c, nil
 }
 
-func (c *Container) Close() {
-	if c.db != nil {
-		c.db.Close()
+func (c *Container) Close() error {
+	if c.db == nil {
+		return nil
 	}
+	return c.db.Close()
 }
 
 func (c *Container) ToDeps() *cli.Deps {
@@ -251,8 +256,7 @@ func (c *Container) ToDeps() *cli.Deps {
 // primero disponible — si ninguno lo está, el primero de la lista (para que
 // la TUI tenga algo que mostrar como "no disponible" en vez de nada).
 func (c *Container) tuiProvider() ports.CodeGraphProvider {
-	s := persistence.ReadSettings(c.Root)
-	providers := buildCodeProviders(c.Root, s)
+	providers := buildCodeProviders(c.Root, c.settings)
 	if active := usecases.FirstAvailable(providers); active != nil {
 		return active
 	}
