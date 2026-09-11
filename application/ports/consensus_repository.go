@@ -61,7 +61,6 @@ type ConsensusRepository interface {
 		findings []domain.ConsensusFinding,
 	) (existentes []domain.ConsensusFinding, idempotente bool, err error)
 
-	UpsertFixDelta(project, reviewID string, delta *domain.FixDelta) error
 	ListFixDeltas(project, reviewID string) ([]domain.FixDelta, error)
 	// RecordFixAtomically aplica la transición completa de una ronda de corrección
 	// en una única transacción. Devuelve error si otra corrección ganó la carrera.

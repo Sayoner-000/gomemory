@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"database/sql"
 	"strings"
 	"testing"
@@ -162,7 +163,7 @@ func TestReviewRepositoryRoundTripAndIdempotentResubmission(t *testing.T) {
 		Verification:          []string{"go test ./domain"},
 		DiffDigest:            "sha256:delta",
 	}
-	if err := consensus.UpsertFixDelta("proj", "acr_test", delta); err != nil {
+	if err := (&ReviewRepository{db: db}).UpsertFixDelta("proj", "acr_test", delta); err != nil {
 		t.Fatal(err)
 	}
 	deltas, err := consensus.ListFixDeltas("proj", "acr_test")
@@ -297,7 +298,7 @@ func TestReviewRedactaSecretosEnTextoLibre(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpsertConsensusFinding: %v", err)
 	}
-	if err := ledger.UpsertFixDelta(project, review.ID, &domain.FixDelta{
+	if err := (&ReviewRepository{db: db}).UpsertFixDelta(project, review.ID, &domain.FixDelta{
 		ReviewID: review.ID, Round: 1,
 		BaseTargetDigest: "sha256:v0", FixedTargetDigest: "sha256:v1",
 		Verification: []string{"curl -H 'Authorization: " + secreto + "'"},
@@ -693,10 +694,10 @@ func TestGuardaDeFaseYRondaEnElAdaptadorReal(t *testing.T) {
 	})
 }
 
-// TestUpsertFixDelta_ListaNilSeGuardaComoArrayVacio: las columnas JSON de
-// fix_rounds declaran DEFAULT '[]'; una lista nil no debe persistirse como el
-// literal null.
-func TestUpsertFixDelta_ListaNilSeGuardaComoArrayVacio(t *testing.T) {
+// TestRecordFixAtomically_ListaNilSeGuardaComoArrayVacio: las columnas JSON
+// de fix_rounds declaran DEFAULT '[]'; una lista nil no debe persistirse como
+// el literal null. Se prueba por la vía de producción (RecordFixAtomically).
+func TestRecordFixAtomically_ListaNilSeGuardaComoArrayVacio(t *testing.T) {
 	db, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -705,12 +706,19 @@ func TestUpsertFixDelta_ListaNilSeGuardaComoArrayVacio(t *testing.T) {
 	repo := NewReviewRepository(db)
 	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
 	if err := repo.CreateReview(&domain.Review{
-		ID: "acr_nil", Project: "proj", Target: target, Status: domain.ReviewAwaitingReviewers,
+		ID: "acr_nil", Project: "proj", Target: target, Status: domain.ReviewConsensusReady,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := NewConsensusRepository(db).UpsertFixDelta("proj", "acr_nil", &domain.FixDelta{Round: 1, DiffDigest: "sha256:d"}); err != nil {
+	if err := NewConsensusRepository(db).RecordFixAtomically("proj", "acr_nil", ports.FixTransition{
+		Delta:               &domain.FixDelta{Round: 1, BaseTargetDigest: "sha256:v0", FixedTargetDigest: "sha256:v1", DiffDigest: "sha256:d"},
+		ExpectedRounds:      0,
+		ExpectedStatus:      domain.ReviewConsensusReady,
+		NextRound:           1,
+		NextStatus:          domain.ReviewRejudging,
+		CurrentTargetDigest: "sha256:v1",
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -723,5 +731,29 @@ func TestUpsertFixDelta_ListaNilSeGuardaComoArrayVacio(t *testing.T) {
 		if v != "[]" {
 			t.Errorf("%s = %q, esperaba []", nombre, v)
 		}
+	}
+}
+
+// TestRollbackOrDiscard_DescartaLaConexionSiFallaElRollback: si el ROLLBACK de
+// una conexión dedicada falla, esa conexión no puede volver al pool: podría
+// conservar la transacción abierta y tragarse las escrituras siguientes. Un
+// ROLLBACK sin transacción activa falla de forma determinista.
+func TestRollbackOrDiscard_DescartaLaConexionSiFallaElRollback(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	ctx := context.Background()
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rollbackOrDiscard(ctx, conn)
+	_ = conn.Close()
+
+	if idle := db.Stats().Idle; idle != 0 {
+		t.Errorf("la conexión volvió al pool (idle=%d) tras un ROLLBACK fallido", idle)
 	}
 }

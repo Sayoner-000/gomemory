@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -205,7 +206,7 @@ func (r *ReviewRepository) SetReviewStatusAtomically(
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+			rollbackOrDiscard(ctx, conn)
 		}
 	}()
 
@@ -357,7 +358,7 @@ func (r *ReviewRepository) UpsertReviewerResultAtomically(
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+			rollbackOrDiscard(ctx, conn)
 		}
 	}()
 
@@ -744,7 +745,7 @@ func (r *ReviewRepository) ReplaceConsensusRound(
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+			rollbackOrDiscard(ctx, conn)
 		}
 	}()
 
@@ -887,6 +888,9 @@ func (r *ReviewRepository) ListAllConsensusFindings(project, reviewID string) ([
 	return out, rows.Err()
 }
 
+// UpsertFixDelta escribe una ronda sin validar estado, presupuesto ni digest y
+// pisa la ronda si ya existe. Por eso NO está en ports.ConsensusRepository:
+// solo sirve para preparar fixtures. La vía de producción es RecordFixAtomically.
 func (r *ReviewRepository) UpsertFixDelta(project, reviewID string, delta *domain.FixDelta) error {
 	internalID, err := r.lookupReviewID(project, reviewID)
 	if err != nil {
@@ -1181,6 +1185,16 @@ func redactarTexto(s string) string {
 // jsonArray serializa una lista para las columnas JSON de fix_rounds, que
 // declaran DEFAULT '[]': una lista nil se guarda como "[]", nunca como "null".
 // json.Marshal de un []string no puede fallar, por eso no hay error que propagar.
+// rollbackOrDiscard deshace la transacción de una conexión dedicada. Si el
+// ROLLBACK falla, marca la conexión como inválida para que database/sql la
+// cierre en vez de devolverla al pool con la transacción abierta: la siguiente
+// sentencia en autocommit que la reutilizara quedaría dentro y se perdería.
+func rollbackOrDiscard(ctx context.Context, conn *sql.Conn) {
+	if _, err := conn.ExecContext(ctx, `ROLLBACK`); err != nil {
+		_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+	}
+}
+
 func jsonArray(items []string) string {
 	if items == nil {
 		items = []string{}
@@ -1229,7 +1243,7 @@ func (r *ReviewRepository) UpsertReJudgment(project, reviewID string, judgment *
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+			rollbackOrDiscard(ctx, conn)
 		}
 	}()
 
@@ -1395,7 +1409,7 @@ func (r *ReviewRepository) RecordFixAtomically(
 	comprometida := false
 	defer func() {
 		if !comprometida {
-			_, _ = conn.ExecContext(ctx, `ROLLBACK`)
+			rollbackOrDiscard(ctx, conn)
 		}
 	}()
 
@@ -1431,7 +1445,8 @@ func (r *ReviewRepository) RecordFixAtomically(
 		actual = original.String
 	}
 	if transition.ExpectedBaseDigest != "" && actual != transition.ExpectedBaseDigest {
-		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección (target vigente %s, se esperaba %s)",
+			transition.NextRound, actual, transition.ExpectedBaseDigest)
 	}
 
 	var rondas int
@@ -1440,7 +1455,8 @@ func (r *ReviewRepository) RecordFixAtomically(
 		return err
 	}
 	if rondas != transition.ExpectedRounds {
-		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección (hay %d rondas, se esperaban %d)",
+			transition.NextRound, rondas, transition.ExpectedRounds)
 	}
 
 	delta := transition.Delta

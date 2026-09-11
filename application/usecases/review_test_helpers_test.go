@@ -376,18 +376,6 @@ func (r *memoryConsensusRepository) ListAllConsensusFindings(project, reviewID s
 	return append([]domain.ConsensusFinding(nil), r.findings[reviewKey(project, reviewID)]...), nil
 }
 
-func (r *memoryConsensusRepository) UpsertFixDelta(project, reviewID string, delta *domain.FixDelta) error {
-	key := reviewKey(project, reviewID)
-	for i := range r.fixes[key] {
-		if r.fixes[key][i].Round == delta.Round {
-			r.fixes[key][i] = *delta
-			return nil
-		}
-	}
-	r.fixes[key] = append(r.fixes[key], *delta)
-	return nil
-}
-
 func (r *memoryConsensusRepository) ListFixDeltas(project, reviewID string) ([]domain.FixDelta, error) {
 	return append([]domain.FixDelta(nil), r.fixes[reviewKey(project, reviewID)]...), nil
 }

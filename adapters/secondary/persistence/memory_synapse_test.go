@@ -123,3 +123,46 @@ func TestFormSynapse_CacheNoRetrocede(t *testing.T) {
 		t.Errorf("ancla en caché = %d, esperaba la más reciente %d", got, ids[2])
 	}
 }
+
+// TestFormSynapse_NoDuplicaSinIndiceUnico: CREATE UNIQUE INDEX falla (y el
+// error se descarta en migrate) si la base ya tenía pares duplicados; sin ese
+// índice, INSERT OR IGNORE no evita nada. formSynapse no debe depender de él.
+func TestFormSynapse_NoDuplicaSinIndiceUnico(t *testing.T) {
+	db := openTestDB(t)
+	SetSynapseEnabled(true)
+	t.Cleanup(func() { SetSynapseEnabled(true) })
+	if _, err := db.Exec(`DROP INDEX idx_relations_pair`); err != nil {
+		t.Fatalf("quitar índice: %v", err)
+	}
+
+	sess, err := StartSession(db, "proj")
+	if err != nil {
+		t.Fatalf("iniciar sesión: %v", err)
+	}
+	var ids []int64
+	for i := 0; i < 2; i++ {
+		id, err := InsertMemory(db, &domain.Memory{
+			Project: "proj", SessionID: sess.ID, Type: domain.Decision,
+			Title: fmt.Sprintf("d%d", i), Content: fmt.Sprintf("c%d", i),
+		})
+		if err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+		ids = append(ids, id)
+	}
+	// Segunda formación sobre el mismo par (ya enlazado por InsertMemory): sin
+	// caché, el ancla se resuelve en la BD y vuelve a ser ids[0].
+	anchorMu.Lock()
+	delete(lastAnchorCache, "proj:"+sess.ID)
+	anchorMu.Unlock()
+	formSynapse(db, "proj", sess.ID, ids[1], domain.Decision)
+
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM memory_relations WHERE memory_id_a = ? AND memory_id_b = ?`,
+		ids[1], ids[0]).Scan(&n); err != nil {
+		t.Fatalf("contar: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("hay %d aristas %d→%d, esperaba 1", n, ids[1], ids[0])
+	}
+}

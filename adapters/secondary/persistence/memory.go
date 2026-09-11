@@ -432,12 +432,18 @@ func formSynapse(db *sql.DB, project, sessionID string, newID int64, memType dom
 		}
 	}
 
-	// Insertar relación (idempotente: INSERT OR IGNORE requiere unique index).
+	// Insertar relación idempotente sin depender de idx_relations_pair: ese
+	// índice no se crea en una base que ya tuviera pares duplicados (migrate
+	// descarta el error). Una sola sentencia es atómica bajo el bloqueo de
+	// escritura de SQLite, así que el NOT EXISTS no tiene carrera.
 	_, err := db.Exec(
 		`INSERT OR IGNORE INTO memory_relations (project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, `+Now+`)`,
+		 SELECT ?, ?, ?, ?, ?, ?, `+Now+`
+		 WHERE NOT EXISTS (
+		   SELECT 1 FROM memory_relations WHERE project = ? AND memory_id_a = ? AND memory_id_b = ?)`,
 		project, newID, anchorID, string(domain.Related), 0.5,
 		"sinapsis auto: co-activadas en la misma sesión de trabajo",
+		project, newID, anchorID,
 	)
 	if err != nil {
 		return // best-effort: tragar error.
