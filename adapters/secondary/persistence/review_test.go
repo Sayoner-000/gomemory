@@ -692,3 +692,36 @@ func TestGuardaDeFaseYRondaEnElAdaptadorReal(t *testing.T) {
 		}
 	})
 }
+
+// TestUpsertFixDelta_ListaNilSeGuardaComoArrayVacio: las columnas JSON de
+// fix_rounds declaran DEFAULT '[]'; una lista nil no debe persistirse como el
+// literal null.
+func TestUpsertFixDelta_ListaNilSeGuardaComoArrayVacio(t *testing.T) {
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	repo := NewReviewRepository(db)
+	target, _ := domain.NewTarget(domain.TargetDiff, "wt", "sha256:v0", nil)
+	if err := repo.CreateReview(&domain.Review{
+		ID: "acr_nil", Project: "proj", Target: target, Status: domain.ReviewAwaitingReviewers,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewConsensusRepository(db).UpsertFixDelta("proj", "acr_nil", &domain.FixDelta{Round: 1, DiffDigest: "sha256:d"}); err != nil {
+		t.Fatal(err)
+	}
+
+	var addressed, paths, verification string
+	if err := db.QueryRow(`SELECT addressed_consensus_ids, modified_paths, verification FROM fix_rounds`).
+		Scan(&addressed, &paths, &verification); err != nil {
+		t.Fatal(err)
+	}
+	for nombre, v := range map[string]string{"addressed_consensus_ids": addressed, "modified_paths": paths, "verification": verification} {
+		if v != "[]" {
+			t.Errorf("%s = %q, esperaba []", nombre, v)
+		}
+	}
+}

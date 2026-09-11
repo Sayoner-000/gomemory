@@ -892,9 +892,9 @@ func (r *ReviewRepository) UpsertFixDelta(project, reviewID string, delta *domai
 	if err != nil {
 		return err
 	}
-	addressed, _ := json.Marshal(delta.AddressedConsensusIDs)
-	paths, _ := json.Marshal(delta.ModifiedPaths)
-	verification, _ := json.Marshal(redactarLista(delta.Verification))
+	addressed := jsonArray(delta.AddressedConsensusIDs)
+	paths := jsonArray(delta.ModifiedPaths)
+	verification := jsonArray(redactarLista(delta.Verification))
 	err = r.db.QueryRow(`
 		INSERT INTO fix_rounds
 			(review_id, round, base_target_digest, fixed_target_digest, addressed_consensus_ids,
@@ -904,8 +904,8 @@ func (r *ReviewRepository) UpsertFixDelta(project, reviewID string, delta *domai
 			base_target_digest = excluded.base_target_digest, fixed_target_digest = excluded.fixed_target_digest,
 			addressed_consensus_ids = excluded.addressed_consensus_ids, modified_paths = excluded.modified_paths,
 			verification = excluded.verification, diff_digest = excluded.diff_digest
-		RETURNING id`, internalID, delta.Round, delta.BaseTargetDigest, delta.FixedTargetDigest, string(addressed),
-		string(paths), string(verification), delta.DiffDigest).Scan(&delta.ID)
+		RETURNING id`, internalID, delta.Round, delta.BaseTargetDigest, delta.FixedTargetDigest, addressed,
+		paths, verification, delta.DiffDigest).Scan(&delta.ID)
 	if err != nil {
 		return fmt.Errorf("upsert fix delta: %w", err)
 	}
@@ -1178,6 +1178,17 @@ func redactarTexto(s string) string {
 	return domain.RedactSecrets(domain.RedactPrivate(s))
 }
 
+// jsonArray serializa una lista para las columnas JSON de fix_rounds, que
+// declaran DEFAULT '[]': una lista nil se guarda como "[]", nunca como "null".
+// json.Marshal de un []string no puede fallar, por eso no hay error que propagar.
+func jsonArray(items []string) string {
+	if items == nil {
+		items = []string{}
+	}
+	out, _ := json.Marshal(items)
+	return string(out)
+}
+
 func redactarLista(items []string) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
@@ -1433,18 +1444,20 @@ func (r *ReviewRepository) RecordFixAtomically(
 	}
 
 	delta := transition.Delta
-	addressed, _ := json.Marshal(delta.AddressedConsensusIDs)
-	paths, _ := json.Marshal(delta.ModifiedPaths)
-	verification, _ := json.Marshal(redactarLista(delta.Verification))
+	addressed := jsonArray(delta.AddressedConsensusIDs)
+	paths := jsonArray(delta.ModifiedPaths)
+	verification := jsonArray(redactarLista(delta.Verification))
 	err = conn.QueryRowContext(ctx, `
 		INSERT INTO fix_rounds
 			(review_id, round, base_target_digest, fixed_target_digest, addressed_consensus_ids,
 			 modified_paths, verification, diff_digest)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id`, internalID, delta.Round, delta.BaseTargetDigest, delta.FixedTargetDigest,
-		string(addressed), string(paths), string(verification), delta.DiffDigest).Scan(&delta.ID)
+		addressed, paths, verification, delta.DiffDigest).Scan(&delta.ID)
 	if err != nil {
-		return fmt.Errorf("la ronda %d ya fue registrada por otra corrección", transition.NextRound)
+		// Lo esperable es la colisión UNIQUE(review_id, round) con otra corrección
+		// simultánea, pero el error real (disco, E/S, conexión) debe viajar.
+		return fmt.Errorf("registrar la ronda %d (¿ya la registró otra corrección?): %w", transition.NextRound, err)
 	}
 
 	result, err := conn.ExecContext(ctx, `

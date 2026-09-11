@@ -256,7 +256,12 @@ func (c *Container) ToDeps() *cli.Deps {
 // primero disponible — si ninguno lo está, el primero de la lista (para que
 // la TUI tenga algo que mostrar como "no disponible" en vez de nada).
 func (c *Container) tuiProvider() ports.CodeGraphProvider {
-	providers := buildCodeProviders(c.Root, c.settings)
+	// Reutiliza los de NewContainer; solo están vacíos con el grafo
+	// desactivado, y aun así la TUI necesita uno para mostrar su estado.
+	providers := c.CodeProviders
+	if len(providers) == 0 {
+		providers = buildCodeProviders(c.Root, c.settings)
+	}
 	if active := usecases.FirstAvailable(providers); active != nil {
 		return active
 	}

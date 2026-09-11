@@ -384,7 +384,7 @@ func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64
 	var id int64
 	if err := tx.QueryRow(
 		`SELECT id FROM memories
-		 WHERE project = ? AND type = ? AND title = ? AND type != 'checkpoint'
+		 WHERE project = ? AND type = ? AND title = ?
 		   AND julianday(`+Now+`) - julianday(created_at) <= ?
 		 ORDER BY id DESC LIMIT 1`,
 		m.Project, string(m.Type), title, dedupWindowDays,
@@ -448,8 +448,12 @@ func formSynapse(db *sql.DB, project, sessionID string, newID int64, memType dom
 	if memType == domain.Checkpoint {
 		return
 	}
+	// Solo avanza: con inserciones concurrentes la última en llegar puede traer
+	// un ID más viejo (los IDs son autoincrementales).
 	anchorMu.Lock()
-	lastAnchorCache[cacheKey] = newID
+	if newID > lastAnchorCache[cacheKey] {
+		lastAnchorCache[cacheKey] = newID
+	}
 	anchorMu.Unlock()
 }
 

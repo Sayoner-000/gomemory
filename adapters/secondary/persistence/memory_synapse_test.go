@@ -87,3 +87,39 @@ func TestFormSynapse_InsercionesConcurrentes(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// TestFormSynapse_CacheNoRetrocede: con inserciones concurrentes, la que
+// termina última puede traer un ID más viejo; la caché no debe retroceder a
+// ese ancla y dejar fuera la memoria más reciente de la sesión.
+func TestFormSynapse_CacheNoRetrocede(t *testing.T) {
+	db := openTestDB(t)
+	SetSynapseEnabled(true)
+	t.Cleanup(func() { SetSynapseEnabled(true) })
+
+	sess, err := StartSession(db, "proj")
+	if err != nil {
+		t.Fatalf("iniciar sesión: %v", err)
+	}
+	var ids []int64
+	for i := 0; i < 3; i++ {
+		id, err := InsertMemory(db, &domain.Memory{
+			Project: "proj", SessionID: sess.ID, Type: domain.Learning,
+			Title: fmt.Sprintf("m%d", i), Content: fmt.Sprintf("c%d", i),
+		})
+		if err != nil {
+			t.Fatalf("insert %d: %v", i, err)
+		}
+		ids = append(ids, id)
+	}
+	cacheKey := "proj:" + sess.ID
+
+	// Simula la llegada tardía de la inserción del ID intermedio.
+	formSynapse(db, "proj", sess.ID, ids[1], domain.Learning)
+
+	anchorMu.Lock()
+	got := lastAnchorCache[cacheKey]
+	anchorMu.Unlock()
+	if got != ids[2] {
+		t.Errorf("ancla en caché = %d, esperaba la más reciente %d", got, ids[2])
+	}
+}
