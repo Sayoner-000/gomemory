@@ -264,6 +264,29 @@ func renderTurnEnd(d hookDialect, texto string, paraElHumano bool) string {
 	}
 }
 
+// renderTurnEndAgentPrepare traduce el aviso combinado de US4 (feature 030):
+// el aviso a la persona (humanMsg, el recordatorio de compactar vigente) y el
+// aviso al agente (agentMsg, AgentPrepareNotice) para el mismo cruce de
+// umbral. Solo claude tiene un canal doble en el mismo fin de turno
+// (systemMessage + hookSpecificOutput.additionalContext, sin decision ni
+// continue — nunca bloquea ni prolonga el turno). codex y los dialectos
+// planos solo tienen un canal de texto aquí: se comportan IDÉNTICO a
+// renderTurnEnd(d, humanMsg, true) — el llamador es responsable de dejar
+// agentMsg pendiente para el turno siguiente (contracts/hooks.md).
+func renderTurnEndAgentPrepare(d hookDialect, humanMsg, agentMsg string) string {
+	if d != dialectClaude {
+		return renderTurnEnd(d, humanMsg, true)
+	}
+	out, _ := json.Marshal(map[string]any{
+		"systemMessage": humanMsg,
+		"hookSpecificOutput": map[string]any{
+			"hookEventName":     "Stop",
+			"additionalContext": agentMsg,
+		},
+	})
+	return string(out)
+}
+
 // renderEnteredDocument traduce el documento de plan-entered (ya ajustado al
 // presupuesto por domain.AdjustPlanDocumentToBudget) al dialecto d, según las
 // tres formas documentadas en contracts/hook-plan-entered.md. doc == ""

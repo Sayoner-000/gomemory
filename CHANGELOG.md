@@ -5,6 +5,31 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Compactación sin pérdida de memoria (feature 030): la compactación de la
+  conversación sigue siendo exclusiva del cliente, pero ahora ninguna
+  compactación pierde lo que la memoria registró en la sesión.
+  - Nueva herramienta `save_session_summary`: persiste el resumen compactado
+    sin cerrar la sesión (a diferencia de `end_session`), cerrando un defecto
+    real donde toda memoria guardada tras compactar quedaba sin sesión
+    asociada.
+  - `mem hook compaction-context` (antes de compactar) y `mem hook
+    post-compact` (después) entregan la memoria de la sesión activa —no el
+    proyecto entero—, con puntero `get_memory <id>` por entrada.
+  - Captura pasiva de aprendizajes: al terminar un subagente, los ítems de su
+    sección `## Aprendizajes clave` / `## Key Learnings` se guardan solos, sin
+    duplicados.
+  - Aviso opcional al agente (`compact_agent_notice`, opt-in) al superar el
+    umbral de compactación, sin bloquear ni prolongar el turno.
+  - `mem doctor` reporta, por agente instalado, qué capacidades de
+    compactación aprovecha la integración.
+  - El complemento de OpenCode corrige un defecto real: llamaba a
+    `post-compact` ANTES de que la compactación existiera (dentro de
+    `session.compacting`), reseteando huella y marcadores fuera de tiempo.
+
 ## [2.20.2] - 2026-09-10
 
 ### Fixed

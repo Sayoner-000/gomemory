@@ -941,8 +941,15 @@ const configRowDocsBase = configRowPlanGuard + 1
 // enciende una capacidad completa, no refina uno de los flujos existentes.
 var configRowOctopus = configRowDocsBase + len(domain.PinnedDocs)
 
+// configRowCompactAgentNotice es la fila del aviso de preparación al agente
+// (feature 030, US4): con la opción activada, al superar el umbral de
+// compactación el agente recibe un aviso además del recordatorio a la
+// persona. Va al FINAL del menú, como exige la convención de
+// configRowReindexGraph: nunca insertada en medio.
+var configRowCompactAgentNotice = configRowOctopus + 1
+
 // configOptions es el número de filas del menú de configuración.
-var configOptions = configRowOctopus + 1
+var configOptions = configRowCompactAgentNotice + 1
 
 // externalReindexDoneMsg es el mensaje de resultado del primer tea.Cmd
 // asíncrono real de esta TUI (feature 016, US2): IndexRepository puede tardar
@@ -1137,6 +1144,20 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusMsg = "Octopus AAR activado (enrutador adaptativo: decide inline o delegar)"
 			} else {
 				m.statusMsg = "Octopus AAR desactivado (sin huella: ni tools MCP ni telemetría)"
+			}
+
+		case configRowCompactAgentNotice: // Toggle del aviso al agente (feature 030, US4)
+			s := m.settingsRepo.Read(m.root)
+			s.CompactAgentNotice = !s.CompactAgentNotice
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
+			if s.CompactAgentNotice {
+				m.statusMsg = "Aviso de compactación al agente activado (junto al recordatorio a la persona)"
+			} else {
+				m.statusMsg = "Aviso de compactación al agente desactivado"
 			}
 			m.statusTimer = 40
 
@@ -2181,6 +2202,7 @@ func (m model) configView() string {
 		rows = append(rows, fmt.Sprintf("Actualizar %s: %s", d.Label, m.docEstado(d).State))
 	}
 	rows = append(rows, "Octopus AAR: "+onOff(s.OctopusEnabled))
+	rows = append(rows, "Aviso de compactación al agente: "+onOff(s.CompactAgentNotice))
 	for i, label := range rows {
 		if i == m.configCursor {
 			b.WriteString(itemSelected.Render("▸ " + label))

@@ -144,6 +144,9 @@ func migrate(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project);
 	CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
 	CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
+	-- ListMemoriesBySession: filtra por (project, session_id) y el recorrido
+	-- inverso del índice da created_at DESC, id DESC sin ordenar aparte.
+	CREATE INDEX IF NOT EXISTS idx_memories_project_session ON memories(project, session_id, created_at);
 	CREATE TABLE IF NOT EXISTS memory_relations (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		project TEXT NOT NULL,

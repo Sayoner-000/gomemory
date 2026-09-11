@@ -82,6 +82,16 @@ type AgentCapability struct {
 	// información; un hueco silencioso es el defecto que este registro existe
 	// para impedir.
 	EntryUnavailableReason string
+
+	// Compaction declara qué capacidades de compactación (feature 030,
+	// CompactionCapability) aprovecha la integración de gomemory para este
+	// agente. CompactionUnavailable es su espejo: el motivo de cada capacidad
+	// que NO se usa, sea porque el cliente no la ofrece o porque se decidió no
+	// usarla (INV-C1, verificado por tests/contract/compaction_capabilities_test.go).
+	// Ambos mapas son obligatorios juntos: cada una de AllCompactionCapabilities()
+	// debe aparecer en uno de los dos, nunca en ninguno ni en ambos.
+	Compaction            map[CompactionCapability]bool
+	CompactionUnavailable map[CompactionCapability]string
 }
 
 // HasLevel reporta si esta capacidad declara el nivel dado.
@@ -107,6 +117,25 @@ var KnownAgents = []AgentCapability{
 			ScopeProject: true,
 			ScopeUser:    true,
 		},
+		// Compactación (feature 030, research.md R1/R12): documentación oficial
+		// de hooks — PostCompact.compact_summary (C6) y SubagentStop.
+		// last_assistant_message (C3) llegan tal cual. C1 (PreCompact.
+		// newCustomInstructions) SÍ lo ofrece el cliente, pero la integración NO
+		// lo usa: C2+C6 cubren la misma necesidad sin reabrir PreCompact, que
+		// esta base de código retiró deliberadamente porque su salida no
+		// sobrevive a la compactación (claude_code_hooks_test.go).
+		Compaction: map[CompactionCapability]bool{
+			CompactionPostCompactChannel: true,
+			CompactionSubagentFinalText:  true,
+			CompactionAgentTurnChannel:   true,
+			CompactionHumanChannel:       true,
+			CompactionSummaryInput:       true,
+		},
+		CompactionUnavailable: map[CompactionCapability]string{
+			CompactionPreCompactInput: "el cliente ofrece PreCompact.newCustomInstructions, pero no se usa: " +
+				"SessionStart(compact) (C2) y PostCompact.compact_summary (C6) ya cubren la memoria de la " +
+				"sesión sin reabrir un hook que esta base de código retiró por decisión previa",
+		},
 	},
 	{
 		Name:    "opencode",
@@ -123,6 +152,20 @@ var KnownAgents = []AgentCapability{
 			ScopeUser:    true,
 		},
 		GuardUnavailableReason: "el ciclo del agente no ofrece un punto de decisión antes de presentar el plan",
+		// Compactación (feature 030, research.md R1): tipos instalados de
+		// @opencode-ai/plugin y @opencode-ai/sdk — experimental.session.compacting
+		// (C1), el evento session.compacted (C2/C6), tool.execute.after (C3) y
+		// tui.showToast (C5). C4 lo entrega experimental.chat.system.transform,
+		// en el turno siguiente (no en el mismo fin de turno).
+		Compaction: map[CompactionCapability]bool{
+			CompactionPreCompactInput:    true,
+			CompactionPostCompactChannel: true,
+			CompactionSubagentFinalText:  true,
+			CompactionAgentTurnChannel:   true,
+			CompactionHumanChannel:       true,
+			CompactionSummaryInput:       true,
+		},
+		CompactionUnavailable: map[CompactionCapability]string{},
 	},
 	{
 		Name:    "codex",
@@ -148,6 +191,25 @@ var KnownAgents = []AgentCapability{
 			ScopeUser: true,
 		},
 		GuardUnavailableReason: "el agente no expone una llamada a herramienta que marque «estoy presentando el plan», que es lo que hace interceptable el borde de salida en Claude Code (ExitPlanMode)",
+		// Compactación (feature 030, research.md R1): documentación oficial
+		// de hooks (learn.chatgpt.com/docs/hooks) + inspección del binario
+		// instalado (0.154.0, strings): SubagentStop.last_assistant_message
+		// (C3) y systemMessage (C5) existen; UserPromptSubmit entrega C4 en
+		// el turno siguiente (Stop no acepta additionalContext). PreCompact
+		// y PostCompact NO reciben ni aceptan el resumen compactado — sin C1
+		// ni C6.
+		Compaction: map[CompactionCapability]bool{
+			CompactionSubagentFinalText: true,
+			CompactionAgentTurnChannel:  true,
+			CompactionHumanChannel:      true,
+		},
+		CompactionUnavailable: map[CompactionCapability]string{
+			CompactionPreCompactInput: "PreCompact no admite salida que aporte contenido al resumen " +
+				"compactado (solo continue/stopReason/systemMessage)",
+			CompactionPostCompactChannel: "cubierta por CompactionAgentTurnChannel vía UserPromptSubmit " +
+				"(Stop no acepta additionalContext en este cliente)",
+			CompactionSummaryInput: "PostCompact no recibe el resumen compactado en su payload de entrada",
+		},
 	},
 }
 

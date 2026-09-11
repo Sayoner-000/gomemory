@@ -2,6 +2,11 @@
 
 <!-- Capture patterns, gotchas, and rules after each user correction. -->
 
+Este archivo es un registro histórico. Puede describir implementaciones ya
+retiradas; las secciones actuales de `README.md`, `INSTALLATION.md` y `docs/`
+son la referencia operativa. Cuando una conclusión quedó invalidada, la entrada
+posterior lo indica de forma explícita.
+
 ## 2026-08-30
 
 - **Un conjunto amplio de bugs sigue siendo mantenimiento correctivo, no una feature.** La spec 029 se creó como excepción al protocolo del proyecto porque los defectos atravesaban dominio, puertos, persistencia y CLI; el usuario la retiró: el tamaño o la transversalidad no cambian la naturaleza del trabajo. **Regla: si el objetivo es restaurar comportamiento ya prometido o cerrar defectos, corregir y verificar directamente contra el sistema real; no abrir una feature ni una spec SDD.**

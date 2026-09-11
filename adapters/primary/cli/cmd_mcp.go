@@ -281,6 +281,43 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		}, nil, nil
 	})
 
+	// save_session_summary (feature 030, US2): persiste el resumen SIN cerrar
+	// la sesión. Existe porque end_session era la única vía para guardar un
+	// resumen y hookPostCompact no abría una sesión nueva tras compactar: toda
+	// memoria guardada después quedaba sin sesión asociada (research.md R4).
+	// Igual que save_memory, si no hay sesión activa abre una — así el
+	// resumen nunca se pierde por no haber una sesión previa.
+	mcp.AddTool(server, &mcp.Tool{
+		Name: domain.ToolSaveSessionSummary,
+		Description: "Guarda o actualiza el resumen de la sesión de memoria activa sin cerrarla. " +
+			"Úsala tras una compactación de la conversación, con el resumen de lo trabajado hasta ese punto.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Summary string `json:"summary" jsonschema:"Resumen de lo trabajado hasta ahora en la sesión"`
+	}) (*mcp.CallToolResult, any, error) {
+		if strings.TrimSpace(in.Summary) == "" {
+			return nil, nil, fmt.Errorf("save_session_summary: summary no puede estar vacío")
+		}
+		if deps.SessionSummaries == nil {
+			return nil, nil, fmt.Errorf("save_session_summary: no disponible")
+		}
+		sess, err := deps.SessionRepo.Active(project)
+		if err != nil {
+			return nil, nil, err
+		}
+		if sess == nil {
+			sess, err = deps.SessionRepo.Start(project)
+			if err != nil {
+				return nil, nil, fmt.Errorf("abrir sesión: %w", err)
+			}
+		}
+		if err := deps.SessionSummaries.UpdateSummary(sess.ID, in.Summary); err != nil {
+			return nil, nil, fmt.Errorf("guardar resumen de sesión: %w", err)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("✓ Resumen de la sesión %s actualizado", sess.ID[:8])}},
+		}, nil, nil
+	})
+
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "forget_memory",
 		Description: "Borra una memoria específica del proyecto por su ID (irreversible)",

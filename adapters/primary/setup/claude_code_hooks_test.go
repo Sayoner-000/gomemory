@@ -106,11 +106,23 @@ func TestWriteClaudeHooksRemovesRetiredGomemoryEvents(t *testing.T) {
 
 func TestHookCommandIsGomemoryRecognizesAllSubcommands(t *testing.T) {
 	// Cada subcomando registrado debe ser reconocido por la desinstalación,
-	// o quedarían hooks huérfanos de gomemory tras `mem uninstall`.
-	for _, sub := range []string{
+	// o quedarían hooks huérfanos de gomemory tras `mem uninstall`. La lista
+	// fija cubre los retirados del registro (pre-compact), que un settings.json
+	// antiguo aún puede contener, y los que dependen de un nivel del registro
+	// de capacidades (plan-guard, plan-entered).
+	subs := []string{
 		"session-start", "session-end", "pre-compact", "post-compact",
 		"user-prompt-submit", "turn-end", "subagent-start", "subagent-stop",
-	} {
+		"compact-summary", "plan-approved", "plan-entered", "plan-guard",
+	}
+	// Y todo lo que el setup registra hoy, para que un subcomando nuevo no
+	// pueda quedar fuera sin que este test lo detecte.
+	for _, regs := range claudeHookEvents {
+		for _, r := range regs {
+			subs = append(subs, r.sub)
+		}
+	}
+	for _, sub := range subs {
 		if !hookCommandIsGomemory("mem hook " + sub) {
 			t.Errorf("hookCommandIsGomemory no reconoce %q", "mem hook "+sub)
 		}

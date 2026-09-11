@@ -62,7 +62,16 @@ func (r *MemoryRepository) SecondsSinceLastSave(project string) (int64, bool, er
 	return SecondsSinceLastSave(r.db, project)
 }
 
+// ListBySession implementa ports.SessionMemoryLister (feature 030, US1). Vive
+// en el mismo tipo concreto que MemoryRepository —no en una interfaz
+// ampliada— para no tocar los dobles de prueba existentes de
+// ports.MemoryRepository.
+func (r *MemoryRepository) ListBySession(project, sessionID string, limit int) ([]domain.Memory, error) {
+	return ListMemoriesBySession(r.db, project, sessionID, limit)
+}
+
 var _ ports.MemoryRepository = (*MemoryRepository)(nil)
+var _ ports.SessionMemoryLister = (*MemoryRepository)(nil)
 
 type SessionRepository struct {
 	db *sql.DB
@@ -92,7 +101,16 @@ func (r *SessionRepository) SetLastPrompt(project, prompt string) error {
 	return SetSessionLastPrompt(r.db, project, prompt)
 }
 
+// UpdateSummary implementa ports.SessionSummaryUpdater (feature 030, US2):
+// persiste el resumen compactado sin cerrar la sesión. Vive en el mismo tipo
+// concreto que SessionRepository —no en una interfaz ampliada— para no tocar
+// los dobles de prueba existentes de ports.SessionRepository.
+func (r *SessionRepository) UpdateSummary(id, summary string) error {
+	return UpdateSessionSummary(r.db, id, summary)
+}
+
 var _ ports.SessionRepository = (*SessionRepository)(nil)
+var _ ports.SessionSummaryUpdater = (*SessionRepository)(nil)
 
 type RelationRepository struct {
 	db *sql.DB
@@ -181,6 +199,7 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		CodeImpactAnnotationDisabled: s.CodeImpactAnnotationDisabled,
 		Budget:                       s.Budget,
 		CompactThreshold:             s.CompactThreshold,
+		CompactAgentNotice:           s.CompactAgentNotice,
 		DedupWindowDays:              s.DedupWindowDays,
 		SynapseDisabled:              s.SynapseDisabled,
 		SpeckitContextDisabled:       s.SpeckitContextDisabled,
@@ -218,6 +237,7 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		CodeImpactAnnotationDisabled: s.CodeImpactAnnotationDisabled,
 		Budget:                       s.Budget,
 		CompactThreshold:             s.CompactThreshold,
+		CompactAgentNotice:           s.CompactAgentNotice,
 		DedupWindowDays:              s.DedupWindowDays,
 		SynapseDisabled:              s.SynapseDisabled,
 		SpeckitContextDisabled:       s.SpeckitContextDisabled,

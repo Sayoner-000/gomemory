@@ -8,7 +8,7 @@ Desde `specs/005-global-mcp-store`, "por proyecto" describe el
 **aislamiento de datos** (cada proyecto tiene su propio `mem.db`, identificado
 por su git-root), no una instalación física dentro del repo: el servidor MCP
 se registra **una sola vez por máquina** para los agentes que lo soportan
-(Claude Code, Codex), y el store de datos vive en un directorio global del
+(Claude Code, Codex y OpenCode), y el store de datos vive en un directorio global del
 usuario, creado solo al primer uso — sin `mem install` ni archivos nuevos en
 el árbol del proyecto.
 
@@ -36,8 +36,7 @@ el árbol del proyecto.
                               │
    ┌───────────┬──────────────┼──────────────┬───────────────────────┐
    ▼           ▼              ▼              ▼                       ▼
-opencode    Claude (global*)  Codex (global*)  Cursor/Windsurf/Cline (por-proyecto)
-(opencode.json, por-proyecto) (~/.claude.json, scope user) (~/.codex/config.toml, tabla única)
+OpenCode (global*)  Claude (global*)  Codex (global*)  Cursor/Windsurf/Cline (por proyecto)
 
 * Registro global: una vez por máquina, vía `mem setup-mcp --scope global`.
   El resto de agentes siguen usando config MCP por proyecto (`--scope project`,
@@ -52,28 +51,28 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 
 | Subcomando | Archivo | Función |
 |---|---|---|
-| `init` | `adapters/primary/cli/cmd_init.go` | Crea `.memory/` y tablas SQLite |
+| `init` | `adapters/primary/cli/cmd_init.go` | Inicializa o verifica el almacén global del proyecto; normalmente ocurre de forma diferida |
 | `save` | `adapters/primary/cli/cmd_save.go` | Inserta una memoria con tipo, título, contenido |
 | `capture` | `adapters/primary/cli/cmd_capture.go` | Guarda aprendizaje estructurado con formato What/Why/Where/Learned |
 | `compare` | `adapters/primary/cli/cmd_compare.go` | Compara dos memorias ([flags] id1 id2) y persiste veredicto semántico |
 | `compare list` | `adapters/primary/cli/cmd_compare.go` | Lista relaciones guardadas entre memorias |
 | `project` | `adapters/primary/cli/cmd_project.go` | Detecta el proyecto actual (read-only: nombre, raíz, BD, conteo) |
 | `list` / `log` | `adapters/primary/cli/cmd_list.go` | Lista memorias recientes en formato tabla |
-| `search` | `adapters/primary/cli/cmd_search.go` | Busca por LIKE en título + contenido con ranking (título primero) |
+| `search` | `adapters/primary/cli/cmd_search.go` | Busca por FTS5 con ranking BM25 y usa LIKE como respaldo cuando hace falta |
 | `context` | `adapters/primary/cli/cmd_context.go` | Genera contexto markdown para el agente AI (read-only por defecto) |
 | `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
-| `install` | `adapters/primary/cli/cmd_install.go` | Copia binario + init + .gitignore + AGENTS + configura MCP para todos los agentes |
+| `install` | `adapters/primary/cli/cmd_install.go` | Instala el binario y la integración por proyecto; inicializa reglas y constitución en memoria y retira artefactos antiguos |
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 10 tools de memoria + 5 de grafo de código + 4 de optimización de contexto (19 en total) y 2 recursos. Acepta `--root <dir>` |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 28 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
-| `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable de hooks (`session-start`, `session-end`, `pre-compact`, `post-compact`, `user-prompt-submit`, `turn-end`, `subagent-stop`, `plan-approved`, `nudge`, `prompt`) |
+| `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable del ciclo de sesión, compactación, turnos, subagentes y modo plan |
 | `code-refresh` | `infrastructure/main.go` | Fast-path interno (detached): refresca el snapshot del grafo de código externo fuera del hot path. No abre la BD |
 | `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) y el toggle del grafo externo (`--code-graph`, `--code-graph-command`) |
 | `purge` | `adapters/primary/cli/cmd_purge.go` | Borra memorias (proyecto actual por defecto; `--all`/`--type`/`--older-than-days`) |
-| `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` de `.memory/mem.db` (recupera espacio, no borra nada) |
+| `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` del almacén global del proyecto (recupera espacio, no borra nada) |
 | `gc` | `adapters/primary/cli/cmd_gc.go` | Garbage collection por antigüedad a demanda (90 días por defecto) |
-| `uninstall` | `adapters/primary/cli/cmd_uninstall.go` | Reverso de `install`: quita binario, hooks, MCP, bloques en AGENTS/CLAUDE y datos |
+| `uninstall` | `adapters/primary/cli/cmd_uninstall.go` | Revierte la instalación del proyecto y limpia los artefactos antiguos que todavía encuentre |
 | `pack` | `adapters/primary/cli/cmd_pack.go` | `build`/`show`/`compress`/`stats` — arma un paquete de contexto acotado a una tarea y a un presupuesto de tokens (ver sección 16) |
 | `tui` | `adapters/primary/cli/cli.go:LaunchTUI()` | Abre interfaz TUI explícitamente |
 | *(sin args)* | `adapters/primary/cli/dispatcher.go` | Abre TUI automáticamente |
@@ -94,15 +93,15 @@ os.Args → infrastructure/main.go → NewContainer() → cli.Run(cmd, args, dep
 
 ### 2. TUI (`adapters/primary/tui/tui.go`)
 
-Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea) + [Lipgloss](https://github.com/charmbracelet/lipgloss) + [Bubbles](https://github.com/charmbracelet/bubbles). Ha crecido de 3 pantallas (versión original) a 11, acompañando cada feature que le agregó una acción interactiva propia — el modelo real hoy es bastante más grande que el diagrama original de este documento sugería.
+Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea) + [Lipgloss](https://github.com/charmbracelet/lipgloss) + [Bubbles](https://github.com/charmbracelet/bubbles). El modelo actual tiene 14 estados de pantalla para listado, detalle, captura, mantenimiento, configuración, importación, optimización, uso y documentos fijados.
 
 **Estados (screens):**
 - `screenList` — listado de memorias agrupadas por tipo, con cursor de navegación y búsqueda en vivo (filtro por título/tipo/contenido)
 - `screenDetail` — vista detalle de una memoria seleccionada
 - `screenSave` — formulario multi-campo (título, tipo, contenido, archivo) con validación
 - `screenMaintenance` / `screenMaintenanceConfirm` — acciones de mantenimiento (purge/gc, §14) con confirmación explícita
-- `screenConfig` — pantalla de Configuración: auto-approve, modo plan atómico, "Reindexar grafo externo" (feature 016), y edición de los 3 ajustes de huella de contexto
-- `screenEditSetting` — una sola pantalla reutilizada por los 3 ajustes editables de huella de contexto (`budget`/`compact_threshold`/`dedup_window_days`), parametrizada por `editSettingField` (feature 016)
+- `screenConfig` — pantalla de configuración: auto-approve, modo plan atómico, Octopus AAR, aviso opcional de compactación, documentos fijados, reindexado del grafo externo y ajustes de huella
+- `screenEditSetting` — una sola pantalla reutilizada por los ajustes numéricos de huella de contexto (`budget`/`compact_threshold`/`dedup_window_days`)
 - `screenImport` — importar un bundle JSON portable (`mem import`) desde la TUI
 - `screenOptimize` / `screenOptimizeDetail` / `screenOptimizeConfirm` / `screenOptimizeAllConfirm` — detección de memorias casi-duplicadas (`usecases.DetectProjectDuplicates`) con revisión por grupo y borrado confirmado, uno por uno o en bloque
 
@@ -111,7 +110,7 @@ Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea)
 ```
 model
 ├── memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project  ← contexto/puertos
-├── screen                                    ← estado actual (una de las 11 screens de arriba)
+├── screen                                    ← estado actual (una de las 14 pantallas)
 ├── filterInput, filtering, filtered, listCursor  ← búsqueda en vivo sobre la lista
 ├── selected, autoApprove, statusMsg, statusTimer ← detalle + feedback transitorio
 ├── save{Title,Type,Content,Filepath,Focus,Err,d} ← formulario de screenSave
@@ -172,7 +171,7 @@ adapters/secondary/persistence/
 │
 ├── globalstore.go
 │   ├── FindProjectRoot()  ← git root subiendo desde el cwd; sin .git, usa el cwd absoluto
-│   ├── ProjectKey(root)   ← slug + sha256[:8](ruta absoluta) — identidad de proyecto, ya no filepath.Base(root)
+│   ├── ProjectKey(root)   ← slug + sha256[:8] de la ruta absoluta — identidad de proyecto, ya no filepath.Base(root)
 │   ├── DataHome()         ← $GOMEMORY_DATA_HOME > $XDG_DATA_HOME/gomemory > ~/.local/share/gomemory (Linux/macOS); %LOCALAPPDATA%\gomemory (Windows)
 │   ├── GlobalProjectDir/GlobalDbPath(key) ← rutas dentro del store global: $DataHome/projects/<key>/
 │   ├── migrateLegacyIfPresent(root, key)  ← ruta perezosa (nunca sobrescribe), llamada desde EnsureDir
@@ -252,7 +251,7 @@ mem context --write → escribe .memory/context.md
 - inicio → fin: resumen
 ```
 
-El archivo `.memory/context.md` es leído por los agentes AI al inicio de cada sesión.
+Los agentes reciben el contexto desde el servidor MCP y los hooks de ciclo de vida. `.memory/context.md` solo existe cuando una persona ejecuta `mem context --write`.
 
 **Consolidación sináptica ("siempre sinapsis").** Cada memoria que se guarda forma automáticamente una **sinapsis** (arista `related`) con el "ancla" de su sesión: la memoria sustantiva (no checkpoint) más reciente registrada antes en la misma sesión. Esto ocurre en `formSynapse()`, dentro del choke point `InsertMemory` — el mismo punto donde se hereda la provenance — así que es **determinista, sin tokens del agente y transversal** a todas las vías de guardado (MCP `save_memory`, hooks, CLI, TUI, OpenCode). El criterio teje el hilo de decisiones de una sesión y enlaza cada checkpoint con la decisión que lo gobierna, sin generar ruido checkpoint↔checkpoint; es idempotente (no duplica una arista existente, vía `INSERT OR IGNORE` con unique index) y best-effort (una sinapsis fallida nunca hace fallar el guardado). Optimizado con **caché de ancla por sesión** (`lastAnchorCache`): el ID del último ancla se guarda en memoria y se reutiliza en las inserciones siguientes, evitando la query de lookup repetida. El grafo resultante se re-inyecta en cada `get_context` bajo la sección **🔗 Sinapsis**, de modo que las decisiones enlazadas no se olvidan entre sesiones. Desactivable con `synapse_disabled: true` en `.memory/settings.json` o desde la TUI (tecla `c` → "Sinapsis automática").
 
@@ -266,7 +265,7 @@ Los resultados de las tools MCP **persisten en la ventana del agente** toda la s
 - **Refuerzo periódico de preferencias (v1.23.0).** Mismo contador de huella que el punto anterior, pero un umbral más bajo: al superar **un tercio** de `CompactThreshold`, `computePreferenceReinforcement` (`adapters/primary/cli/footprint.go`) reinyecta el título y contenido real de las memorias `type=preference` más recientes, con debounce propio de 20 min (`.memory/.last-preference-nudge`, reseteado junto al footprint en `post-compact`/inicio de sesión). Cubre el hueco entre `SessionStart`/`post-compact` — los únicos puntos donde antes se reinyectaban las preferencias — para que una sesión larga sin compactar no las pierda de vista. Si en el mismo turno también corresponde el recordatorio de compactación, ese tiene prioridad (la compactación reinyecta el contexto completo de todos modos).
 - **Deduplicación en la fuente.** En el choke point `InsertMemory`, guardar una memoria equivalente (mismo `project`+`type`+`title` dentro de `dedup_window_days`, o el mismo `topic_key`) **actualiza** la existente en vez de crear otra fila. Los `checkpoint` y las memorias sin título quedan excluidos del dedup por identidad.
 
-Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `dedup_window_days`, `synapse_disabled` (defaults 24000 / 48000 / 7 / false; `< 0` o `<= 0` desactiva según el campo; `synapse_disabled` es booleano). Visibles en la pantalla de configuración de la TUI.
+Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `compact_agent_notice`, `dedup_window_days`, `synapse_disabled` (defaults 24000 / 48000 / false / 7 / false; `< 0` o `<= 0` desactiva según el campo). Visibles en la pantalla de configuración de la TUI.
 
 #### Grafo de código externo (brazo extensor, opcional)
 
@@ -430,7 +429,7 @@ Wrapper interactivo que envuelve cualquier comando:
 
 Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
 
-**Herramientas de memoria (10):**
+**Herramientas de memoria (11):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -442,6 +441,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `judge_memories` | id_a, id_b, verdict, confidence, reasoning | Registra veredicto imparcial entre dos memorias |
 | `start_session` | — | Inicia sesión de trabajo (valida que no haya activa) |
 | `end_session` | summary | Finaliza sesión activa |
+| `save_session_summary` | summary | Actualiza el resumen compactado sin cerrar la sesión activa |
 | `get_context` | — | Contexto markdown completo del proyecto |
 | `get_plan_context` | — | Método de descomposición atómica + contexto, para modo plan |
 
@@ -468,6 +468,11 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `pack_show` | pack | Re-renderiza en Markdown un ContextPack ya construido |
 | `pack_stats` | pack | Devuelve solo el bloque de estadísticas de reducción |
 | `pack_compress` | text | Comprime un texto suelto y reporta tokens antes/después |
+
+El servidor registra además ocho tools de revisión adversarial. Cuando
+`octopus_enabled` está activo, agrega cuatro tools de enrutamiento y telemetría
+local. La superficie es de 28 tools base o 32 con Octopus AAR; las listas se
+derivan de `domain/mcp_tools.go`.
 
 **Recursos:**
 
@@ -577,9 +582,9 @@ El flag `--agents all` configura todos los agentes soportados por el scope elegi
 
 **Importante (fix de `specs/005-global-mcp-store`):** antes, `--root` solo afectaba el string `project` usado para filtrar consultas — la conexión real a la base de datos la decidía `infrastructure/main.go` resolviendo `root` por `cwd` ANTES de que `CmdMCP` llegara a parsear su propio `--root`, un desajuste real si ambos diferían. Ahora `resolveRootForCommand(cmd, args)` en `main.go` reconoce el comando `mcp` como caso especial: si trae `--root`, ese valor se usa para construir el `Container` (y por tanto la conexión a la BD) desde el principio. `CmdMCP` ya no reparsea `--root` — usa `deps.Root`/`deps.Project`, ya resueltos de forma consistente.
 
-### 11. Hooks portables de Claude Code (`adapters/primary/cli/cmd_hook.go`)
+### 11. Hooks portables (`adapters/primary/cli/cmd_hook.go`)
 
-`mem hook <evento>` es el entrypoint único de los hooks de Claude Code. Reemplaza los scripts `bash` + `curl` legados (`session-start.sh`, etc.) por subcomandos del binario que hablan directo a los repositorios: **sin shell, sin `curl`, sin servidor HTTP**. Funcionan igual en Linux, macOS y Windows.
+`mem hook <evento>` es el entrypoint único de las integraciones de ciclo de vida. Reemplaza los scripts `bash` + `curl` legados por subcomandos del binario que hablan directo a los repositorios: **sin shell, sin `curl`, sin servidor HTTP**. Funcionan igual en Linux, macOS y Windows.
 
 **Regla de oro:** un hook NUNCA aborta el arranque del agente. Ante cualquier error sale con código 0 y, como mucho, sin salida.
 
@@ -588,20 +593,25 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 | Evento Claude Code | Subcomando | Para qué sirve |
 |---|---|---|
 | `SessionStart` (matcher `startup\|resume\|clear`) | `session-start` | Abre una sesión si no hay activa **e inyecta el contexto de sesiones previas** como `additionalContext`. El agente arranca recordando el proyecto sin que se lo pidan |
-| `SessionStart` (matcher `compact`) | `post-compact` | **Después** de compactar, re-inyecta **instrucciones de recuperación + el contexto previo** y borra el marcador `.session-tools-injected` para que el siguiente prompt vuelva a materializar las tools MCP diferidas. Su salida sobrevive a la compactación (a diferencia de `pre-compact`). En OpenCode lo cubre `experimental.session.compacting`, que empuja el mismo texto (vía `mem hook post-compact`) al contexto retenido |
+| `SessionStart` (matcher `compact`) | `post-compact` | Después de compactar, reinyecta los pasos de recuperación, la memoria de la sesión y el índice del proyecto; también permite que el siguiente prompt vuelva a materializar las tools MCP diferidas |
+| `PostCompact` | `compact-summary` | Persiste el resumen entregado por Claude Code mediante `save_session_summary`, sin cerrar la sesión activa |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta un `summary` opcional por stdin). Evita sesiones colgadas aunque el modelo no llame `end_session` |
-| `PreCompact` _(legado)_ | `pre-compact` | Registro anterior: inyectaba recuperación **antes** de compactar, pero esa salida es justo lo que la compactación resume/descarta. Reemplazado por `SessionStart(compact)`; el handler se conserva para instalaciones previas |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt fuerza la carga de las tools MCP diferidas con un `systemMessage` (`ToolSearch select:` + nombres reales) e inyecta el recordatorio del protocolo como `additionalContext`; en los prompts siguientes recuerda guardar si el agente lleva >15 min sin un guardado real (con debounce de 15 min). El marcador `.session-tools-injected` distingue el primer prompt. Además, en **cada** prompt persiste el texto del turno en la sesión activa (`SetLastPrompt`) para adjuntarlo como provenance a lo que se guarde |
 | _(interno, transversal)_ | `prompt` | Persiste el prompt del usuario (recibido por stdin `{"prompt": …}`) en la sesión activa. Lo invoca el plugin de OpenCode desde su evento `chat.message` (equivalente a `UserPromptSubmit`); en Claude Code la captura va inline dentro de `user-prompt-submit`. `InsertMemory` adjunta ese prompt como `origin_prompt` a toda memoria guardada en el turno |
-| `SubagentStop` | `subagent-stop` | Cuando un subagente (tool `Task`) termina, registra un **checkpoint de subagente** con los archivos y comandos que tocó. Llena un hueco real: esa actividad vive en el transcript propio del subagente y el hook `Stop` del agente principal no la ve (allí el subagente aparece solo como un `tool_use` `Task`). En OpenCode no hace falta: los subagentes son sub-sesiones que emiten `session.idle` y ya los captura el mismo camino de `turn-end` |
+| `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para conservar su trazabilidad |
+| `SubagentStop` | `subagent-stop` | Registra el checkpoint del subagente y extrae de forma determinista los ítems válidos de `Aprendizajes clave` o `Key Learnings` |
+| `PreToolUse` (matcher `ExitPlanMode`) | `plan-guard` | Valida la estructura del plan antes de presentarlo |
 | `PostToolUse` (matcher `ExitPlanMode`) | `plan-approved` | Cuando el usuario **aprueba un plan**, guarda el plan como memoria `decision` de forma determinista (sin gastar tokens ni depender de que el modelo llame `save_memory`). Cubre un hueco: un turno de plan mode es puro chat (sin ediciones ni comandos), así que `turn-end` lo descarta por vacío y las decisiones del plan se perdían. `PostToolUse` solo dispara si el usuario aprobó (un plan rechazado no ejecuta la tool). Transversal: acepta el plan en `tool_input.plan` (Claude Code) o en `plan` de nivel superior (OpenCode/otros); el plugin de OpenCode lo invoca al detectar un turno con `info.mode==="plan"`. Append-only: cada aprobación (incluidos planes revisados) genera una nueva `decision`, así la evolución no se pierde |
+| `PostToolUse` (matcher `EnterPlanMode`) | `plan-entered` | Entrega el método de descomposición y el historial necesario antes de redactar el plan |
 | _(interno, transversal)_ | `nudge` | Imprime en texto plano el recordatorio de guardado (o nada) según la misma decisión que `user-prompt-submit`. Lo consumen integraciones sin acceso al JSON de Claude Code, como el plugin de OpenCode, para que el comportamiento sea idéntico entre agentes |
 
 Los hooks son el mecanismo que hace que la memoria "tome todo bien" en Claude Code: sin ellos, las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto automáticamente. El campo `{"tools": true}` que se usaba antes en `user-prompt-submit` NO es soportado por Claude Code (era un no-op silencioso que dejaba las tools diferidas sin cargar); se reemplazó por el `systemMessage` con `ToolSearch`.
 
-### 12. Servidor HTTP de plugins (retirado en v1.18.0)
+### 12. Transporte MCP y hooks
 
-El servidor HTTP legado (`mem serve` en `127.0.0.1:9735`, paquete `adapters/primary/mcp`) fue **retirado**. El plugin de OpenCode y los hooks de Claude Code hablan directo a los repositorios vía `mem hook <evento>` — sin shell, sin `curl`, sin puerto TCP. Un futuro transporte HTTP-MCP, de necesitarse, iría por la SDK oficial sobre `cmd_mcp.go`, no por este servidor.
+El servidor MCP usa JSON-RPC sobre stdio. Los plugins y hooks invocan el binario
+mediante `mem hook <evento>` y acceden al almacén local; no hay proceso HTTP,
+puerto TCP ni servicio residente.
 
 ### 13. Plugin Setup (`adapters/primary/cli/cmd_setup.go` + `adapters/primary/setup/`)
 
@@ -612,7 +622,7 @@ El servidor HTTP legado (`mem serve` en `127.0.0.1:9735`, paquete `adapters/prim
 
 La referencia al binario es portable (`BinRef`/`binRefFor` en `cmd_install.go`/`binref.go`): se usa `mem` por PATH, nunca una ruta absoluta de máquina. El fallback por-proyecto de los hooks de Claude usa `${CLAUDE_PROJECT_DIR}/mem`, que Claude expande en runtime.
 
-> **Importante:** `mem install` configura el **MCP** de los 6 agentes, pero **no** registra los hooks/plugins. Los hooks se instalan con `mem setup claude-code` / `mem setup opencode`.
+`mem install` ejecuta este setup para OpenCode y Claude Code, además de registrar MCP para Cursor y Codex. Windsurf y Cline se configuran de forma explícita con `mem setup-mcp --scope project`.
 
 ### 14. Mantenimiento de memoria (`cmd_purge.go`, `cmd_compact.go`, `cmd_gc.go` + `adapters/secondary/persistence/maintenance.go`)
 
@@ -621,14 +631,17 @@ Operaciones destructivas que exigen confirmación humana y **no se exponen vía 
 | Comando | Qué hace |
 |---|---|
 | `mem purge` | Borra memorias del proyecto actual por defecto; `--all` (todos los proyectos), `--type`, `--older-than-days`, `--yes`. Al borrar una memoria limpia también sus relaciones (`mem compare`) |
-| `mem compact` | `VACUUM` de `.memory/mem.db`: recupera el espacio liberado por borrados. Nunca elimina memorias; reporta tamaño antes/después |
+| `mem compact` | `VACUUM` del almacén global del proyecto: recupera el espacio liberado por borrados. Nunca elimina memorias; reporta tamaño antes/después |
 | `mem gc` | Garbage collection por antigüedad a demanda (90 días por defecto), reutilizando la lógica de `purge`. Solo corre cuando el usuario lo pide — nunca en segundo plano |
 
 También disponibles desde la TUI (tecla `m`), salvo la desinstalación.
 
 ### 15. Desinstalación (`adapters/primary/cli/cmd_uninstall.go`)
 
-`mem uninstall [dir] [--yes]` es el reverso exacto de `install`: remueve el binario `mem`, los hooks de `.claude/settings.json`, el registro MCP en `.mcp.json` y configs equivalentes, los bloques inyectados en `AGENTS.md`/`CLAUDE.md` y los datos (`.memory/`). Reporta los componentes que no encontró sin fallar. El archivo global `~/.codex/config.toml` no se toca automáticamente: se informa al usuario para que lo edite si usó el agente Codex.
+`mem uninstall [dir] [--yes]` revierte la instalación del proyecto: remueve el
+binario local, los hooks y registros MCP del proyecto, los auxiliares y datos
+correspondientes, y cualquier bloque antiguo gestionado por gomemory. Conserva
+la configuración global compartida por otros proyectos y lo informa.
 
 ### 16. Motor de optimización de contexto: `mem pack` (feature 015, v2.4.0)
 
@@ -654,7 +667,7 @@ mem pack compress < texto.txt       # comprime un texto suelto, sin retrieval ni
 
 Salida: Markdown con los items del paquete y un bloque de estadísticas (tokens antes/después, % de reducción, cuántos items quedaron en cada categoría). `--json` emite el `ContextPack` completo, el mismo formato que `pack show`/`pack stats` esperan como entrada.
 
-**Tools MCP (4, sumadas a las 10 de memoria + 5 de grafo de código = 19 en total):**
+**Tools MCP (4, incluidas en las 28 tools base):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -673,63 +686,43 @@ Para que toda la config de agentes pueda referenciar `mem` por nombre (no por ru
 
 ```bash
 # Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
 ```
 
 Descargan el binario del release de GitHub correspondiente al SO/arquitectura y lo instalan (Linux/macOS: `GOMEMORY_VERSION`, `GOMEMORY_BIN_DIR` para fijar versión/destino; `--uninstall`/`-Uninstall` para remover). Los releases los publica GoReleaser vía el workflow `.github/workflows/release.yml` al pushear un tag `v*`.
 
-## Flujo de Instalación (`adapters/primary/cli/cmd_install.go`)
+## Flujo de instalación por proyecto (`adapters/primary/cli/cmd_install.go`)
 
-> **Este flujo es opcional para Claude Code/Codex** — `mem
-> setup-mcp --scope global --agents claude,codex` (una sola vez por máquina)
-> más el init perezoso del store global (`specs/005-global-mcp-store`)
-> cubren el mismo resultado sin tocar el repo. `mem install` se conserva sin
-> cambios de comportamiento (compatibilidad, y porque sigue siendo necesario
-> para Cursor/Windsurf/Cline, que no tienen registro MCP a nivel de
-> usuario) — al terminar imprime una nota señalando la alternativa nueva.
+El registro global con `mem setup-mcp --scope global` es el flujo recomendado
+para Claude Code, Codex y OpenCode. `mem install` sigue disponible cuando se
+prefiere un paquete autocontenido dentro del proyecto.
 
 ```
 mem install /ruta/a/proyecto
   │
   ├─ 1. Copiar binario → /ruta/a/proyecto/mem
   │
-  ├─ 2. Verificar/Inicializar .memory/
-  │    ├─ .memory/mem.db existe y es válido → verificado ✅
-  │    ├─ .memory/mem.db existe y corrupto → init --force
-  │    └─ No existe → init (crea .memory/ + tablas)
+  ├─ 2. Inicializar o verificar el almacén del proyecto
+  │    └─ Los datos persistentes viven en el almacén global
   │
-  ├─ 3. Actualizar .gitignore (añade .memory/ y /mem)
-  │
-  ├─ 2b. SeedDefaults → siembra las memorias de reglas y constitución (v2.9)
-  ├─ 3b. cleanupLegacyArtifacts → retira AGENTS.md/CLAUDE.md (con respaldo),
-  │      speckit-constitution-gen.md y las carpetas .windsurf/.cline
-  ├─ 4. (retirado en v2.9) AGENTS.md/CLAUDE.md — era copia del bloque MCP
-  │    ├─ No existen → se crean con [reglas de trabajo] + [protocolo de memoria]
-  │    ├─ Existen sin integración → inyecta el preámbulo de reglas ANTES del
-  │    │                            bloque ## Memoria Persistente (idempotente)
-  │    └─ Existen con ambos marcadores → saltar
-  │         · Preámbulo: templates/agent-preamble.md (go:embed), marcador
-  │           <!-- gomemory-workrules-v1 -->
-  │         · Protocolo: buildIntegrationBlock(), marcador
-  │           <!-- gomemory-protocol-v2 -->
-  │
-  ├─ 4b. (retirado en v2.9) copia de la constitución — vive en la memoria
-  ├─ 4e. InstallConstitutionWrappers → /constitution para claude-code y opencode
-  │      del proyecto (solo si no existe; nunca sobrescribe)
-  │
-  └─ 5. MCP server config para TODOS los agentes (NO instala hooks/plugins;
-       │  eso lo hace `mem setup claude-code` / `mem setup opencode`)
-       ├─ opencode → .opencode.json
-       ├─ claude → .mcp.json
-       ├─ cursor → .cursor/mcp.json
-       ├─ windsurf → .windsurf/mcp_config.json
-       ├─ cline → .cline/mcp_settings.json
-       └─ codex → ~/.codex/config.toml (tabla por proyecto)
+  ├─ 3. Sembrar reglas de trabajo y constitución como memorias fijadas
+  ├─ 4. Actualizar .gitignore con .memory/ y /mem
+  ├─ 5. Respaldar y retirar artefactos gestionados por versiones antiguas
+  ├─ 6. Distribuir extensiones y comandos opcionales de Spec Kit
+  ├─ 7. Instalar integraciones
+  │    ├─ OpenCode → plugin global + MCP del proyecto
+  │    ├─ Claude Code → plugin, hooks + .mcp.json del proyecto
+  │    ├─ Cursor → .cursor/mcp.json
+  │    └─ Codex → registro MCP en ~/.codex/config.toml
+  └─ 8. Aplicar auto-approve si está habilitado
 ```
 
-El contenido inyectado se versiona con marcadores HTML para upgrades idempotentes: si una instalación previa dejó un bloque viejo (sin el marcador de versión vigente), `mem install` lo reemplaza en lugar de duplicarlo — desde la feature 019, el bloque nuevo (v8+) lleva también un marcador de **fin** explícito (`<!-- gomemory-protocol-end -->`); los bloques legados sin ese marcador se acotan hasta el siguiente encabezado de nivel 2 o EOF (`protocolEnd`, `cmd_install.go`), para no arrastrarse el contenido propio de la persona que viniera después del bloque. Tanto el preámbulo de reglas como la constitución viven embebidos en el binario (`infrastructure/templates/`, `go:embed`), así que `mem install` no depende de archivos presentes en disco ni del `cwd`.
+La limpieza es conservadora: respalda los archivos de instrucciones gestionados
+por instalaciones anteriores antes de retirarlos. El protocolo y la constitución
+viven embebidos en el binario, de modo que la instalación no depende de copias
+documentales presentes en el repositorio destino.
 
 ## Modo Plan Determinista (feature 019)
 
@@ -1191,7 +1184,7 @@ datos se resuelve solo. Una variable opcional:
 ```
 ~/.local/share/gomemory/            (o $GOMEMORY_DATA_HOME / %LOCALAPPDATA%\gomemory)
 └── projects/
-    └── <slug>-<hash>/              ← ProjectKey(root): slug legible + sha256[:8](ruta absoluta)
+    └── <slug>-<hash>/              ← ProjectKey(root): slug legible + sha256[:8] de la ruta absoluta
         └── mem.db                  ← SQLite (WAL mode) — el único dato persistente por proyecto
 
 proyecto/
@@ -1205,32 +1198,27 @@ El registro MCP vive fuera del repo por completo: `~/.claude.json` (`mcpServers.
 scope `user`) y/o `~/.codex/config.toml` (`[mcp_servers.gomemory]`), registrados una
 vez con `mem setup-mcp --scope global --agents claude,codex`.
 
-### Flujo clásico (`mem install`, todavía soportado — Cursor/Windsurf/Cline)
+### Instalación autocontenida por proyecto (`mem install`)
 
 ```
 proyecto/
-├── .memory/                    ← Solo auxiliares en este flujo también (mem.db vive en el store global)
-│   └── context.md              ← Contexto markdown generado
-├── AGENTS.md                   ← Instrucciones de integración
-├── CLAUDE.md                   ← Ídem para Claude Code
-├── opencode.json                ← MCP server config (opencode)
-├── .mcp.json                   ← MCP server config (Claude) — ¡ojo! si además se registró
-│                                  gomemory en scope global, esta entrada de proyecto tiene
-│                                  precedencia sobre la global para el mismo nombre (confirmado
-│                                  empíricamente) — quitarla si se quiere depender solo de la global
+├── .memory/                    ← Archivos auxiliares; mem.db vive en el almacén global
+│   ├── context.md             ← Solo si se ejecuta `mem context --write`
+│   └── backups/               ← Respaldos creados al retirar artefactos antiguos
+├── .mcp.json                  ← MCP del proyecto para Claude Code
+├── .claude/                   ← Plugin, hooks y comandos opcionales
+├── opencode.json              ← MCP del proyecto para OpenCode
+├── .opencode/commands/        ← Comandos opcionales
 ├── .cursor/
-│   └── mcp.json                ← MCP server config (Cursor)
-├── .windsurf/
-│   └── mcp_config.json         ← MCP server config (Windsurf)
-├── .cline/
-│   └── mcp_settings.json       ← MCP server config (Cline)
-├── mem                         ← Binario (gitignorado)
-├── .gitignore                  ← .memory/ y /mem ignorados
-                                 (Codex no usa un archivo dentro del proyecto: registra
-                                  una tabla [mcp_servers."gomemory_<proyecto>"] en el
-                                  archivo global ~/.codex/config.toml)
+│   └── mcp.json               ← MCP del proyecto para Cursor
+├── mem                        ← Binario local (gitignorado)
+├── .gitignore                 ← Incluye .memory/ y /mem
 └── ...
 ```
+
+OpenCode mantiene el plugin en la configuración del usuario y Codex registra el
+servidor en `~/.codex/config.toml`. Windsurf y Cline se añaden solo cuando se
+solicitan con `mem setup-mcp --scope project`.
 
 ## Arquitectura Hexagonal
 
@@ -1387,10 +1375,8 @@ gomemory/
 ├── scripts/                   # Instaladores universales de consola
 │   ├── install.sh             #   Linux / macOS
 │   └── install.ps1            #   Windows (PowerShell)
-├── specs/                     # SDD specs (001..005)
+├── specs/                     # Especificaciones de producto y arquitectura
 ├── .github/workflows/         # CI: release.yml (GoReleaser al pushear tag v*)
-├── AGENTS.md
-├── CLAUDE.md
 ├── go.mod / go.sum
 └── mem                       # Binario compilado (gitignorado)
 ```

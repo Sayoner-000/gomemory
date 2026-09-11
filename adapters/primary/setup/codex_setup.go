@@ -47,6 +47,18 @@ var codexGomemoryHooks = []CodexHook{
 	// diluye según crece la conversación — la diferencia observable entre "el
 	// agente sigue el método" y "lo siguió al principio".
 	{Event: "UserPromptSubmit", Sub: "user-prompt-submit", Emit: "json"},
+	// Captura pasiva de aprendizajes de subagentes (feature 030, US3,
+	// capacidad C3). Añadida AL FINAL: codex_gomemory_hooks_test.go usa el
+	// índice [2] para llegar a Stop, y añadir aquí no lo desplaza.
+	//
+	// ⚠ A diferencia del resto de esta tabla, esta entrada NO se verificó en
+	// sesión interactiva — se basa en documentación oficial de Codex +
+	// inspección de `strings` sobre el binario instalado (0.154.0, que
+	// contiene "SubagentStop" y "last_assistant_message"). Confirmar en vivo
+	// antes de darla por tan sólida como el resto (specs/030-auto-compact-context/
+	// quickstart.md, Q0). Emit=json: SubagentStop exige salida JSON válida
+	// aunque no haya nada que inyectar al modelo.
+	{Event: "SubagentStop", Sub: "subagent-stop", Emit: "json"},
 }
 
 // CodexGomemoryHooks expone la tabla para quien tenga que escribirla. Vive en

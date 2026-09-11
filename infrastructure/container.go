@@ -44,6 +44,12 @@ type Container struct {
 	UsageRepo     ports.UsageRepository
 	OctopusRepo   ports.OctopusRepository
 	UsageRecorder ports.UsageRecorder
+
+	// SessionSummaries/SessionMemories/CompactContextBuilder (feature 030):
+	// ver cli.Deps para el porqué de cada uno.
+	SessionSummaries      ports.SessionSummaryUpdater
+	SessionMemories       ports.SessionMemoryLister
+	CompactContextBuilder ports.ContextBuilder
 }
 
 // NewContainer construye el composition root. channel es la etiqueta del
@@ -144,6 +150,22 @@ func NewContainer(root, channel string) (*Container, error) {
 	contextBuilder.Counter = tokens.ApproximateTokenCounter{}
 	contextBuilder.Recorder = usageRecorder
 
+	// CompactContextBuilder (feature 030, US1): copia de contextBuilder con
+	// IndexMode forzado a true, independiente del ajuste context_index_mode
+	// del proyecto. El texto que se entrega tras compactar nunca debe llevar
+	// contenido íntegro de memorias, sea cual sea el modo configurado para
+	// get_context.
+	compactContextBuilder := *contextBuilder
+	compactContextBuilder.IndexMode = true
+
+	// SessionSummaries/SessionMemories (feature 030): puertos estrechos que el
+	// mismo repositorio concreto ya implementa (repositories.go). La aserción
+	// de tipo sigue el mismo patrón que contextBuilder.Topics más arriba: no
+	// ensanchar SessionRepository/MemoryRepository por una capacidad que solo
+	// necesita esta feature.
+	sessionSummaries, _ := sessRepo.(ports.SessionSummaryUpdater)
+	sessionMemories, _ := memRepo.(ports.SessionMemoryLister)
+
 	c := &Container{
 		Root:    root,
 		Project: project,
@@ -168,6 +190,10 @@ func NewContainer(root, channel string) (*Container, error) {
 		UsageRepo:       usageRepo,
 		OctopusRepo:     octopusRepo,
 		UsageRecorder:   usageRecorder,
+
+		SessionSummaries:      sessionSummaries,
+		SessionMemories:       sessionMemories,
+		CompactContextBuilder: &compactContextBuilder,
 	}
 	if settings.AdrSyncEnabled {
 		c.ADRSyncProvider = adrSyncProvider
@@ -205,6 +231,10 @@ func (c *Container) ToDeps() *cli.Deps {
 		UsageRepo:       c.UsageRepo,
 		OctopusRepo:     c.OctopusRepo,
 		UsageRecorder:   c.UsageRecorder,
+
+		SessionSummaries:      c.SessionSummaries,
+		SessionMemories:       c.SessionMemories,
+		CompactContextBuilder: c.CompactContextBuilder,
 	}
 }
 

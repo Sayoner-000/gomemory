@@ -56,6 +56,27 @@ func SetSessionLastPrompt(db *sql.DB, project, prompt string) error {
 // contexto con mensajes largos; alcanza para dar trazabilidad del pedido.
 const maxOriginPromptLen = 2000
 
+// UpdateSessionSummary reemplaza el resumen de la sesión id sin tocar
+// ended_at (feature 030, US2 — research.md R4/R5). A diferencia de
+// EndSession, NO cierra la sesión: existe justo porque la única vía previa
+// para persistir un resumen (EndSession) la cerraba, y hookPostCompact no
+// abría una sesión nueva, así que toda memoria guardada tras la primera
+// compactación quedaba sin sesión asociada.
+func UpdateSessionSummary(db *sql.DB, id, summary string) error {
+	res, err := db.Exec(
+		`UPDATE sessions SET summary = ? WHERE id = ? AND ended_at IS NULL`,
+		summary, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update session summary: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("session %s not found or already ended", id)
+	}
+	return nil
+}
+
 func EndSession(db *sql.DB, id, summary string) error {
 	res, err := db.Exec(
 		`UPDATE sessions SET ended_at = `+Now+`, summary = ? WHERE id = ? AND ended_at IS NULL`,

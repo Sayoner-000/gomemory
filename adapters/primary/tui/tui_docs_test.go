@@ -83,8 +83,13 @@ func TestConfigRows_DocumentosVanAlFinal(t *testing.T) {
 	if configRowOctopus != configRowDocsBase+len(domain.PinnedDocs) {
 		t.Errorf("configRowOctopus = %d, esperaba %d", configRowOctopus, configRowDocsBase+len(domain.PinnedDocs))
 	}
-	if configOptions != configRowOctopus+1 {
-		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowOctopus+1)
+	// Feature 030: la última fila pasa a ser el aviso de compactación al
+	// agente, añadida al final tras Octopus AAR, misma convención de nuevo.
+	if configRowCompactAgentNotice != configRowOctopus+1 {
+		t.Errorf("configRowCompactAgentNotice = %d, esperaba %d", configRowCompactAgentNotice, configRowOctopus+1)
+	}
+	if configOptions != configRowCompactAgentNotice+1 {
+		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowCompactAgentNotice+1)
 	}
 	if configRowAtomicPlan != 6 || configRowPlanGuard <= configRowAtomicPlan {
 		t.Error("las filas preexistentes se desplazaron: los tests que las referencian por nombre quedarían inválidos")

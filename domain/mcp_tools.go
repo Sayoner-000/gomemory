@@ -22,6 +22,10 @@ const (
 	ToolEndSession     = "end_session"
 	ToolGetContext     = "get_context"
 	ToolGetPlanContext = "get_plan_context"
+	// ToolSaveSessionSummary (feature 030, US2): persiste el resumen
+	// compactado en la sesión activa SIN cerrarla. Complementa a
+	// ToolEndSession, que sí la cierra.
+	ToolSaveSessionSummary = "save_session_summary"
 
 	ToolIndexProject     = "index_project"
 	ToolGraphStatus      = "graph_status"
@@ -62,6 +66,7 @@ var MCPMemoryTools = []string{
 	ToolJudgeMemories,
 	ToolStartSession,
 	ToolEndSession,
+	ToolSaveSessionSummary,
 }
 
 // MCPCodeTools son las tools del grafo de código PROPIO de gomemory (Go, vía

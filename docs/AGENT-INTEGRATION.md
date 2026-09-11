@@ -108,7 +108,7 @@ una línea en cada turno, que es lo que sostiene la cobertura mientras tanto.
 | Recordatorio por turno | `mem hook nudge` | En cada turno, si el agente puede inyectar texto |
 | Envoltorio nativo del método | lo escribe la instalación | Una vez, si el agente tiene formato propio de habilidad o comando |
 
-Desde la versión 2.9.0 no existe una vía de ámbito de proyecto: `mem install` ya no escribe
+No existe una vía de instrucciones de ámbito de proyecto: `mem install` no escribe
 `AGENTS.md` ni `CLAUDE.md` en el repositorio destino.
 
 El bloque que escribía en esos archivos era una segunda copia del que el servidor entrega en

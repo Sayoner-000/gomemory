@@ -1,4 +1,4 @@
-# Instalación de gomemory v2.7.0
+# Instalación de gomemory
 
 > Repositorio: [github.com/Sayoner-000/gomemory](https://github.com/Sayoner-000/gomemory)
 
@@ -11,15 +11,15 @@ Git ni compilar. Funciona en Linux, macOS y Windows.
 
 ```bash
 # Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
 ```
 
-Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=v2.7.0` para fijar versión,
+Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=vX.Y.Z` para fijar versión,
 `GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino.
 
 Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`.
@@ -65,7 +65,7 @@ mem setup-mcp --scope global --agents claude,codex,opencode
   `initialize.instructions`, en la descripción de cada tool, y embebido en la
   respuesta de `get_context` — funciona con solo este registro global, sin
   `mem install` (ver `docs/MEMORY-PROTOCOL.md`).
-- Desde v2.9, `mem install` **no genera ningún archivo de instrucciones**. Las
+- `mem install` **no genera ningún archivo de instrucciones**. Las
   reglas de trabajo y la constitución se siembran como memorias, llegan solas en
   `get_context()` y se administran con `mem docs`.
 
@@ -79,7 +79,7 @@ antes de reintentar — gomemory nunca sobrescribe esa entrada en silencio.
 
 | Recurso | Requerido | Notas |
 |---------|-----------|-------|
-| **Go** 1.25+ | Para compilar desde fuente | `go version` para verificar |
+| **Go** 1.27+ | Para compilar desde fuente | `go version` para verificar |
 | **Git** | Para clonar el repo | `git --version` para verificar |
 | CGO | No | `modernc.org/sqlite` = SQLite puro en Go |
 | Dependencias runtime | No | Binario autocontenido (~16MB) |
@@ -187,7 +187,7 @@ proyecto/
 ```
 
 Y siembra en la memoria del proyecto las **reglas de trabajo** y la
-**constitución**. Desde v2.9 no se genera `AGENTS.md`, `CLAUDE.md` ni
+**constitución**. No se genera `AGENTS.md`, `CLAUDE.md` ni
 `speckit-constitution-gen.md`: el protocolo ya viaja en la respuesta
 `initialize` del MCP, y duplicarlo en un archivo solo gastaba contexto. Si el
 proyecto arrastra esos artefactos de una instalación anterior, la instalación
@@ -230,7 +230,8 @@ en su lugar (ver sección **0.1**).
 - Crea sesión al iniciar, la cierra al terminar
 - Inyecta el Memory Protocol en el system prompt
 - Provee contexto de sesiones previas
-- Recupera estado después de compactación
+- Entrega memoria al compresor, guarda el resumen y recupera estado después de compactar
+- Captura aprendizajes estructurados al terminar subagentes
 
 **Reinicia OpenCode** para activarlo.
 
@@ -247,7 +248,8 @@ Configura hooks portables en `.claude/settings.json` e instala el skill en
 **Qué hace**:
 - Crea sesión al iniciar (`SessionStart` → `mem hook session-start`)
 - Cierra sesión al terminar (`SessionEnd` → `mem hook session-end`)
-- Inyecta contexto + recordatorio del protocolo en cada prompt y tras compactación
+- Persiste el resumen y reinyecta memoria de sesión e índice del proyecto tras compactar
+- Registra turnos, delegaciones y aprendizajes estructurados mediante hooks
 - Skill de memoria siempre disponible
 
 Los hooks referencian `mem` por PATH (o `${CLAUDE_PROJECT_DIR}/mem` como fallback
@@ -291,10 +293,15 @@ Herramientas MCP disponibles:
 | `judge_memories` | Registrar veredicto imparcial entre dos memorias |
 | `start_session` | Iniciar sesión de trabajo |
 | `end_session` | Finalizar sesión con resumen |
+| `save_session_summary` | Guardar un resumen compactado sin cerrar la sesión |
 | `get_context` | Obtener contexto completo del proyecto |
 | `get_plan_context` | Método de descomposición atómica + historial, para modo plan |
 | `search_code` / `get_symbol` / `list_dependencies` / `graph_status` / `index_project` | Grafo de código propio del proyecto |
 | `pack_build` / `pack_show` / `pack_compress` / `pack_stats` | Optimización de contexto (ContextPack) |
+| `review_*` | Revisión adversarial por consenso, correcciones y veredicto final |
+
+El servidor publica 28 herramientas base. Si Octopus AAR está habilitado,
+añade cuatro herramientas opcionales de enrutamiento y telemetría.
 
 Configuración multi-agente automática:
 
@@ -369,11 +376,11 @@ cp mem /ruta/a/tu/proyecto/mem
 
 ### "command not found: go"
 
-Instala Go desde [go.dev/dl](https://go.dev/dl/). Versión mínima: 1.25.
+Instala Go desde [go.dev/dl](https://go.dev/dl/). Versión mínima: 1.27.
 
 ### "go: no such toolchain"
 
-Actualiza Go a 1.25+: `go install golang.org/dl/go1.25@latest && go1.25 download`
+Actualiza Go a 1.27 o posterior siguiendo las instrucciones de [go.dev/dl](https://go.dev/dl/).
 
 ### "plugin not found after setup"
 
@@ -389,14 +396,14 @@ ls .claude/plugins/gomemory/scripts/
 # ¿Olvidaste reiniciar el agente? Los plugins se cargan al arranque.
 ```
 
-### "MCP connection refused"
+### El agente no muestra el servidor MCP
 
 ```bash
 # El MCP va por stdio (sin servidor ni puerto): el agente lanza `mem mcp`
 # como subproceso. Verifica que `mem` esté en el PATH y que la config del
 # agente apunte a `mem mcp`.
 which mem
-mem mcp --help
+mem doctor
 ```
 
 ---

@@ -225,7 +225,11 @@ distintas, sino que la existente se actualiza/consolida.
 - **FR-008**: El hook de fin de turno DEBE poder emitir un recordatorio no
   bloqueante de compactación cuando la huella estimada supere un umbral
   configurable, sin ejecutar por su cuenta acciones destructivas ni de
-  compactación (que solo el cliente puede realizar).
+  compactación (que solo el cliente puede realizar). La feature 030 amplía
+  este requisito en modo opt-in (`compact_agent_notice`): el mismo
+  recordatorio, dirigido también al agente además de a la persona, sin que
+  este requisito deje de cumplirse — la compactación en sí sigue siendo
+  exclusiva del cliente.
 - **FR-009**: El presupuesto y el umbral DEBEN ser configurables por el usuario
   con valores por defecto sensatos, y el comportamiento por defecto NO DEBE
   degradar la utilidad del contexto para proyectos pequeños.

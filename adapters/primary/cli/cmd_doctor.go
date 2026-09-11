@@ -108,6 +108,56 @@ func printDoctorHuman(report domain.CoverageReport, deps *Deps) {
 	}
 	printDoctorRemedies(report)
 	printDoctorLiveness(deps)
+	printDoctorCompaction(report)
+}
+
+// installedAgentNames devuelve los nombres de agente que tienen al menos un
+// canal en un estado distinto de missing/not_applicable — la misma señal que
+// ya usa el resto del reporte para distinguir "instalado" de "no detectado".
+func installedAgentNames(report domain.CoverageReport) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, c := range report.Channels {
+		if c.State == domain.StateMissing || c.State == domain.StateNotApplicable {
+			continue
+		}
+		if !seen[c.Agent] {
+			seen[c.Agent] = true
+			out = append(out, c.Agent)
+		}
+	}
+	return out
+}
+
+// printDoctorCompaction lista, por cada agente instalado, las capacidades de
+// compactación sin pérdida de memoria (feature 030) que la integración
+// aprovecha, con "sí" o el motivo declarado de ausencia (INV-C1). Recorre
+// domain.KnownAgents en su orden fijo, para una salida estable — nunca el
+// orden de un mapa.
+func printDoctorCompaction(report domain.CoverageReport) {
+	installed := map[string]bool{}
+	for _, name := range installedAgentNames(report) {
+		installed[name] = true
+	}
+
+	var impreso bool
+	for _, agent := range domain.KnownAgents {
+		if !installed[agent.Name] {
+			continue
+		}
+		if !impreso {
+			fmt.Println("\nCompactación sin pérdida de memoria (feature 030), por agente instalado:")
+			impreso = true
+		}
+		fmt.Printf("  %s:\n", agent.Name)
+		for _, cap := range domain.AllCompactionCapabilities() {
+			if agent.Compaction[cap] {
+				fmt.Printf("    %-24s sí\n", cap)
+			} else {
+				fmt.Printf("    %-24s %s\n", cap, agent.CompactionUnavailable[cap])
+			}
+		}
+	}
 }
 
 func doctorSymbol(state domain.ChannelState) string {

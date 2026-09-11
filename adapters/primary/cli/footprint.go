@@ -111,6 +111,33 @@ func computeCompactNudge(root string, threshold int) (string, bool) {
 	return compactNudgeMessage, true
 }
 
+// pendingAgentNoticePath es el archivo que guarda el aviso de US4
+// (feature 030) cuando el dialecto no tiene un canal doble en el mismo fin de
+// turno (json, text): se consume una sola vez, en el siguiente
+// user-prompt-submit o `mem hook agent-notice`.
+func pendingAgentNoticePath(root string) string {
+	return filepath.Join(root, persistence.MemDir, ".pending-agent-notice")
+}
+
+// writePendingAgentNotice deja el aviso pendiente para el turno siguiente.
+// Best-effort: un fallo aquí no debe impedir el cierre del turno.
+func writePendingAgentNotice(root string) {
+	p := pendingAgentNoticePath(root)
+	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	_ = os.WriteFile(p, []byte(domain.AgentPrepareNotice), 0o644)
+}
+
+// consumePendingAgentNotice lee y BORRA el aviso pendiente, para que se
+// entregue una sola vez. ("", false) si no hay ninguno.
+func consumePendingAgentNotice(root string) (string, bool) {
+	data, err := os.ReadFile(pendingAgentNoticePath(root))
+	if err != nil {
+		return "", false
+	}
+	_ = os.Remove(pendingAgentNoticePath(root))
+	return string(data), true
+}
+
 // Refuerzo periódico de preferencias: el protocolo/preferencias solo se
 // reinyectan en SessionStart y post-compact (printRecoveryAndContext); en una
 // sesión larga que no llega a compactar, una regla como "español neutro" se

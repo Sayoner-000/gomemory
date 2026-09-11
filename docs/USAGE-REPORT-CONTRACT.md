@@ -113,7 +113,7 @@ Línea base:        8 120 tokens
 Emitido:           5 310 tokens
 Ahorro:            2 810 tokens  (34,60 %)
 
-Descriptores publicados: 1 842 tokens en 19 operaciones
+Descriptores publicados: 1 842 tokens en 28 operaciones
 
 Por operación
   build_context      1 llamada    6 000 →  3 500   (-41,67 %)

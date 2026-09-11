@@ -48,6 +48,10 @@ func CmdHook(deps *Deps, args []string) {
 		hookPreCompact(deps)
 	case "post-compact":
 		hookPostCompact(deps)
+	case "compaction-context":
+		hookCompactionContext(deps)
+	case "compact-summary":
+		hookCompactSummary(deps, args[1:])
 	case "user-prompt-submit":
 		hookUserPromptSubmit(deps, args[1:])
 	case "nudge":
@@ -63,7 +67,7 @@ func CmdHook(deps *Deps, args []string) {
 	case "subagent-start":
 		hookSubagentStart(deps)
 	case "subagent-stop":
-		hookSubagentStop(deps)
+		hookSubagentStop(deps, args[1:])
 	case "plan-approved":
 		hookPlanApproved(deps)
 	case "plan-guard":
@@ -72,6 +76,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookPlanEntered(deps, args[1:])
 	case "prompt":
 		hookPrompt(deps)
+	case "agent-notice":
+		hookAgentNotice(deps)
 	default:
 		// Evento desconocido: salida vacía, sin error.
 		os.Exit(0)
@@ -216,19 +222,149 @@ func hookPostCompact(deps *Deps) {
 		_ = os.Remove(planEnteredMarkerPath(deps, root))
 		footprintReset(root)                          // tras compactar, la huella cuenta desde cero
 		_ = os.Remove(preferenceNudgeStatePath(root)) // el refuerzo también arranca de cero
+		_ = os.Remove(pendingAgentNoticePath(root))   // el aviso de US4 también arranca de cero
+		ensureActiveSession(deps, root)               // R4: sin esto, toda memoria guardada tras
+		// compactar quedaba sin sesión asociada (ver dominio de RecoverySteps).
 	}
 	printRecoveryAndContext(deps)
 	os.Exit(0)
 }
 
-// printRecoveryAndContext imprime las instrucciones de recuperación de memoria
-// seguidas del contexto de la sesión previa (si hay). Compartido por los hooks
-// de pre y post compactación.
-func printRecoveryAndContext(deps *Deps) {
-	fmt.Print(compactionRecoveryInstructions)
+// hookCompactionContext implementa `mem hook compaction-context` (feature
+// 030, US1, capacidad C1): lo usan las integraciones que pueden aportar texto
+// al compresor ANTES de compactar (contracts/hooks.md). Emite el contexto de
+// la sesión activa —si hay una— seguido de la orden de persistir el resumen.
+// A diferencia de post-compact, NO toca estado (ni abre sesión, ni resetea
+// marcadores): esta llamada ocurre antes de que la compactación exista.
+func hookCompactionContext(deps *Deps) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		fmt.Print(domain.CompactorPersistOrder)
+		os.Exit(0)
+	}
+	project := deps.ProjectRepo.Key(root)
+	budget := 0
+	if deps.SettingsRepo != nil {
+		budget = deps.SettingsRepo.Read(root).Budget
+	}
 
-	if _, err := deps.ProjectRepo.FindRoot(); err == nil {
-		if ctx, err := deps.ContextBuilder.Build(); err == nil && ctx != "" {
+	var compactCtx string
+	if deps.SessionRepo != nil && deps.SessionMemories != nil {
+		compactCtx, _ = usecases.BuildCompactionContext(deps.SessionRepo, deps.SessionMemories, project, compactionContextBudget(budget))
+	}
+
+	if compactCtx != "" {
+		fmt.Print(compactCtx)
+		fmt.Print("\n")
+	}
+	fmt.Print(domain.CompactorPersistOrder)
+	os.Exit(0)
+}
+
+// hookCompactSummary implementa `mem hook compact-summary` (feature 030, US2,
+// capacidad C6): lo usan las integraciones que reciben el resumen compactado
+// del propio cliente (contracts/hooks.md). Acepta tanto "compact_summary"
+// (el campo del cliente, p. ej. PostCompact de Claude Code) como "summary"
+// (forma neutral para integraciones que no lo tienen). Si llegan ambas, gana
+// "compact_summary" salvo que venga en blanco, en cuyo caso se usa "summary".
+// Un resumen vacío no hace nada — nunca crea una sesión ni persiste ruido.
+func hookCompactSummary(deps *Deps, args []string) {
+	dialect := dialectClaude
+	if v := emitFlagValue(args); isKnownDialect(v) {
+		dialect = hookDialect(v)
+	}
+
+	summary := ""
+	if payload := readHookStdin(); payload != nil {
+		for _, key := range []string{"compact_summary", "summary"} {
+			if s, ok := payload[key].(string); ok && strings.TrimSpace(s) != "" {
+				summary = s
+				break
+			}
+		}
+	}
+
+	if strings.TrimSpace(summary) != "" {
+		if root, err := deps.ProjectRepo.FindRoot(); err == nil {
+			project := deps.ProjectRepo.Key(root)
+			sess, err := deps.SessionRepo.Active(project)
+			if err == nil && sess == nil {
+				sess, err = deps.SessionRepo.Start(project)
+			}
+			if err == nil && sess != nil && deps.SessionSummaries != nil {
+				_ = deps.SessionSummaries.UpdateSummary(sess.ID, summary)
+			}
+		}
+	}
+
+	if dialect == dialectJSON {
+		fmt.Print("{}")
+	}
+	os.Exit(0)
+}
+
+// ensureActiveSession abre una sesión si no hay ninguna activa. Existe porque
+// la recuperación tras compactar pedía end_session() —que CIERRA la
+// sesión— y nada la reabría: toda memoria guardada después de la primera
+// compactación quedaba con session_id vacío (feature 030, research.md R4).
+// Best-effort: un fallo aquí no debe impedir imprimir la recuperación.
+func ensureActiveSession(deps *Deps, root string) {
+	project := deps.ProjectRepo.Key(root)
+	if active, _ := deps.SessionRepo.Active(project); active == nil {
+		_, _ = deps.SessionRepo.Start(project)
+	}
+}
+
+// compactionContextBudgetFraction es la parte del presupuesto de arranque que
+// se reserva para el contexto de compactación (feature 030, research.md R7):
+// deja el resto para los pasos de recuperación (nunca se recortan) y el
+// contexto de proyecto en modo índice.
+const compactionContextBudgetFraction = 0.40
+
+// compactionContextBudget calcula el tope del contexto de compactación a
+// partir del presupuesto de arranque. <=0 se propaga como "sin límite",
+// misma semántica que Settings.Budget (spec 008, FR-004).
+func compactionContextBudget(arranqueBudget int) int {
+	if arranqueBudget <= 0 {
+		return 0
+	}
+	return int(float64(arranqueBudget) * compactionContextBudgetFraction)
+}
+
+// printRecoveryAndContext imprime, en orden, los pasos de recuperación
+// (domain.RecoverySteps), la memoria de la sesión activa acotada a esta
+// sesión (US1) y el contexto de proyecto en modo índice — compartido por los
+// hooks de pre y post compactación. El orden importa: recuperación primero
+// (nunca se recorta), sesión después (lo más específico y accionable),
+// proyecto al final (lo más genérico).
+func printRecoveryAndContext(deps *Deps) {
+	fmt.Print(domain.RecoverySteps)
+
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		return
+	}
+	project := deps.ProjectRepo.Key(root)
+
+	budget := 0
+	if deps.SettingsRepo != nil {
+		budget = deps.SettingsRepo.Read(root).Budget
+	}
+
+	if deps.SessionRepo != nil && deps.SessionMemories != nil {
+		compactCtx, err := usecases.BuildCompactionContext(deps.SessionRepo, deps.SessionMemories, project, compactionContextBudget(budget))
+		if err == nil && compactCtx != "" {
+			fmt.Print("\n\n")
+			fmt.Print(compactCtx)
+		}
+	}
+
+	builder := deps.CompactContextBuilder
+	if builder == nil {
+		builder = deps.ContextBuilder
+	}
+	if builder != nil {
+		if ctx, err := builder.Build(); err == nil && ctx != "" {
 			fmt.Print("\n\nContexto de la sesión previa:\n")
 			fmt.Print(ctx)
 		}
@@ -279,6 +415,13 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 		// el agente jamás lo veía, así que el recordatorio de guardado nunca
 		// llegaba a aplicarse, solo se mostraba en la UI del usuario.
 		var parts []string
+		// Aviso de preparación pendiente (feature 030, US4): lo dejó turn-end
+		// en un dialecto sin canal doble en el mismo fin de turno. Va primero
+		// —es lo más urgente si el turno anterior cruzó el umbral— y se
+		// consume una sola vez.
+		if msg, ok := consumePendingAgentNotice(root); ok {
+			parts = append(parts, msg)
+		}
 		if msg, ok := computeSaveNudge(deps, root, project); ok {
 			parts = append(parts, msg)
 		}
@@ -421,9 +564,22 @@ func hookTurnEnd(deps *Deps, args []string) {
 	// NO consume stdin, así el checkpoint sigue viendo el payload intacto.
 	emitted := false
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
-		threshold := deps.SettingsRepo.Read(root).CompactThreshold
+		settings := deps.SettingsRepo.Read(root)
+		threshold := settings.CompactThreshold
 		if msg, ok := computeCompactNudge(root, threshold); ok {
-			fmt.Print(renderTurnEnd(dialect, msg, true))
+			// Aviso de preparación al agente (feature 030, US4): opt-in. Con la
+			// opción apagada, esta rama es BYTE A BYTE la de la spec 008
+			// (FR-015) — el mismo renderTurnEnd(dialect, msg, true) de siempre.
+			if settings.CompactAgentNotice {
+				fmt.Print(renderTurnEndAgentPrepare(dialect, msg, domain.AgentPrepareNotice))
+				if dialect != dialectClaude {
+					// Sin canal doble en este mismo fin de turno: el aviso al
+					// agente se difiere al turno siguiente.
+					writePendingAgentNotice(root)
+				}
+			} else {
+				fmt.Print(renderTurnEnd(dialect, msg, true))
+			}
 			emitted = true
 		} else if msg, ok := computePreferenceReinforcement(deps, root, deps.Project, threshold); ok {
 			// Solo uno de los dos por turno: si ya se sugirió compactar, no
@@ -486,10 +642,40 @@ func hookSubagentStart(deps *Deps) {
 // ve: sus ediciones y comandos viven en el transcript propio del subagente —que
 // este hook recibe vía transcript_path—, mientras que en el transcript principal
 // el subagente aparece solo como un tool_use "Task" (que el parser de actividad
-// ignora). En OpenCode no hace falta un equivalente: los subagentes son
-// sub-sesiones que emiten session.idle y ya los captura handleTurnEnd.
-func hookSubagentStop(deps *Deps) {
-	recordActivityCheckpoint(deps, "Checkpoint de subagente")
+// ignora). En OpenCode no hace falta un equivalente para el checkpoint: los
+// subagentes son sub-sesiones que emiten session.idle y ya los captura
+// handleTurnEnd; la captura pasiva de aprendizajes (abajo) sí la envía
+// explícitamente el complemento (tool.execute.after).
+//
+// Además del checkpoint determinista vigente, captura pasivamente (feature
+// 030, US3) los ítems de la sección de aprendizajes del mensaje final del
+// subagente (last_assistant_message), sin gastar tokens del agente principal.
+// El payload se lee UNA sola vez y se reutiliza para ambos propósitos: stdin
+// no puede leerse dos veces.
+//
+// Codex exige JSON válido en la salida de SubagentStop (a diferencia de
+// Claude Code, que no espera nada en stdout aquí): con --emit=json se
+// imprime "{}" ANTES del trabajo de captura/checkpoint, igual que hookTurnEnd
+// hace con Stop.
+func hookSubagentStop(deps *Deps, args []string) {
+	dialect := dialectClaude
+	if v := emitFlagValue(args); isKnownDialect(v) {
+		dialect = hookDialect(v)
+	}
+	if dialect == dialectJSON {
+		fmt.Print("{}")
+	}
+
+	payload := readHookStdin()
+
+	if root, err := deps.ProjectRepo.FindRoot(); err == nil && payload != nil {
+		project := deps.ProjectRepo.Key(root)
+		if msg, ok := payload["last_assistant_message"].(string); ok && msg != "" {
+			_, _ = usecases.CaptureLearnings(deps.MemoryRepo, deps.SessionRepo, project, msg)
+		}
+	}
+
+	recordActivityCheckpointWithPayload(deps, "Checkpoint de subagente", payload)
 }
 
 // hookPlanApproved corre cuando el usuario APRUEBA un plan. Es la captura
@@ -606,6 +792,22 @@ func hookPrompt(deps *Deps) {
 	os.Exit(0)
 }
 
+// hookAgentNotice implementa `mem hook agent-notice` (feature 030, US4):
+// el subcomando dedicado para integraciones que no consumen el JSON de
+// user-prompt-submit (OpenCode, vía experimental.chat.system.transform).
+// Emite el aviso pendiente, si hay uno, y lo consume. Texto plano, sin sobre:
+// cada integración lo inyecta por su propio canal.
+func hookAgentNotice(deps *Deps) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		os.Exit(0)
+	}
+	if msg, ok := consumePendingAgentNotice(root); ok {
+		fmt.Print(msg)
+	}
+	os.Exit(0)
+}
+
 // promptFromStdin extrae el texto del prompt del payload JSON en stdin (campo
 // "prompt"). Devuelve "" si no hay pipe, el parseo falla o el campo no está.
 func promptFromStdin() string {
@@ -624,13 +826,23 @@ func promptFromStdin() string {
 // transcript o del payload y, si no está vacía, la guarda como checkpoint y
 // reindexa los .go tocados. Best-effort: ante cualquier error sale con código 0.
 func recordActivityCheckpoint(deps *Deps, title string) {
+	recordActivityCheckpointWithPayload(deps, title, readHookStdin())
+}
+
+// recordActivityCheckpointWithPayload es el cuerpo de recordActivityCheckpoint
+// que acepta un payload YA LEÍDO, para llamadores que necesitan inspeccionar
+// stdin antes del checkpoint (feature 030: hookSubagentStop extrae
+// last_assistant_message para la captura pasiva, con el mismo payload).
+// stdin no puede leerse dos veces, así que este es el único punto de entrada
+// real; recordActivityCheckpoint es el atajo para quien no necesita el
+// payload por adelantado.
+func recordActivityCheckpointWithPayload(deps *Deps, title string, payload map[string]any) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
 		os.Exit(0)
 	}
 	project := deps.ProjectRepo.Key(root)
 
-	payload := readHookStdin()
 	if payload == nil {
 		os.Exit(0)
 	}
@@ -930,16 +1142,6 @@ func hookPlanEntered(deps *Deps, args []string) {
 
 	emitHookOutput(renderEnteredDocument(dialect, doc))
 }
-
-const compactionRecoveryInstructions = `**TRAS LA COMPACTACIÓN — PRIMERA ACCIÓN REQUERIDA**
-
-1. Llama a end_session() con un resumen de en qué estábamos trabajando,
-   qué se logró y los próximos pasos.
-2. Llama a get_context() para recuperar el estado de la sesión previa.
-3. Solo ENTONCES continúa trabajando.
-
-No omitas el paso 1. Sin él, todo lo hecho antes de la compactación
-se pierde de la memoria.`
 
 // buildMemoryToolBootstrap fuerza la carga de las tools MCP de gomemory. En
 // Claude Code las tools de un MCP server llegan DIFERIDAS: existen por nombre

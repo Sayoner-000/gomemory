@@ -25,6 +25,9 @@ type SettingsData struct {
 	// sesión) a partir de la cual el hook de fin de turno sugiere compactar. <=0 =
 	// desactivado.
 	CompactThreshold int `json:"compact_threshold,omitempty"`
+	// CompactAgentNotice activa el aviso de preparación al agente además del
+	// aviso a la persona (feature 030, US4). Ausente/false = apagado (opt-in).
+	CompactAgentNotice bool `json:"compact_agent_notice,omitempty"`
 	// DedupWindowDays es la ventana (días) para consolidar memorias equivalentes
 	// (mismo proyecto+tipo+título) en vez de crear filas nuevas. <=0 = sin dedup
 	// por identidad.

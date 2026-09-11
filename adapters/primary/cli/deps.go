@@ -54,4 +54,15 @@ type Deps struct {
 	// (INV-AAR-015). Nunca se consulta con el módulo apagado.
 	OctopusRepo   ports.OctopusRepository
 	UsageRecorder ports.UsageRecorder
+
+	// SessionSummaries persiste el resumen compactado sin cerrar la sesión
+	// (feature 030, US2). Puerto estrecho — ver ports.SessionSummaryUpdater.
+	SessionSummaries ports.SessionSummaryUpdater
+	// SessionMemories lista las memorias de una sesión concreta (feature 030,
+	// US1). Puerto estrecho — ver ports.SessionMemoryLister.
+	SessionMemories ports.SessionMemoryLister
+	// CompactContextBuilder es una copia de ContextBuilder con IndexMode
+	// forzado a true (feature 030, US1): el contexto de proyecto que se
+	// entrega tras compactar va en modo índice, nunca con contenido íntegro.
+	CompactContextBuilder ports.ContextBuilder
 }

@@ -38,6 +38,11 @@ type Settings struct {
 	// CompactThreshold: huella (caracteres emitidos/sesión) que dispara el
 	// recordatorio de compactación. Ausente/0 → default; negativo → desactivado.
 	CompactThreshold int `json:"compact_threshold,omitempty"`
+	// CompactAgentNotice activa el aviso de preparación AL AGENTE (feature 030,
+	// US4), además del aviso a la persona que ya emite computeCompactNudge.
+	// Ausente/false = apagado (opt-in): con la opción apagada, la salida del
+	// fin de turno es idéntica a la de la spec 008 en cualquier cliente.
+	CompactAgentNotice bool `json:"compact_agent_notice,omitempty"`
 	// DedupWindowDays: ventana (días) del dedup por identidad. Ausente/0 →
 	// default; negativo → sin dedup por identidad.
 	DedupWindowDays int `json:"dedup_window_days,omitempty"`

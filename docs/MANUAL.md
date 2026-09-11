@@ -1,14 +1,13 @@
-# Manual de Usuario — Plugin System
+# Manual de usuario
 
-Guía paso a paso para instalar y usar el sistema de plugins de memoria
-automática con OpenCode y Claude Code.
+Guía para instalar, configurar y usar gomemory con los agentes compatibles.
 
 ## Índice
 
 1. [Instalación Rápida](#1-instalación-rápida)
 2. [Plugin para OpenCode](#2-plugin-para-opencode)
 3. [Plugin para Claude Code](#3-plugin-para-claude-code)
-4. [Servidor HTTP](#4-servidor-http)
+4. [Servidor MCP por stdio](#4-servidor-mcp-por-stdio)
 5. [Verificación](#5-verificación)
 6. [Solución de Problemas](#6-solución-de-problemas)
 7. [Memory Protocol](#7-memory-protocol)
@@ -21,7 +20,8 @@ automática con OpenCode y Claude Code.
 14. [Portabilidad](#14-portabilidad)
 15. [Modo Plan Determinista (mem doctor)](#15-modo-plan-determinista-mem-doctor)
 16. [Benchmark de tokens (mem usage)](#16-benchmark-de-tokens-mem-usage)
-17. [Octopus AAR](#17-octopus-aar)
+17. [Revisión adversarial por consenso](#17-revisión-adversarial-por-consenso-mem-review)
+18. [Octopus AAR](#18-octopus-aar)
 
 ---
 
@@ -33,39 +33,46 @@ Deja el binario `mem` en el PATH, sin compilar. Linux, macOS y Windows.
 
 ```bash
 # Linux / macOS
-curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
 
 ```powershell
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
 ```
 
 Luego, en tu proyecto:
 
 ```bash
 cd tu-proyecto
-mem install .        # Memoria + MCP (6 agentes) + pack de trabajo + constitución
-mem setup claude-code   # (opcional) registra los hooks de Claude Code
+mem setup-mcp --scope global --agents claude,codex,opencode
 mem --help
 ```
 
-`mem install .` configura el **MCP** de los agentes y **siembra dos memorias**
-en el proyecto: las *reglas de trabajo* y la *constitución*. Desde v2.9 no
-escribe ningún archivo de instrucciones en el repositorio — el protocolo ya viaja
-en la respuesta `initialize` del servidor MCP, y duplicarlo en `AGENTS.md` solo
-gastaba contexto. Si encuentra artefactos de instalaciones anteriores
-(`AGENTS.md`, `CLAUDE.md`, `speckit-constitution-gen.md`, `.windsurf/`,
-`.cline/`) los retira, respaldando los archivos de instrucciones en
-`.memory/backups/agent-files/` antes de borrarlos.
+El registro global configura MCP y las integraciones de ciclo de vida disponibles
+una sola vez para todos los proyectos. El almacén global y las memorias iniciales
+del proyecto se crean de forma diferida en el primer uso.
+
+Cursor, Windsurf y Cline no tienen un ámbito global compatible. Configúralos en
+el proyecto que los use:
+
+```bash
+mem setup-mcp --scope project --agents cursor,windsurf,cline --target .
+```
+
+`mem install .` sigue disponible como flujo autocontenido por proyecto. Copia el
+binario, configura MCP, instala los plugins y hooks compatibles, inicializa las
+reglas de trabajo y la constitución en memoria, y distribuye las extensiones
+opcionales. No crea archivos `AGENTS.md` ni `CLAUDE.md`. Si encuentra artefactos
+gestionados por instalaciones antiguas, los respalda y retira.
 
 Las reglas llegan al agente **íntegras** en cada `get_context()`; la constitución
 se consulta bajo demanda con `mem constitution` o el atajo `/constitution`.
 Ambas son del equipo, no de la herramienta: `mem docs` las exporta, importa y
 restaura (ver *Documentos fijados*).
 
-Los **hooks** de cada agente se registran aparte con `mem setup claude-code` /
-`mem setup opencode`.
+Para una integración por proyecto de Claude Code u OpenCode también puedes usar
+`mem setup claude-code` o `mem setup opencode`.
 
 ### Opción B — Desde el fuente
 
@@ -77,15 +84,16 @@ go build -o mem ./infrastructure/
 
 ### Hooks portables
 
-Los hooks de Claude Code son subcomandos del binario (`mem hook session-start`,
-`session-end`, `post-compact`, `user-prompt-submit`, `subagent-stop`): no usan
-`bash`/`curl` ni servidor HTTP y funcionan igual en Windows. Se configuran solos
-con `mem install .` o `mem setup claude-code`.
+Los hooks son subcomandos del binario, como `mem hook session-start`,
+`post-compact`, `turn-end` y `subagent-stop`. No usan scripts shell, `curl` ni
+un servidor HTTP. `mem install .` o `mem setup claude-code` los registra en el
+proyecto; `mem setup-mcp --scope global` registra los disponibles en el ámbito
+del usuario.
 
 ### Prerrequisitos
 
 - Para la Opción A: ninguno (binario autocontenido).
-- Para la Opción B: Go 1.25+.
+- Para la Opción B: Go 1.27+.
 - OpenCode 0.70+ (para plugin OpenCode), Claude Code (para hooks/plugin).
 - No se necesita CGO.
 
@@ -133,9 +141,12 @@ paralelo a los hooks de Claude Code (misma lógica, resuelta en Go):
 |-----------------|--------|---------|
 | `session.created` | `mem session start` | Abre la sesión de gomemory |
 | `session.idle` | `mem hook turn-end` (stdin) | Checkpoint de actividad del turno (archivos/comandos) |
+| `session.compacted` | `mem hook compact-summary` + `mem hook post-compact` | Guarda el resumen disponible y prepara la recuperación posterior |
+| `session.deleted` | — | Libera el estado temporal que el plugin mantenía para esa sesión |
 | `chat.message` | `mem hook prompt` (stdin) | Persiste el prompt del turno como provenance (`origin_prompt`) |
-| `experimental.chat.system.transform` | `mem context` + `mem hook nudge` | Inyecta protocolo + contexto histórico + recordatorio de guardado por turno |
-| `experimental.session.compacting` | `mem hook post-compact` | Empuja recuperación + contexto al contexto retenido (sobrevive a la compactación) |
+| `experimental.chat.system.transform` | `mem context` + hooks de recordatorio | Inyecta protocolo, contexto, recuperación pendiente y avisos del turno |
+| `experimental.session.compacting` | `mem hook compaction-context` | Entrega al compresor la memoria de la sesión activa antes de compactar |
+| `tool.execute.after` (`task`) | `mem hook subagent-stop` | Captura aprendizajes estructurados del resultado de un subagente |
 | `dispose` | `mem session end` | Cierra la sesión al descargarse el plugin |
 
 ---
@@ -163,12 +174,16 @@ Esto:
 | Evento | Subcomando | Función |
 |--------|-----------|---------|
 | `SessionStart` (`startup\|resume\|clear`) | `session-start` | Abre sesión si no hay activa **e inyecta el contexto de sesiones previas**. El agente arranca recordando el proyecto. |
-| `SessionStart` (`compact`) | `post-compact` | **Después** de compactar, re-inyecta recuperación + contexto y reactiva las tools MCP diferidas. Sobrevive a la compactación (reemplaza al `pre-compact` legado). En OpenCode lo cubre `experimental.session.compacting`. |
+| `SessionStart` (`compact`) | `post-compact` | Después de compactar, reinyecta recuperación + memoria de sesión + contexto indexado y reactiva las tools MCP diferidas. |
+| `PostCompact` | `compact-summary` | Persiste el resumen producido por la compactación sin cerrar la sesión. |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. En **cada** prompt persiste el texto del turno como provenance (`origin_prompt`) de lo que se guarde. En OpenCode el equivalente es `chat.message` → `mem hook prompt`. |
-| `SubagentStop` | `subagent-stop` | Al terminar un subagente (tool `Task`), registra un **checkpoint** con los archivos y comandos que tocó (actividad que vive solo en el transcript del subagente). |
+| `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para preservar su trazabilidad. |
+| `SubagentStop` | `subagent-stop` | Registra la actividad del subagente y captura los ítems válidos de su sección de aprendizajes. |
 | `Stop` | `turn-end` | Al terminar cada turno, registra automáticamente (sin gastar tokens del agente) qué archivos se editaron y qué comandos corrieron, como memoria tipo `checkpoint`. Turnos de puro chat no generan nada. En OpenCode el equivalente es el evento `session.idle`. |
+| `PreToolUse` (`ExitPlanMode`) | `plan-guard` | Valida la forma del plan antes de presentarlo. |
 | `PostToolUse` (`ExitPlanMode`) | `plan-approved` | Al **aprobar un plan**, guarda el plan como memoria `decision` de forma determinista, sin depender de que el modelo lo recuerde. Cubre el hueco de `turn-end` (un turno de plan mode no toca archivos ni corre comandos). Cada aprobación (incluidos planes revisados) se acumula. En OpenCode el plugin lo activa al detectar un turno en modo `plan`. |
+| `PostToolUse` (`EnterPlanMode`) | `plan-entered` | Inyecta el método de descomposición y el historial antes de redactar el plan. |
 
 > Regla de oro: un hook nunca aborta el arranque del agente — ante error sale con
 > código 0. Los hooks son lo que hace que la memoria "tome todo bien": sin ellos,
@@ -189,13 +204,12 @@ cat .mcp.json
 
 ---
 
-## 4. Servidor HTTP (retirado en v1.18.0)
+## 4. Servidor MCP por stdio
 
-El servidor HTTP legado (`mem serve` en `127.0.0.1:9735`) fue **retirado**. Tanto
-el plugin de OpenCode como los hooks de Claude Code hablan directo a los
-repositorios vía `mem hook <evento>` — sin shell, sin `curl`, sin puerto TCP,
-idéntico en Linux, macOS y Windows. El MCP va por `stdio` (`mem mcp`), sin abrir
-ningún puerto.
+`mem mcp` ejecuta el servidor MCP mediante JSON-RPC sobre entrada y salida
+estándar. El agente lo inicia como subproceso; no hay servicio residente, URL,
+puerto TCP ni API key. Los plugins y hooks llaman a `mem hook <evento>` y
+acceden al mismo almacén local.
 
 ---
 
@@ -243,13 +257,13 @@ ls infrastructure/plugin/opencode/gomemory.ts   # debe existir
 ls infrastructure/plugin/claude-code/         # debe existir
 ```
 
-### Error: "MCP connection refused"
+### El agente no muestra el servidor MCP
 
 ```bash
-# El MCP va por stdio (sin puerto). Verifica que `mem` esté en el PATH
-# y que la config del agente apunte a `mem mcp`.
+# El MCP va por stdio. Verifica que `mem` esté en el PATH y que la
+# configuración del agente ejecute `mem mcp`.
 which mem
-mem mcp --help
+mem doctor
 ```
 
 ### El Plugin OpenCode No se Activa
@@ -282,13 +296,13 @@ cat .mcp.json
 
 | Problema | Solución |
 |----------|----------|
-| `/mcp` no muestra el servidor | Verificar que `.mcp.json` tenga la ruta absoluta a `mem`. Reiniciar el agente. |
+| `/mcp` no muestra el servidor | Ejecutar `mem doctor`, comprobar que `mem` esté en el PATH y volver a registrar con `mem setup-mcp`. Reiniciar el agente. |
 | `mem install` falla | Verificar que `mem` esté en el PATH: `which mem` (Linux/macOS) o `where mem` (Windows). |
-| Memoria no se persiste entre sesiones | Verificar que `.memory/` exista y tenga permisos de escritura. Ejecutar `mem init --force`. |
+| Memoria no se persiste entre sesiones | Ejecutar `mem project` y comprobar permisos sobre el directorio de datos global mostrado. Usar `mem doctor` para revisar los hooks. |
 | Binario no encontrado después de instalar | Agregar al PATH: `export PATH="$HOME/.local/bin:$PATH"` (Linux/macOS). |
 | `mem update` en Windows | El binario en ejecución no se sobrescribe. Cerrar el proceso y ejecutar el comando que `mem update` sugiere. |
 | Contexto muy grande | Ejecutar `mem gc` para limpiar memorias antiguas (retención de 90 días por defecto). |
-| Base de datos corrupta | Ejecutar `mem compact` para recuperar espacio. Si persiste, borrar `.memory/mem.db` y re-indexar. |
+| Base de datos corrupta | Restaurar desde un bundle creado con `mem export`; `mem compact` solo recupera espacio y no repara corrupción. |
 
 ---
 
@@ -297,9 +311,9 @@ cat .mcp.json
 El Memory Protocol es un conjunto de reglas que le dicen al agente cuándo
 guardar, buscar y cerrar sesión de memoria.
 
-- **Con plugin (OpenCode, Claude Code)**: se inyecta automáticamente en el
-  system prompt — no requiere configuración adicional.
-- **Sin plugin (Cursor, Windsurf, Cline, Codex)**: el servidor MCP entrega el
+- **Con integración de ciclo de vida (OpenCode, Claude Code, Codex)**: se
+  inyecta automáticamente y los hooks registran la actividad compatible.
+- **Solo MCP (Cursor, Windsurf, Cline)**: el servidor MCP entrega el
   protocolo en la respuesta `initialize`, así que cualquier cliente MCP lo
   recibe sin archivos en el repositorio. Para el ámbito de usuario,
   `mem setup-mcp --scope global` sigue escribiendo el bloque en el archivo de
@@ -341,6 +355,37 @@ de continuar. Además, al cerrar cada turno, si la huella emitida por gomemory
 supera el umbral, el hook sugiere de forma **neutral** compactar el contexto
 (nunca ejecuta comandos: solo señala).
 
+### Compactación sin pérdida de memoria
+
+La compactación de la conversación la dispara siempre el cliente (automática
+o manual); gomemory nunca la ejecuta. Lo que hace es que ninguna compactación
+pierda lo que la memoria registró en la sesión:
+
+- **Antes de compactar** (en los clientes que lo permiten): el compresor
+  recibe un bloque breve con las memorias de **esta sesión** — no el proyecto
+  entero —, cada una con un puntero `get_memory <id>` para el detalle íntegro,
+  más la orden de guardar el resumen compactado.
+- **Después de compactar**: el agente recibe, en orden, los pasos de
+  recuperación, esa misma memoria de la sesión, y el contexto de proyecto en
+  modo índice (solo títulos y punteros, nunca contenido íntegro).
+- **El resumen compactado queda guardado**: llama a `save_session_summary`
+  (herramienta nueva, complementa a `end_session`) SIN cerrar la sesión — a
+  diferencia de `end_session`, que sí la cierra. En los clientes que entregan
+  el resumen directamente al hook, gomemory lo guarda por su cuenta, sin
+  esperar a que el agente lo haga.
+- **Captura pasiva de aprendizajes**: al terminar un subagente, si su mensaje
+  final trae una sección `## Aprendizajes clave` (o `## Key Learnings`, en
+  español o inglés, con viñetas o numerada), cada ítem se guarda solo, sin
+  duplicados y sin que el agente gaste tokens en pedirlo.
+- **Aviso opcional al agente** (`compact_agent_notice`, opt-in): al superar el
+  umbral de compactación, además del aviso que ya ves tú, el agente recibe un
+  recordatorio breve de guardar lo pendiente. Nunca bloquea ni prolonga el
+  turno.
+
+Qué capacidad usa cada cliente instalado se ve con `mem doctor`. Que un
+cliente no ofrezca una capacidad no rompe nada: el respaldo (los pasos de
+recuperación, el aviso a la persona) sigue funcionando igual.
+
 ### Huella de contexto (tunables)
 
 Para bajar el costo de tokens de la sesión, gomemory emite lo mínimo desde el
@@ -352,13 +397,14 @@ editar el JSON a mano.
 |-------|--------|---------|
 | `budget` | Techo de `get_context` en caracteres (`< 0` = sin límite) | `24000` (~6k tokens) |
 | `compact_threshold` | Huella emitida/sesión que dispara el recordatorio (`<= 0` = off) | `48000` |
+| `compact_agent_notice` | Aviso de preparación al agente al superar `compact_threshold`, además del aviso a la persona | `false` |
 | `dedup_window_days` | Ventana del dedup por identidad (`<= 0` = off; `topic_key` sigue activo) | `7` |
 
 La deduplicación en la fuente evita filas casi idénticas: guardar una memoria con
 un `topic_key` ya usado (o el mismo tipo+título dentro de la ventana) **actualiza**
 la existente en vez de crear otra.
 
-### Refuerzo periódico de preferencias (v1.23.0)
+### Refuerzo periódico de preferencias
 
 En sesiones largas que no llegan a compactar, el protocolo y las preferencias
 del usuario (`type=preference`) solo se inyectaban en `SessionStart` y
@@ -371,7 +417,7 @@ recordatorio genérico), con un debounce de 20 minutos. Si en el mismo turno
 también corresponde sugerir compactar, ese recordatorio tiene prioridad — la
 compactación reinyecta el contexto completo de todos modos.
 
-### Memoria conectada a código activo (v1.23.0)
+### Memoria conectada a código activo
 
 `get_context` ahora cruza el `Filepath` de cada memoria contra el grafo de
 código externo (si hay un proveedor configurado) **en cada llamada**, no solo
@@ -449,7 +495,7 @@ export` saca **un** documento en texto plano para editarlo a mano.
 
 ## 8. Mantenimiento de Memoria
 
-Cuando el almacén de memoria (`.memory/mem.db`) crece demasiado, gomemory ofrece
+Cuando el almacén global de memoria crece demasiado, gomemory ofrece
 cuatro acciones de mantenimiento — disponibles por CLI y, salvo desinstalar,
 también desde la TUI (tecla `m`). Ninguna se expone vía MCP: son operaciones
 destructivas que exigen confirmación humana explícita.
@@ -493,11 +539,10 @@ ejecuta cuando el usuario lo pide explícitamente — nunca en segundo plano.
 ./mem uninstall ~/proyectos/mi-app --yes
 ```
 
-Además de los datos (`.memory/`), remueve el binario `mem`, los hooks, las
-entradas en `AGENTS.md`/`CLAUDE.md` y el registro MCP en `.mcp.json` y
-similares. Reporta qué componentes no encontró sin fallar. El archivo global
-`~/.codex/config.toml` no se toca automáticamente — se informa al usuario para
-que lo edite manualmente si instaló el agente Codex.
+Remueve los datos y auxiliares del proyecto, el binario local, los hooks y las
+configuraciones MCP creadas por el flujo de proyecto. También retira artefactos
+gestionados por versiones antiguas. La configuración global compartida por
+otros proyectos se conserva y se informa por separado.
 
 Ver también [contracts/cli-tui-contracts.md](../specs/003-memory-maintenance/contracts/cli-tui-contracts.md)
 para el detalle completo de flags y comportamiento.
@@ -659,16 +704,15 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 
 | Agente | Config MCP | ¿Lo configura `mem install`? | Hooks |
 |--------|-----------|------------------------------|-------|
-| **Claude Code** | `.mcp.json` | Sí | SessionStart, SessionEnd, PreCompact, UserPromptSubmit, Stop |
+| **Claude Code** | `.mcp.json` | Sí | Ciclo de sesión, compactación, turnos, subagentes y modo plan |
 | **OpenCode** | `opencode.json` | Sí | `plugin/opencode/gomemory.ts` (auto-inicio, ya es global) |
 | **Cursor** | `.cursor/mcp.json` | Sí | — |
-| **Codex** | `~/.codex/config.toml` (tabla por proyecto, `gomemory_<proyecto>`) | Sí | SessionStart |
+| **Codex** | `~/.codex/config.toml` | Sí | Ciclo de sesión y turnos; el registro efectivo es de usuario |
 | **Windsurf** | `.windsurf/mcp_config.json` | No — solo con `mem setup-mcp --agents windsurf` | — |
 | **Cline** | `.cline/mcp_settings.json` | No — solo con `mem setup-mcp --agents cline` | — |
 
-> Windsurf y Cline salieron de la instalación automática en v2.9: creaban una
-> carpeta en la raíz de **todo** proyecto para alojar un único JSON. Siguen
-> soportados por la vía explícita.
+> Windsurf y Cline se configuran por la vía explícita para evitar crear carpetas
+> de configuración en proyectos que no usan esos agentes.
 
 > Los hooks son subcomandos del binario (`mem hook <evento>`), no scripts shell:
 > no dependen de `bash`/`curl` ni de un servidor HTTP, y corren igual en Windows.
@@ -679,7 +723,7 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 > El protocolo de memoria (cuándo guardar, buscar, cerrar sesión) no depende de
 > ningún archivo del repositorio: el servidor `mem mcp` lo declara en
 > `initialize.instructions`, en la descripción de cada tool, y embebido en la
-> respuesta de `get_context`. Desde v2.9 `mem install` ya **no** escribe el
+> respuesta de `get_context`. `mem install` ya **no** escribe el
 > bloque en `AGENTS.md`/`CLAUDE.md` — era una segunda copia del mismo texto.
 
 ### Configuración Manual MCP
@@ -702,8 +746,8 @@ la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
 ```
 
 Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
-en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ver
-`gomemory` con 19 tools.
+en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
+28 tools base y cuatro adicionales cuando Octopus AAR está activado.
 
 > Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
 > con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado
@@ -714,7 +758,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 ## 12. Seguridad
 
-- **Sin telemetría** — gomemory no envía datos a ningún servidor. Todo ocurre localmente.
+- **Sin telemetría externa** — los registros de uso y enrutamiento permanecen en el almacén local.
 - **Binario autocontenido** — sin dependencias compartidas que puedan ser comprometidas.
 - **Redacción automática** — contenido envuelto en `<private>...</private>` se elimina antes de llegar a la base de datos.
 - **SQLite WAL** — integridad ACID con Write-Ahead Logging. Los datos sobreviven cortes de energía.
@@ -726,7 +770,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp` — deberías ve
 
 | Componente | Tecnología |
 |------------|------------|
-| Lenguaje | Go 1.25+ |
+| Lenguaje | Go 1.27+ |
 | Base de datos | SQLite embebido (`modernc.org/sqlite`, sin CGO) |
 | TUI | `charmbracelet/bubbletea` + `bubbles` + `lipgloss` |
 | MCP SDK | `github.com/modelcontextprotocol/go-sdk` |
@@ -746,16 +790,17 @@ GOOS=linux   GOARCH=amd64 go build -o mem-linux-amd64 ./infrastructure/
 GOOS=windows GOARCH=amd64 go build -o mem-windows-amd64.exe ./infrastructure/
 ```
 
-- `.memory/mem.db` es SQLite WAL — cópialo entre máquinas sin migraciones
+- El almacén SQLite global usa WAL; para mover memoria entre máquinas usa
+  `mem export` y `mem import`, no copies una base activa.
 - Timestamps UTC-5 independientes de la zona horaria local
-- Las configuraciones MCP usan rutas absolutas — regenera con `setup-mcp`
-  después de mover el proyecto
+- Las configuraciones MCP invocan `mem` desde el PATH; vuelve a ejecutar
+  `mem setup-mcp` si cambia su ubicación o la integración queda desactualizada.
 
 ---
 
 ## 15. Modo Plan Determinista (`mem doctor`)
 
-Desde la feature 019, entrar en modo plan tiene una garantía **determinista**, no solo un texto de
+Entrar en modo plan tiene una garantía **determinista**, no solo un texto de
 protocolo que el agente puede o no seguir: si el agente presenta un plan para una solicitud no
 trivial y ese plan no tiene forma de árbol de tareas atómicas, el sistema lo **devuelve** con el
 motivo antes de que llegue a la persona.
@@ -798,9 +843,8 @@ tipo de canal — nunca se usa para ocultar un canal roto). Un canal `not_applic
 mem setup-mcp --scope global --agents claude,codex,opencode
 ```
 
-Desde esta feature, el ámbito global también escribe los hooks del modo plan (antes solo registraba
-el servidor MCP y el texto de instrucciones) — un proyecto nuevo, sin instalación propia, queda
-cubierto igual.
+El ámbito global también registra los hooks del modo plan. Un proyecto nuevo,
+sin instalación propia, queda cubierto por la configuración del usuario.
 
 ### Export / Import de memorias (portable, cross-OS)
 
@@ -1002,7 +1046,7 @@ Una revisión aprobada **no** autoriza commit, push, merge, PR ni despliegue.
 
 ---
 
-## 17. Octopus AAR
+## 18. Octopus AAR
 
 Octopus decide si una unidad de trabajo se mantiene inline o se delega. No inicia agentes: devuelve una ruta, un presupuesto y un contrato para que el runtime del agente ejecute el trabajo.
 

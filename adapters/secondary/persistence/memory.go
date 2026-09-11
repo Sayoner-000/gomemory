@@ -579,6 +579,47 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 	return mems, rows.Err()
 }
 
+// ListMemoriesBySession devuelve las memorias de una sesión concreta dentro
+// de un proyecto (feature 030, US1), de la más reciente a la más antigua.
+// sessionID vacío devuelve una lista vacía: nunca debe interpretarse como
+// "todas las memorias del proyecto" (contrato de ports.SessionMemoryLister).
+func ListMemoriesBySession(db *sql.DB, project, sessionID string, limit int) ([]domain.Memory, error) {
+	if sessionID == "" {
+		return []domain.Memory{}, nil
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	rows, err := db.Query(
+		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''),
+		        created_at, updated_at
+		 FROM memories WHERE project = ? AND session_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
+		project, sessionID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list memories by session: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var mems []domain.Memory
+	for rows.Next() {
+		var m domain.Memory
+		var memType string
+		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("scan memory: %w", err)
+		}
+		m.Type = domain.MemoryType(memType)
+		mems = append(mems, m)
+	}
+	if mems == nil {
+		mems = []domain.Memory{}
+	}
+	return mems, rows.Err()
+}
+
 // ListAllMemories devuelve TODAS las memorias del proyecto, en orden estable por
 // id (sin tope), para el export. Orden por id ASC para que los RefID crezcan de
 // forma reproducible entre exports.

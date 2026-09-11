@@ -9,7 +9,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-27_tools-blueviolet)](https://modelcontextprotocol.io/)
+[![MCP](https://img.shields.io/badge/MCP-28_core_tools-blueviolet)](https://modelcontextprotocol.io/)
 [![TUI](https://img.shields.io/badge/TUI-bubbletea_v2-FF6B9D?logo=charmbracelet&logoColor=white)](https://github.com/charmbracelet/bubbletea)
 
 gomemory gives AI coding agents persistent memory across sessions.
@@ -18,30 +18,32 @@ It stores project context, architectural decisions, bug fixes, learnings and che
 Works with Claude Code, Cursor, OpenCode, Windsurf, Cline and Codex through the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP).
 
 ```
-┌──────────────────────────────────────────────┐
-│              AI Coding Agent                 │
-│                                              │
-│ Claude Code · Cursor · OpenCode · Codex      │
-│ Windsurf · Cline                             │
-└──────────────────────┬───────────────────────┘
-                       │ MCP
-                       ▼
-┌──────────────────────────────────────────────┐
-│                  gomemory                    │
-│                                              │
-│  Context · Decisions · Bugfixes · Learning   │
-│  Checkpoints · Architecture · Patterns       │
-└──────────────────────┬───────────────────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │ Local SQLite DB │
-              │   Persistent    │
-              │    Portable     │
-              └─────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    AI coding agents                     │
+│                                                         │
+│  Claude Code · OpenCode · Codex   MCP + lifecycle       │
+│  Cursor · Windsurf · Cline         MCP                  │
+└──────────────────────────┬──────────────────────────────┘
+                           │ stdio MCP · plugins · hooks
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                        gomemory                         │
+│                                                         │
+│  28 core tools (+4 Octopus) · sessions · checkpoints    │
+│  context · decisions · learnings · safe compaction      │
+│  code graph · context packs · consensus reviews         │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│             Local data directory outside the repo       │
+│           one persistent SQLite store per project       │
+│              portable through export / import           │
+└─────────────────────────────────────────────────────────┘
 ```
 
-No cloud service. No API key. No database server. No files added to your project.
+No cloud service. No API key. No database server. Memory data stays outside
+your repository; project-scoped agents only receive their MCP configuration.
 
 ## Why gomemory?
 
@@ -93,7 +95,7 @@ That's it. Your memory is stored outside the repository:
 - **Linux / macOS:** `~/.local/share/gomemory/`
 - **Windows:** `%LOCALAPPDATA%\gomemory\`
 
-> **`mem setup-mcp` vs `mem setup`:** `setup-mcp` registers the **MCP tools** for all 6 supported agents. The **auto-checkpoints** and **plan capture** features additionally require the compatible lifecycle integration from `mem setup <agent>`, available for Claude Code, OpenCode and Codex. Cursor, Windsurf and Cline receive memory through MCP only.
+> **`mem setup-mcp` vs `mem setup`:** `setup-mcp` registers MCP for all six supported agents. In global scope it also installs the lifecycle integration available for Claude Code, OpenCode and Codex. `mem setup claude-code` and `mem setup opencode` provide the project-scoped plugin and hooks for those two agents. Cursor, Windsurf and Cline use MCP without lifecycle hooks.
 
 ### 3. Try it
 
@@ -154,7 +156,10 @@ Memory stays local. Sensitive information is automatically redacted (AWS credent
 Full terminal UI built with [bubbletea v2](https://github.com/charmbracelet/bubbletea) — navigate memories, view token usage reports (`u` key), and manage settings with a Matrix-inspired color palette.
 
 **Automatic checkpoints**
-With Claude Code and OpenCode, active turns are captured automatically as checkpoints without consuming additional agent tokens.
+With Claude Code, OpenCode and Codex, active turns are captured automatically as checkpoints without consuming additional agent tokens.
+
+**Compaction-safe sessions**
+gomemory preserves the session memory around client-driven context compaction. Supported integrations can provide session memory to the compactor, persist the resulting summary without closing the session, restore indexed project context afterward, and capture structured learnings from completed subagents. The client still decides when and how to compact.
 
 **Plan memory**
 Agents can retrieve project history and atomic decomposition guidance before planning:
@@ -195,9 +200,9 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 ## MCP Tools
 
-27 tools across four groups (`domain/mcp_tools.go` is the single source of truth).
+28 core tools across four groups (`domain/mcp_tools.go` is the single source of truth). Enabling Octopus AAR adds four optional tools for a total of 32.
 
-**Memory (10)**
+**Memory (11)**
 
 | Tool | Description |
 | :--- | :--- |
@@ -209,6 +214,7 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 | `get_plan_context` | Retrieve planning context |
 | `start_session` | Start a working session |
 | `end_session` | Close a working session |
+| `save_session_summary` | Persist a compacted summary without closing the active session |
 | `forget_memory` | Remove a memory |
 | `judge_memories` | Resolve conflicting memories |
 
@@ -252,6 +258,8 @@ The agent proposes; gomemory validates and persists. It rejects fixing an unconf
 
 ```
 mem
+├── init              Initialize the project's global store (normally automatic)
+├── migrate           Move a legacy .memory/mem.db into the global store
 ├── save              Save a memory manually
 ├── capture           Guided memory form (What/Why/Where/Learned)
 ├── search            Search project memory
@@ -271,6 +279,7 @@ mem
 ├── docs              Pinned docs: list | show | export | import | reset
 │                     Work rules and constitution live in memory, not in repo files.
 │                     Ships defaults, not doctrine — swap in your team's own.
+├── seed              Initialize missing pinned documents without overwriting edits
 ├── constitution      Show the project's current constitution (--sync writes spec-kit's file)
 ├── rules             Show the project's current work rules
 ├── purge / gc         Delete memories / retention-based cleanup
@@ -283,6 +292,8 @@ mem
 │   ├── status <id>?  Stage of the open review, or of <id> (no verdict until finalized)
 │   ├── history       List reviews (--limit N)
 │   └── show <id>     Full lineage: target, reviewers, consensus, fixes, verdict
+├── octopus           Route, inspect and report optional delegation decisions
+├── adr-sync          Inspect or run opt-in ADR synchronization
 ├── install           Install gomemory into a project (no instruction files are generated)
 ├── setup <agent>     Install the hooks/plugin for opencode | claude-code
 ├── setup-mcp         Register MCP tools for all 6 supported agents
@@ -291,13 +302,13 @@ mem
 ├── doctor            Coverage report of atomic plan mode channels (--json, --strict)
 ├── update            Update the binary
 ├── mcp               Run the MCP server over stdio
-├── hook <event>      Agent hook entrypoint (internal, invoked by Claude Code/OpenCode)
+├── hook <event>      Agent hook entrypoint (internal lifecycle integration)
 ├── wrap <cmd>        Run a command, then prompt to save a memory about it
 ├── tui               Open the interactive terminal UI explicitly
 └── help              Show help
 ```
 
-Run `mem help` for the complete command reference.
+Run `mem help` for command syntax and examples.
 
 ## Architecture
 
@@ -328,6 +339,7 @@ Main settings (via `mem settings` or the interactive TUI):
 | :--- | :--- | :--- |
 | `budget` | `24000` | Max characters returned by `get_context` |
 | `compact_threshold` | `48000` | Context size that triggers compaction guidance |
+| `compact_agent_notice` | `false` | Remind the agent to persist pending decisions when the compaction threshold is reached |
 | `dedup_window_days` | `7` | Deduplication window |
 | `synapse_disabled` | `false` | Disable automatic memory relationships |
 | `atomic_plan_disabled` | `false` | Disable atomic planning |
@@ -382,7 +394,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the design and
 
 ## Build from Source
 
-Requirements: Go 1.25+
+Requirements: Go 1.27+
 
 ```bash
 git clone https://github.com/Sayoner-000/gomemory.git
@@ -431,10 +443,13 @@ For security details and limitations, see [`docs/MANUAL.md`](docs/MANUAL.md).
 
 | Document | Description |
 | :--- | :--- |
+| [`INSTALLATION.md`](INSTALLATION.md) | Installation, agent registration, updates and troubleshooting |
 | [`docs/MANUAL.md`](docs/MANUAL.md) | Complete user guide: multi-agent, troubleshooting, security, portability |
 | [`docs/architecture.md`](docs/architecture.md) | Internal architecture deep dive |
 | [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Memory protocol technical reference |
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Agent-agnostic contract for the atomic plan mode — implement it for any agent gomemory doesn't know yet |
+| [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) | Machine-readable contract for measured context usage |
+| [`docs/release_gomemory_notes.md`](docs/release_gomemory_notes.md) | Automated release workflow and verification |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute |
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community guidelines |
 

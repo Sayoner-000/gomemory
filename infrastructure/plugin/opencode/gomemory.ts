@@ -56,6 +56,13 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   // reprocesar el historial completo en cada session.idle.
   const lastCheckpointedMessage = new Map<string, string>();
 
+  // Recuperación de `mem hook post-compact` ya calculada tras compactar
+  // (evento session.compacted), pendiente de entregarse al agente en el
+  // PRÓXIMO system.transform (feature 030, US1) — el evento de sesión no
+  // tiene forma de inyectar contexto directamente, a diferencia de los
+  // handlers con `output`. Se consume una sola vez por sesión.
+  const pendingRecovery = new Map<string, string>();
+
   // Equivalente en OpenCode del hook "Stop" de Claude Code: dispara cuando la
   // sesión queda idle (el asistente terminó de responder). Recolecta,
   // determinísticamente y sin gastar tokens del agente, qué archivos se
@@ -72,7 +79,10 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       let startIdx = 0;
       if (lastSeen) {
         const idx = messages.findIndex((m) => m.info?.id === lastSeen);
-        if (idx >= 0) startIdx = idx + 1;
+        // Los IDs de mensajes de OpenCode son ascendentes. Si la compactación
+        // retiró el marcador, se conserva el límite sin repetir mensajes viejos.
+        startIdx = idx >= 0 ? idx + 1 : messages.findIndex((m) => m.info?.id > lastSeen);
+        if (startIdx < 0) return;
       }
       const newMessages = messages.slice(startIdx);
       if (newMessages.length === 0) return;
@@ -129,13 +139,61 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       if (event.type === "session.created") {
         await mem(["session", "start"]);
       }
+      if (event.type === "session.deleted") {
+        const sessionID = event.properties.info.id;
+        lastCheckpointedMessage.delete(sessionID);
+        pendingRecovery.delete(sessionID);
+      }
       if (event.type === "session.idle") {
         await handleTurnEnd(event.properties.sessionID);
+      }
+      // Feature 030 (US1/US2): DESPUÉS de compactar (no antes — esta base de
+      // código llamaba post-compact desde session.compacting por error, lo
+      // que reseteaba huella/marcadores y abría sesión ANTES de que la
+      // compactación existiera). post-compact garantiza una sesión activa y
+      // devuelve los pasos de recuperación + la memoria de la sesión, que
+      // aquí se guardan para el próximo system.transform (ver pendingRecovery).
+      if (event.type === "session.compacted") {
+        const sessionID = event.properties.sessionID;
+        // Capacidad C6: el resumen que produjo la compactación llega como un
+        // mensaje de la sesión marcado info.summary === true. Se envía a
+        // compact-summary ANTES de post-compact, para que el resumen quede
+        // persistido incluso si algo falla más abajo. Best-effort: sin este
+        // mensaje (cliente sin C6, o aún no disponible), simplemente se omite
+        // y el respaldo por orden de texto (RecoverySteps) cubre el resto.
+        try {
+          const res = await client.session.messages({ path: { id: sessionID } });
+          const messages: Array<{ info: any; parts: any[] }> = (res as any)?.data ?? [];
+          const resumen = [...messages].reverse().find((m) => m.info?.summary === true);
+          if (resumen) {
+            const texto = (resumen.parts ?? [])
+              .filter((p: any) => p.type === "text")
+              .map((p: any) => p.text ?? "")
+              .join("\n")
+              .trim();
+            if (texto) {
+              await memWithStdin(["hook", "compact-summary"], JSON.stringify({ summary: texto }));
+            }
+          }
+        } catch {
+          // best-effort: sin un ChannelKind propio para compactación, no hay
+          // un canal correcto al que atribuir el fallo (channel-error exige
+          // uno de domain.ChannelKind); reportar bajo un canal ajeno
+          // corrompería su diagnóstico. post-compact sigue abajo igual.
+        }
+
+        const recovery = await mem(["hook", "post-compact"]);
+        if (recovery) {
+          // Cada recuperación es una instantánea completa: la más reciente reemplaza la anterior.
+          pendingRecovery.set(sessionID, recovery);
+        }
       }
     },
 
     // Cierra la sesión cuando el plugin se descarta (OpenCode termina).
     dispose: async () => {
+      lastCheckpointedMessage.clear();
+      pendingRecovery.clear();
       await mem(["session", "end"]);
     },
 
@@ -159,6 +217,18 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // prompt de cada turno, para que el agente sepa que debe usar las tools y
     // arranque con la memoria previa cargada.
     "experimental.chat.system.transform": async (_input, output) => {
+      // Entrega, una sola vez, la recuperación calculada tras la última
+      // compactación de ESTA sesión (feature 030, capacidad C2 vía
+      // session.compacted — ver el comentario en pendingRecovery). Va antes
+      // que el resto: es lo más urgente si acaba de compactarse.
+      const sessionID = _input.sessionID;
+      if (sessionID) {
+        const recovery = pendingRecovery.get(sessionID);
+        if (recovery) {
+          output.system.push(recovery);
+          pendingRecovery.delete(sessionID);
+        }
+      }
       // Deja rastro de que este canal se ejerció. Sin él, un renombre de la
       // operación por parte del agente dejaba la inyección muerta y el informe
       // de estado seguía en verde, porque comprobaba que el archivo existiera
@@ -193,17 +263,50 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       } else if (nudge.length > 0) {
         output.system.push(nudge);
       }
+      // Aviso de preparación al agente (feature 030, US4, capacidad C4): opt-in
+      // (compact_agent_notice). `mem hook agent-notice` devuelve el aviso solo
+      // si turn-end lo dejó pendiente tras cruzar el umbral, y se consume al
+      // leerlo — no hace falta comprobar el ajuste aquí, la decisión ya la
+      // tomó Go (misma fuente única que el resto de los recordatorios).
+      const agentNotice = await run(["hook", "agent-notice"]);
+      if (agentNotice === null) {
+        mem(["hook", "channel-error", "opencode", "user", "plan_entry", "el aviso de compactación falló"]).catch(() => {});
+      } else if (agentNotice.length > 0) {
+        output.system.push(agentNotice);
+      }
     },
 
-    // Antes de compactar, empuja al `output.context` retenido (sobrevive a la
-    // compactación) las instrucciones de recuperación + el contexto histórico.
-    // Reusa `mem hook post-compact` para que el texto de recuperación tenga una
-    // sola fuente en Go, compartida con el hook SessionStart(compact) de Claude
-    // Code — misma lógica transversal que `mem hook nudge`.
+    // Captura pasiva de aprendizajes (feature 030, US3, capacidad C3): al
+    // terminar una tarea delegada, envía su salida a `mem hook subagent-stop`
+    // con el mismo campo (last_assistant_message) que usa Claude Code, para
+    // reusar la misma extracción en Go. Best-effort: un fallo aquí nunca debe
+    // afectar al resultado de la tarea que ya terminó.
+    //
+    // "task" está definido en packages/opencode/src/tool/task.ts del upstream.
+    // La validación interactiva de extremo a extremo sigue en quickstart.md Q0.
+    "tool.execute.after": async (input, output) => {
+      if (input.tool !== "task" || !output?.output) return;
+      const texto = String(output.output);
+      if (texto.length === 0) return;
+      try {
+        await memWithStdin(["hook", "subagent-stop"], JSON.stringify({ last_assistant_message: texto }));
+      } catch {
+        // best-effort: ver el mismo razonamiento que en session.compacted más
+        // abajo (sin ChannelKind propio para esta captura).
+      }
+    },
+
+    // Antes de compactar (feature 030, capacidad C1), empuja al `output.context`
+    // retenido (sobrevive a la compactación, y el compresor lo tiene en cuenta
+    // al generar el resumen) la memoria de ESTA sesión + la orden de
+    // persistirla. NO se usa post-compact aquí: post-compact resetea huella y
+    // marcadores y garantiza una sesión activa, efectos que deben ocurrir
+    // DESPUÉS de que la compactación exista (ver session.compacted arriba),
+    // no antes.
     "experimental.session.compacting": async (_input, output) => {
-      const recovery = await mem(["hook", "post-compact"]);
-      if (recovery) {
-        output.context.push(recovery);
+      const compaction = await mem(["hook", "compaction-context"]);
+      if (compaction) {
+        output.context.push(compaction);
       }
     },
   };
@@ -227,6 +330,7 @@ const [
   T_JUDGE_MEMORIES,
   T_START_SESSION,
   T_END_SESSION,
+  T_SAVE_SESSION_SUMMARY,
 ] = [
   "gomemory_get_context",
   "gomemory_get_plan_context",
@@ -238,6 +342,7 @@ const [
   "gomemory_judge_memories",
   "gomemory_start_session",
   "gomemory_end_session",
+  "gomemory_save_session_summary",
 ];
 
 const [T_SEARCH_CODE, T_GET_SYMBOL, T_LIST_DEPENDENCIES, T_GRAPH_STATUS, T_INDEX_PROJECT] = [
@@ -298,7 +403,7 @@ const MEMORY_PROTOCOL = `## Memory Protocol — gomemory (MANDATORY, ALWAYS ACTI
 You have a persistent memory system for this project via MCP tools
 (${T_GET_CONTEXT}, ${T_GET_PLAN_CONTEXT}, ${T_SAVE_MEMORY}, ${T_SEARCH_MEMORIES},
 ${T_LIST_MEMORIES}, ${T_GET_MEMORY}, ${T_FORGET_MEMORY}, ${T_JUDGE_MEMORIES},
-${T_START_SESSION}, ${T_END_SESSION}). The project's own code graph is
+${T_START_SESSION}, ${T_END_SESSION}, ${T_SAVE_SESSION_SUMMARY}). The project's own code graph is
 available too (${T_SEARCH_CODE}, ${T_GET_SYMBOL}, ${T_LIST_DEPENDENCIES},
 ${T_GRAPH_STATUS}, ${T_INDEX_PROJECT}). Do NOT wait for the user to ask.
 
