@@ -5,6 +5,26 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.22.2] - 2026-09-11
+
+### Fixed
+
+- `lastAnchorCache` solo avanza: inserciones concurrentes con IDs más viejos
+  no retroceden el ancla de la sesión, evitando que memorias recientes
+  queden fuera de la sinapsis.
+- `jsonArray()` serializa nil como `[]` en vez de `null` para las columnas
+  JSON de `fix_rounds` (DEFAULT `'[]'`), evitando errores de integridad.
+- `tuiProvider` reutiliza `CodeProviders` de `NewContainer` con fallback,
+  evitando reconstrucción innecesaria.
+- Error de `RecordFixAtomically` ahora incluye el error subyacente con `%w`.
+
+### Added
+
+- Test `TestFormSynapse_CacheNoRetrocede` verifica que la caché no retrocede
+  con inserciones concurrentes.
+- Test `TestUpsertFixDelta_ListaNilSeGuardaComoArrayVacio` verifica que nil
+  se persiste como `[]`.
+
 ## [v2.22.1] - 2026-09-11
 
 ### Fixed
