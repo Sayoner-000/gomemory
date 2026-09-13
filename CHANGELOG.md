@@ -5,6 +5,28 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.23.1] - 2026-09-13
+
+### Fixed
+
+- El aviso de duplicados compara el texto ya redactado en ambos lados y quita
+  la nota de impacto al final antes de medir la similitud. Las memorias con la
+  misma `topic_key` ya no generan aviso.
+- La `topic_key` se guarda sin espacios laterales, como la busca la
+  comprobación de duplicados. Una clave con espacios ya no crea una fila nueva
+  en cada guardado.
+- La sección de anclas avisa cuántas quedan fuera del tope de ocho con la
+  línea `(+N anclas más; usa search_memories/get_memory)`.
+- La nota de impacto vive en `domain` con un solo formato para escribirla y
+  reconocerla. Reconoce símbolos con corchetes como `Cache[T]` y solo quita la
+  nota exacta al final.
+- Entrar en modo plan con Shift+Tab entrega el método una vez por sesión desde
+  el prompt, con el mismo documento y presupuesto que `plan-entered`. Si no
+  puede registrar la entrega o falta el historial, lo dice y apunta a
+  `get_plan_context()`.
+- El contrato de `mem mass --task` documenta que la búsqueda trae como máximo
+  20 resultados y que `--top` solo limita la salida.
+
 ## [v2.23.0] - 2026-09-13
 
 ### Added
