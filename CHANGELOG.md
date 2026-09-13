@@ -5,6 +5,37 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.23.0] - 2026-09-13
+
+### Added
+
+- `save_memory` y `mem save` avisan después de guardar cuando encuentran
+  posibles duplicados del mismo tipo. La comparación usa similitud léxica y
+  nunca bloquea la escritura.
+- `get_context` informa qué anclas apuntan a archivos ausentes. Si hay un índice
+  de código, distingue entre un único candidato de traslado, varios candidatos
+  y una posible ancla huérfana.
+- `mem mass` ordena las memorias con PageRank personalizado. Las semillas salen
+  de la sesión activa, los hotspots de código o una búsqueda.
+- Los paquetes de contexto pueden incluir hasta cinco memorias conectadas,
+  seleccionadas por masa.
+
+### Changed
+
+- La sección de sinapsis ordena los enlaces por la masa de sus extremos y aclara
+  que la centralidad no implica importancia ni corrección.
+- La generación de contexto lee todas las relaciones antes de aplicar los
+  límites de presentación. Los conflictos antiguos permanecen visibles.
+
+### Fixed
+
+- La detección de duplicados propaga los errores de consulta en lugar de
+  interpretarlos como ausencia de coincidencias.
+- La comprobación de anclas clasifica los errores de permisos y de E/S como no
+  verificables, sin presentar el archivo como ausente.
+- La evidencia de anclas revisa todas las memorias antes de limitar la sección
+  a ocho entradas.
+
 ## [v2.22.3] - 2026-09-11
 
 ### Fixed
