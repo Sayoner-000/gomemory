@@ -100,7 +100,9 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	// Dedup/upsert en la fuente (feature 008): consolida una memoria equivalente
 	// ya existente en vez de crear una fila nueva, para que el contexto no se
 	// infle con repeticiones. Best-effort: si no hay match, sigue el INSERT normal.
-	if existingID, ok := findDuplicateTx(tx, m, title, content); ok {
+	if existingID, ok, err := findDuplicateTx(tx, m, title, content); err != nil {
+		return 0, err
+	} else if ok {
 		if _, err := tx.Exec(
 			`UPDATE memories SET content = ?, title = ?, type = ?, filepath = ?, topic_key = ?, updated_at = `+Now+`
 			 WHERE id = ?`,
@@ -347,20 +349,22 @@ func contentHash(s string) string {
 }
 
 // findDuplicateTx variante transaccional de findDuplicate.
-func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64, bool) {
+func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64, bool, error) {
 	if tk := strings.TrimSpace(m.TopicKey); tk != "" {
 		var id int64
 		if err := tx.QueryRow(
 			`SELECT id FROM memories WHERE project = ? AND topic_key = ? ORDER BY id DESC LIMIT 1`,
 			m.Project, tk,
 		).Scan(&id); err == nil {
-			return id, true
+			return id, true, nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return 0, false, fmt.Errorf("dedup lookup: %w", err)
 		}
-		return 0, false
+		return 0, false, nil
 	}
 
 	if dedupWindowDays <= 0 {
-		return 0, false
+		return 0, false, nil
 	}
 
 	// Checkpoint: la clave de identidad es el CONTENIDO, no el título.
@@ -373,13 +377,15 @@ func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64
 			 ORDER BY id DESC LIMIT 1`,
 			m.Project, content, dedupWindowDays,
 		).Scan(&id); err == nil {
-			return id, true
+			return id, true, nil
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return 0, false, fmt.Errorf("dedup lookup: %w", err)
 		}
-		return 0, false
+		return 0, false, nil
 	}
 
 	if strings.TrimSpace(title) == "" {
-		return 0, false
+		return 0, false, nil
 	}
 	var id int64
 	if err := tx.QueryRow(
@@ -389,9 +395,11 @@ func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64
 		 ORDER BY id DESC LIMIT 1`,
 		m.Project, string(m.Type), title, dedupWindowDays,
 	).Scan(&id); err == nil {
-		return id, true
+		return id, true, nil
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return 0, false, fmt.Errorf("dedup lookup: %w", err)
 	}
-	return 0, false
+	return 0, false, nil
 }
 
 // nullableTopic devuelve nil para un topic_key vacío (así el índice parcial solo
