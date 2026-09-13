@@ -424,6 +424,31 @@ Contraste del árbol de trabajo con spec, contratos y tareas, hecho antes de con
 | C-002 (ACR, MEDIUM): solo se clasificaban anclas de las 100 memorias recientes | FR-010, FR-011 | `writeAnchorEvidence` recibe todas las memorias. `TestBuild_AnclasSinEvidencia_IncluyeMemoriasFueraDeLas100` |
 | S-001 (ACR, LOW, un solo revisor): `titleByID` se arma solo con las 100 recientes | — | Validado: no es un defecto. El test existente `TestBuild_ConflictoConMemoriaFueraDeLaVentana` fija el marcador `(memoria previa)` para extremos fuera de la ventana. Mostrar el título exigiría autorizar la modificación de ese test. |
 | SC-006 inalcanzable con los datos reales (197/200/202 sin relaciones) | SC-006 | Enmendado por decisión de la persona. `TestRankMass_TareaSubeEnlazadasYAisladaConservaSuCuota` |
+| S-001 (revisión, MEDIUM): el gate solo callaba ante la misma `topic_key` porque el upsert la fusionaba antes | FR-002, US1-3 | Defecto latente corregido: se omiten los candidatos con la misma `topic_key`. `TestCheckNearDuplicates_MismaTopicKeyNoAvisa` |
+| S-002 (revisión, MEDIUM): el dedup falla cerrado y el gate falla abierto | FR-005, FR-008, constitución V.5 | Por diseño, sin cambio. El dedup es una garantía de integridad del guardado (fallar rápido, P0); el gate es consultivo y declara que no pudo comprobar. Los errores transitorios ya los absorbe el `busy_timeout` de 5 s de SQLite. |
+| S-003 (revisión, LOW): el gate comparaba el texto sin redactar contra una instantánea redactada | FR-001 | Corregido: se aplica la misma redacción que `insertMemory` antes de comparar. `TestCheckNearDuplicates_ComparaElTextoRedactado` |
+| S-004 (revisión, LOW): las semillas de `mem mass --task` se toman de 20 resultados fijos | contracts/mass.md | Por diseño (el mismo tope que `pack_build`); ahora documentado en el contrato. La cabecera ya muestra N. |
+| S-005 (revisión, LOW): `massNeighborCandidates` devuelve nil en silencio ante errores | FR-020, FR-021 | Por diseño: sigue la convención de los extras del pack (Spec Kit, grafo de código), que degradan en silencio sin fallar el pack. Señalarlo exigiría ampliar `ContextStats`, fuera del alcance de la 031. |
+| S-006 (revisión, LOW): la sección de anclas cortaba en 8 sin decir cuántas quedaban | SC-008, coherencia de secciones | Corregido: línea `- (+N anclas más; usa search_memories/get_memory)`. `TestBuild_AnclasSinEvidencia_IndicaCuantasQuedanFuera` |
+| S-003 (2ª revisión, LOW): la instantánea lleva la nota `[impacto: … hotspot …]` que la memoria nueva no tiene, y diluía el Jaccard en cuerpos cortos | FR-001 | Corregido: el formato pasa a `domain.ImpactAnnotation` (la persistencia produce la misma cadena de antes) y el gate descuenta la nota con `domain.StripImpactAnnotation`. `TestStripImpactAnnotation`, `TestCheckNearDuplicates_IgnoraLaAnotacionDeImpacto` |
+| S-004 (2ª revisión, LOW; en realidad un defecto de persistencia): `nullableTopic` guardaba la `topic_key` sin recortar mientras el dedup la buscaba recortada, así que tres guardados con la misma clave creaban 3 filas | FR-002; dedup por `topic_key` (feature 008) | Corregido en la causa: la clave se guarda recortada. El almacén real no tenía claves con espacios ni repetidas. `TestInsert_TopicKeyConEspaciosNoDuplica` |
+
+Residuales de la 3ª revisión, sobre el delta anterior (sin reabrir sus veredictos):
+
+| Hallazgo | Cierre |
+|----------|--------|
+| S-001 (LOW): `StripImpactAnnotation` cortaba desde el último prefijo si el texto acababa en el sufijo, aunque en medio hubiera texto real | Solo quita la nota con su forma exacta al final (expresión regular de la nota completa), manteniendo el formato de escritura en `domain`. `TestStripImpactAnnotation_SoloQuitaLaNotaExacta` |
+| S-002 (LOW): la nota solo se descontaba en el candidato | Se descuenta también en la memoria nueva. `TestCheckNearDuplicates_DescuentaLaNotaEnAmbosLados` |
+| S-003 (LOW): el hook `plan-entered` seguía ignorando el fallo al escribir el marcador | `claimPlanEntryMarker`, compartido por las dos entradas a plan. Sin registro, `plan-entered` entrega el recordatorio en lugar del documento. `TestClaimPlanEntryMarker` (el hook termina con `os.Exit`, así que el test cubre el helper) |
+
+Residuales de la 4ª revisión, sobre el delta anterior (sin reabrir sus veredictos ni duplicar los INFO ya registrados):
+
+| Hallazgo | Cierre |
+|----------|--------|
+| S-001 (LOW): el patrón excluía `]` del símbolo, así que la nota de un símbolo como `Cache[T]` no se descontaba | El símbolo sale de `h.Name` del grafo de código, un identificador sin espacios (hotspots reales: Close, String, Open, Scan, Init, NewMemoryRepository). Se reconoce como `\S+`: acepta corchetes y sigue rechazando un texto citado, que tiene espacios. `TestStripImpactAnnotation_SimboloConCorchetes`; `TestStripImpactAnnotation_SoloQuitaLaNotaExacta` sigue en verde |
+| S-002 (LOW): la ruta por prompt reiniciaba el episodio de plan-guard antes de saber si registraba la entrada; sin marcador, cada prompt en modo plan lo reiniciaba | El reinicio pasa a después de un `claimPlanEntryMarker` exitoso. `TestPlanEntryFromPrompt_SinMarcadorNoReiniciaElEpisodio`. En el hook `plan-entered` se mantiene antes, por diseño: cada llamada a `EnterPlanMode` es una entrada explícita y siempre abre episodio |
+
+Los hallazgos S-001/S-002 de esa misma revisión afectan al hook de entrada a plan por prompt (el arreglo de `plan_entry`, fuera del alcance de la 031) y al hook existente `plan-entered`. Se corrigieron con `planEntryDocument`, que declara cuando falta el historial, y con la degradación a un recordatorio si el marcador no se puede escribir: `TestPlanEntryFromPrompt_SinHistorialLoDeclara` y `TestPlanEntryFromPrompt_SinMarcadorDegradaAlRecordatorio`.
 
 Nota: se intentó que los títulos de Sinapsis salieran de todas las memorias, pero rompía el test existente `TestBuild_ConflictoConMemoriaFueraDeLaVentana`, que no se modifica. Se revirtió: los extremos fuera de las 100 recientes conservan su marcador. P0 usa `memory_dedup_internal_test.go` y `memory_dedup_session_test.go` en lugar de un único `memory_dedup_test.go`.
 

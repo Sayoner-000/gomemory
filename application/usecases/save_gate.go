@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"sort"
+	"strings"
 
 	"mem/application/ports"
 	"mem/domain"
@@ -60,14 +61,28 @@ func CheckNearDuplicates(snapshot []domain.Memory, saved domain.Memory, savedID 
 	if saved.Type == domain.Checkpoint {
 		return result
 	}
-	titleTokens := tokenize(saved.Title)
-	bodyTokens := tokenize(saved.Title + " " + saved.Content)
+	// La instantánea guarda el texto ya redactado (insertMemory); la memoria
+	// nueva se compara igual, o un bloque privado movería el Jaccard. La nota
+	// de impacto se descuenta en los dos lados, también si viene pegada aquí.
+	title := domain.RedactSecrets(domain.RedactPrivate(saved.Title))
+	content := domain.RedactSecrets(domain.RedactPrivate(domain.StripImpactAnnotation(saved.Content)))
+	titleTokens := tokenize(title)
+	bodyTokens := tokenize(title + " " + content)
+	savedKey := strings.TrimSpace(saved.TopicKey)
 	for _, m := range snapshot {
 		if m.ID == savedID || m.Type == domain.Checkpoint || m.Type != saved.Type {
 			continue
 		}
+		// La misma topic_key ya resuelve la identidad: no hay duplicado que
+		// sugerir, con o sin upsert de por medio (S-001).
+		if savedKey != "" && strings.TrimSpace(m.TopicKey) == savedKey {
+			continue
+		}
 		candidateTitle := tokenize(m.Title)
-		candidateBody := tokenize(m.Title + " " + m.Content)
+		// La instantánea lleva la nota de impacto que insertMemory añade a las
+		// memorias de hotspots; la memoria nueva todavía no. Se descuenta para
+		// que no diluya el Jaccard de cuerpos cortos.
+		candidateBody := tokenize(m.Title + " " + domain.StripImpactAnnotation(m.Content))
 		titlePossible := GateSizeCompatible(len(titleTokens), len(candidateTitle), gateTitleThreshold)
 		bodyPossible := GateSizeCompatible(len(bodyTokens), len(candidateBody), gateBodyThreshold)
 		if !titlePossible && !bodyPossible {

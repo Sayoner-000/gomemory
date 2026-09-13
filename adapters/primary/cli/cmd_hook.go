@@ -397,9 +397,14 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// Provenance: persistir el prompt de este turno en la sesión activa para que
 	// InsertMemory lo adjunte a lo que se guarde. Transversal con OpenCode, que
 	// hace lo mismo vía `mem hook prompt` desde su evento chat.message.
-	if prompt := promptFromStdin(); strings.TrimSpace(prompt) != "" {
+	//
+	// El payload se lee una sola vez: además del prompt trae permission_mode, la
+	// única señal de una entrada a plan hecha con Shift+Tab.
+	payload := readHookStdin()
+	if prompt, _ := payload["prompt"].(string); strings.TrimSpace(prompt) != "" {
 		_ = deps.SessionRepo.SetLastPrompt(project, prompt)
 	}
+	planDoc, planEntered := planEntryFromPrompt(deps, root, payload)
 
 	marker := sessionMarkerPath(deps, root)
 	if _, err := os.Stat(marker); err == nil {
@@ -422,13 +427,17 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 		if msg, ok := consumePendingAgentNotice(root); ok {
 			parts = append(parts, msg)
 		}
+		if planEntered {
+			parts = append(parts, planDoc)
+		}
 		if msg, ok := computeSaveNudge(deps, root, project); ok {
 			parts = append(parts, msg)
 		}
 		// Recordatorio de modo plan (feature 019, Historia 2): en CADA turno,
 		// sin debounce — es el camino que cubre a los agentes sin señal de
-		// entrada observable, y refuerza a los que sí la tienen.
-		if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok {
+		// entrada observable, y refuerza a los que sí la tienen. Sobra en el
+		// turno que ya entregó el documento completo.
+		if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok && !planEntered {
 			parts = append(parts, msg)
 		}
 		// Regla de delegación de Octopus, leída fresca en CADA turno — no solo
@@ -464,10 +473,14 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	_ = os.WriteFile(marker, []byte("1"), 0644)
 	settings := deps.SettingsRepo.Read(root)
 	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
+	additional := bootstrap + "\n\n" + memoryProtocolReminder
+	if planEntered {
+		additional += "\n\n" + planDoc
+	}
 	out := map[string]any{
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "UserPromptSubmit",
-			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder,
+			"additionalContext": additional,
 		},
 	}
 	data, _ := json.Marshal(out)
@@ -1101,6 +1114,63 @@ func recordPlanEntryActivity(deps *Deps) {
 	_ = deps.ChannelActivity.RecordFired("claude", "user", "plan_entry")
 }
 
+// planEntryFromPrompt cubre la entrada al modo plan que no pasa por la
+// herramienta EnterPlanMode. En Claude Code, entrar con Shift+Tab solo cambia el
+// modo y ningún hook lo observa; el payload de UserPromptSubmit sí trae
+// permission_mode (verificado en Claude Code 2.1.270), así que el primer prompt
+// en modo plan es la primera señal disponible. Entrega el mismo documento que
+// plan-entered, una vez por sesión, con el mismo gate y el mismo presupuesto.
+func planEntryFromPrompt(deps *Deps, root string, payload map[string]any) (string, bool) {
+	if mode, _ := payload["permission_mode"].(string); mode != "plan" {
+		return "", false
+	}
+	recordPlanEntryActivity(deps)
+	if deps.SettingsRepo.Read(root).AtomicPlanDisabled {
+		return "", false
+	}
+	marker := planEnteredMarkerPath(deps, root)
+	if _, err := os.Stat(marker); err == nil {
+		return "", false
+	}
+	// Sin marcador no hay "una vez por sesión": cada prompt en modo plan
+	// reinyectaría el documento completo. Se degrada al recordatorio.
+	if !claimPlanEntryMarker(deps, root) {
+		return planEntryUnmarkedReminder, true
+	}
+	// Solo una entrada registrada abre un episodio nuevo de plan-guard; sin
+	// marcador, cada prompt en modo plan lo reiniciaría y el contador de
+	// devoluciones nunca acumularía.
+	planEpisodeReset(root)
+	return planEntryDocument(deps, defaultPlanEnteredBudget), true
+}
+
+// claimPlanEntryMarker registra que el documento completo de plan ya se entregó
+// en la sesión. Devuelve false si no pudo: sin registro no hay "una vez por
+// sesión", y quien llama entrega el recordatorio en lugar del documento.
+func claimPlanEntryMarker(deps *Deps, root string) bool {
+	marker := planEnteredMarkerPath(deps, root)
+	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
+		return false
+	}
+	return os.WriteFile(marker, []byte("1"), 0o644) == nil
+}
+
+// planEntryUnmarkedReminder sustituye al documento completo cuando no se puede
+// registrar su entrega en la sesión.
+const planEntryUnmarkedReminder = "Modo plan: llama a get_plan_context() antes de redactar el plan " +
+	"(no se pudo registrar la entrega del método en esta sesión)."
+
+// planEntryDocument arma el documento de entrada al modo plan. Si el historial
+// no se puede construir, lo declara y apunta a get_plan_context() en lugar de
+// entregar el método solo como si fuera el documento completo.
+func planEntryDocument(deps *Deps, budget int) string {
+	context, err := deps.ContextBuilder.Build()
+	if err != nil {
+		context = "> Historial del proyecto no disponible (" + err.Error() + "): llama a get_plan_context() para reintentarlo."
+	}
+	return domain.AdjustPlanDocumentToBudget(planMethod, context, budget)
+}
+
 func hookPlanEntered(deps *Deps, args []string) {
 	raw := readHookStdinRaw()
 	payload, _ := parseHookPayload(raw)
@@ -1130,21 +1200,15 @@ func hookPlanEntered(deps *Deps, args []string) {
 		// recordatorio corto basta, sin volver a saturar la conversación.
 		emitHookOutput(renderEnteredDocument(dialect, planEnteredShortReminder))
 	}
-	_ = os.MkdirAll(filepath.Dir(marker), 0o755)
-	_ = os.WriteFile(marker, []byte("1"), 0o644)
-
-	context, err := deps.ContextBuilder.Build()
-	if err != nil {
-		context = ""
+	if !claimPlanEntryMarker(deps, root) {
+		emitHookOutput(renderEnteredDocument(dialect, planEntryUnmarkedReminder))
 	}
 
 	budget := defaultPlanEnteredBudget
 	if b := budgetFlagValue(args); b > 0 {
 		budget = b
 	}
-	doc := domain.AdjustPlanDocumentToBudget(planMethod, context, budget)
-
-	emitHookOutput(renderEnteredDocument(dialect, doc))
+	emitHookOutput(renderEnteredDocument(dialect, planEntryDocument(deps, budget)))
 }
 
 // buildMemoryToolBootstrap fuerza la carga de las tools MCP de gomemory. En

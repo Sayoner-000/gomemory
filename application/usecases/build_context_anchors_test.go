@@ -186,6 +186,22 @@ func TestBuild_AnclasSinEvidencia_ErrorDePermisoNoEsHuerfana(t *testing.T) {
 	}
 }
 
+// S-006 (ACR 031): como el resto de secciones, la de anclas dice cuántas
+// quedaron fuera del tope, para que un recorte no parezca la lista completa.
+func TestBuild_AnclasSinEvidencia_IndicaCuantasQuedanFuera(t *testing.T) {
+	_, memRepo, _, _, b := newCtx031Fixture(t)
+	for i := 0; i < 11; i++ {
+		mustInsert031(t, memRepo, domain.Memory{Type: domain.Decision, Title: fmt.Sprintf("huérfana %d", i), Content: fmt.Sprintf("contenido %d", i), Filepath: fmt.Sprintf("falta%d.go", i)})
+	}
+	out, err := b.Build()
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if sec := sectionOf031(out, anchorsHeader031); !strings.Contains(sec, "(+3 anclas más; usa search_memories/get_memory)") {
+		t.Fatalf("falta la línea de las anclas que quedaron fuera:\n%s", sec)
+	}
+}
+
 func TestBuild_AnclasSinEvidencia_RespetaPresupuesto(t *testing.T) {
 	_, memRepo, _, _, b := newCtx031Fixture(t)
 	for i := 0; i < 9; i++ {

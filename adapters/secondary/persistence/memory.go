@@ -234,7 +234,7 @@ func annotateImpact(content, filepath string) string {
 	if !ok || !ann.Hotspot {
 		return content
 	}
-	return fmt.Sprintf("%s\n\n[impacto: %s es un hotspot con %d llamadores directos]", content, ann.Symbol, ann.FanIn)
+	return content + domain.ImpactAnnotation(ann.Symbol, ann.FanIn)
 }
 
 // adrSyncProvider/adrSyncRepo/settingsAdrSyncEnabled: sincronización
@@ -405,9 +405,12 @@ func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64
 // nullableTopic devuelve nil para un topic_key vacío (así el índice parcial solo
 // indexa filas con tópico y las memorias sin tópico no colisionan entre sí).
 func nullableTopic(tk string) any {
-	if strings.TrimSpace(tk) == "" {
+	tk = strings.TrimSpace(tk)
+	if tk == "" {
 		return nil
 	}
+	// Se guarda recortada porque así la busca el dedup (findDuplicateTx): sin
+	// esto, una clave con espacios laterales insertaba un duplicado cada vez.
 	return tk
 }
 

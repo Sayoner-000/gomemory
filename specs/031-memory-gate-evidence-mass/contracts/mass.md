@@ -24,7 +24,7 @@ masa = centralidad en el grafo de memorias sembrado en <semillas>; no mide impor
 
 - Nunca lista checkpoints.
 - Formato de masa: 4 decimales. El orden es por masa↓ y después por id↑.
-- Con `--task`, `<semillas>` es `tarea "<texto>" (N)`, donde N es el número de resultados no checkpoint.
+- Con `--task`, `<semillas>` es `tarea "<texto>" (N)`, donde N es el número de resultados no checkpoint. La búsqueda trae como máximo 20 resultados, el mismo tope por omisión que `pack_build` (`defaultCandidateLimit`); `--top` solo limita la salida.
 - Con `--task` sin resultados de búsqueda: `Sin memorias que coincidan con "<texto>": masa no calculada` y código 0.
 - Proyecto sin relaciones válidas: se lista igual (la masa se concentra en las semillas) con la misma línea final.
 - Dos ejecuciones sobre el mismo almacén producen salidas idénticas byte a byte.

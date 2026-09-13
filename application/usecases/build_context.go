@@ -721,6 +721,7 @@ func (b *Builder) writeAnchorEvidence(sb *strings.Builder, mems []domain.Memory)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].memory.ID < items[j].memory.ID })
 	sb.WriteString(header)
+	written := 0
 	for i, it := range items {
 		if i >= 8 {
 			break
@@ -740,6 +741,12 @@ func (b *Builder) writeAnchorEvidence(sb *strings.Builder, mems []domain.Memory)
 			break
 		}
 		sb.WriteString(line)
+		written++
+	}
+	// Igual que las secciones por tipo: un recorte no debe parecer la lista
+	// completa (S-006).
+	if rest := len(items) - written; rest > 0 {
+		fmt.Fprintf(sb, "- (+%d anclas más; usa search_memories/get_memory)\n", rest)
 	}
 	sb.WriteString("\n")
 }
