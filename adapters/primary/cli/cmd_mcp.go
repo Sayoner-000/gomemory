@@ -152,12 +152,16 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			Filepath:  in.Filepath,
 			TopicKey:  in.TopicKey,
 		}
-		id, err := deps.MemoryRepo.Insert(&mem)
+		id, gate, err := usecases.SaveWithGate(deps.MemoryRepo, &mem)
 		if err != nil {
 			return nil, nil, fmt.Errorf("guardar memoria: %w", err)
 		}
+		text := fmt.Sprintf("✓ Memoria guardada (id=%d)", id)
+		if notice := formatGateNotice(gate); notice != "" {
+			text += "\n" + notice
+		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("✓ Memoria guardada (id=%d)", id)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: text}},
 		}, nil, nil
 	})
 
@@ -481,6 +485,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			IncludeCodeGraph: !in.NoCodeGraph,
 			CodeProviders:    deps.CodeProviders,
 			Recorder:         deps.UsageRecorder,
+			Relations:        deps.RelationRepo,
 		})
 		if err != nil {
 			return nil, nil, err

@@ -428,6 +428,69 @@ diferencia de la anotación estática que se pega al `content` al guardar
 recalcula contra el snapshot vigente del grafo — si el código se reindexa y
 cambian los hotspots, la relevancia se actualiza sola.
 
+### Aviso de posible duplicado al guardar (feature 031)
+
+`save_memory` y `mem save` comparan la memoria nueva con las existentes del
+mismo tipo, sin contar checkpoints, y avisan de hasta tres casi-duplicados. La
+memoria **se guarda siempre**: el aviso orienta, no bloquea.
+
+```
+✓ Memoria guardada (id=213)
+⚠ Posible duplicado de #207 «ACR proyecto completo…» (similitud título 1.00 · contenido 0.31) — si es el mismo tema, repite con topic_key o revisa get_memory 207
+  (similitud léxica de palabras: no afirma que sea el mismo tema)
+```
+
+- En `mem save`, el aviso sale por **stderr**. stdout y el código de salida no cambian.
+- No avisa cuando el guardado actualizó una memoria existente, sea por un `topic_key` ya usado o por un título idéntico dentro de la ventana de dedup.
+- Si el candidato tiene `topic_key`, el aviso sugiere reutilizarlo.
+- Si no se pudo comprobar, lo dice: `ℹ Comprobación de duplicados no realizada (<motivo>): la memoria se guardó igual`. Un silencio nunca significa "no se comprobó".
+- Umbrales: título ≥ 0.70 o título+contenido ≥ 0.25 (Jaccard). Se midieron el 2026-09-13 sobre 82 memorias: 4.9 % de avisos, con el par duplicado conocido detectado. Se recalibran con `GOMEMORY_CALIBRATION_DB=<mem.db> go test -tags calibration -run TestSaveGateCalibration -v ./tests/integration/`, que abre el almacén en solo lectura.
+
+**Alcance**: una similitud léxica no demuestra que las dos memorias traten el mismo tema.
+
+### Anclas sin evidencia (feature 031)
+
+`get_context` contrasta el `filepath` de todas las memorias (no checkpoint)
+con el disco y, si hay código indexado, con el índice. Solo "no existe" cuenta
+como ausencia; un error de permisos o de E/S deja el ancla como no verificable:
+
+| Grado | Cuándo | Se lista |
+|-------|--------|----------|
+| vigente | el archivo existe | no |
+| movida | falta, y su nombre aparece en una sola ruta del índice | sí, con esa ruta |
+| movida (ambigua) | falta, y su nombre aparece en varias rutas | sí, sin afirmar ninguna |
+| huérfana candidata | falta y no aparece | sí |
+| no verificable | ruta vacía, absoluta fuera del proyecto o un directorio | no |
+
+Se listan como máximo 8 entradas en `## 🧭 Anclas sin evidencia`, dentro del
+presupuesto del contexto. Sin índice de código, solo se mira el disco y la
+sección lo declara.
+
+**Alcance**: un ancla sin evidencia es una hipótesis, no una orden de
+borrado. El índice puede estar desactualizado, y una ruta como `HEAD` puede no
+ser un archivo. Verifica y usa `judge_memories` o `forget_memory`.
+
+### Masa de memorias y `mem mass` (feature 031)
+
+La masa es un PageRank personalizado sobre el grafo de memorias. Se reinicia
+en unas semillas:
+
+- en `get_context` y en `mem mass` sin tarea: la sesión activa y las memorias ancladas a hotspots; si no hay ninguna, todas por igual;
+- con `mem mass --task T` y en `pack_build`: los resultados de la búsqueda, con peso 1/(posición+1).
+
+Las aristas `related`, `compatible` y `scoped` van en los dos sentidos, con
+peso igual a su confianza. `supersedes` solo lleva masa del sustituido al
+vigente. Los veredictos (`conflicts_with`, `not_conflict`), los checkpoints y
+las memorias borradas no transportan masa.
+
+- La sección `🔗 Sinapsis` se ordena por la masa de sus dos extremos (en empate, la relación más reciente primero) y termina con una leyenda.
+- `mem mass [--task T] [--top N]` imprime el ranking (15 por omisión). Es determinista: la misma base da la misma salida.
+- `pack_build` y `mem pack build` añaden hasta 5 vecinas opcionales de mayor masa al final del paquete, que son lo primero que se descarta por presupuesto.
+
+**Alcance**: la masa mide centralidad en el grafo de memorias alrededor de las
+semillas. No mide importancia ni corrección. Una memoria sin enlaces conserva
+solo su cuota de semilla, por relevante que sea.
+
 ---
 
 ## 7bis. Documentos fijados: reglas y constitución

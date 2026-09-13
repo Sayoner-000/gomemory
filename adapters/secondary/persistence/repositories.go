@@ -72,6 +72,7 @@ func (r *MemoryRepository) ListBySession(project, sessionID string, limit int) (
 
 var _ ports.MemoryRepository = (*MemoryRepository)(nil)
 var _ ports.SessionMemoryLister = (*MemoryRepository)(nil)
+var _ ports.MemoryFullLister = (*MemoryRepository)(nil)
 
 type SessionRepository struct {
 	db *sql.DB
@@ -149,6 +150,7 @@ func (r *RelationRepository) ImportRelation(rel *domain.Relation) (int64, error)
 }
 
 var _ ports.RelationRepository = (*RelationRepository)(nil)
+var _ ports.RelationFullLister = (*RelationRepository)(nil)
 
 // ADRSyncRepository envuelve el CRUD de adr_sync.go (feature 010, Historia 2).
 type ADRSyncRepository struct {
@@ -396,3 +398,4 @@ func (r *CodeGraphRepository) Status(project string) (domain.GraphStatus, error)
 }
 
 var _ ports.CodeGraphRepository = (*CodeGraphRepository)(nil)
+var _ ports.IndexedFilesQuerier = (*CodeGraphRepository)(nil)

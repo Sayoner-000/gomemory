@@ -64,6 +64,7 @@ Uso:
   mem get <id>                     Obtener el detalle de una memoria por ID (drill-down, feature 020)
   mem plan-context                 Método de planificación atómica + contexto (modo plan)
   mem search <query>               Buscar en la memoria
+  mem mass [--task T] [--top N]    Ranking de masa: centralidad sembrada, no importancia ni corrección
   mem install [dir]                Instalar gomemory en un proyecto
   mem uninstall [dir] [--yes]      Desinstalar gomemory por completo (reverso de install)
   mem session start                Iniciar nueva sesión

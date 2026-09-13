@@ -1,7 +1,9 @@
 package usecases
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -95,6 +97,8 @@ type Builder struct {
 	// el proyecto tiene código indexado, Build() agrega un resumen del grafo.
 	// nil-checked para no romper wiring/tests existentes que no lo setean.
 	Graph ports.GraphStatusQuerier
+	// Files permite contrastar anclas con el índice sin acoplar el builder al grafo.
+	Files ports.IndexedFilesQuerier
 	// CodeProviders son proveedores EXTERNOS de grafo de código, opcionales y
 	// provider-agnósticos (ver ports.CodeGraphProvider). nil/vacío = desactivado:
 	// el contexto se arma igual con el grafo propio. Cada uno solo aporta un
@@ -238,6 +242,12 @@ func (b *Builder) Build() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	allMems := mems
+	if full, ok := b.Lister.(ports.MemoryFullLister); ok {
+		if listed, listErr := full.ListAll(b.Project); listErr == nil {
+			allMems = listed
+		}
+	}
 
 	var sb strings.Builder
 	sb.WriteString("# Memoria del Proyecto\n\n")
@@ -274,7 +284,7 @@ func (b *Builder) Build() (string, error) {
 	}
 
 	if b.Relations != nil {
-		if rels, err := b.Relations.List(b.Project, 200); err == nil {
+		if rels, relErr := b.loadRelations(); relErr == nil {
 			var conflicts, synapses []domain.Relation
 			for _, r := range rels {
 				switch r.Relation {
@@ -292,21 +302,7 @@ func (b *Builder) Build() (string, error) {
 				}
 				sb.WriteString("\n")
 			}
-			if len(synapses) > 0 {
-				sb.WriteString("## 🔗 Sinapsis (memorias enlazadas)\n\n")
-				for i, r := range synapses {
-					if i >= 12 {
-						break
-					}
-					link := "↔"
-					if r.Relation == domain.Supersedes {
-						link = "⇒ supera a"
-					}
-					fmt.Fprintf(&sb, "- [%d] %s %s [%d] %s\n",
-						r.MemoryIDA, relTitle(titleByID, r.MemoryIDA), link, r.MemoryIDB, relTitle(titleByID, r.MemoryIDB))
-				}
-				sb.WriteString("\n")
-			}
+			b.writeSynapses(&sb, synapses, rels, allMems, titleByID)
 		}
 	}
 
@@ -484,26 +480,13 @@ func (b *Builder) Build() (string, error) {
 			mem   domain.Memory
 			fanIn int
 		}
-		bestByID := make(map[int64]hotMemory)
-		for _, m := range mems {
-			if m.Filepath == "" {
-				continue
-			}
-			for _, cp := range b.CodeProviders {
-				if cp == nil {
-					continue
+		fanInByID := hotspotMemoryIDs(mems, b.CodeProviders)
+		if len(fanInByID) > 0 {
+			hot := make([]hotMemory, 0, len(fanInByID))
+			for _, m := range mems {
+				if fanIn, ok := fanInByID[m.ID]; ok {
+					hot = append(hot, hotMemory{mem: m, fanIn: fanIn})
 				}
-				if ann, ok := cp.ImpactFor(m.Filepath); ok && ann.Hotspot {
-					if prev, seen := bestByID[m.ID]; !seen || ann.FanIn > prev.fanIn {
-						bestByID[m.ID] = hotMemory{mem: m, fanIn: ann.FanIn}
-					}
-				}
-			}
-		}
-		if len(bestByID) > 0 {
-			hot := make([]hotMemory, 0, len(bestByID))
-			for _, h := range bestByID {
-				hot = append(hot, h)
 			}
 			sort.Slice(hot, func(i, j int) bool {
 				if hot[i].fanIn != hot[j].fanIn {
@@ -525,6 +508,10 @@ func (b *Builder) Build() (string, error) {
 			sb.WriteString("\n")
 		}
 	}
+
+	// La evidencia usa todas las memorias. El límite de 100 solo controla las
+	// secciones recientes del contexto.
+	b.writeAnchorEvidence(&sb, allMems)
 
 	sess, _ := b.Session.Active(b.Project)
 	if sess != nil {
@@ -576,6 +563,185 @@ func (b *Builder) Build() (string, error) {
 	}
 
 	return output, nil
+}
+
+// loadRelations prefiere la lectura completa: List recorta a 20 filas y dejaba
+// fuera del contexto los conflictos antiguos.
+func (b *Builder) loadRelations() ([]domain.Relation, error) {
+	if full, ok := b.Relations.(ports.RelationFullLister); ok {
+		if rels, err := full.ListAll(b.Project); err == nil {
+			return rels, nil
+		}
+	}
+	return b.Relations.List(b.Project, 200)
+}
+
+// hotspotMemoryIDs devuelve, por memoria anclada a un hotspot vigente, el mayor
+// fan-in entre proveedores. Lo comparten la sección 🔥 y las semillas de masa.
+func hotspotMemoryIDs(mems []domain.Memory, providers []ports.CodeGraphProvider) map[int64]int {
+	out := make(map[int64]int)
+	for _, m := range mems {
+		if m.Filepath == "" {
+			continue
+		}
+		for _, cp := range providers {
+			if cp == nil {
+				continue
+			}
+			if ann, ok := cp.ImpactFor(m.Filepath); ok && ann.Hotspot {
+				if prev, seen := out[m.ID]; !seen || ann.FanIn > prev {
+					out[m.ID] = ann.FanIn
+				}
+			}
+		}
+	}
+	return out
+}
+
+func (b *Builder) massSeeds(all []domain.Memory) (map[int64]float64, string) {
+	sess, _ := b.Session.Active(b.Project)
+	return ContextSeeds(all, sess, b.CodeProviders)
+}
+
+// writeSynapses ordena por masa las sinapsis cuyos dos extremos existen y no
+// son checkpoints: un log automático o una memoria borrada no es un enlace útil.
+func (b *Builder) writeSynapses(sb *strings.Builder, synapses, rels []domain.Relation, all []domain.Memory, titleByID map[int64]string) {
+	typeByID := make(map[int64]domain.MemoryType, len(all))
+	for _, m := range all {
+		typeByID[m.ID] = m.Type
+	}
+	valid := make([]domain.Relation, 0, len(synapses))
+	for _, r := range synapses {
+		ta, okA := typeByID[r.MemoryIDA]
+		tb, okB := typeByID[r.MemoryIDB]
+		if okA && okB && ta != domain.Checkpoint && tb != domain.Checkpoint {
+			valid = append(valid, r)
+		}
+	}
+	if len(valid) == 0 {
+		return
+	}
+	seeds, label := b.massSeeds(all)
+	massByID := make(map[int64]float64)
+	for _, entry := range RankMass(all, rels, seeds) {
+		massByID[entry.ID] = entry.Mass
+	}
+	sort.Slice(valid, func(i, j int) bool {
+		si := massByID[valid[i].MemoryIDA] + massByID[valid[i].MemoryIDB]
+		sj := massByID[valid[j].MemoryIDA] + massByID[valid[j].MemoryIDB]
+		if si != sj {
+			return si > sj
+		}
+		// En empate, la relación más reciente primero: es el orden previo a la
+		// masa y evita que las aristas sin masa muestren antes las más viejas.
+		return valid[i].ID > valid[j].ID
+	})
+	header := "## 🔗 Sinapsis (memorias enlazadas)\n\n"
+	legend := fmt.Sprintf("_Orden: %s._\n\n", fmt.Sprintf(MassDisclaimer, label))
+	// La leyenda se reserva junto al encabezado: un orden sin su "qué NO
+	// afirma" no debe llegar al agente.
+	if !b.fits(sb, len(header)+len(legend)) {
+		return
+	}
+	sb.WriteString(header)
+	for i, r := range valid {
+		if i >= 12 {
+			break
+		}
+		link := "↔"
+		if r.Relation == domain.Supersedes {
+			link = "⇒ supera a"
+		}
+		line := fmt.Sprintf("- [%d] %s %s [%d] %s\n",
+			r.MemoryIDA, relTitle(titleByID, r.MemoryIDA), link, r.MemoryIDB, relTitle(titleByID, r.MemoryIDB))
+		if !b.fits(sb, len(line)+len(legend)) {
+			break
+		}
+		sb.WriteString(line)
+	}
+	sb.WriteString(legend)
+}
+
+// anchorStatOf traduce el resultado de os.Stat. Solo "no existe" cuenta como
+// ausencia. Un error de permisos o de E/S deja el ancla como no verificable.
+func anchorStatOf(info fs.FileInfo, err error) domain.AnchorStat {
+	switch {
+	case err == nil && info.Mode().IsRegular():
+		return domain.StatFile
+	case err == nil:
+		return domain.StatOther
+	case errors.Is(err, fs.ErrNotExist):
+		return domain.StatMissing
+	default:
+		return domain.StatOther
+	}
+}
+
+func (b *Builder) writeAnchorEvidence(sb *strings.Builder, mems []domain.Memory) {
+	var indexed []string
+	noIndex := true
+	if b.Files != nil {
+		if hashes, err := b.Files.FileHashes(b.Project); err == nil && len(hashes) > 0 {
+			for file := range hashes {
+				indexed = append(indexed, file)
+			}
+			sort.Strings(indexed)
+			noIndex = false
+		}
+	}
+	type item struct {
+		memory   domain.Memory
+		evidence domain.AnchorEvidence
+	}
+	items := make([]item, 0)
+	for _, memory := range mems {
+		if memory.Type == domain.Checkpoint || memory.Filepath == "" {
+			continue
+		}
+		rel, ok := domain.NormalizeAnchor(memory.Filepath, b.Root)
+		if !ok {
+			continue
+		}
+		info, statErr := os.Stat(filepath.Join(b.Root, filepath.FromSlash(rel)))
+		evidence := domain.GradeAnchor(rel, anchorStatOf(info, statErr), indexed)
+		if evidence.Grade == domain.AnchorMoved || evidence.Grade == domain.AnchorMovedAmbiguous || evidence.Grade == domain.AnchorOrphanCandidate {
+			items = append(items, item{memory, evidence})
+		}
+	}
+	if len(items) == 0 {
+		return
+	}
+	header := "## 🧭 Anclas sin evidencia\n\n> Hipótesis, no orden de borrado: verifica y usa judge_memories/forget_memory.\n"
+	if noIndex {
+		header += "> Sin índice de código: solo se comprobó el disco.\n"
+	}
+	header += "\n"
+	if !b.fits(sb, len(header)) {
+		return
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].memory.ID < items[j].memory.ID })
+	sb.WriteString(header)
+	for i, it := range items {
+		if i >= 8 {
+			break
+		}
+		detail := "huérfana candidata (no está en disco ni en el índice)"
+		if noIndex {
+			detail = "huérfana candidata (no está en disco)"
+		}
+		if it.evidence.Grade == domain.AnchorMoved {
+			detail = fmt.Sprintf("movida a `%s`", it.evidence.Candidate)
+		}
+		if it.evidence.Grade == domain.AnchorMovedAmbiguous {
+			detail = fmt.Sprintf("movida (ambigua: %d rutas con el mismo nombre)", it.evidence.Matches)
+		}
+		line := fmt.Sprintf("- [%d] «%s» — `%s` → %s\n", it.memory.ID, displayTitle(it.memory), it.evidence.Path, detail)
+		if !b.fits(sb, len(line)) {
+			break
+		}
+		sb.WriteString(line)
+	}
+	sb.WriteString("\n")
 }
 
 func (b *Builder) WriteFile() error {

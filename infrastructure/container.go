@@ -85,6 +85,7 @@ func NewContainer(root, channel string) (*Container, error) {
 	persistence.SetSynapseEnabled(!settings.SynapseDisabled)
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
 	contextBuilder.Graph = codeGraphRepo
+	contextBuilder.Files = codeGraphRepo
 	// Resolución por clave de tópico (feature 021): habilita la sección de
 	// reglas fijadas. Se obtiene por aserción de tipo —mismo patrón que
 	// adrSyncProvider más abajo— para no ensanchar ports.MemoryRepository con

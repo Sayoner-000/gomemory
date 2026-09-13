@@ -41,6 +41,10 @@ type ContextRequest struct {
 	// esas cifras, además de quedar en el ContextPack devuelto, se persisten
 	// como registro de uso.
 	Recorder ports.UsageRecorder
+	// Relations (feature 031): opcional. Con valor, el pack añade hasta
+	// maxMassNeighbors vecinas de mayor masa sembrada en los resultados de la
+	// búsqueda; nil conserva exactamente el comportamiento anterior (FR-021).
+	Relations ports.RelationFullLister
 }
 
 // BuildContextPack recupera memorias relevantes a Task dentro de Project,
@@ -122,6 +126,15 @@ func BuildContextPack(
 			items = append(items, archCandidate)
 			retrieved++
 		}
+	}
+
+	// Vecinas por masa (feature 031): van al final para ser lo primero que se
+	// descarta por presupuesto, y después del boost de hotspots para que sigan
+	// siendo opcionales.
+	if req.Relations != nil {
+		neighbors := massNeighborCandidates(memRepo, req, candidates)
+		items = append(items, neighbors...)
+		retrieved += len(neighbors)
 	}
 
 	// req.Compression zero value == ports.CompressionStructural (FR-009: la
@@ -352,6 +365,56 @@ func codeGraphArchitectureCandidate(providers []ports.CodeGraphProvider) (contex
 		importance: 0.4,
 		confidence: 1,
 	}, true
+}
+
+// maxMassNeighbors limita las vecinas que la masa añade al pack: son contexto
+// opcional, no resultados de la búsqueda.
+const maxMassNeighbors = 5
+
+// massNeighborCandidates siembra la masa en los resultados de la búsqueda (peso
+// 1/(rango+1)) y devuelve hasta maxMassNeighbors memorias conectadas que la
+// búsqueda no trajo. Un error de lectura degrada en silencio a no añadir nada:
+// las vecinas son un extra, nunca un motivo para fallar el pack.
+func massNeighborCandidates(memRepo ports.MemoryRepository, req ContextRequest, found []domain.Memory) []contextCandidate {
+	seeds := make(map[int64]float64)
+	inPack := make(map[int64]bool, len(found))
+	for _, m := range found {
+		inPack[m.ID] = true
+		if m.Type != domain.Checkpoint {
+			seeds[m.ID] = 1 / float64(len(seeds)+1)
+		}
+	}
+	if len(seeds) == 0 {
+		return nil
+	}
+	all, err := memRepo.ListAll(req.Project)
+	if err != nil {
+		return nil
+	}
+	rels, err := req.Relations.ListAll(req.Project)
+	if err != nil {
+		return nil
+	}
+	byID := make(map[int64]domain.Memory, len(all))
+	for _, m := range all {
+		byID[m.ID] = m
+	}
+	var out []contextCandidate
+	for _, entry := range RankMass(all, rels, seeds) {
+		if len(out) >= maxMassNeighbors || entry.Mass <= 0 {
+			break
+		}
+		m, ok := byID[entry.ID]
+		if !ok || inPack[entry.ID] || m.Type == domain.Checkpoint {
+			continue
+		}
+		c := newContextCandidate(m, 0, 1, req.MinRelevance)
+		c.priority = domain.PriorityOptional
+		// No coincide con la tarea: su relevancia textual es nula, llega por masa.
+		c.relevance = 0
+		out = append(out, c)
+	}
+	return out
 }
 
 func boostHotspotCandidates(items []contextCandidate, providers []ports.CodeGraphProvider) {

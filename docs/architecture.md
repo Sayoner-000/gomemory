@@ -224,6 +224,7 @@ mem context --write → escribe .memory/context.md
 
 ## 🔗 Sinapsis (memorias enlazadas)
 - [idA] "título" ↔ [idB] "título"
+_Orden: masa = centralidad en el grafo de memorias sembrado en {semillas}; no mide importancia ni corrección._
 
 ## Decisiones de Arquitectura
 - **título**: contenido (→ archivo relacionado)
@@ -244,6 +245,10 @@ mem context --write → escribe .memory/context.md
 ## 🔥 Memoria conectada a código activo
 - **título** — `archivo` (fan-in N, hotspot vigente)
 
+## 🧭 Anclas sin evidencia
+> Hipótesis, no orden de borrado: verifica y usa judge_memories/forget_memory.
+- [id] «título» — `ruta` → movida a `otra/ruta` | movida (ambigua: N rutas…) | huérfana candidata
+
 ## Sesión Activa
 - Iniciada: timestamp
 
@@ -254,6 +259,23 @@ mem context --write → escribe .memory/context.md
 Los agentes reciben el contexto desde el servidor MCP y los hooks de ciclo de vida. `.memory/context.md` solo existe cuando una persona ejecuta `mem context --write`.
 
 **Consolidación sináptica ("siempre sinapsis").** Cada memoria que se guarda forma automáticamente una **sinapsis** (arista `related`) con el "ancla" de su sesión: la memoria sustantiva (no checkpoint) más reciente registrada antes en la misma sesión. Esto ocurre en `formSynapse()`, dentro del choke point `InsertMemory` — el mismo punto donde se hereda la provenance — así que es **determinista, sin tokens del agente y transversal** a todas las vías de guardado (MCP `save_memory`, hooks, CLI, TUI, OpenCode). El criterio teje el hilo de decisiones de una sesión y enlaza cada checkpoint con la decisión que lo gobierna, sin generar ruido checkpoint↔checkpoint; es idempotente (no duplica una arista existente, vía `INSERT OR IGNORE` con unique index) y best-effort (una sinapsis fallida nunca hace fallar el guardado). Optimizado con **caché de ancla por sesión** (`lastAnchorCache`): el ID del último ancla se guarda en memoria y se reutiliza en las inserciones siguientes, evitando la query de lookup repetida. El grafo resultante se re-inyecta en cada `get_context` bajo la sección **🔗 Sinapsis**, de modo que las decisiones enlazadas no se olvidan entre sesiones. Desactivable con `synapse_disabled: true` en `.memory/settings.json` o desde la TUI (tecla `c` → "Sinapsis automática").
+
+**Gate, anclas y masa (feature 031, 2026-09-13).**
+
+- **Puertos estrechos.** `application/ports/context_builder.go` añade tres puertos pequeños, para no ampliar interfaces con dobles de prueba existentes: `MemoryFullLister` (`ListAll` de memorias), `RelationFullLister` (`ListAll` de relaciones) e `IndexedFilesQuerier` (`FileHashes`). `Build()` los obtiene por aserción de tipo, el mismo patrón que `Topics`.
+- **Lectura completa de relaciones.** `Build()` lee todas las relaciones con `ListAll`. `ListRelations` convierte cualquier `limit > 50` en 20, así que antes un conflicto antiguo desaparecía del contexto.
+- **Gate de pre-escritura.** `usecases.SaveWithGate` lee la instantánea (`ListAll`), inserta y compara con Jaccard de título y de título+contenido, podando por tamaño (`J ≤ min/max`). Si el id devuelto ya existía, fue un upsert y no avisa. Los umbrales son constantes medidas (`gateTitleThreshold = 0.70` y `gateBodyThreshold = 0.25`, medidos el 2026-09-13) y el calibrador vive en `tests/integration/save_gate_calibration_test.go` con `//go:build calibration`. P0 relacionado: `findDuplicateTx` ya no trata un error de consulta como "sin duplicado".
+- **Evidencia de anclas.** `domain.NormalizeAnchor` y `domain.GradeAnchor` son puras. El `os.Stat` ocurre en `Build()` entre ambas.
+- **Masa.** `domain.ComputeMass` es PageRank personalizado (d = 0.85, corte L1 < 1e-9 o 100 iteraciones). La masa de los nodos colgantes vuelve a las semillas, y todas las sumas van en orden de id, lo que da un resultado determinista bit a bit. `usecases.BuildMassGraph` aplica las reglas de aristas:
+
+  | Relación | En el grafo |
+  |----------|-------------|
+  | `related` / `compatible` / `scoped` | en ambos sentidos, con peso = confianza |
+  | `supersedes` (A sustituye a B) | solo B → A |
+  | `conflicts_with` / `not_conflict` | excluida (veredicto, no transición) |
+  | extremo checkpoint o memoria borrada | excluida |
+
+  `usecases.ContextSeeds` siembra en la sesión activa y en las memorias ancladas a hotspots, o uniforme si no hay ninguna. Lo comparten `Build()` y `mem mass`. `BuildContextPack` siembra en los resultados de la búsqueda y añade hasta 5 vecinas opcionales cuando `ContextRequest.Relations` no es nil.
 
 #### Huella de contexto acotada (presupuesto + progressive disclosure)
 

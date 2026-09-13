@@ -92,6 +92,7 @@ func cmdPackBuild(deps *Deps, args []string) {
 	req.Root = deps.Root
 	req.CodeProviders = deps.CodeProviders
 	req.Recorder = deps.UsageRecorder
+	req.Relations = deps.RelationRepo
 
 	pack, err := usecases.BuildContextPack(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader, req)
 	if err != nil {

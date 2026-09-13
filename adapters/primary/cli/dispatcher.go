@@ -41,6 +41,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdSession(deps, args)
 	case "pack":
 		CmdPack(deps, args)
+	case "mass":
+		CmdMass(deps, args)
 	case "octopus":
 		CmdOctopus(deps, args)
 	case "install":

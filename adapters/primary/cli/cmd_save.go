@@ -3,8 +3,10 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -46,12 +48,15 @@ func CmdSave(deps *Deps, args []string) {
 		Filepath:  *filepathStr,
 	}
 
-	id, err := deps.MemoryRepo.Insert(&mem)
+	id, gate, err := usecases.SaveWithGate(deps.MemoryRepo, &mem)
 	if err != nil {
 		fail("guardar memoria: %v", err)
 	}
 
 	fmt.Printf("✓ Memoria guardada (id=%d)\n", id)
+	if notice := formatGateNotice(gate); notice != "" {
+		fmt.Fprintln(os.Stderr, notice)
+	}
 	if sessionID != "" {
 		fmt.Printf("  Sesión activa: %s\n", sessionID[:8])
 	}

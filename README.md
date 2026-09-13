@@ -142,6 +142,18 @@ Memory search uses FTS5 + BM25 ranking, with an automatic LIKE fallback when FTS
 **Connected memory**
 Related memories are automatically linked through synapses, forming a persistent knowledge graph that is re-injected into each `get_context`.
 
+**Duplicate warning on save**
+`save_memory` and `mem save` compare a new memory with existing memories of the same type. After saving, they report up to three likely duplicates based on lexical Jaccard similarity. Updates through `topic_key` and identical titles do not produce a warning. If the comparison fails, the command reports the failure.
+> Scope: lexical similarity does not mean "same topic." Use the warning to decide whether to reuse a `topic_key` or inspect an older memory.
+
+**Anchor evidence**
+`get_context` lists memories whose anchored file is missing from disk. It marks each one as moved when the code index has a single candidate, moved with ambiguous candidates, or an orphan candidate. Absolute paths outside the project are not graded.
+> Scope: a missing anchor is a hypothesis, not an instruction to delete data. Verify it before using `judge_memories` or `forget_memory`.
+
+**Memory mass**
+Synapses are ranked with personalized PageRank. The active session, memories anchored to code hotspots, or a task provide the seeds. Checkpoints and verdict edges are excluded. `mem mass [--task T] [--top N]` prints the ranking, and `pack_build` can add up to five connected memories.
+> Scope: mass measures centrality around the seeds. It does not measure importance or correctness.
+
 **Context-aware retrieval**
 `get_context` is budget-limited and `get_memory` provides full details on demand — minimizing token usage.
 
@@ -272,6 +284,7 @@ mem
 ├── pack show         Re-render an already-built ContextPack
 ├── pack stats        Reduction stats of an already-built ContextPack
 ├── pack compress     Deterministic compression of arbitrary text
+├── mass              Memory mass ranking (--task T, --top N): centrality, not importance
 ├── project           Show current project info
 ├── index             Index the project's Go code graph (+ external graph, --skip-graph to opt out)
 ├── session start/end Open/close a working session
