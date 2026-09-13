@@ -103,10 +103,15 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	if existingID, ok, err := findDuplicateTx(tx, m, title, content); err != nil {
 		return 0, err
 	} else if ok {
+		// El linaje sigue al contenido: una promoción posterior reescribe la
+		// memoria, así que source_review_id pasa a esa revisión; un guardado sin
+		// revisión conserva el que hubiera (C-003).
 		if _, err := tx.Exec(
-			`UPDATE memories SET content = ?, title = ?, type = ?, filepath = ?, topic_key = ?, updated_at = `+Now+`
+			`UPDATE memories SET content = ?, title = ?, type = ?, filepath = ?, topic_key = ?,
+			        source_review_id = COALESCE(?, source_review_id), updated_at = `+Now+`
 			 WHERE id = ?`,
-			content, title, string(m.Type), m.Filepath, nullableTopic(m.TopicKey), existingID,
+			content, title, string(m.Type), m.Filepath, nullableTopic(m.TopicKey),
+			nullableTopic(m.SourceReviewID), existingID,
 		); err != nil {
 			return 0, fmt.Errorf("update memory (dedup): %w", err)
 		}
@@ -498,10 +503,10 @@ func GetMemoryByID(db *sql.DB, project string, id int64) (*domain.Memory, error)
 	var memType string
 	err := db.QueryRow(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), created_at, updated_at
 		 FROM memories WHERE id = ? AND project = ?`,
 		id, project,
-	).Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title, &m.Content, &m.Filepath, &m.OriginPrompt, &m.CreatedAt, &m.UpdatedAt)
+	).Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title, &m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -756,7 +761,7 @@ func searchMemoriesFTS(db *sql.DB, project, query string, limit int) ([]domain.M
 	ftsQuery := tokenizeFTS(query)
 	rows, err := db.Query(
 		`SELECT m.id, m.project, COALESCE(m.session_id,''), m.type, COALESCE(m.title,''), m.content,
-		        COALESCE(m.filepath,''), COALESCE(m.origin_prompt,''), m.created_at, m.updated_at
+		        COALESCE(m.filepath,''), COALESCE(m.origin_prompt,''), COALESCE(m.topic_key,''), m.created_at, m.updated_at
 		 FROM memory_search s
 		 JOIN memories m ON m.id = s.memory_id
 		 WHERE s.memory_search MATCH ? AND m.project = ?
@@ -791,16 +796,20 @@ func tokenizeFTS(query string) string {
 	return strings.Join(quoted, " OR ")
 }
 
+// likeEscaper vuelve literales los comodines de LIKE en la consulta del usuario:
+// sin esto, buscar "%" devolvía todo hasta el límite (C-005).
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
 func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.Memory, error) {
-	like := "%" + query + "%"
+	like := "%" + likeEscaper.Replace(query) + "%"
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), created_at, updated_at
-		 FROM memories WHERE project = ? AND (content LIKE ? OR title LIKE ?)
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), created_at, updated_at
+		 FROM memories WHERE project = ? AND (content LIKE ? ESCAPE '\' OR title LIKE ? ESCAPE '\')
 		 ORDER BY
 		   CASE
-		     WHEN title LIKE ? THEN 0
-		     WHEN content LIKE ? THEN 1
+		     WHEN title LIKE ? ESCAPE '\' THEN 0
+		     WHEN content LIKE ? ESCAPE '\' THEN 1
 		     ELSE 2
 		   END,
 		   created_at DESC
@@ -816,14 +825,14 @@ func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.
 
 // scanMemories escanea filas con el orden de columnas común a
 // searchMemoriesFTS y searchMemoriesLike (id, project, session_id, type,
-// title, content, filepath, origin_prompt, created_at, updated_at).
+// title, content, filepath, origin_prompt, topic_key, created_at, updated_at).
 func scanMemories(rows *sql.Rows) ([]domain.Memory, error) {
 	var mems []domain.Memory
 	for rows.Next() {
 		var m domain.Memory
 		var memType string
 		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.OriginPrompt, &m.CreatedAt, &m.UpdatedAt)
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}

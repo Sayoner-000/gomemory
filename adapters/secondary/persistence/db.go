@@ -72,7 +72,11 @@ func Open(root string) (*sql.DB, error) {
 	}
 
 	path := DbPath(root)
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	// _txlock=immediate: todas las transacciones del paquete escriben, y varias
+	// leen antes (el dedup de insertMemory). Con BEGIN diferido, en WAL SQLite no
+	// invoca el busy handler al promover la lectura a escritura y el perdedor de
+	// una carrera recibe SQLITE_BUSY pese al busy_timeout (acr_c1622428, C-002).
+	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
