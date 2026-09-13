@@ -5,6 +5,23 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.23.2] - 2026-09-13
+
+### Fixed
+
+- Los guardados en paralelo ya no fallan con `SQLITE_BUSY`. Todas las
+  transacciones del almacén abren en modo inmediato, porque con el modo
+  diferido SQLite no invocaba el manejador de espera al pasar de lectura a
+  escritura.
+- El dedup conserva el linaje de la revisión: al reescribir una memoria con la
+  misma `topic_key`, `source_review_id` pasa a la revisión cuyo contenido
+  quedó guardado. Un guardado sin revisión mantiene el que hubiera.
+- `GetMemoryByID` y las búsquedas FTS y LIKE devuelven `topic_key`, como ya
+  hacían `List` y la búsqueda por clave. Leer por id ya no esconde la
+  identidad fijada.
+- La búsqueda LIKE trata `%`, `_` y `\` como texto literal con cláusula
+  `ESCAPE`. Buscar `%` ya no devuelve todo el almacén hasta el límite.
+
 ## [v2.23.1] - 2026-09-13
 
 ### Fixed
