@@ -470,7 +470,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// ACTIVO" sin excepción por tipo de tarea, y materializar las tools bajo
 	// demanda según el propósito detectado sería precisamente la excepción que
 	// ese principio prohíbe.
-	_ = os.WriteFile(marker, []byte("1"), 0644)
+	_ = writeHookMarker(marker)
 	settings := deps.SettingsRepo.Read(root)
 	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
 	additional := bootstrap + "\n\n" + memoryProtocolReminder
@@ -1148,11 +1148,18 @@ func planEntryFromPrompt(deps *Deps, root string, payload map[string]any) (strin
 // en la sesión. Devuelve false si no pudo: sin registro no hay "una vez por
 // sesión", y quien llama entrega el recordatorio en lugar del documento.
 func claimPlanEntryMarker(deps *Deps, root string) bool {
-	marker := planEnteredMarkerPath(deps, root)
-	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
-		return false
+	return writeHookMarker(planEnteredMarkerPath(deps, root)) == nil
+}
+
+// writeHookMarker escribe un marcador de sesión de los hooks. Asegura su
+// directorio, que en un checkout fresco puede no existir todavía, con los
+// permisos 0700 que EnsureDir da al directorio del proyecto (acr_5836d32d,
+// C-003 y C-004).
+func writeHookMarker(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
 	}
-	return os.WriteFile(marker, []byte("1"), 0o644) == nil
+	return os.WriteFile(path, []byte("1"), 0o600)
 }
 
 // planEntryUnmarkedReminder sustituye al documento completo cuando no se puede

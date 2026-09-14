@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 	"time"
@@ -32,14 +33,16 @@ func ExportProject(memRepo ports.MemoryRepository, relRepo ports.RelationReposit
 	}
 	for _, m := range mems {
 		bundle.Memories = append(bundle.Memories, domain.ExportMemory{
-			RefID:        m.ID,
-			Type:         string(m.Type),
-			Title:        m.Title,
-			Content:      m.Content,
-			Filepath:     filepath.ToSlash(m.Filepath),
-			OriginPrompt: m.OriginPrompt,
-			CreatedAt:    m.CreatedAt,
-			UpdatedAt:    m.UpdatedAt,
+			RefID:          m.ID,
+			Type:           string(m.Type),
+			Title:          m.Title,
+			Content:        m.Content,
+			Filepath:       filepath.ToSlash(m.Filepath),
+			OriginPrompt:   m.OriginPrompt,
+			TopicKey:       m.TopicKey,
+			SourceReviewID: m.SourceReviewID,
+			CreatedAt:      m.CreatedAt,
+			UpdatedAt:      m.UpdatedAt,
 		})
 	}
 	for _, r := range rels {
@@ -62,13 +65,29 @@ func EncodeBundle(w io.Writer, bundle domain.ExportBundle) error {
 	return enc.Encode(bundle)
 }
 
-// DecodeBundle deserializa un bundle desde JSON.
+// DecodeBundle deserializa un bundle desde JSON y lo lleva a la versión
+// actual. Rechaza un bundle de una versión posterior: importarlo descartaría en
+// silencio los campos que esta versión no conoce.
 func DecodeBundle(r io.Reader) (domain.ExportBundle, error) {
 	var b domain.ExportBundle
 	if err := json.NewDecoder(r).Decode(&b); err != nil {
 		return domain.ExportBundle{}, err
 	}
+	if b.Version > domain.ExportVersion {
+		return domain.ExportBundle{}, fmt.Errorf("bundle versión %d no soportada (máxima %d): actualiza gomemory", b.Version, domain.ExportVersion)
+	}
+	if b.Version < 2 {
+		b = migrateBundleV1ToV2(b)
+	}
 	return b, nil
+}
+
+// migrateBundleV1ToV2 lleva un bundle v1 a v2. En v1 no existían topic_key ni
+// source_review_id, así que quedan vacíos: el mismo valor que tenían al
+// importarse antes de v2.
+func migrateBundleV1ToV2(b domain.ExportBundle) domain.ExportBundle {
+	b.Version = 2
+	return b
 }
 
 // memoryHash identifica una memoria por su contenido (no por id), para dedup al
@@ -104,14 +123,16 @@ func ImportBundle(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 			continue
 		}
 		id, err := memRepo.ImportMemory(&domain.Memory{
-			Project:      targetProject,
-			Type:         domain.MemoryType(em.Type),
-			Title:        em.Title,
-			Content:      em.Content,
-			Filepath:     em.Filepath,
-			OriginPrompt: em.OriginPrompt,
-			CreatedAt:    em.CreatedAt,
-			UpdatedAt:    em.UpdatedAt,
+			Project:        targetProject,
+			Type:           domain.MemoryType(em.Type),
+			Title:          em.Title,
+			Content:        em.Content,
+			Filepath:       em.Filepath,
+			OriginPrompt:   em.OriginPrompt,
+			TopicKey:       em.TopicKey,
+			SourceReviewID: em.SourceReviewID,
+			CreatedAt:      em.CreatedAt,
+			UpdatedAt:      em.UpdatedAt,
 		})
 		if err != nil {
 			return rep, err

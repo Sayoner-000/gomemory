@@ -12,7 +12,12 @@ package domain
 // dejando el número de versión intacto, porque un bundle exportado por una
 // versión vieja de gomemory (incluidos los snapshots automáticos de backup)
 // dejaría de poder importarse.
-const ExportVersion = 1
+//
+// v2: ExportMemory incorpora topic_key y source_review_id. Sin ellos, un
+// documento fijado reimportado perdía su identidad de dedup y una memoria
+// promovida perdía el enlace con la revisión que la produjo (acr_5836d32d,
+// C-001). Un bundle v1 se lee con ambos campos vacíos, que es lo que ya valían.
+const ExportVersion = 2
 
 // ExportBundle es el formato portable (cross-OS) de un conjunto de memorias y
 // sus relaciones, para mover conocimiento entre proyectos y máquinas con
@@ -37,8 +42,12 @@ type ExportMemory struct {
 	Content      string `json:"content"`
 	Filepath     string `json:"filepath,omitempty"`
 	OriginPrompt string `json:"origin_prompt,omitempty"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	// TopicKey y SourceReviewID viajan desde v2: son la identidad de dedup y el
+	// linaje de revisión de la memoria (ver domain.Memory).
+	TopicKey       string `json:"topic_key,omitempty"`
+	SourceReviewID string `json:"source_review_id,omitempty"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
 }
 
 // ExportRelation es una relación (sinapsis o veredicto de juez) entre dos

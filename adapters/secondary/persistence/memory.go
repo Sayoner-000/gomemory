@@ -503,10 +503,10 @@ func GetMemoryByID(db *sql.DB, project string, id int64) (*domain.Memory, error)
 	var memType string
 	err := db.QueryRow(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''), created_at, updated_at
 		 FROM memories WHERE id = ? AND project = ?`,
 		id, project,
-	).Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title, &m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
+	).Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title, &m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.SourceReviewID, &m.CreatedAt, &m.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -541,12 +541,12 @@ func GetMemoryByTopicKey(db *sql.DB, project, topicKey string) (*domain.Memory, 
 	var memType string
 	err := db.QueryRow(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''),
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''),
 		        created_at, updated_at
 		 FROM memories WHERE project = ? AND topic_key = ? ORDER BY id DESC LIMIT ?`,
 		project, tk, 1,
 	).Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title, &m.Content,
-		&m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
+		&m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.SourceReviewID, &m.CreatedAt, &m.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -590,7 +590,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 	// la sección de reglas fijadas es el primer consumidor real.
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''),
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''),
 		        created_at, updated_at
 		 FROM memories WHERE project = ? ORDER BY created_at DESC LIMIT ?`,
 		project, limit,
@@ -605,7 +605,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 		var m domain.Memory
 		var memType string
 		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.SourceReviewID, &m.CreatedAt, &m.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
@@ -631,7 +631,7 @@ func ListMemoriesBySession(db *sql.DB, project, sessionID string, limit int) ([]
 	}
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''),
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''),
 		        created_at, updated_at
 		 FROM memories WHERE project = ? AND session_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
 		project, sessionID, limit,
@@ -646,7 +646,7 @@ func ListMemoriesBySession(db *sql.DB, project, sessionID string, limit int) ([]
 		var m domain.Memory
 		var memType string
 		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.SourceReviewID, &m.CreatedAt, &m.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
@@ -665,7 +665,7 @@ func ListMemoriesBySession(db *sql.DB, project, sessionID string, limit int) ([]
 func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''), created_at, updated_at
 		 FROM memories WHERE project = ? ORDER BY id ASC`,
 		project,
 	)
@@ -679,7 +679,7 @@ func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 		var m domain.Memory
 		var memType string
 		if err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.SourceReviewID, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
 		m.Type = domain.MemoryType(memType)
@@ -705,9 +705,10 @@ func ImportMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	origin := domain.RedactSecrets(domain.RedactPrivate(m.OriginPrompt))
 
 	res, err := db.Exec(
-		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?,''), `+Now+`), COALESCE(NULLIF(?,''), `+Now+`))`,
-		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin, m.CreatedAt, m.UpdatedAt,
+		`INSERT INTO memories (project, session_id, type, title, content, filepath, origin_prompt, topic_key, source_review_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?,''), `+Now+`), COALESCE(NULLIF(?,''), `+Now+`))`,
+		m.Project, m.SessionID, string(m.Type), title, content, m.Filepath, origin,
+		nullableTopic(m.TopicKey), nullableTopic(m.SourceReviewID), m.CreatedAt, m.UpdatedAt,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("import memory: %w", err)
@@ -761,7 +762,7 @@ func searchMemoriesFTS(db *sql.DB, project, query string, limit int) ([]domain.M
 	ftsQuery := tokenizeFTS(query)
 	rows, err := db.Query(
 		`SELECT m.id, m.project, COALESCE(m.session_id,''), m.type, COALESCE(m.title,''), m.content,
-		        COALESCE(m.filepath,''), COALESCE(m.origin_prompt,''), COALESCE(m.topic_key,''), m.created_at, m.updated_at
+		        COALESCE(m.filepath,''), COALESCE(m.origin_prompt,''), COALESCE(m.topic_key,''), COALESCE(m.source_review_id,''), m.created_at, m.updated_at
 		 FROM memory_search s
 		 JOIN memories m ON m.id = s.memory_id
 		 WHERE s.memory_search MATCH ? AND m.project = ?
@@ -804,7 +805,7 @@ func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.
 	like := "%" + likeEscaper.Replace(query) + "%"
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
-		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), created_at, updated_at
+		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''), created_at, updated_at
 		 FROM memories WHERE project = ? AND (content LIKE ? ESCAPE '\' OR title LIKE ? ESCAPE '\')
 		 ORDER BY
 		   CASE
@@ -825,14 +826,15 @@ func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.
 
 // scanMemories escanea filas con el orden de columnas común a
 // searchMemoriesFTS y searchMemoriesLike (id, project, session_id, type,
-// title, content, filepath, origin_prompt, topic_key, created_at, updated_at).
+// title, content, filepath, origin_prompt, topic_key, source_review_id,
+// created_at, updated_at).
 func scanMemories(rows *sql.Rows) ([]domain.Memory, error) {
 	var mems []domain.Memory
 	for rows.Next() {
 		var m domain.Memory
 		var memType string
 		err := rows.Scan(&m.ID, &m.Project, &m.SessionID, &memType, &m.Title,
-			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.CreatedAt, &m.UpdatedAt)
+			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.SourceReviewID, &m.CreatedAt, &m.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
