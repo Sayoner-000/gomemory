@@ -5,6 +5,23 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.23.3] - 2026-09-14
+
+### Fixed
+
+- Exportar e importar conserva `topic_key` y `source_review_id`. El formato
+  del bundle sube a v2: los bundles v1 se siguen leyendo (ambos campos
+  quedan vacíos, como ya valían) y los de una versión posterior se
+  rechazan en vez de perder campos en silencio. Un documento fijado
+  reimportado ya no pierde su identidad y una memoria promovida no
+  pierde su revisión de origen.
+- Todas las lecturas devuelven `source_review_id`: por id, por clave de
+  tópico, listados y búsquedas FTS y LIKE. El linaje ya no es visible
+  solo para el conteo de promociones.
+- Los marcadores de hooks crean su directorio con permisos 0700 y el
+  archivo con 0600. En un checkout fresco el marcador de primera sesión
+  ya no se pierde y el bootstrap no se repite en cada prompt.
+
 ## [v2.23.2] - 2026-09-13
 
 ### Fixed
