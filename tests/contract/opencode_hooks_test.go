@@ -95,3 +95,16 @@ func TestOpenCode_ObtieneLaPoliticaOctopusDelGeneradorComun(t *testing.T) {
 		t.Fatal("OpenCode debe inyectar la política devuelta en el contexto del agente")
 	}
 }
+
+// TestOpenCodeV2_ContextDelegaEnLaPoliticaOctopus: en 2.x la política Octopus
+// llega por el mismo transform v1 que la pide al generador común; el gancho v2
+// "context" solo traduce el formato de las partes del system.
+func TestOpenCodeV2_ContextDelegaEnLaPoliticaOctopus(t *testing.T) {
+	bloque := v2Block(t, gomemoryPluginSource(t), "context")
+	if !strings.Contains(bloque, `hooks["experimental.chat.system.transform"]`) {
+		t.Error("el gancho v2 context no delega en el transform v1 que inyecta la política Octopus")
+	}
+	if !strings.Contains(bloque, `ev.system.push({ type: "text", text })`) {
+		t.Error("el gancho v2 context no convierte las cadenas en partes {type: \"text\"}")
+	}
+}

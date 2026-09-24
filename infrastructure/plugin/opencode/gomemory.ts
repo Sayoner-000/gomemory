@@ -10,7 +10,14 @@
 // inyectar el protocolo + el contexto histórico en el system prompt, y recuperar
 // el estado tras una compactación. Todo es best-effort: si el binario `mem` no
 // está disponible, los hooks degradan en silencio.
+//
+// Un solo archivo sirve a OpenCode 1.x y 2.x (feature 032): 1.x llama a
+// `server` del export por defecto (la fábrica GomemoryPlugin de siempre) y 2.x
+// llama a `setup`, que traduce los ganchos y eventos v2 a esa misma fábrica.
+// Solo se admiten imports de `node:*`: el archivo se instala suelto, sin
+// node_modules.
 import type { Plugin } from "@opencode-ai/plugin";
+import { execFile } from "node:child_process";
 
 // El instalador sustituye el marcador de la línea siguiente por la referencia
 // portable a `mem` (normalmente "mem" en el PATH). Este comentario no lo escribe
@@ -472,3 +479,249 @@ scope: . or any other bare path.
 
 SESSION CLOSE: before saying "done", call ${T_END_SESSION}(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;
+
+// ── OpenCode 2.x ────────────────────────────────────────────────────────────
+//
+// v2 ya no ejecuta la fábrica de arriba: exige `export default { id, setup }`
+// y registra los ganchos por dominio (ctx.session.hook, ctx.tool.hook,
+// ctx.event.subscribe). En vez de duplicar la lógica, `setup` construye los
+// ganchos v1 con un `$` y un `client` equivalentes y traduce cada gancho v2 al
+// suyo. Así las dos versiones comparten exactamente las mismas llamadas a
+// `mem` (contrato C-2 de specs/032-opencode-v2-plugin-compat).
+
+type Exec = (bin: string, args: string[], opts: { cwd: string; input?: string }) => Promise<string>;
+
+// Ejecuta `mem` como subproceso. stdin se cierra siempre: un `mem hook …` que
+// lee stdin se quedaría esperando hasta el timeout si quedara abierto.
+const execFileExec: Exec = (bin, args, { cwd, input }) =>
+  new Promise((resolve, reject) => {
+    const child = execFile(bin, args, { cwd, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) =>
+      err ? reject(err) : resolve(String(stdout)),
+    );
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(input ?? "");
+  });
+
+// Emula el subconjunto del `$` de Bun que usa la fábrica v1:
+// $`${BIN} ${args}`.cwd(dir).quiet().text() y .stdin.getWriter(). El comando
+// corre recién en text(), con lo escrito en stdin hasta ese momento; si falla,
+// la promesa se rechaza, igual que en Bun, y `run` lo convierte en null.
+const bunShellShim = (exec: Exec) => (_strings: TemplateStringsArray, bin: string, args: string[]) => {
+  let cwd = ".";
+  let input = "";
+  const proc: any = {
+    cwd: (dir: string) => ((cwd = dir), proc),
+    quiet: () => proc,
+    stdin: {
+      getWriter: () => ({
+        write: async (bytes: Uint8Array) => {
+          input += new TextDecoder().decode(bytes);
+        },
+        close: async () => {},
+      }),
+    },
+    text: () => exec(bin, args, { cwd, input }),
+  };
+  return proc;
+};
+
+// Nombres de tools que cambiaron en OpenCode 2.x (leídos del gancho context de
+// 2.0.16): la fábrica v1 reconoce bash/edit/write para el checkpoint y task
+// para la captura de subagentes. Las demás conservan su nombre.
+const V1_TOOL_NAMES: Record<string, string> = { shell: "bash", subagent: "task" };
+const v1ToolName = (name: string): string => V1_TOOL_NAMES[name] ?? name;
+
+// Traduce los mensajes v2 (@opencode/client SessionMessageInfo) a la forma v1
+// que recorre la fábrica: { info: { id, role, mode, summary }, parts }. Una
+// respuesta que no es un arreglo lanza, para que el catch del turn-end v1 deje
+// un channel-error en vez de un checkpoint vacío silencioso (FR-005).
+const normalizeMessagesV2 = (list: unknown): Array<{ info: any; parts: any[] }> => {
+  if (!Array.isArray(list)) {
+    throw new Error("OpenCode 2.x devolvió mensajes de sesión con una forma desconocida");
+  }
+  return list.map((m: any) => {
+    if (m?.type === "assistant") {
+      const parts = (m.content ?? []).map((c: any) =>
+        c?.type === "tool"
+          ? { type: "tool", tool: v1ToolName(c.name), state: { status: c.state?.status, input: c.state?.input ?? {} } }
+          : { type: c?.type, text: c?.text ?? "" },
+      );
+      return { info: { id: m.id, role: "assistant", mode: m.agent }, parts };
+    }
+    if (m?.type === "compaction") {
+      const summary = m.status === "completed" && typeof m.summary === "string" ? m.summary : "";
+      return { info: { id: m.id, summary: summary !== "" }, parts: summary ? [{ type: "text", text: summary }] : [] };
+    }
+    if (m?.type === "user") {
+      return { info: { id: m.id, role: "user" }, parts: [{ type: "text", text: m.text ?? "" }] };
+    }
+    return { info: { id: m?.id }, parts: [] };
+  });
+};
+
+const clientShim = (ctx: any) => ({
+  session: {
+    messages: async ({ path }: { path: { id: string } }) => ({
+      data: normalizeMessagesV2(await ctx.session.context({ sessionID: path.id })),
+    }),
+  },
+});
+
+// Texto de un Tool.Result v2: `content` es texto o una lista de partes; si no
+// hay, se usa `output`.
+const resultText = (result: any): string => {
+  const content = result?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((c: any) => c?.type === "text")
+      .map((c: any) => c.text ?? "")
+      .join("\n");
+  }
+  const output = result?.output;
+  if (output === undefined || output === null) return "";
+  return typeof output === "string" ? output : JSON.stringify(output);
+};
+
+// Contrato C-3.1: nada que haga gomemory debe propagar una excepción a
+// OpenCode. Los ganchos v1 ya son best-effort; esto cubre la traducción.
+const safe = async (fn: () => Promise<void>): Promise<void> => {
+  try {
+    await fn();
+  } catch {
+    // best-effort
+  }
+};
+
+const createV2Setup = (exec: Exec) => async (ctx: any) => {
+  const directory: string = ctx.location.directory;
+  const hooks: any = await GomemoryPlugin({
+    $: bunShellShim(exec),
+    directory,
+    client: clientShim(ctx),
+  } as any);
+  const registrations: Array<{ dispose: () => Promise<void> }> = [];
+  const controller = new AbortController();
+
+  // Un servicio de OpenCode 2.x aloja varias ubicaciones y entrega los eventos
+  // y los ganchos de sesión a TODAS las instancias del plugin (reproducido con
+  // 2.0.16 y dos proyectos: la instancia de B registraba el turno de A con el
+  // cwd de B y le inyectaba su memoria). Cada instancia atiende solo las
+  // sesiones de su directorio. La ubicación de la sesión sale del evento si la
+  // trae o de ctx.session.get; el resultado se recuerda por sesión. Una sesión
+  // que no se puede resolver se ignora: es preferible perder un checkpoint a
+  // guardarlo en la memoria de otro proyecto.
+  const owners = new Map<string, boolean>();
+  const ownsSession = async (sessionID: string | undefined, hinted?: string): Promise<boolean> => {
+    if (!sessionID) return false;
+    if (hinted) {
+      owners.set(sessionID, hinted === directory);
+      return hinted === directory;
+    }
+    const known = owners.get(sessionID);
+    if (known !== undefined) return known;
+    // Host sin la API: una sola ubicación, como en 1.x.
+    if (typeof ctx.session?.get !== "function") return true;
+    try {
+      const info = await ctx.session.get({ sessionID });
+      const mine = info?.location?.directory === directory;
+      owners.set(sessionID, mine);
+      return mine;
+    } catch {
+      return false;
+    }
+  };
+
+  // v2:event
+  // Los eventos de ejecución llegan sin location: su dueño se resuelve con
+  // ownsSession.
+  //
+  // OpenCode 2.0.16 no emite session.idle al terminar un turno (verificado con
+  // el binario): el fin de turno es session.execution.*. Se traducen todos a
+  // session.idle; el checkpoint v1 recuerda el último mensaje revisado, así que
+  // un idle extra no duplica nada.
+  const v1Events: Record<string, string> = {
+    "session.created": "session.created",
+    "session.idle": "session.idle",
+    "session.execution.succeeded": "session.idle",
+    "session.execution.failed": "session.idle",
+    "session.execution.interrupted": "session.idle",
+    "session.deleted": "session.deleted",
+    "session.compaction.ended": "session.compacted",
+  };
+  void (async () => {
+    try {
+      for await (const ev of ctx.event.subscribe({ signal: controller.signal })) {
+        if (controller.signal.aborted) break;
+        const type = v1Events[ev?.type];
+        if (!type) continue;
+        const sessionID = ev.data?.sessionID;
+        const hinted = ev.data?.location?.directory ?? ev.location?.directory;
+        if (!(await ownsSession(sessionID, hinted))) continue;
+        await safe(() => hooks.event({ event: { type, properties: { sessionID, info: { id: sessionID } } } }));
+        if (type === "session.deleted") owners.delete(sessionID);
+      }
+    } catch {
+      // la suscripción termina al abortar o al descargarse el plugin
+    }
+  })();
+
+  // v2:prompt
+  registrations.push(
+    await ctx.session.hook("prompt", async (ev: any) =>
+      (await ownsSession(ev.sessionID)) &&
+      safe(() => hooks["chat.message"]({ sessionID: ev.sessionID }, { parts: [{ type: "text", text: ev.prompt?.text ?? "" }] })),
+    ),
+  );
+
+  // v2:context
+  registrations.push(
+    await ctx.session.hook("context", (ev: any) =>
+      safe(async () => {
+        if (!(await ownsSession(ev.sessionID))) return;
+        const out = { system: [] as string[] };
+        await hooks["experimental.chat.system.transform"]({ sessionID: ev.sessionID }, out);
+        for (const text of out.system) ev.system.push({ type: "text", text });
+      }),
+    ),
+  );
+
+  // v2:compaction
+  // Corre sobre la petición de resumen: lo que se añade al system lo tiene en
+  // cuenta el compresor, igual que output.context en v1.
+  registrations.push(
+    await ctx.session.hook("compaction", (ev: any) =>
+      safe(async () => {
+        if (!(await ownsSession(ev.sessionID))) return;
+        const out = { context: [] as string[] };
+        await hooks["experimental.session.compacting"]({ sessionID: ev.sessionID }, out);
+        for (const text of out.context) ev.system.push({ type: "text", text });
+      }),
+    ),
+  );
+
+  // v2:tool.execute.after
+  registrations.push(
+    await ctx.tool.hook("execute.after", (ev: any) =>
+      safe(async () => {
+        if (ev.status !== "completed" || !(await ownsSession(ev.sessionID))) return;
+        await hooks["tool.execute.after"]({ tool: v1ToolName(ev.tool), sessionID: ev.sessionID, callID: ev.id }, { output: resultText(ev.result) });
+      }),
+    ),
+  );
+
+  // v2:cleanup
+  return async () => {
+    controller.abort();
+    for (const r of registrations) await safe(() => r.dispose());
+    await safe(() => hooks.dispose());
+  };
+};
+
+export const __testing = { createV2Setup };
+
+export default {
+  id: "gomemory",
+  setup: createV2Setup(execFileExec),
+  server: GomemoryPlugin,
+};

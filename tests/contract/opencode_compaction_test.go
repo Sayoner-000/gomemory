@@ -142,3 +142,26 @@ func TestOpenCodeCompaction_SystemTransformInyectaLaRecuperacionPendiente(t *tes
 		t.Errorf("system.transform debe consumir la recuperación pendiente de session.compacted: %s", bloque)
 	}
 }
+
+// TestOpenCodeCompactionV2_CompactionDelegaEnCompacting cubre la capacidad C1
+// en OpenCode 2.x (feature 032): el gancho v2 "compaction" reutiliza el
+// handler v1 que pide compaction-context, nunca post-compact.
+func TestOpenCodeCompactionV2_CompactionDelegaEnCompacting(t *testing.T) {
+	bloque := v2Block(t, gomemoryPluginSource(t), "compaction")
+	if !strings.Contains(bloque, `hooks["experimental.session.compacting"]`) {
+		t.Error("el gancho v2 de compactación no delega en experimental.session.compacting")
+	}
+	if strings.Contains(bloque, "post-compact") {
+		t.Error("el gancho v2 de compactación no debe llamar a post-compact antes de que la compactación exista")
+	}
+}
+
+// TestOpenCodeCompactionV2_EndedLlegaComoCompacted cubre C2/C6 en 2.x: el fin
+// de la compactación llega al handler v1 de session.compacted, que pide
+// compact-summary y post-compact.
+func TestOpenCodeCompactionV2_EndedLlegaComoCompacted(t *testing.T) {
+	bloque := v2Block(t, gomemoryPluginSource(t), "event")
+	if !strings.Contains(bloque, `"session.compaction.ended": "session.compacted"`) {
+		t.Error("session.compaction.ended no se traduce a session.compacted: la recuperación post-compactación se perdería en 2.x")
+	}
+}
