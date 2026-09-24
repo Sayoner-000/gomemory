@@ -94,7 +94,7 @@ del usuario.
 
 - Para la Opción A: ninguno (binario autocontenido).
 - Para la Opción B: Go 1.27+.
-- OpenCode 0.70+ (para plugin OpenCode), Claude Code (para hooks/plugin).
+- OpenCode 1.17+ o 2.x (para el plugin OpenCode; ver §2, Versiones soportadas), Claude Code (para hooks/plugin).
 - No se necesita CGO.
 
 ---
@@ -131,6 +131,29 @@ cat opencode.json   # o ~/.config/opencode/opencode.json si usaste --scope globa
 - **Context injection**: Provee contexto de sesiones previas al arrancar
 - **Compaction recovery**: Recupera estado después de compactación
 - **Context enrichment**: ToolSearch instruction en el primer prompt
+
+### Versiones soportadas (OpenCode 1.x y 2.x)
+
+El mismo `gomemory.ts` sirve para las dos generaciones de OpenCode. OpenCode 2.x
+exige un `export default { id, setup }`; OpenCode 1.x llama a `server` de ese
+mismo objeto. Verificado con los binarios reales 1.17.0, 1.18.20, 1.18.32 y
+2.0.16.
+
+- **Actualizar de OpenCode 1.x a 2.x**: si el plugin se instaló con una versión
+  de gomemory anterior a esta, OpenCode 2.x muestra `Server plugin error …
+  Plugin must export a default definition with an id and an effect or setup
+  function`. Reinstálalo con `mem setup-mcp --scope global --agents opencode`
+  y reinicia OpenCode. No hace falta nada más: OpenCode 2.x traduce por su
+  cuenta las entradas `mcp` y `permission` que escribe gomemory.
+- **Diagnóstico**: `mem doctor` informa la versión detectada, si el plugin
+  instalado carga en ella y qué hacer si no carga.
+- **`cbm-augment.ts` y otros plugins ajenos**: si OpenCode 2.x muestra el
+  mismo error para un plugin que no es `gomemory.ts` (por ejemplo
+  `cbm-augment.ts`, de codebase-memory-mcp), hay que actualizarlo en su
+  propio proyecto. `mem doctor` los lista, pero no los modifica.
+- En OpenCode 2.x el fin de turno llega como `session.execution.*` y las tools
+  `shell`/`subagent` reemplazan a `bash`/`task`. El plugin lo traduce solo, así
+  que el checkpoint automático y la captura de subagentes funcionan igual.
 
 ### Eventos de OpenCode — para qué sirve cada uno
 

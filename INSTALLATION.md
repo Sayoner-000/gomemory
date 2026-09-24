@@ -225,6 +225,14 @@ auto-descubre plugins ahí, sin subcarpeta) y registra el MCP en el
 todos tus proyectos, usa `mem setup-mcp --scope global --agents opencode`
 en su lugar (ver sección **0.1**).
 
+Funciona con OpenCode 1.x (1.17+) y 2.x con el mismo archivo. Si pasaste de
+OpenCode 1.x a 2.x y aparece `Server plugin error … Plugin must export a
+default definition with an id and an effect or setup function` para
+`gomemory.ts`, reinstala con `mem setup-mcp --scope global --agents opencode`
+y reinicia OpenCode. `mem doctor` muestra la versión detectada y el estado del
+plugin. Si el error sale para otro plugin, como `cbm-augment.ts`, ese plugin es
+de otro proyecto y hay que actualizarlo allí.
+
 **Qué hace**:
 - Invoca `mem <cmd>` / `mem hook <evento>` como subproceso (sin servidor ni puerto)
 - Crea sesión al iniciar, la cierra al terminar
