@@ -17,6 +17,9 @@ type Seed struct {
 	Type     domain.MemoryType
 	Title    string
 	Content  string
+	// PreviousDefaultSHA256 son las huellas de las plantillas anteriores del
+	// documento (domain.PinnedDoc). Solo las usa UpgradePristineSeeds.
+	PreviousDefaultSHA256 []string
 }
 
 // SeedDefaults siembra las memorias que falten y devuelve las claves de tópico

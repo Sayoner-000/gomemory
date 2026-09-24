@@ -120,3 +120,50 @@ func TestPinnedDocAliases(t *testing.T) {
 		t.Fatalf("PinnedDocAliases devolvió %d alias, el catálogo tiene %d", len(got), len(PinnedDocs))
 	}
 }
+
+// TestPinnedDocs_HuellaActualCoincideConLaPlantilla es el guardián que hace
+// sostenible la actualización de semillas intactas: si alguien edita una
+// plantilla sin registrar la huella anterior en PreviousDefaultSHA256, las
+// semillas que la usaban quedarían congeladas para siempre sin que nadie lo
+// note. Este test lo convierte en un fallo de CI con la instrucción exacta.
+func TestPinnedDocs_HuellaActualCoincideConLaPlantilla(t *testing.T) {
+	for _, d := range PinnedDocs {
+		data, err := os.ReadFile(filepath.Join("..", "infrastructure", "templates", d.Template))
+		if err != nil {
+			t.Fatalf("leer plantilla %s: %v", d.Template, err)
+		}
+		got := ContentFingerprint(string(data))
+		if got != d.DefaultSHA256 {
+			t.Errorf("%s: la plantilla %s cambió (huella %s) y el catálogo dice %s. "+
+				"Mueve la huella anterior a PreviousDefaultSHA256 y registra la nueva en DefaultSHA256",
+				d.Alias, d.Template, got, d.DefaultSHA256)
+		}
+		for _, previa := range d.PreviousDefaultSHA256 {
+			if previa == d.DefaultSHA256 {
+				t.Errorf("%s: la huella actual no puede figurar también como anterior", d.Alias)
+			}
+		}
+	}
+}
+
+func TestIsPreviousDefault(t *testing.T) {
+	d := PinnedDoc{PreviousDefaultSHA256: []string{ContentFingerprint("vieja")}}
+	if !d.IsPreviousDefault("  vieja\n") {
+		t.Error("una semilla idéntica a una plantilla anterior (salvo espacios en los extremos) debía reconocerse")
+	}
+	if d.IsPreviousDefault("vieja editada") {
+		t.Error("una semilla editada no es una plantilla anterior")
+	}
+}
+
+func TestConstitutionTemplateSinMarcas(t *testing.T) {
+	content, err := os.ReadFile(filepath.Join("..", "infrastructure", "templates", "speckit-constitution-gen.md"))
+	if err != nil {
+		t.Fatalf("leer plantilla de constitución: %v", err)
+	}
+	for _, forbidden := range []string{"Kolmena", "Speckit"} {
+		if strings.Contains(string(content), forbidden) {
+			t.Errorf("la constitución distribuida no debe nombrar organizaciones ni ecosistemas propios (FR-020 de 025): contiene %q", forbidden)
+		}
+	}
+}

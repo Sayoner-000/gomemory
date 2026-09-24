@@ -41,10 +41,15 @@ func CmdMCP(deps *Deps, args []string) {
 	// otro punto de entrada que hace cierta la promesa de que las reglas y la
 	// constitución "se agregan solas". Best-effort, igual que el auto-arranque
 	// de sesión de arriba: nunca impide servir.
-	if created, err := seedProject(deps, project); err != nil {
+	if rep, err := seedProject(deps, project); err != nil {
 		log.Printf("Siembra de memorias por defecto incompleta: %v", err)
-	} else if len(created) > 0 {
-		log.Printf("Sembradas %d memoria(s) por defecto para el proyecto '%s'", len(created), project)
+	} else {
+		if len(rep.Created) > 0 {
+			log.Printf("Sembradas %d memoria(s) por defecto para el proyecto '%s'", len(rep.Created), project)
+		}
+		if len(rep.Upgraded) > 0 {
+			log.Printf("Actualizadas a la plantilla vigente %d memoria(s) por defecto sin ediciones propias en '%s'", len(rep.Upgraded), project)
+		}
 	}
 
 	log.Printf("MCP server iniciado para proyecto '%s'", project)

@@ -1,5 +1,11 @@
 package domain
 
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"strings"
+)
+
 // Claves de tópico canónicas de las memorias que gomemory siembra al usarse por
 // primera vez en un proyecto (feature 021).
 //
@@ -40,6 +46,35 @@ type PinnedDoc struct {
 	// Template es el nombre del archivo embebido bajo templates/ que aporta el
 	// contenido por defecto y el punto de retorno de una restauración.
 	Template string
+	// DefaultSHA256 es la huella (ContentFingerprint) de la plantilla que trae
+	// este binario. Un test la compara con el archivo embebido: editar la
+	// plantilla obliga a mover la huella vieja a PreviousDefaultSHA256.
+	DefaultSHA256 string
+	// PreviousDefaultSHA256 son las huellas de las plantillas que distribuyeron
+	// versiones anteriores. Una semilla cuyo contenido coincide con una de
+	// ellas nunca la editó nadie: la siembra puede llevarla a la plantilla
+	// actual sin pisar el trabajo de ningún equipo.
+	PreviousDefaultSHA256 []string
+}
+
+// ContentFingerprint es la huella con la que se reconoce una plantilla: SHA-256
+// del contenido sin espacios en los extremos, el mismo criterio que usa
+// PinnedDocState para decidir si un documento sigue "por defecto".
+func ContentFingerprint(content string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(content)))
+	return hex.EncodeToString(sum[:])
+}
+
+// IsPreviousDefault informa si content es, intacta, una plantilla que
+// distribuyó una versión anterior del binario.
+func (d PinnedDoc) IsPreviousDefault(content string) bool {
+	h := ContentFingerprint(content)
+	for _, previa := range d.PreviousDefaultSHA256 {
+		if previa == h {
+			return true
+		}
+	}
+	return false
 }
 
 // PinnedDocs es el catálogo de documentos fijados que gomemory conoce por su
@@ -53,6 +88,12 @@ var PinnedDocs = []PinnedDoc{
 		Title:    "Reglas de trabajo del proyecto",
 		Label:    "Reglas IA",
 		Template: "agent-preamble.md",
+		// Huellas por commit de la plantilla: 8edbddd y d7b63ae.
+		DefaultSHA256: "9dc0258d753c3b77fc16ee69a654a9eb96513205e1b6c4797e1a22b048003b8a",
+		PreviousDefaultSHA256: []string{
+			"d742e66f6593cd7d60ac6b59cdc7e046371f6ab570f67742dc4f432aba78b669",
+			"aaf5312676b94b034a6923b0e01dddb9b091c7035eee54d6fd75b5f7298d807e",
+		},
 	},
 	{
 		Alias:    "constitution",
@@ -61,6 +102,15 @@ var PinnedDocs = []PinnedDoc{
 		Title:    "Constitución del proyecto (spec-kit)",
 		Label:    "Constitución",
 		Template: "speckit-constitution-gen.md",
+		// Constitución técnica 2.0.0 (fecha de corte 2026-09-24). Las anteriores
+		// son, por commit, 8edbddd, a873463, 77a1a11 y 4514061.
+		DefaultSHA256: "6903740dcb4f1f631c14954b7f54a337dac37da62169bbd0d5a8cf719bdcc3f7",
+		PreviousDefaultSHA256: []string{
+			"7acc79bc12fe8351afcc8a02e0aa933996b0606b439f4710fcafafa0c6e50a79",
+			"ce0774314fe7d124325e7716a7b024b95e4f826dd567138b815a1bef2d635759",
+			"ca5b8802e8e427f67c657ddb2bb41a4abf391f09259a8cd4178302e225ba03f0",
+			"25cce48ee8896714d4a740b35f045f388f0aeaf6592995d21787d088232d279c",
+		},
 	},
 }
 
