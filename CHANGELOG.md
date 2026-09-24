@@ -5,6 +5,29 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.25.0] - 2026-09-24
+
+### Changed
+
+- La constitución técnica por defecto pasa a la versión 2.0.0 (fecha de corte
+  2026-09-24): jerarquía normativa, política Context7 y cadencia de renovación
+  del catálogo, stack actualizado (Python 3.13, FastAPI 0.141, Go 1.27, Java 25
+  LTS con Quarkus 3.33 LTS o Spring Boot 4.1, Vite 8.3, TypeScript 6,
+  PostgreSQL 18), y secciones nuevas de resiliencia, observabilidad,
+  seguridad de la cadena de suministro, CI/CD, gobierno de excepciones y
+  fuentes del catálogo. Sigue sin nombrar organizaciones ni equipos.
+
+### Added
+
+- `mem update` entrega las plantillas nuevas de los documentos fijados sin
+  pasos manuales. Una constitución o unas reglas que siguen intactas desde una
+  versión anterior (se reconocen por su huella SHA-256) se actualizan solas en
+  `mem update`, `mem install`, `mem seed` o al arrancar el servidor MCP. Un
+  documento que el equipo editó no se toca: la siembra avisa que hay una
+  versión nueva y cómo adoptarla (`mem docs export` + `mem docs reset`). La
+  copia de spec-kit en `.specify/memory/constitution.md` sigue el mismo
+  criterio.
+
 ## [v2.24.0] - 2026-09-24
 
 ### Fixed
