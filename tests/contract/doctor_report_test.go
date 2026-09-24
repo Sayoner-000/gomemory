@@ -98,3 +98,69 @@ func TestDoctor_CodegraphAusenteSinAvisos(t *testing.T) {
 		}
 	}
 }
+
+// TestDoctor_PluginV1EnOpenCode2MarcaCanalesYCuentaProblems cubre los
+// hallazgos C-002 y C-003 de la ACR sobre la feature 032, de extremo a
+// extremo con el binario: un plugin solo v1 con OpenCode 2.x instalado deja
+// outdated los canales que sostiene (plan_entry y turn_reminder de
+// opencode/user), y `problems` sigue siendo exactamente el número de canales
+// outdated/duplicated/missing (contrato 019), sin sumas por fuera.
+func TestDoctor_PluginV1EnOpenCode2MarcaCanalesYCuentaProblems(t *testing.T) {
+	bin := buildPlanGuardBinary(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0755); err != nil {
+		t.Fatalf("mkdir .git: %v", err)
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	plugins := filepath.Join(home, ".config", "opencode", "plugins")
+	if err := os.MkdirAll(plugins, 0755); err != nil {
+		t.Fatalf("mkdir plugins: %v", err)
+	}
+	v1 := "export const GomemoryPlugin = async ({ $, directory, client }) => {\n  return {};\n};\n"
+	if err := os.WriteFile(filepath.Join(plugins, "gomemory.ts"), []byte(v1), 0644); err != nil {
+		t.Fatalf("escribir plugin: %v", err)
+	}
+	fakeBin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(fakeBin, "opencode"), []byte("#!/bin/sh\necho 'opencode v2.0.16'\n"), 0755); err != nil {
+		t.Fatalf("escribir opencode falso: %v", err)
+	}
+	t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	out, _ := runDoctor(t, bin, dir, "--json")
+	var parsed struct {
+		Problems int `json:"problems"`
+		Channels []struct {
+			Agent, Scope, Kind, State, Detail string
+		} `json:"channels"`
+		OpenCode *struct {
+			Compatible bool `json:"compatible"`
+		} `json:"opencode"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("--json no produjo JSON válido: %v (%q)", err, out)
+	}
+	cuenta := 0
+	marcados := 0
+	for _, c := range parsed.Channels {
+		switch c.State {
+		case "outdated", "duplicated", "missing":
+			cuenta++
+		}
+		if c.Agent == "opencode" && c.Scope == "user" && (c.Kind == "plan_entry" || c.Kind == "turn_reminder") {
+			if c.State != "outdated" {
+				t.Errorf("%s de opencode/user = %s (%q); want outdated", c.Kind, c.State, c.Detail)
+			}
+			marcados++
+		}
+	}
+	if marcados != 2 {
+		t.Errorf("esperaba plan_entry y turn_reminder de opencode/user; vistos=%d", marcados)
+	}
+	if parsed.Problems != cuenta {
+		t.Errorf("problems=%d; los canales outdated/duplicated/missing son %d (contrato 019)", parsed.Problems, cuenta)
+	}
+	if parsed.OpenCode == nil || parsed.OpenCode.Compatible {
+		t.Errorf("la sección opencode debía marcar el plugin como incompatible: %+v", parsed.OpenCode)
+	}
+}

@@ -108,7 +108,9 @@ func TestActivationInspect_OpenCodeEntryOKConElPluginInstalado(t *testing.T) {
 	if err := os.MkdirAll(pluginDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(pluginDir, "gomemory.ts"), []byte("// plugin"), 0644); err != nil {
+	// Plugin vigente (forma dual, feature 032): carga en cualquier versión de
+	// OpenCode, así que el resultado no depende del binario de la máquina.
+	if err := os.WriteFile(filepath.Join(pluginDir, "gomemory.ts"), []byte("export default {\n  id: \"gomemory\",\n  setup: createV2Setup(execFileExec),\n  server: GomemoryPlugin,\n};\n"), 0644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
@@ -464,4 +466,64 @@ func TestActivationInspect_CodexLifecycleDetalleDerivaDeLaTabla(t *testing.T) {
 		}
 	}
 	t.Fatal("no se encontró el canal lifecycle_hook de codex/user")
+}
+
+// TestActivationInspect_OpenCodePluginV1EnV2EsOutdated cubre FR-005 de la
+// feature 032 (hallazgo C-002 de la ACR): un plugin solo v1 existe en disco,
+// pero OpenCode 2.x no lo carga, así que los canales que sostiene (plan_entry
+// y turn_reminder de opencode/user) están rotos aunque el archivo exista.
+func TestActivationInspect_OpenCodePluginV1EnV2EsOutdated(t *testing.T) {
+	v1 := "export const GomemoryPlugin = async ({ $, directory, client }) => {\n  return {};\n};\n"
+	dual := "export default {\n  id: \"gomemory\",\n  setup: createV2Setup(execFileExec),\n  server: GomemoryPlugin,\n};\n"
+	casos := []struct {
+		nombre  string
+		plugin  string
+		major   int
+		version string
+		want    domain.ChannelState
+		detalle string
+	}{
+		{"v1 en 2.x", v1, 2, "2.0.16", domain.StateOutdated, "OpenCode 2.0.16 no lo carga"},
+		{"v1 sin versión", v1, 0, "", domain.StateOutdated, "versión de OpenCode no detectada"},
+		{"v1 en 1.x", v1, 1, "1.18.32", domain.StateOK, ""},
+		{"dual en 2.x", dual, 2, "2.0.16", domain.StateOK, ""},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			pluginDir := filepath.Join(home, ".config", "opencode", "plugins")
+			if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+				t.Fatalf("mkdir: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(pluginDir, "gomemory.ts"), []byte(c.plugin), 0o644); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			consultas := 0
+			inspector := &ActivationInspector{openCodeVersion: func() (int, string) {
+				consultas++
+				return c.major, c.version
+			}}
+			vistos := 0
+			for _, ch := range inspector.Inspect(t.TempDir()) {
+				if ch.Agent != "opencode" || ch.Scope != domain.ScopeUser ||
+					(ch.Kind != domain.KindPlanEntry && ch.Kind != domain.KindTurnReminder) {
+					continue
+				}
+				vistos++
+				if ch.State != c.want {
+					t.Errorf("%s: estado %v (%q); want %v", ch.Kind, ch.State, ch.Detail, c.want)
+				}
+				if c.detalle != "" && !strings.Contains(ch.Detail, c.detalle) {
+					t.Errorf("%s: el detalle %q debía explicar la causa (%q)", ch.Kind, ch.Detail, c.detalle)
+				}
+			}
+			if vistos != 2 {
+				t.Fatalf("esperaba plan_entry y turn_reminder de opencode/user; vistos=%d", vistos)
+			}
+			if consultas > 1 {
+				t.Errorf("la versión de OpenCode se consultó %d veces; debía consultarse como mucho una por inspección", consultas)
+			}
+		})
+	}
 }

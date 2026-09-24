@@ -110,3 +110,14 @@ omiten del reporte, lo que **no** les impide usar el contrato neutral.
   el reporte **sin modificar el reporte ni el script de verificación**.
 - Un agente declarado con solo `text_floor` aparece con sus canales deterministas en
   `not_applicable` y ninguna degradación oculta.
+
+## Ampliación: sección `opencode` (feature 032)
+
+`mem doctor --json` puede incluir un objeto opcional `opencode` con `version`, `plugin_shape`
+(`dual` | `v1-only` | `missing`), `compatible`, `foreign_v1_plugins`, `stale_test_artifact` y `remedio`.
+Solo aparece si hay OpenCode o un plugin de gomemory instalado.
+
+La regla 2 no cambia: `problems` sigue contando únicamente canales `outdated`, `duplicated` y
+`missing`. Si el plugin no carga en la versión detectada, el inspector marca `outdated` los canales
+que sostiene (`plan_entry` y `turn_reminder` de `opencode`/`user`), con la causa en `detail`; ese es
+el único camino por el que cuenta. Los plugins ajenos (`foreign_v1_plugins`) solo se informan.

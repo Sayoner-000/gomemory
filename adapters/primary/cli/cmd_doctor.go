@@ -38,6 +38,7 @@ type doctorReportJSON struct {
 	Problems     int                 `json:"problems"`
 	Channels     []doctorChannelJSON `json:"channels"`
 	Degradations []string            `json:"degradations"`
+	OpenCode     *doctorOpenCodeJSON `json:"opencode,omitempty"`
 }
 
 // CmdDoctor implementa `mem doctor [--json] [--strict]`: el reporte de
@@ -58,12 +59,17 @@ func CmdDoctor(deps *Deps, args []string) {
 	}
 
 	report := usecases.BuildActivationReport(setup.NewActivationInspector(), root)
+	openCode := inspectOpenCode()
+	// Un plugin de OpenCode que no carga ya cuenta en report.Problems(): el
+	// inspector marca outdated los canales que sostiene (contrato 019).
+	problems := report.Problems()
 
 	if *asJSON {
 		out := doctorReportJSON{
 			Version:      version.Version,
-			Problems:     report.Problems(),
+			Problems:     problems,
 			Degradations: report.Degradations,
+			OpenCode:     openCodeJSON(openCode),
 		}
 		if out.Degradations == nil {
 			out.Degradations = []string{}
@@ -88,9 +94,10 @@ func CmdDoctor(deps *Deps, args []string) {
 		fmt.Println(string(data))
 	} else {
 		printDoctorHuman(report, deps)
+		printDoctorOpenCode(openCode)
 	}
 
-	if *strict && report.Problems() > 0 {
+	if *strict && problems > 0 {
 		os.Exit(1)
 	}
 }

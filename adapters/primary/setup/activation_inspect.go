@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"mem/domain"
 )
@@ -14,7 +15,14 @@ import (
 // las rutas reales de cada agente declarado en domain.KnownAgents (feature
 // 019, Historia 3). Solo lectura: nunca escribe ni corrige nada, ni siquiera
 // para el brazo propio — el reporte es un diagnóstico, no un instalador.
-type ActivationInspector struct{}
+type ActivationInspector struct {
+	// openCodeVersion consulta la versión instalada de OpenCode; nil usa
+	// `opencode --version`. Se resuelve como mucho una vez por inspector.
+	openCodeVersion func() (int, string)
+	openCodeOnce    sync.Once
+	openCodeMajor   int
+	openCodeRelease string
+}
 
 func NewActivationInspector() *ActivationInspector { return &ActivationInspector{} }
 
@@ -138,6 +146,13 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 	if disabled {
 		state = domain.StateMissing
 		detail = "atomic_plan_disabled=true en este ámbito"
+	} else if agent.Name == "opencode" && scope == domain.ScopeUser {
+		// En OpenCode el recordatorio lo entrega el plugin: si la versión
+		// instalada no lo carga, el canal está roto aunque el ajuste esté activo.
+		if problema := a.openCodePluginProblem(filepath.Join(append([]string{dir}, agentEntryFiles["opencode"]...)...)); problema != "" {
+			state = domain.StateOutdated
+			detail = problema
+		}
 	}
 	out = append(out, domain.ActivationChannel{
 		Arm: domain.ArmGomemory, Agent: agent.Name, Scope: scope,
@@ -293,9 +308,41 @@ func (a *ActivationInspector) inspectAgentEntryFile(agent domain.AgentCapability
 		ch.Detail = "no encontrado: " + path
 		return ch
 	}
+	if agent.Name == "opencode" {
+		if problema := a.openCodePluginProblem(path); problema != "" {
+			ch.State = domain.StateOutdated
+			ch.Detail = problema
+			return ch
+		}
+	}
 	ch.State = domain.StateOK
 	ch.Detail = "plugin instalado en " + path
 	return ch
+}
+
+// openCodePluginProblem explica por qué el plugin de OpenCode en path no carga
+// en la versión instalada (feature 032), o devuelve "" si carga o no existe.
+// La versión solo se consulta si el plugin es solo v1: el dual carga en todas.
+func (a *ActivationInspector) openCodePluginProblem(path string) string {
+	shape := DetectPluginShape(path)
+	if shape != PluginShapeV1Only {
+		return ""
+	}
+	a.openCodeOnce.Do(func() {
+		consultar := a.openCodeVersion
+		if consultar == nil {
+			consultar = detectOpenCodeVersion
+		}
+		a.openCodeMajor, a.openCodeRelease = consultar()
+	})
+	st := OpenCodeInstallStatus{Major: a.openCodeMajor, Version: a.openCodeRelease, PluginShape: shape}
+	if st.Compatible() {
+		return ""
+	}
+	if st.Version == "" {
+		return "plugin solo v1 en " + path + ": OpenCode 2.x no lo carga (versión de OpenCode no detectada)"
+	}
+	return "plugin solo v1 en " + path + ": OpenCode " + st.Version + " no lo carga"
 }
 
 func readSettingsAtomicPlanDisabled(dir string) bool {
