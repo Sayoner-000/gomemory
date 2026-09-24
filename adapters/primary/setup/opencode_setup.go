@@ -250,6 +250,9 @@ func installOpenCodePlugin(root string, ref AgentRef) error {
 	// Limpiar la instalación legada anidada (~/.config/opencode/plugins/gomemory/),
 	// que OpenCode nunca cargaba.
 	_ = os.RemoveAll(filepath.Join(pluginsDir, "gomemory"))
+	// Y el test del plugin que las versiones anteriores a la feature 032
+	// copiaban por error junto a gomemory.ts.
+	_ = os.Remove(filepath.Join(pluginsDir, "gomemory.test.mjs"))
 
 	count, err := InstallPlugin(PluginFS, "plugin/opencode", pluginsDir, ctx)
 	if err != nil {

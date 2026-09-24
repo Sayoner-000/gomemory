@@ -228,3 +228,40 @@ func buscarCanal(inspector *ActivationInspector, root string) *domain.Activation
 	}
 	return nil
 }
+
+// TestInstallOpenCodePlugin_RetiraElTestHeredadoYConservaLoAjeno: las
+// instalaciones anteriores a la feature 032 dejaron gomemory.test.mjs en la
+// carpeta de plugins. Reinstalar lo retira; los plugins de terceros
+// (cbm-augment.ts, de codebase-memory-mcp) no se tocan.
+func TestInstallOpenCodePlugin_RetiraElTestHeredadoYConservaLoAjeno(t *testing.T) {
+	home := homeTemporal(t)
+	plugins := filepath.Join(home, ".config", "opencode", "plugins")
+	if err := os.MkdirAll(plugins, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	for _, n := range []string{"gomemory.test.mjs", "cbm-augment.ts"} {
+		if err := os.WriteFile(filepath.Join(plugins, n), []byte("// viejo\n"), 0o644); err != nil {
+			t.Fatalf("sembrar %s: %v", n, err)
+		}
+	}
+	fuente := t.TempDir()
+	dir := filepath.Join(fuente, "plugin", "opencode")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "gomemory.ts"), []byte("const BIN = \"{{BIN_PATH}}\";\n"), 0o644); err != nil {
+		t.Fatalf("escribir plugin: %v", err)
+	}
+	PluginFS = os.DirFS(fuente)
+	t.Cleanup(func() { PluginFS = nil })
+
+	if err := installOpenCodePlugin(t.TempDir(), AgentRef{MCPCommand: "mem"}); err != nil {
+		t.Fatalf("installOpenCodePlugin: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(plugins, "gomemory.test.mjs")); !os.IsNotExist(err) {
+		t.Errorf("gomemory.test.mjs heredado debía retirarse; stat devolvió %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(plugins, "cbm-augment.ts")); err != nil {
+		t.Errorf("cbm-augment.ts es ajeno y debía conservarse: %v", err)
+	}
+}

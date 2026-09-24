@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -80,6 +81,13 @@ func copyFileOrDir(fsys fs.FS, baseDir string, entry os.DirEntry, targetDir stri
 			count += n
 		}
 		return count, nil
+	}
+
+	// Los tests del plugin viven junto a él en el FS embebido, pero son
+	// artefactos de desarrollo: instalados en la carpeta de plugins de la
+	// persona usuaria, el agente podría intentar cargarlos (feature 032, R-9).
+	if strings.Contains(entry.Name(), ".test.") {
+		return 0, nil
 	}
 
 	data, err := fs.ReadFile(fsys, srcPath)
