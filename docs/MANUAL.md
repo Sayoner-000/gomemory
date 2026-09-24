@@ -554,8 +554,25 @@ mismas cuatro operaciones por las dos superficies.
 
 ### Garantías
 
-- **Una semilla existente nunca se sobrescribe.** Reinstalar o actualizar no
-  pisa lo que el equipo puso, ni con una plantilla más nueva del binario.
+- **Lo que el equipo editó nunca se sobrescribe.** Reinstalar o actualizar no
+  pisa un documento personalizado, ni con una plantilla más nueva del binario.
+- **Una semilla sin ediciones se mantiene al día sola.** Si el documento es,
+  intacto, una plantilla que trajo una versión anterior de gomemory, `mem update`
+  (y también `mem install`, `mem seed` o el arranque del servidor MCP) lo
+  actualiza a la plantilla del binario nuevo. gomemory reconoce sus plantillas
+  anteriores por su huella SHA-256, así que cualquier cambio del equipo, por
+  pequeño que sea, marca el documento como personalizado. En ese caso la
+  actualización lo deja como está y avisa que hay una versión nueva; adoptarla
+  es decisión del equipo:
+
+  ```bash
+  mem docs export constitution -o respaldo.md   # guardar la versión del equipo
+  mem docs reset constitution                   # adoptar la versión por defecto nueva
+  ```
+
+  El mismo criterio se aplica a la copia de spec-kit que deja
+  `mem constitution --sync` en `.specify/memory/constitution.md`: si está intacta
+  se refresca, y si el equipo la editó se avisa sin tocarla.
 - **Importar no publica nada fuera.** Ni sinapsis automáticas ni exportación al
   ADR externo, aunque `adr_sync_enabled` esté activo.
 - **La depuración de secretos sigue activa.** Un token pegado por error en el
