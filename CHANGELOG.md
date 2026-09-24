@@ -5,6 +5,34 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.24.0] - 2026-09-24
+
+### Fixed
+
+- El plugin de OpenCode carga en OpenCode 2.x, que lo rechazaba con `Plugin
+  must export a default definition with an id and an effect or setup
+  function`. Un solo `gomemory.ts` exporta la definición v2 (`id`, `setup`) y
+  conserva la de v1 (`server`), sin cambiar su comportamiento. Verificado con
+  los binarios reales 1.17.0, 1.18.20, 1.18.32 y 2.0.16. En 2.x se traducen el
+  fin de turno (`session.execution.*`), la compactación
+  (`session.compaction.ended` y el gancho `compaction`) y las tools
+  `shell`/`subagent`, así que el checkpoint, la procedencia del prompt, la
+  inyección de contexto, la compactación y la captura de subagentes funcionan
+  igual que en 1.x.
+- El instalador ya no copia `gomemory.test.mjs` a
+  `~/.config/opencode/plugins/` y retira el que dejaron instalaciones
+  anteriores.
+
+### Added
+
+- `mem doctor` informa la versión de OpenCode, si el plugin instalado carga en
+  ella (con el comando de reparación) y los plugins ajenos con la forma v1 que
+  OpenCode 2.x rechaza, como `cbm-augment.ts`. Si el plugin de gomemory no
+  carga en la versión detectada (o es solo v1 y la versión no se pudo
+  detectar), cuenta como problema en la salida humana, en `--json` (bajo
+  `opencode`) y en `--strict`. Los plugins ajenos solo se avisan: no cuentan
+  como problema porque gomemory no los gestiona.
+
 ## [v2.23.3] - 2026-09-14
 
 ### Fixed
