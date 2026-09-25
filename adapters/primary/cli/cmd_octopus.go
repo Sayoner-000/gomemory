@@ -320,6 +320,7 @@ func contratoDe(deps *Deps, req usecases.RouteTaskRequest, d domain.RouteDecisio
 		return nil
 	}
 	uc := usecases.NewPackContractUseCase(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader)
+	uc.Compression = deps.CompressionLevel
 	pkg, err := uc.Build(usecases.PackContractRequest{
 		Unit:              req.Unit,
 		Decision:          d,

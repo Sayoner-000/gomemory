@@ -948,8 +948,29 @@ var configRowOctopus = configRowDocsBase + len(domain.PinnedDocs)
 // configRowReindexGraph: nunca insertada en medio.
 var configRowCompactAgentNotice = configRowOctopus + 1
 
+// configRowCompressionLevel, configRowToolOutput y configRowConcise son las
+// filas del motor nativo de compresión (feature 033). Van al FINAL del menú,
+// como exige la convención de configRowReindexGraph: nunca insertadas en medio.
+// El nivel es cíclico (none → structural → max → none); los otros dos son
+// interruptores opt-in.
+var configRowCompressionLevel = configRowCompactAgentNotice + 1
+var configRowToolOutput = configRowCompressionLevel + 1
+var configRowConcise = configRowToolOutput + 1
+
 // configOptions es el número de filas del menú de configuración.
-var configOptions = configRowCompactAgentNotice + 1
+var configOptions = configRowConcise + 1
+
+// nextCompressionLevel devuelve el siguiente nivel del ciclo de la TUI.
+func nextCompressionLevel(current string) string {
+	switch current {
+	case domain.CompressionLevelNone:
+		return domain.CompressionLevelStructural
+	case domain.CompressionLevelStructural:
+		return domain.CompressionLevelMax
+	default:
+		return domain.CompressionLevelNone
+	}
+}
 
 // externalReindexDoneMsg es el mensaje de resultado del primer tea.Cmd
 // asíncrono real de esta TUI (feature 016, US2): IndexRepository puede tardar
@@ -1159,6 +1180,43 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.statusMsg = "Aviso de compactación al agente desactivado"
 			}
+			m.statusTimer = 40
+
+		case configRowCompressionLevel: // Nivel de compresión (feature 033)
+			s := m.settingsRepo.Read(m.root)
+			s.ContextCompressionLevel = nextCompressionLevel(domain.ParseCompressionLevel(s.ContextCompressionLevel, s.ContextCompressionDisabled))
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
+			m.statusMsg = "Compresión de contexto: " + s.ContextCompressionLevel + " (se aplica en la próxima sesión del agente)"
+			m.statusTimer = 40
+
+		case configRowToolOutput: // Hook de salidas de herramientas (feature 033, opt-in)
+			s := m.settingsRepo.Read(m.root)
+			s.ToolOutputCompression = !s.ToolOutputCompression
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
+			if s.ToolOutputCompression {
+				m.statusMsg = "Compresión de salidas de herramientas activada: ejecuta `mem install` para registrar el hook"
+			} else {
+				m.statusMsg = "Compresión de salidas de herramientas desactivada: ejecuta `mem install` para retirar el hook"
+			}
+			m.statusTimer = 60
+
+		case configRowConcise: // Directiva de respuestas concisas (feature 033, US5)
+			s := m.settingsRepo.Read(m.root)
+			s.ConciseOutputDirective = !s.ConciseOutputDirective
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar la configuración: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
+			m.statusMsg = "Respuestas concisas: " + onOff(s.ConciseOutputDirective)
 			m.statusTimer = 40
 
 		case configRowReindexGraph: // Reindexar grafo externo (feature 016, US2)
@@ -2203,6 +2261,9 @@ func (m model) configView() string {
 	}
 	rows = append(rows, "Octopus AAR: "+onOff(s.OctopusEnabled))
 	rows = append(rows, "Aviso de compactación al agente: "+onOff(s.CompactAgentNotice))
+	rows = append(rows, "Compresión de contexto: "+domain.ParseCompressionLevel(s.ContextCompressionLevel, s.ContextCompressionDisabled))
+	rows = append(rows, "Comprimir salidas de herramientas: "+onOff(s.ToolOutputCompression))
+	rows = append(rows, "Respuestas concisas: "+onOff(s.ConciseOutputDirective))
 	for i, label := range rows {
 		if i == m.configCursor {
 			b.WriteString(itemSelected.Render("▸ " + label))

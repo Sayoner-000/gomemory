@@ -116,6 +116,27 @@ type SettingsData struct {
 	OctopusMainAgentPct  int `json:"octopus_main_agent_pct,omitempty"`
 	OctopusDelegationPct int `json:"octopus_delegation_pct,omitempty"`
 	OctopusValidationPct int `json:"octopus_validation_pct,omitempty"`
+	// --- Compresión nativa (feature 033) ---
+	//
+	// ContextCompressionLevel: "none" | "structural" | "max". Ausente = el
+	// comportamiento de la v2.25.0 ("structural", o "none" si el heredado
+	// ContextCompressionDisabled está a true); domain.ParseCompressionLevel
+	// resuelve la precedencia. `mem install` escribe "max" solo en proyectos sin
+	// ajustes previos.
+	ContextCompressionLevel string `json:"context_compression_level,omitempty"`
+	// ToolOutputCompression activa el hook que comprime la salida de las
+	// herramientas del agente. Opt-in: reescribe lo que el modelo ve de
+	// herramientas ajenas a gomemory (research.md R11).
+	ToolOutputCompression bool `json:"tool_output_compression,omitempty"`
+	// ConciseOutputDirective añade la directiva de respuestas concisas a la zona
+	// volátil del contexto (FR-032). Opt-in.
+	ConciseOutputDirective bool `json:"concise_output_directive,omitempty"`
+	// Topes del motor. 0 o ausente = el valor de fábrica de
+	// domain/compression_policy.go, la única fuente de las cifras.
+	CompressionMinTokens            int `json:"compression_min_tokens,omitempty"`
+	CompressionOriginalsTTLDays     int `json:"compression_originals_ttl_days,omitempty"`
+	CompressionOriginalsMaxMB       int `json:"compression_originals_max_mb,omitempty"`
+	CompressionAdaptiveThresholdPct int `json:"compression_adaptive_threshold_pct,omitempty"`
 }
 
 type SettingsRepository interface {

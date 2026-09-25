@@ -359,6 +359,64 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 
+	// Motor nativo de compresión (feature 033, data-model.md). Las marcas de
+	// tiempo NO usan Now: las escribe el repositorio con el ClockPort inyectado
+	// (RFC 3339, UTC), para que TTL y ventana adaptativa sean deterministas en
+	// pruebas. Ninguna tabla guarda contenido privado: los bloques privados no
+	// generan originales (FR-024) y las estadísticas solo guardan cifras.
+	if _, err := db.Exec(`
+	CREATE TABLE IF NOT EXISTS compression_originals (
+		ref TEXT PRIMARY KEY,
+		hash TEXT NOT NULL UNIQUE,
+		project TEXT NOT NULL,
+		content_gz BLOB NOT NULL,
+		raw_bytes INTEGER NOT NULL,
+		content_type TEXT NOT NULL,
+		compressor TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		last_access_at TEXT NOT NULL,
+		expires_at TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_compression_originals_expires ON compression_originals(expires_at);
+	CREATE INDEX IF NOT EXISTS idx_compression_originals_access ON compression_originals(last_access_at);
+	CREATE TABLE IF NOT EXISTS delivered_blocks (
+		session_id TEXT NOT NULL,
+		block_hash TEXT NOT NULL,
+		delivered_at TEXT NOT NULL,
+		PRIMARY KEY (session_id, block_hash)
+	);
+	CREATE TABLE IF NOT EXISTS compression_stats (
+		project TEXT NOT NULL,
+		compressor TEXT NOT NULL,
+		content_type TEXT NOT NULL,
+		uses INTEGER NOT NULL DEFAULT 0,
+		raw_tokens INTEGER NOT NULL DEFAULT 0,
+		structural_tokens INTEGER NOT NULL DEFAULT 0,
+		final_tokens INTEGER NOT NULL DEFAULT 0,
+		omissions INTEGER NOT NULL DEFAULT 0,
+		retrievals INTEGER NOT NULL DEFAULT 0,
+		fallbacks INTEGER NOT NULL DEFAULT 0,
+		latency_us_total INTEGER NOT NULL DEFAULT 0,
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (project, compressor, content_type)
+	);
+	CREATE TABLE IF NOT EXISTS compression_tuning (
+		project TEXT NOT NULL,
+		content_type TEXT NOT NULL,
+		aggressiveness INTEGER NOT NULL,
+		reason TEXT NOT NULL,
+		-- Línea base del último ajuste: la tasa de recuperación se mide desde
+		-- aquí, para no bajar la agresividad dos veces por las mismas
+		-- recuperaciones.
+		omissions_base INTEGER NOT NULL DEFAULT 0,
+		retrievals_base INTEGER NOT NULL DEFAULT 0,
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (project, content_type)
+	);
+	`); err != nil {
+		return err
+	}
+
 	// Columnas aditivas sobre tablas ya existentes. El esquema usa
 	// `CREATE TABLE IF NOT EXISTS`, así que en bases previas estas columnas no se
 	// crean solas: se agregan con ALTER idempotente (ignora "duplicate column").

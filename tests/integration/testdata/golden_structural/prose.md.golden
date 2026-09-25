@@ -1,0 +1,52 @@
+ID: 58
+Tipo: discovery
+Título: OpenCode 2.0 rompe el plugin v1 de gomemory: contrato nuevo y vía dual
+Fecha: 2026-09-24 09:22:54
+Sesión: a7c2b28e
+Archivo: infrastructure/plugin/opencode/gomemory.ts
+Prompt originante: /speckit-specify opencode liberó la version 2.0 y daña la funcionalidad de gomemery para integrarse https://opencode.ai/v2/docs/build/plugins/migrate-v1 , y ahora usuarios que tienen esa versión les sale: Server plugin error
+Plugin: ~/.config/opencode/plugins/gomemory.ts
+Status: failed
+Runtime: server
+Source: ~/.config/opencode/plugins/gomemory.ts
+Error: Plugin must export a default definition with an id and an effect or setup function.
+Reference: err_f51fde99
+
+Server plugin error
+Plugin: ~/.config/opencode/plugins/cbm-augment.ts
+Status: failed
+Runtime: server
+Source: ~/.config/opencode/plugins/cbm-augment.ts
+Error: Plugin must export a default definition with an id and an effect or setup function.
+Reference: err_5b443b4b -> realicemos el analisis para tener la funcionalidad con la version 2.0 , también conservando el legado de las version 1.18 ..
+
+Verificado contra binarios reales (spike en HOME aislado, 2026-09-24). OpenCode v2 se publica en npm como `@opencode/cli` (NO `opencode-ai`, que sigue en 1.x); requiere --allow-scripts para su postinstall.
+- v2.0.16 rechaza el gomemory.ts actual: "Missing key at [default]". Carga ~/.config/opencode/plugins/ (aunque la doc solo mencione .opencode/plugins/).
+- Export dual `export default { id, setup(ctx), server(input) }` + conservar `export const GomemoryPlugin`: v2 llama setup; 1.17.0, 1.18.20 y 1.18.32 llaman server(input) con {client, directory, $, ...}; nadie carga doble. El piso 1.18.29 de la guía es conservador → no hace falta variante solo v1.
+- v2 ctx no trae `$`: usar node:child_process.execFile (funciona). Eventos en `event.data` (no properties) y llegan de TODAS las ubicaciones → filtrar por event.location.directory === ctx.location.directory. Nombres: session.created, session.idle, session.deleted, session.compaction.ended.
+- Hooks v2: session.hook("prompt") (event.prompt.text), ("context") y ("compaction") con system.push({type:"text",text}), tool.hook("execute.after") {tool, sessionID, status, result, input}.
+- v2 traduce sola el opencode.json v1 (mcp→mcp.servers, permission→permissions ruleset): el instalador no cambia.
+- Defecto previo: InstallPlugin copia gomemory.test.mjs a la carpeta de plugins del usuario.
+- cbm-augment.ts es de codebase-memory-mcp. Plan: specs/032-opencode-v2-plugin-compat/plan.md
+
+ID: 64
+Tipo: bugfix
+Título: OpenCode 2.0.16 real: sin session.idle, tools shell/subagent (bugs cazados solo contra el binario)
+Fecha: 2026-09-24 10:47:02
+Archivo: infrastructure/plugin/opencode/gomemory.ts
+
+Feature 032. Tests con ctx falso estaban verdes y aun así en v2 real el checkpoint no corría. Causas raíz, vistas solo contra el binario 2.0.16:
+1) v2 NO emite session.idle al terminar turno: emite session.execution.succeeded|failed|interrupted (sin location). Fix: traducirlos a session.idle v1 (idempotente por lastCheckpointedMessage).
+2) Tools renombradas: shell (antes bash), subagent (antes task). Lista real: edit, glob, grep, question, read, shell, skill, subagent, websearch, write, execute. Fix: V1_TOOL_NAMES en el adaptador. Las MCP van vía `execute` (codemode) y el permiso ask de gomemory_forget_memory sí se aplica (verificado: permiso pendiente con action gomemory_forget_memory).
+3) v2.0.16 trae un modelo gratuito por defecto → Q3 (sesión real) se puede correr sin credenciales: `@opencode/cli@2.0.16`, HOME aislado, `opencode api session.create -d '{"location":{"directory":…}}'` y luego `session.prompt --param sessionID=…`. Tras reiniciar el servicio hace falta `opencode reload` + `plugin list` para que cargue el plugin de la ubicación.
+Técnica útil: envolver `mem` en un script que registra args para observar qué llamó el plugin.
+Observación previa (no regresión): en 1.18.32 `opencode run` no dispara chat.message ni session.idle antes del dispose, ni con el plugin original ni con el nuevo.
+
+ID: 71
+Tipo: bugfix
+Título: OpenCode 2.x reparte eventos Y ganchos de sesión a todas las instancias del plugin
+Fecha: 2026-09-24 12:08:36
+Archivo: infrastructure/plugin/opencode/gomemory.ts
+
+C-001 de la ACR acr_1f27e836 (feature 032), reproducido con OpenCode 2.0.16 real y 3 ubicaciones en un servicio: cada ubicación tiene su instancia del plugin, pero el servicio entrega a TODAS los eventos sin location (session.execution.*) y también los ganchos de sesión (context, prompt…). Efecto: la instancia de B registraba el turno de A con cwd de B (contaminó la memoria de B) y le inyectaba su contexto. Causa raíz: mi filtro solo miraba location del evento y aceptaba los que no la traían. Fix: ownsSession(sessionID, hinted) resuelve el dueño con data.location/location del evento o ctx.session.get({sessionID}).location.directory, lo cachea, y se aplica en event + prompt/context/compaction/tool.execute.after; si no se puede resolver, se ignora. Verificado con el binario. Lección: con un host multi-ubicación, todo callback debe comprobar el dueño de la sesión. Otra lección: en un fixture JS, emit(..., undefined) activa el valor por defecto del parámetro; usar null para "sin location".
+C-002/C-003: el doctor ahora marca outdated plan_entry/turn_reminder de opencode/user si el plugin es v1 y la versión no lo carga (ActivationInspector.openCodePluginProblem); problems vuelve a ser report.Problems() (contrato 019).

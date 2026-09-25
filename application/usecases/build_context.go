@@ -147,6 +147,90 @@ type Builder struct {
 	// (FR-032). Valor por defecto false = modo completo, el comportamiento
 	// histórico (FR-034).
 	IndexMode bool
+	// StableOrder (feature 033, nivel max): reordena el documento para que las
+	// secciones que cambian con el tiempo vayan al final, tras
+	// VolatileSeparator. Así el prefijo es idéntico byte a byte mientras no
+	// cambien las memorias y el proveedor puede reutilizarlo de su caché
+	// (práctica CacheAligner). false = el orden histórico, byte a byte.
+	StableOrder bool
+	// ConciseDirective (feature 033, US5, opt-in) añade al final del documento,
+	// en la zona volátil, una directiva de respuestas concisas. Va al final
+	// para no alterar el prefijo estable.
+	ConciseDirective bool
+}
+
+// ConciseOutputDirective es el texto de la directiva de concisión (FR-032).
+const ConciseOutputDirective = "## Estilo de respuesta\n\n" +
+	"Responde de forma concisa: ve al grano y evita repetir lo que ya está en el contexto, " +
+	"sin omitir información necesaria para la tarea.\n"
+
+// VolatileSeparator separa la parte estable del contexto de la volátil.
+const VolatileSeparator = "<!-- mem:volatile -->"
+
+// volatileSections son los encabezados cuyo contenido cambia sin que cambien
+// las memorias: horas, actividad automática, estado del índice y de la sesión.
+var volatileSections = []string{
+	"## Actividad Reciente (auto)",
+	"## Código indexado",
+	"## Grafo de código externo",
+	"## 🔥 Memoria conectada a código activo",
+	"## 🧭 Anclas sin evidencia",
+	"## Sesión Activa",
+	"## Sesiones Recientes",
+}
+
+// reorderStableFirst mueve las secciones volátiles detrás de VolatileSeparator
+// conservando el orden relativo de cada grupo. El texto de cada sección no
+// cambia: solo su posición.
+func reorderStableFirst(doc string) string {
+	idx := strings.Index(doc, "\n## ")
+	if idx < 0 {
+		return doc
+	}
+	head := doc[:idx+1]
+	rest := doc[idx+1:]
+	var stable, volatile []string
+	for _, sec := range splitSections(rest) {
+		isVolatile := false
+		for _, v := range volatileSections {
+			if strings.HasPrefix(sec, v) {
+				isVolatile = true
+				break
+			}
+		}
+		if isVolatile {
+			volatile = append(volatile, sec)
+		} else {
+			stable = append(stable, sec)
+		}
+	}
+	var b strings.Builder
+	b.WriteString(head)
+	for _, sec := range stable {
+		b.WriteString(sec)
+	}
+	if len(volatile) > 0 {
+		b.WriteString(VolatileSeparator + "\n\n")
+		for _, sec := range volatile {
+			b.WriteString(sec)
+		}
+	}
+	return b.String()
+}
+
+// splitSections parte un texto que empieza por "## " en secciones de nivel 2.
+func splitSections(s string) []string {
+	var out []string
+	for len(s) > 0 {
+		next := strings.Index(s[1:], "\n## ")
+		if next < 0 {
+			out = append(out, s)
+			break
+		}
+		out = append(out, s[:next+2])
+		s = s[next+2:]
+	}
+	return out
 }
 
 const (
@@ -543,6 +627,15 @@ func (b *Builder) Build() (string, error) {
 	}
 
 	output := sb.String()
+	if b.StableOrder {
+		output = reorderStableFirst(output)
+	}
+	if b.ConciseDirective {
+		if !strings.Contains(output, VolatileSeparator) {
+			output += VolatileSeparator + "\n\n"
+		}
+		output += ConciseOutputDirective + "\n"
+	}
 
 	// Registro de uso (feature 020): raw = final + lo descartado, así que
 	// raw >= final se cumple SIEMPRE, incluso en modo sin presupuesto (nada

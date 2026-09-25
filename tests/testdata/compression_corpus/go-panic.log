@@ -1,0 +1,17 @@
+=== RUN   TestWorkerPool
+2026/09/25 11:42:03 INFO starting worker pool workers=4 queue=jobs
+2026/09/25 11:42:03 INFO worker ready id=0
+2026/09/25 11:42:03 INFO worker ready id=1
+2026/09/25 11:42:03 INFO worker ready id=2
+2026/09/25 11:42:03 INFO worker ready id=3
+panic: runtime error: index out of range [3] with length 3
+
+goroutine 22 [running]:
+example.test/internal/worker.(*Pool).dispatch(0xc00018a180, {0xc000194240, 0x3, 0x3})
+	/repo/internal/worker/pool.go:87 +0x2a5
+example.test/internal/worker.(*Pool).Run.func1()
+	/repo/internal/worker/pool.go:54 +0x98
+created by example.test/internal/worker.(*Pool).Run in goroutine 19
+	/repo/internal/worker/pool.go:51 +0x125
+FAIL	example.test/internal/worker	0.014s
+FAIL

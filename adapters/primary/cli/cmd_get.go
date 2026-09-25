@@ -28,5 +28,5 @@ func CmdGet(deps *Deps, args []string) {
 		fmt.Fprintf(os.Stderr, "Memoria %d no encontrada\n", id)
 		os.Exit(1)
 	}
-	fmt.Println(renderMemoryDetail(*m))
+	fmt.Println(compressDeliveredContext(deps, renderMemoryDetail(*m)))
 }

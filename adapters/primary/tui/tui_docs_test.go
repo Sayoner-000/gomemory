@@ -88,8 +88,14 @@ func TestConfigRows_DocumentosVanAlFinal(t *testing.T) {
 	if configRowCompactAgentNotice != configRowOctopus+1 {
 		t.Errorf("configRowCompactAgentNotice = %d, esperaba %d", configRowCompactAgentNotice, configRowOctopus+1)
 	}
-	if configOptions != configRowCompactAgentNotice+1 {
-		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowCompactAgentNotice+1)
+	// Feature 033 añade al final el nivel de compresión y dos interruptores.
+	if configRowCompressionLevel != configRowCompactAgentNotice+1 ||
+		configRowToolOutput != configRowCompressionLevel+1 ||
+		configRowConcise != configRowToolOutput+1 {
+		t.Error("las filas de compresión no forman una secuencia al final del menú")
+	}
+	if configOptions != configRowConcise+1 {
+		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowConcise+1)
 	}
 	if configRowAtomicPlan != 6 || configRowPlanGuard <= configRowAtomicPlan {
 		t.Error("las filas preexistentes se desplazaron: los tests que las referencian por nombre quedarían inválidos")

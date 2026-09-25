@@ -4,6 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+
+	"mem/application/ports"
+	"mem/domain"
 )
 
 func CmdSettings(deps *Deps, args []string) {
@@ -16,6 +19,9 @@ func CmdSettings(deps *Deps, args []string) {
 	adrSync := fs.Bool("adr-sync", false, "Sincronizar memorias architecture/decision como ADR con el proveedor externo")
 	speckitContext := fs.Bool("speckit-context", true, "Activar el brazo extensor hacia spec-kit (resumen de historial en /speckit-specify)")
 	atomicPlan := fs.Bool("atomic-plan", true, "Activar la planificación atómica en modo plan (método + contexto vía get_plan_context)")
+	compressionLevel := fs.String("compression-level", "", "Nivel de compresión del contexto: none|structural|max (feature 033)")
+	toolOutput := fs.Bool("tool-output-compression", false, "Comprimir la salida de las herramientas del agente (opt-in; requiere `mem install` para registrar el hook)")
+	concise := fs.Bool("concise-output", false, "Añadir la directiva de respuestas concisas al contexto (opt-in)")
 	show := fs.Bool("show", false, "Mostrar configuración actual")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -41,6 +47,7 @@ func CmdSettings(deps *Deps, args []string) {
 	// resto de la configuración con sus valores por defecto.
 	settings := deps.SettingsRepo.Read(root)
 	autoApproveChanged := false
+	var flagErr error
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "auto-approve":
@@ -60,8 +67,17 @@ func CmdSettings(deps *Deps, args []string) {
 			settings.SpeckitContextDisabled = !*speckitContext
 		case "atomic-plan":
 			settings.AtomicPlanDisabled = !*atomicPlan
+		case "compression-level":
+			flagErr = applyCompressionLevel(&settings, *compressionLevel)
+		case "tool-output-compression":
+			settings.ToolOutputCompression = *toolOutput
+		case "concise-output":
+			settings.ConciseOutputDirective = *concise
 		}
 	})
+	if flagErr != nil {
+		fail("%v", flagErr)
+	}
 
 	if err := deps.SettingsRepo.Write(root, settings); err != nil {
 		fail("guardar settings: %v", err)
@@ -89,6 +105,34 @@ func printSettings(deps *Deps, root string) {
 	fmt.Printf("Sincronización de ADR: %v\n", s.AdrSyncEnabled)
 	fmt.Printf("Brazo extensor spec-kit: %v\n", !s.SpeckitContextDisabled)
 	fmt.Printf("Planificación atómica en modo plan: %v\n", !s.AtomicPlanDisabled)
+	fmt.Print(formatCompressionSettings(s))
+}
+
+// applyCompressionLevel valida y fija el nivel de compresión. Rechaza un valor
+// fuera de none|structural|max en vez de guardarlo: un nivel inválido se leería
+// después como "structural" sin que la persona se entere (FR-030).
+func applyCompressionLevel(s *ports.SettingsData, raw string) error {
+	level := strings.ToLower(strings.TrimSpace(raw))
+	if !domain.ValidCompressionLevel(level) {
+		return fmt.Errorf("--compression-level=%q no válido: usa none, structural o max", raw)
+	}
+	s.ContextCompressionLevel = level
+	return nil
+}
+
+// formatCompressionSettings muestra el nivel efectivo (no el crudo) y de dónde
+// sale, más los dos interruptores opt-in de la feature 033.
+func formatCompressionSettings(s ports.SettingsData) string {
+	efectivo := domain.ParseCompressionLevel(s.ContextCompressionLevel, s.ContextCompressionDisabled)
+	origen := "ajuste"
+	switch {
+	case s.ContextCompressionLevel == "" && s.ContextCompressionDisabled:
+		origen = "heredado: context_compression_disabled"
+	case s.ContextCompressionLevel == "":
+		origen = "por defecto"
+	}
+	return fmt.Sprintf("Compresión de contexto: %s (%s)\nComprimir salidas de herramientas: %v\nDirectiva de respuestas concisas: %v\n",
+		efectivo, origen, s.ToolOutputCompression, s.ConciseOutputDirective)
 }
 
 // splitProviderList separa "--code-graph-providers=cmd1,cmd2" en una lista,

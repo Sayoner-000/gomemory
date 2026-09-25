@@ -1,0 +1,3161 @@
+commit 1bbf25005fc7187af50b795310e6fddd15a1d741
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 13:46:03 2026 -0500
+
+    docs(release): publica v2.25.0 con la constitución técnica 2.0.0
+    
+    Los proyectos que nunca editaron la constitución seguían con la plantilla
+    de 2025 porque la siembra no actualizaba documentos existentes. Esta
+    versión trae la constitución 2.0.0 y hace que mem update la entregue sola a
+    esos proyectos, sin tocar las constituciones que el equipo personalizó.
+
+ CHANGELOG.md       | 23 +++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 24 insertions(+), 1 deletion(-)
+
+commit 8f61ab5b11e898404d646f8f92ebcbb7d93a296b
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 13:46:01 2026 -0500
+
+    docs(manual): explica cómo llegan las plantillas nuevas de los documentos fijados
+    
+    La garantía "una semilla existente nunca se sobrescribe" dejó de ser exacta.
+    El manual distingue ahora el documento editado por el equipo, que nunca se
+    toca, de la semilla intacta, que se mantiene al día sola, y muestra cómo
+    adoptar la versión nueva cuando el equipo la personalizó.
+
+ docs/MANUAL.md | 21 +++++++++++++++++++--
+ 1 file changed, 19 insertions(+), 2 deletions(-)
+
+commit 5dece4b83181620fb2664e0ebd4b0636106156aa
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 13:45:52 2026 -0500
+
+    feat(seed): actualiza solas las semillas que nadie editó
+    
+    Una plantilla nueva de los documentos fijados no llegaba nunca a los
+    proyectos ya sembrados: la siembra no toca un documento existente para no
+    pisar el texto del equipo, aunque ese texto fuera la plantilla vieja intacta.
+    
+    El catálogo registra la huella SHA-256 de cada plantilla distribuida. Si el
+    documento guardado es, intacto, una plantilla anterior, mem seed (y por
+    tanto install y update) o el arranque del servidor MCP lo llevan a la
+    actual por la misma vía inerte que mem docs reset. Si el equipo lo editó,
+    no se toca y la siembra avisa cómo adoptar la versión nueva. mem seed
+    aplica el mismo criterio a .specify/memory/constitution.md. Un test obliga
+    a registrar la huella anterior cada vez que se edita una plantilla.
+
+ adapters/primary/cli/cmd_mcp.go           | 11 +++-
+ adapters/primary/cli/seeds.go             | 94 +++++++++++++++++++++++++++---
+ adapters/primary/cli/seeds_test.go        | 81 ++++++++++++++++++++++++++
+ application/usecases/seed_defaults.go     |  3 +
+ application/usecases/seed_upgrade.go      | 74 ++++++++++++++++++++++++
+ application/usecases/seed_upgrade_test.go | 95 +++++++++++++++++++++++++++++++
+ domain/seed.go                            | 50 ++++++++++++++++
+ domain/seed_test.go                       | 47 +++++++++++++++
+ 8 files changed, 443 insertions(+), 12 deletions(-)
+
+commit ae31f7e75224c01cd9491b6b4413fea631a2403b
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 13:45:24 2026 -0500
+
+    feat(constitution): actualiza la constitución técnica por defecto a 2.0.0
+    
+    La plantilla anterior fijaba versiones de 2025 y no cubría resiliencia,
+    cadena de suministro, CI/CD ni gobierno de excepciones. La 2.0.0 (fecha de
+    corte 2026-09-24) añade jerarquía normativa, política Context7 y cadencia de
+    renovación del catálogo, actualiza el stack (Python 3.13, Go 1.27, Java 25
+    LTS con Quarkus o Spring Boot, Vite 8, TypeScript 6, PostgreSQL 18) y suma
+    secciones de observabilidad, seguridad, CI/CD y fuentes del catálogo.
+    
+    Frente al texto de origen: no nombra organizaciones ni ecosistemas propios
+    (regla de la plantilla distribuida), define la fecha de corte que cita la
+    sección 1, deja las pruebas unitarias de Go junto al código, alinea 400/422
+    con RFC 9110 y documenta el healthcheck para imágenes sin wget.
+
+ .../templates/speckit-constitution-gen.md          | 1037 +++++++++++---------
+ 1 file changed, 559 insertions(+), 478 deletions(-)
+
+commit aa8130f8cf375137124457f6d941274c4f1ef0b1
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 12:22:51 2026 -0500
+
+    docs(release): publica v2.24.0 con compatibilidad para OpenCode 2.x
+    
+    OpenCode 2.x dejó de cargar el plugin de gomemory y los usuarios que
+    actualizaron perdieron sesión, contexto, checkpoints y compactación sin
+    más aviso que un error de carga. Esta versión carga en 2.x y en 1.x con
+    el mismo archivo, deja de instalar el test del plugin y hace que
+    mem doctor explique la versión, el plugin y cómo repararlo.
+
+ CHANGELOG.md       | 28 ++++++++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 29 insertions(+), 1 deletion(-)
+
+commit 8cdd498371d94d5e6c8258dc2fe0e21583d815df
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 12:22:30 2026 -0500
+
+    docs(opencode): documenta la compatibilidad con OpenCode 1.x y 2.x
+    
+    INSTALLATION.md y el manual explican qué hacer si OpenCode 2.x muestra el
+    error de carga del plugin tras actualizar, qué informa mem doctor y que
+    plugins ajenos como cbm-augment.ts se actualizan en su propio proyecto.
+    Incluye la especificación 032 (spec, plan, investigación contra los
+    binarios reales, tareas y evidencia) y la copia de referencia del plugin
+    v1 contra la que un contrato verifica que la rama 1.x no cambió.
+
+ INSTALLATION.md                                    |   8 +
+ docs/MANUAL.md                                     |  25 +-
+ .../baseline/gomemory.v1.ts                        | 474 +++++++++++++++++++++
+ .../checklists/requirements.md                     |  36 ++
+ .../contracts/opencode-plugin.md                   |  51 +++
+ specs/032-opencode-v2-plugin-compat/data-model.md  |  71 +++
+ specs/032-opencode-v2-plugin-compat/plan.md        | 174 ++++++++
+ specs/032-opencode-v2-plugin-compat/quickstart.md  | 103 +++++
+ specs/032-opencode-v2-plugin-compat/research.md    | 172 ++++++++
+ specs/032-opencode-v2-plugin-compat/spec.md        | 146 +++++++
+ specs/032-opencode-v2-plugin-compat/tasks.md       | 266 ++++++++++++
+ 11 files changed, 1525 insertions(+), 1 deletion(-)
+
+commit e093049ae8ac606903978c2c29b4b71b5a6795b1
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 12:22:24 2026 -0500
+
+    feat(doctor): diagnostica la versión de OpenCode y la forma del plugin
+    
+    Tras actualizar a OpenCode 2.x, quien tenía un plugin anterior solo veía
+    un error de carga sin saber por qué ni cómo repararlo. mem doctor informa
+    ahora la versión detectada, si el plugin instalado carga en ella y el
+    comando de reparación. Lista además los plugins ajenos con la forma que
+    2.x rechaza, como cbm-augment.ts, sin modificarlos.
+    
+    Si el plugin no carga, los canales que sostiene (plan_entry y
+    turn_reminder de opencode/user) se reportan outdated con la causa, así
+    que problems, --strict y la salida humana cuentan lo mismo sin salirse
+    del contrato 019. El contrato documenta la nueva sección opcional
+    "opencode" de --json.
+
+ adapters/primary/cli/cmd_doctor.go                 |  11 +-
+ adapters/primary/cli/cmd_doctor_opencode.go        |  88 +++++++++++++
+ adapters/primary/cli/cmd_doctor_opencode_test.go   | 117 +++++++++++++++++
+ adapters/primary/setup/activation_inspect.go       |  49 ++++++-
+ adapters/primary/setup/activation_inspect_test.go  |  64 ++++++++-
+ adapters/primary/setup/opencode_plugin_inspect.go  | 145 +++++++++++++++++++++
+ .../primary/setup/opencode_plugin_inspect_test.go  |  90 +++++++++++++
+ .../contracts/doctor-report.md                     |  11 ++
+ tests/contract/doctor_report_test.go               |  66 ++++++++++
+ 9 files changed, 637 insertions(+), 4 deletions(-)
+
+commit e621c625185ad85036101c452b81e2b367ce33c6
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 12:22:15 2026 -0500
+
+    fix(setup): deja de instalar el test del plugin de OpenCode
+    
+    InstallPlugin copiaba todo el directorio embebido, así que
+    gomemory.test.mjs terminaba en ~/.config/opencode/plugins/ junto al
+    plugin: un artefacto de desarrollo que OpenCode podría intentar cargar.
+    La copia omite ahora los archivos *.test.* y la reinstalación retira el
+    que dejaron las versiones anteriores, sin tocar los plugins ajenos.
+
+ adapters/primary/setup/opencode_global_test.go | 37 ++++++++++++++++++++++++++
+ adapters/primary/setup/opencode_setup.go       |  3 +++
+ adapters/primary/setup/setup.go                |  8 ++++++
+ adapters/primary/setup/setup_test.go           | 24 +++++++++++++++++
+ 4 files changed, 72 insertions(+)
+
+commit b94455badba0cadafe957d1d1cfe78b4a3f0f124
+Author: Autor <autor@example.com>
+Date:   Thu Sep 24 12:22:07 2026 -0500
+
+    fix(opencode): carga el plugin en OpenCode 2.x sin romper 1.x
+    
+    OpenCode 2.x rechazaba gomemory.ts con "Plugin must export a default
+    definition with an id and an effect or setup function" y todas las
+    capacidades del plugin desaparecían. El archivo exporta ahora
+    { id, setup, server }: 2.x llama a setup y 1.x (verificado desde 1.17.0)
+    llama a server, que es la fábrica de siempre, sin cambios.
+    
+    La rama v2 traduce los ganchos y eventos v2 a esa misma fábrica, así que
+    no duplica lógica. Contra el binario 2.0.16 aparecieron diferencias que
+    los tests con simulaciones no detectaban y que se traducen aquí: el fin de
+    turno llega como session.execution.*, las tools bash/task se llaman
+    shell/subagent y el servicio entrega eventos y ganchos de sesión a las
+    instancias de todos los proyectos, por lo que cada una atiende solo las
+    sesiones de su directorio.
+
+ infrastructure/plugin/opencode/gomemory.test.mjs | 225 +++++++++++++++++++-
+ infrastructure/plugin/opencode/gomemory.ts       | 253 +++++++++++++++++++++++
+ tests/contract/opencode_compaction_test.go       |  23 +++
+ tests/contract/opencode_hooks_test.go            |  13 ++
+ tests/contract/opencode_v2_shape_test.go         | 163 +++++++++++++++
+ 5 files changed, 676 insertions(+), 1 deletion(-)
+
+commit 62746f64f4d3e83895283c4deca3951437065815
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 19:14:54 2026 -0500
+
+    docs(release): publica v2.23.3 con correcciones de portabilidad y linaje
+    
+    La 2.23.2 perdía la identidad y el linaje al exportar e importar, escondía el linaje en las lecturas y dejaba los marcadores de hooks con permisos amplios. Esta versión lo corrige sin cambiar el comportamiento visible.
+
+ CHANGELOG.md       | 17 +++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+commit 308e472bf4e002e1f66c68395ace6d68649f87e7
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 19:14:42 2026 -0500
+
+    fix(portability): conserva topic_key y linaje en export/import, lecturas y marcadores
+    
+    El bundle no transportaba topic_key ni source_review_id y la importación los descartaba, así que un documento fijado reimportado perdía su identidad y una memoria promovida perdía su revisión de origen. El formato sube a v2 con migración desde v1, todas las lecturas devuelven el linaje y los marcadores de hooks aseguran su directorio con permisos 0700.
+
+ adapters/primary/cli/cmd_hook.go                   | 17 +++--
+ adapters/primary/cli/hook_marker_test.go           | 37 +++++++++
+ adapters/secondary/persistence/memory.go           | 36 ++++-----
+ .../persistence/memory_lineage_projection_test.go  | 88 ++++++++++++++++++++++
+ application/usecases/portability.go                | 55 +++++++++-----
+ application/usecases/portability_test.go           | 62 +++++++++++++++
+ domain/portability.go                              | 15 +++-
+ 7 files changed, 268 insertions(+), 42 deletions(-)
+
+commit c80ef6da1da4770c254381125b2b62233f6903e0
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 10:39:32 2026 -0500
+
+    docs(release): publica v2.23.2 con correcciones de concurrencia y dedup
+    
+    La 2.23.1 dejaba fallos de SQLITE_BUSY en guardados paralelos y perdía el linaje al deducir. Esta versión lo corrige sin cambiar el comportamiento visible.
+
+ CHANGELOG.md       | 17 +++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 18 insertions(+), 1 deletion(-)
+
+commit 12d61b308ebbcf65399967559eb513634551cee2
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 10:39:18 2026 -0500
+
+    fix(persistence): corrige concurrencia, linaje y proyecciones del dedup
+    
+    La revisión de la 2.23.1 encontró que los guardados en paralelo fallaban con SQLITE_BUSY, que el dedup perdía el linaje de la revisión y que varias lecturas omitían la topic_key. Las transacciones ahora abren en modo inmediato, el linaje sigue al contenido guardado y todas las proyecciones devuelven la topic_key. La búsqueda LIKE trata los comodines como texto literal.
+
+ adapters/secondary/persistence/db.go               |   6 +-
+ adapters/secondary/persistence/memory.go           |  33 +++--
+ .../persistence/memory_acr_triage_test.go          | 159 +++++++++++++++++++++
+ 3 files changed, 185 insertions(+), 13 deletions(-)
+
+commit 9eccb19127688a95c2de4bf8f297e2d1bbb42d55
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 10:17:20 2026 -0500
+
+    docs(release): publica v2.23.1 con correcciones del gate, anclas y plan_entry
+    
+    La 2.23.0 dejó avisos falsos en el gate y recortes sin anunciar en anclas. Esta versión los corrige y deja la entrada a plan por Shift+Tab entregando el método una vez por sesión.
+
+ CHANGELOG.md       | 22 ++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 23 insertions(+), 1 deletion(-)
+
+commit 46e48b53fb5f1d6c5b7c7acfbebd85515af7727c
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 10:16:46 2026 -0500
+
+    fix(memory): corrige avisos del gate, recorte de anclas y entrada a plan
+    
+    Las revisiones de la 031 dejaron avisos falsos y recortes silenciosos. El gate comparaba texto sin redactar, la nota de impacto diluía la similitud en cuerpos cortos y la sección de anclas cortaba en ocho sin decirlo. Este cambio redacta igual en ambos lados, descuenta la nota exacta al final y anuncia cuántas anclas quedan fuera. La entrada a plan por prompt entrega el método una vez por sesión y se degrada al recordatorio si no puede registrarla.
+
+ adapters/primary/cli/cmd_hook.go                   |  90 +++++++++++++++---
+ .../primary/cli/hook_plan_prompt_review_test.go    |  96 +++++++++++++++++++
+ adapters/primary/cli/hook_plan_prompt_test.go      | 103 +++++++++++++++++++++
+ adapters/secondary/persistence/memory.go           |   7 +-
+ .../secondary/persistence/memory_topic_key_test.go |  41 ++++++++
+ application/usecases/build_context.go              |   7 ++
+ application/usecases/build_context_anchors_test.go |  16 ++++
+ application/usecases/save_gate.go                  |  21 ++++-
+ application/usecases/save_gate_review_test.go      |  61 ++++++++++++
+ domain/impact_annotation.go                        |  33 +++++++
+ domain/impact_annotation_test.go                   |  37 ++++++++
+ .../contracts/mass.md                              |   2 +-
+ specs/031-memory-gate-evidence-mass/tasks.md       |  25 +++++
+ 13 files changed, 520 insertions(+), 19 deletions(-)
+
+commit acd006c6e28757a39935b66c4227e4a8ed91d98a
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 09:34:24 2026 -0500
+
+    docs(release): publica v2.23.0 con gate, anclas y masa
+
+ CHANGELOG.md       | 31 +++++++++++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 32 insertions(+), 1 deletion(-)
+
+commit 33b1c561ee7a806f8f75bca9f08767c45e0ecd9a
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 09:34:12 2026 -0500
+
+    feat(memory): añade gate, evidencia de anclas y masa
+
+ README.md                                          |  13 +
+ adapters/primary/cli/cli.go                        |   1 +
+ adapters/primary/cli/cmd_mass.go                   | 100 +++++
+ adapters/primary/cli/cmd_mass_test.go              | 131 ++++++
+ adapters/primary/cli/cmd_mcp.go                    |   9 +-
+ adapters/primary/cli/cmd_mcp_gate_test.go          |  57 +++
+ adapters/primary/cli/cmd_pack.go                   |   1 +
+ adapters/primary/cli/cmd_save.go                   |   7 +-
+ adapters/primary/cli/cmd_save_gate_test.go         |  35 ++
+ adapters/primary/cli/dispatcher.go                 |   2 +
+ adapters/primary/cli/save_gate_notice.go           |  27 ++
+ adapters/primary/cli/save_gate_notice_test.go      |  26 ++
+ adapters/secondary/persistence/repositories.go     |   3 +
+ application/ports/context_builder.go               |  15 +
+ application/usecases/build_context.go              | 236 +++++++++--
+ .../build_context_anchor_stat_internal_test.go     |  47 +++
+ application/usecases/build_context_anchors_test.go | 202 +++++++++
+ application/usecases/build_context_mass_test.go    | 169 ++++++++
+ application/usecases/build_context_pack.go         |  63 +++
+ .../usecases/build_context_pack_mass_test.go       | 121 ++++++
+ application/usecases/memory_mass.go                | 109 +++++
+ application/usecases/memory_mass_rules_test.go     | 112 +++++
+ application/usecases/memory_mass_test.go           |  20 +
+ application/usecases/save_gate.go                  | 113 +++++
+ application/usecases/save_gate_test.go             | 130 ++++++
+ docs/MANUAL.md                                     |  63 +++
+ docs/architecture.md                               |  22 +
+ domain/anchor_evidence.go                          |  79 ++++
+ domain/anchor_evidence_test.go                     |  39 ++
+ domain/memory_mass.go                              | 145 +++++++
+ domain/memory_mass_invariants_test.go              |  91 +++++
+ domain/memory_mass_test.go                         |  17 +
+ infrastructure/container.go                        |   1 +
+ .../checklists/requirements.md                     |  42 ++
+ .../contracts/context-sections.md                  |  50 +++
+ .../contracts/mass.md                              |  44 ++
+ .../contracts/save-gate.md                         |  48 +++
+ specs/031-memory-gate-evidence-mass/data-model.md  | 116 ++++++
+ specs/031-memory-gate-evidence-mass/plan.md        | 202 +++++++++
+ specs/031-memory-gate-evidence-mass/quickstart.md  |  86 ++++
+ specs/031-memory-gate-evidence-mass/research.md    | 152 +++++++
+ specs/031-memory-gate-evidence-mass/spec.md        | 248 +++++++++++
+ specs/031-memory-gate-evidence-mass/tasks.md       | 453 +++++++++++++++++++++
+ tests/integration/save_gate_calibration_test.go    |  68 ++++
+ 44 files changed, 3677 insertions(+), 38 deletions(-)
+
+commit 3c1642ca9051aaf5f5fbc9af5688211a3d1f9235
+Author: Autor <autor@example.com>
+Date:   Sun Sep 13 09:34:02 2026 -0500
+
+    fix(persistence): propaga errores al comprobar duplicados
+
+ adapters/secondary/persistence/memory.go           | 28 +++++++++++------
+ .../persistence/memory_dedup_internal_test.go      | 29 +++++++++++++++++
+ .../persistence/memory_dedup_session_test.go       | 36 ++++++++++++++++++++++
+ 3 files changed, 83 insertions(+), 10 deletions(-)
+
+commit f4fcf292a6a12075bf3193df691a8460680880b7
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 07:38:58 2026 -0500
+
+    docs(release): v2.22.3 — refuerza integridad y aislamiento de datos
+
+ CHANGELOG.md       | 24 ++++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 25 insertions(+), 1 deletion(-)
+
+commit dc821f360fc0a322ecb98648a73512b5239d8b95
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 07:36:56 2026 -0500
+
+    test(setup): aísla el almacén persistente
+    
+    Ejecuta el paquete setup con un GOMEMORY_DATA_HOME temporal para impedir que sus fixtures creen proyectos en el almacén global del usuario.
+
+ adapters/primary/setup/testmain_test.go | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+commit e017fc227384e60ff2cf6c0aa40ffc40f19428e0
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 07:36:23 2026 -0500
+
+    fix(persistence): refuerza integridad de revisiones y sinapsis
+    
+    Descarta conexiones cuyo rollback falla, restringe las rondas de corrección a la transición atómica y evita duplicar relaciones cuando una base heredada no pudo crear el índice único.
+
+ adapters/secondary/persistence/db.go               |  7 ++--
+ adapters/secondary/persistence/memory.go           | 10 ++++-
+ .../secondary/persistence/memory_synapse_test.go   | 43 +++++++++++++++++++
+ adapters/secondary/persistence/review.go           | 30 ++++++++++----
+ adapters/secondary/persistence/review_test.go      | 48 ++++++++++++++++++----
+ application/ports/consensus_repository.go          |  1 -
+ application/usecases/review_test_helpers_test.go   | 12 ------
+ 7 files changed, 118 insertions(+), 33 deletions(-)
+
+commit 39613cf3a9f620a0e352471a77ade447ae5bc15c
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 06:57:50 2026 -0500
+
+    docs(release): v2.22.2 — corrige caché de sinapsis y serialización JSON
+
+ CHANGELOG.md       | 20 ++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 21 insertions(+), 1 deletion(-)
+
+commit b4a05020c5a072e482c64ad76105f81f982c88d9
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 06:56:37 2026 -0500
+
+    fix(persistence): corrige caché de sinapsis y serialización JSON de fix_rounds
+    
+    - lastAnchorCache solo avanza: inserciones concurrentes con IDs más viejos
+      no retroceden el ancla de la sesión
+    - jsonArray() serializa nil como '[]' en vez de 'null' para columnas JSON
+      de fix_rounds (DEFAULT '[]')
+    - tuiProvider reutiliza CodeProviders de NewContainer con fallback
+    - Tests: cobertura de cache no-retrocedente y arrays nil
+
+ adapters/secondary/persistence/memory.go           |  8 +++--
+ .../secondary/persistence/memory_synapse_test.go   | 36 ++++++++++++++++++++++
+ adapters/secondary/persistence/review.go           | 33 ++++++++++++++------
+ adapters/secondary/persistence/review_test.go      | 33 ++++++++++++++++++++
+ infrastructure/container.go                        |  7 ++++-
+ 5 files changed, 104 insertions(+), 13 deletions(-)
+
+commit 282cdf88148bea88012c5092a562e5c12957b5d6
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 06:01:48 2026 -0500
+
+    docs(release): v2.22.1 — corrige concurrencia, MCP schemas y container
+
+ CHANGELOG.md       | 29 +++++++++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 30 insertions(+), 1 deletion(-)
+
+commit e77d06245888784a381ed8b19c3b62d53b65d30e
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 06:00:58 2026 -0500
+
+    fix(mcp): corrige concurrencia, MCP schemas y cierre de container
+    
+    - Container.Close() retorna error y wrapper closeContainer lo registra
+    - tuiProvider reutiliza settings leída en NewContainer (evita re-leer)
+    - Mutex en lastAnchorCache para concurrencia MCP
+    - Checkpoints no se usan como ancla en formSynapse
+    - StartSession retorna CreatedAt con RETURNING
+    - MCP resource: Get por ID en vez de List
+    - dropNullUnions recursivo en Defs/AllOf/AnyOf/OneOf
+    - relTitle para formato seguro en conflictos de build_context
+    - T_REVIEW_PROMOTE_MEMORY renombrado en plugin OpenCode
+    - Tests: 4 archivos nuevos con cobertura mejorada
+
+ adapters/primary/cli/cmd_mcp.go                    | 22 +++---
+ .../primary/cli/cmd_mcp_memory_resource_test.go    | 70 +++++++++++++++++
+ adapters/primary/cli/cmd_mcp_schemas.go            | 10 +++
+ adapters/primary/cli/cmd_mcp_schemas_test.go       | 23 ++++++
+ adapters/secondary/persistence/memory.go           | 21 ++++-
+ .../secondary/persistence/memory_synapse_test.go   | 89 ++++++++++++++++++++++
+ adapters/secondary/persistence/session.go          |  9 ++-
+ adapters/secondary/persistence/session_test.go     | 25 ++++++
+ application/usecases/build_context.go              |  6 +-
+ application/usecases/build_context_test.go         | 52 +++++++++++++
+ infrastructure/container.go                        | 20 +++--
+ infrastructure/main.go                             | 12 ++-
+ infrastructure/plugin/opencode/gomemory.ts         |  4 +-
+ tests/contract/opencode_tool_names_test.go         | 56 ++++++++++++++
+ 14 files changed, 384 insertions(+), 35 deletions(-)
+
+commit 0753c5386471d5660d543a03a8cbcecdf52a792a
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 05:28:53 2026 -0500
+
+    feat(mcp): addTool strips null unions from MCP schemas
+    
+    - Introduces addTool wrapper that generates input schemas via
+      jsonschema.For[T] and recursively drops ['null', X] unions before
+      publishing. Fixes OpenCode emitting empty values for nullable
+      optional fields (e.g. review_start.fix_authorized).
+    - Container.Close() now closes the underlying *sql.DB.
+    - CodeProviderSnapshot.Project exposes the canonical project name so
+      agents pass the correct identifier to external graph tools.
+    - hookPlanGuard returns after permit() to prevent fallthrough to
+      denial marking.
+    - CI: adds sync-version job to keep version/version.go aligned with
+      the latest release after each publish.
+    - Adds scripts/bump_version.sh and scripts/sync_version.sh.
+
+ .github/workflows/release.yml                      | 26 ++++++++++
+ CHANGELOG.md                                       | 21 ++++++++
+ adapters/primary/cli/cmd_hook.go                   |  4 ++
+ adapters/primary/cli/cmd_mcp.go                    | 30 +++++------
+ adapters/primary/cli/cmd_mcp_code_tools.go         | 10 ++--
+ adapters/primary/cli/cmd_mcp_octopus_tools.go      |  8 +--
+ adapters/primary/cli/cmd_mcp_review_tools.go       | 16 +++---
+ adapters/primary/cli/cmd_mcp_schemas.go            | 38 ++++++++++++++
+ adapters/primary/cli/cmd_mcp_schemas_test.go       | 58 +++++++++++++++++++++
+ .../secondary/codegraph/codebasememory/provider.go |  1 +
+ application/usecases/build_context.go              |  3 ++
+ application/usecases/build_context_test.go         |  2 +
+ domain/code_provider.go                            |  4 ++
+ go.mod                                             |  2 +-
+ infrastructure/container.go                        |  6 +++
+ scripts/bump_version.sh                            | 38 ++++++++++++++
+ scripts/sync_version.sh                            | 60 ++++++++++++++++++++++
+ version/version.go                                 |  2 +-
+ 18 files changed, 295 insertions(+), 34 deletions(-)
+
+commit 0a2e4776986f274528925c5d5e72a42849a8d68f
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 05:05:32 2026 -0500
+
+    fix(ci): corrige workflow de release y remueve .github/workflows de .gitignore
+    
+    GoReleaser fallaba porque el workflow usaba Go 1.26 pero go.mod
+    requiere 1.27. Se remueve .github/workflows/ de .gitignore para
+    que los workflows se versionen correctamente.
+
+ .github/workflows/release.yml | 2 +-
+ .gitignore                    | 1 -
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+commit d293920a28cfebc7b89075cf87c15d2aacf49c22
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 05:00:59 2026 -0500
+
+    docs(release): actualiza CHANGELOG a v2.21.0
+
+ CHANGELOG.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit d8508ca1f2667952af0cd2cec5a3dc44103af700
+Author: Autor <autor@example.com>
+Date:   Fri Sep 11 05:00:42 2026 -0500
+
+    feat(compaction): agrega compactación sin pérdida de memoria (feature 030)
+    
+    Nueva herramienta save_session_summary que persiste el resumen compactado
+    sin cerrar la sesión, cerrando un defecto real donde toda memoria guardada
+    tras compactar quedaba sin sesión asociada.
+    
+    Hooks compaction-context y post-compact entregan la memoria de la sesión
+    activa con puntero get_memory por entrada.
+    
+    Captura pasiva de aprendizajes al terminar subagentes sin duplicados.
+    Aviso opcional al agente (compact_agent_notice, opt-in).
+    Doctor reporta capacidades de compactación por agente instalado.
+    
+    Corrige plugin OpenCode: llamaba post-compact antes de que la
+    compactación existiera, reseteando huella y marcadores fuera de tiempo.
+
+ CHANGELOG.md                                       |  25 ++
+ INSTALLATION.md                                    |  33 +-
+ README.md                                          |  75 +++--
+ adapters/primary/cli/cmd_doctor.go                 |  50 +++
+ adapters/primary/cli/cmd_doctor_compaction_test.go |  52 +++
+ adapters/primary/cli/cmd_hook.go                   | 250 +++++++++++++--
+ adapters/primary/cli/cmd_mcp.go                    |  37 +++
+ .../primary/cli/cmd_mcp_session_summary_test.go    | 223 +++++++++++++
+ adapters/primary/cli/deps.go                       |  11 +
+ adapters/primary/cli/footprint.go                  |  27 ++
+ adapters/primary/cli/hook_dialect.go               |  23 ++
+ adapters/primary/setup/claude_code_hooks_test.go   |  18 +-
+ .../primary/setup/claude_code_postcompact_test.go  |  73 +++++
+ adapters/primary/setup/claude_code_setup.go        |  13 +-
+ adapters/primary/setup/codex_setup.go              |  12 +
+ adapters/primary/setup/codex_subagent_stop_test.go |  28 ++
+ adapters/primary/tui/tui.go                        |  24 +-
+ adapters/primary/tui/tui_compact_notice_test.go    |  45 +++
+ adapters/primary/tui/tui_docs_test.go              |   9 +-
+ adapters/secondary/persistence/db.go               |   3 +
+ adapters/secondary/persistence/memory.go           |  41 +++
+ .../secondary/persistence/memory_session_test.go   | 140 +++++++++
+ adapters/secondary/persistence/repositories.go     |  20 ++
+ adapters/secondary/persistence/session.go          |  21 ++
+ .../secondary/persistence/session_summary_test.go  |  91 ++++++
+ adapters/secondary/persistence/settings.go         |   5 +
+ .../persistence/settings_compact_notice_test.go    |  45 +++
+ application/ports/session_memory.go                |  18 ++
+ application/ports/session_summary.go               |  15 +
+ application/ports/settings_repository.go           |   3 +
+ application/usecases/build_compaction_context.go   | 115 +++++++
+ .../usecases/build_compaction_context_test.go      | 179 +++++++++++
+ application/usecases/capture_learnings.go          |  75 +++++
+ application/usecases/capture_learnings_test.go     | 149 +++++++++
+ docs/AGENT-INTEGRATION.md                          |   2 +-
+ docs/MANUAL.md                                     | 184 ++++++-----
+ docs/MEMORY-PROTOCOL.md                            | 115 +++----
+ docs/USAGE-REPORT-CONTRACT.md                      |   2 +-
+ docs/architecture.md                               | 176 +++++------
+ docs/lessons.md                                    |   5 +
+ docs/release_gomemory_notes.md                     | 201 +++---------
+ domain/agents.go                                   |  62 ++++
+ domain/compaction_capabilities.go                  |  43 +++
+ domain/compaction_texts.go                         |  64 ++++
+ domain/learnings.go                                |  92 ++++++
+ domain/learnings_test.go                           | 112 +++++++
+ domain/mcp_tools.go                                |   5 +
+ infrastructure/container.go                        |  30 ++
+ infrastructure/plugin/opencode/gomemory.test.mjs   |  75 +++++
+ infrastructure/plugin/opencode/gomemory.ts         | 125 +++++++-
+ specs/008-reduce-context-footprint/spec.md         |   6 +-
+ .../checklists/requirements.md                     |  42 +++
+ specs/030-auto-compact-context/contracts/hooks.md  |  84 +++++
+ specs/030-auto-compact-context/contracts/texts.md  |  70 +++++
+ specs/030-auto-compact-context/data-model.md       | 112 +++++++
+ specs/030-auto-compact-context/plan.md             | 190 +++++++++++
+ specs/030-auto-compact-context/quickstart.md       | 169 ++++++++++
+ specs/030-auto-compact-context/research.md         | 249 +++++++++++++++
+ specs/030-auto-compact-context/spec.md             | 349 +++++++++++++++++++++
+ specs/030-auto-compact-context/tasks.md            | 301 ++++++++++++++++++
+ tests/contract/compaction_capabilities_test.go     |  92 ++++++
+ tests/contract/compaction_texts_test.go            |  49 +++
+ tests/contract/opencode_compaction_test.go         | 144 +++++++++
+ .../agent_notice_hook_integration_test.go          | 195 ++++++++++++
+ .../compact_summary_hook_integration_test.go       | 277 ++++++++++++++++
+ .../compaction_context_hook_integration_test.go    |  89 ++++++
+ .../compaction_recovery_integration_test.go        | 133 ++++++++
+ .../subagent_capture_integration_test.go           | 213 +++++++++++++
+ 68 files changed, 5545 insertions(+), 460 deletions(-)
+
+commit e49437b39f0c7ca151a041062af79e30639a99f7
+Author: Autor <autor@example.com>
+Date:   Thu Sep 10 07:07:58 2026 -0500
+
+    fix(opencode): aclara scope de review_start
+
+ CHANGELOG.md                                 | 10 +++++++
+ adapters/primary/cli/cmd_mcp_review_tools.go |  8 +++---
+ adapters/primary/cli/cmd_mcp_schemas_test.go | 39 ++++++++++++++++++++++++++++
+ infrastructure/plugin/opencode/gomemory.ts   |  5 ++++
+ 4 files changed, 59 insertions(+), 3 deletions(-)
+
+commit 981ae2ff2d1a0f2c347a8ac4e9805ed0f974ca58
+Author: Autor <autor@example.com>
+Date:   Thu Sep 10 06:08:49 2026 -0500
+
+    fix(security): actualiza dependencias y errores manejados
+
+ CHANGELOG.md                                       | 10 +++
+ README.md                                          |  2 +-
+ adapters/primary/cli/cmd_adr_sync.go               |  4 +-
+ adapters/primary/cli/cmd_compare.go                | 21 ++----
+ adapters/primary/cli/cmd_consolidate.go            |  2 +-
+ adapters/primary/cli/cmd_consolidate_test.go       |  6 +-
+ adapters/primary/cli/cmd_constitution.go           |  6 +-
+ adapters/primary/cli/cmd_context.go                |  4 +-
+ adapters/primary/cli/cmd_docs.go                   | 23 +++---
+ adapters/primary/cli/cmd_docs_test.go              |  2 +-
+ adapters/primary/cli/cmd_export.go                 |  2 +-
+ adapters/primary/cli/cmd_get_test.go               |  2 +-
+ adapters/primary/cli/cmd_hook.go                   | 40 +++++------
+ adapters/primary/cli/cmd_import.go                 |  2 +-
+ adapters/primary/cli/cmd_install.go                |  8 ++-
+ adapters/primary/cli/cmd_list.go                   |  8 +--
+ adapters/primary/cli/cmd_mcp.go                    |  6 +-
+ adapters/primary/cli/cmd_mcp_code_tools.go         | 16 ++---
+ .../primary/cli/cmd_mcp_octopus_report_test.go     | 12 ++--
+ adapters/primary/cli/cmd_mcp_render.go             |  4 +-
+ adapters/primary/cli/cmd_mcp_schemas.go            |  4 +-
+ adapters/primary/cli/cmd_mcp_schemas_test.go       |  4 +-
+ adapters/primary/cli/cmd_mcp_setup.go              | 31 ++++++--
+ adapters/primary/cli/cmd_mcp_setup_hooks_test.go   |  4 +-
+ adapters/primary/cli/cmd_mcp_usage_test.go         | 15 ++--
+ adapters/primary/cli/cmd_pack.go                   | 12 ++--
+ adapters/primary/cli/cmd_plan_context.go           |  2 +-
+ adapters/primary/cli/cmd_plan_context_test.go      |  4 +-
+ adapters/primary/cli/cmd_review.go                 |  4 +-
+ adapters/primary/cli/cmd_search.go                 |  8 +--
+ adapters/primary/cli/cmd_session.go                | 10 +--
+ adapters/primary/cli/cmd_uninstall.go              |  8 +--
+ .../primary/cli/cmd_uninstall_opencode_test.go     | 20 ++++--
+ adapters/primary/cli/cmd_update.go                 | 36 +++++-----
+ adapters/primary/cli/cmd_update_test.go            | 54 ++++++++++----
+ adapters/primary/cli/cmd_usage.go                  |  4 +-
+ adapters/primary/cli/cmd_usage_test.go             | 14 ++--
+ adapters/primary/cli/codex_hooks_migration_test.go |  4 +-
+ adapters/primary/cli/dispatcher.go                 |  5 --
+ adapters/primary/cli/hook_dialect.go               | 32 ++++++---
+ adapters/primary/cli/hook_dialect_test.go          |  7 ++
+ adapters/primary/cli/hook_prompt_dialect_test.go   | 13 ++--
+ adapters/primary/cli/nudge.go                      |  2 +-
+ adapters/primary/cli/pending_preparado_test.go     | 14 ++--
+ adapters/primary/cli/transcript.go                 |  2 +-
+ adapters/primary/setup/activation_inspect.go       |  6 +-
+ adapters/primary/setup/claude_code_setup.go        | 20 ++++--
+ adapters/primary/setup/codex_setup.go              |  6 +-
+ adapters/primary/setup/opencode_setup.go           |  8 ++-
+ adapters/primary/setup/speckit_extension.go        |  2 +-
+ adapters/primary/tui/styles.go                     | 12 ----
+ adapters/primary/tui/tui.go                        | 74 +++++++++++++------
+ adapters/primary/tui/tui_docs_test.go              |  2 +-
+ adapters/primary/tui/tui_usage_test.go             |  6 +-
+ adapters/secondary/persistence/adr_sync.go         |  2 +-
+ .../secondary/persistence/channel_activity_test.go | 12 +++-
+ adapters/secondary/persistence/code_graph.go       | 29 ++++----
+ .../secondary/persistence/context_delivery_test.go | 12 +++-
+ adapters/secondary/persistence/db.go               | 16 +++--
+ adapters/secondary/persistence/db_test.go          |  6 +-
+ adapters/secondary/persistence/globalstore.go      | 10 +--
+ adapters/secondary/persistence/globalstore_test.go | 16 ++++-
+ adapters/secondary/persistence/maintenance.go      |  2 +-
+ adapters/secondary/persistence/memory.go           | 84 +++-------------------
+ .../secondary/persistence/memory_dedup_test.go     | 10 +--
+ adapters/secondary/persistence/memory_test.go      | 14 ++--
+ adapters/secondary/persistence/octopus.go          | 12 ++--
+ adapters/secondary/persistence/octopus_test.go     |  2 +-
+ .../secondary/persistence/origin_prompt_test.go    |  6 +-
+ adapters/secondary/persistence/permissions_test.go |  2 +-
+ adapters/secondary/persistence/relation.go         |  4 +-
+ adapters/secondary/persistence/review.go           | 44 ++++++------
+ adapters/secondary/persistence/review_test.go      | 26 +++----
+ adapters/secondary/persistence/session.go          |  2 +-
+ adapters/secondary/persistence/settings.go         |  4 +-
+ adapters/secondary/persistence/testmain_test.go    |  8 ++-
+ adapters/secondary/persistence/usage.go            |  6 +-
+ adapters/secondary/speckit/reader.go               |  2 +-
+ application/usecases/backup.go                     | 10 ++-
+ application/usecases/backup_test.go                | 10 +--
+ application/usecases/build_context.go              | 28 ++++----
+ application/usecases/build_context_pack.go         |  6 +-
+ application/usecases/build_context_pack_test.go    |  2 +-
+ application/usecases/build_context_pinned_test.go  |  2 +-
+ application/usecases/build_context_test.go         | 62 ++++++++--------
+ application/usecases/build_plan_context.go         |  2 +-
+ .../usecases/build_plan_context_dedupe_test.go     |  4 +-
+ application/usecases/consolidate_memories.go       |  4 --
+ application/usecases/consolidate_memories_test.go  | 14 ++--
+ application/usecases/finalize_review_test.go       |  4 +-
+ application/usecases/import_adrs.go                |  8 +--
+ application/usecases/import_adrs_test.go           |  8 ++-
+ application/usecases/index_project.go              |  6 +-
+ application/usecases/index_project_test.go         |  2 +-
+ application/usecases/octopus_pack_contract_test.go |  2 +-
+ application/usecases/pinned_docs_test.go           |  4 +-
+ application/usecases/portability_test.go           |  2 +-
+ application/usecases/record_verdict_test.go        |  6 +-
+ application/usecases/testmain_test.go              |  8 ++-
+ domain/octopus_result_test.go                      |  7 +-
+ domain/relation.go                                 | 16 ++---
+ go.mod                                             | 20 +++---
+ go.sum                                             | 55 +++++++-------
+ infrastructure/container.go                        |  5 --
+ tests/contract/atomic_plan_method_test.go          | 12 ++--
+ tests/contract/channel_matrix_test.go              |  6 +-
+ tests/contract/get_plan_context_reminder_test.go   |  6 +-
+ tests/contract/hook_plan_entered_test.go           | 10 ---
+ tests/contract/integration_block_test.go           | 10 ++-
+ tests/contract/maintenance_cli_test.go             |  8 +--
+ tests/contract/mcp_tool_sync_test.go               |  6 +-
+ tests/contract/memory_protocol_test.go             |  2 +-
+ tests/contract/octopus_schema_test.go              |  8 +--
+ tests/contract/testmain_test.go                    | 14 ++--
+ tests/integration/backup_hook_integration_test.go  |  6 +-
+ .../build_context_pack_codegraph_test.go           |  2 +-
+ tests/integration/build_context_pack_dedup_test.go |  2 +-
+ .../integration/build_context_pack_speckit_test.go |  2 +-
+ tests/integration/build_context_pack_test.go       |  4 +-
+ .../integration/code_graph_mcp_integration_test.go |  4 +-
+ tests/integration/hook_marker_integration_test.go  | 14 ++--
+ tests/integration/lazy_init_test.go                |  2 +-
+ tests/integration/legacy_migration_test.go         |  6 +-
+ tests/integration/maintenance_integration_test.go  | 18 ++---
+ tests/integration/octopus_cold_start_test.go       |  4 +-
+ tests/integration/octopus_context_pack_test.go     |  2 +-
+ tests/integration/octopus_failure_test.go          |  2 +-
+ tests/integration/octopus_module_off_test.go       | 10 +--
+ tests/integration/plan_context_integration_test.go |  2 +-
+ tests/integration/plugin_integration_test.go       |  2 +-
+ tests/integration/review_approved_flow_test.go     |  2 +-
+ tests/integration/review_concurrent_fix_test.go    |  2 +-
+ .../integration/review_concurrent_rejudge_test.go  |  6 +-
+ tests/integration/review_consenso_atomico_test.go  |  2 +-
+ tests/integration/review_escalated_flow_test.go    |  2 +-
+ tests/integration/review_escrituras_ciegas_test.go | 28 ++++----
+ tests/integration/review_finalize_carrera_test.go  |  8 +--
+ tests/integration/review_memory_context_test.go    |  2 +-
+ .../integration/review_rejudgment_vigencia_test.go |  6 +-
+ tests/integration/review_status_perf_test.go       |  2 +-
+ tests/integration/seed_bootstrap_test.go           |  2 +-
+ tests/integration/testmain_test.go                 | 14 ++--
+ tests/integration/uninstall_integration_test.go    |  8 +--
+ tests/integration/update_integration_test.go       | 26 ++++---
+ 144 files changed, 815 insertions(+), 716 deletions(-)
+
+commit 7fafb5ac35cddbf10fc76aa7fe09bcb4a6984aad
+Author: Autor <autor@example.com>
+Date:   Fri Sep 4 05:52:35 2026 -0500
+
+    feat(tui): mejora la gestión de memorias
+
+ CHANGELOG.md                          | 12 +++++++
+ adapters/primary/tui/tui.go           | 62 +++++++++++++++++++++++++++++++----
+ adapters/primary/tui/tui_docs.go      | 56 +++++++++++++++++++++++++++++--
+ adapters/primary/tui/tui_docs_test.go | 33 ++++++++++++++++++-
+ adapters/primary/tui/tui_test.go      | 49 +++++++++++++++++++++++++++
+ 5 files changed, 203 insertions(+), 9 deletions(-)
+
+commit 45140619ef430837038c94648eb28bbe827755d7
+Author: Autor <autor@example.com>
+Date:   Fri Sep 4 05:31:04 2026 -0500
+
+    fix(constitution): universaliza nombres de código
+
+ CHANGELOG.md                                         | 10 ++++++++++
+ infrastructure/templates/speckit-constitution-gen.md |  5 +++++
+ 2 files changed, 15 insertions(+)
+
+commit 99bc1cf23d500401edac6f725219b3073e050393
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 20:39:43 2026 -0500
+
+    docs(release): publica v2.19.0
+
+ CHANGELOG.md | 23 +++++++++++++++++++++++
+ README.md    | 12 ++++++++----
+ 2 files changed, 31 insertions(+), 4 deletions(-)
+
+commit 348c8175c27798d8b3a15bc4e17b047464039ed8
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 20:39:37 2026 -0500
+
+    feat(integrations): añade baseline universal de agentes
+
+ adapters/primary/cli/cmd_hook.go                   | 10 +++
+ adapters/primary/cli/cmd_install.go                | 47 +++++++++---
+ adapters/primary/cli/cmd_install_protocol_test.go  | 22 ++++++
+ adapters/primary/cli/cmd_mcp_setup.go              |  2 +-
+ adapters/primary/cli/cmd_mcp_setup_hooks_test.go   | 29 ++++++++
+ adapters/primary/cli/codex_gomemory_hooks_test.go  | 12 +--
+ adapters/primary/cli/hook_dialect_test.go          |  2 +-
+ adapters/primary/cli/hook_prompt_dialect_test.go   |  9 ++-
+ adapters/primary/setup/activation_inspect.go       | 16 +++-
+ adapters/primary/setup/activation_inspect_test.go  |  2 +-
+ adapters/primary/setup/codex_setup.go              | 12 +--
+ docs/MEMORY-PROTOCOL.md                            |  4 +
+ docs/UNIVERSAL-AGENT-INSTRUCTIONS.md               | 18 +++++
+ domain/protocol.go                                 | 10 +++
+ infrastructure/templates/agent-preamble.md         | 85 ++++++----------------
+ .../templates/universal-agent-instructions.md      | 38 ++++++++++
+ tests/integration/seed_bootstrap_test.go           |  6 +-
+ 17 files changed, 225 insertions(+), 99 deletions(-)
+
+commit a1f4457e278f972e64bb9083d2fee41115582387
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 19:15:07 2026 -0500
+
+    fix(codex): emite JSON en hooks de ciclo
+    
+    Codex valida Stop y UserPromptSubmit como JSON; se retira el dialecto de texto plano.
+
+ CHANGELOG.md                                      | 10 ++++++
+ adapters/primary/cli/cmd_hook.go                  | 13 +++-----
+ adapters/primary/cli/codex_gomemory_hooks_test.go | 38 ++++++++++-------------
+ adapters/primary/cli/hook_prompt_dialect_test.go  | 14 ++++-----
+ adapters/primary/setup/activation_inspect_test.go |  4 +--
+ adapters/primary/setup/codex_setup.go             | 12 +++----
+ 6 files changed, 46 insertions(+), 45 deletions(-)
+
+commit 2986f3e85d1866b1963c7d39c42e83f5801b9249
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 18:59:06 2026 -0500
+
+    fix(mcp): documenta estados de review submit
+    
+    Expone los únicos estados aceptados para que los clientes no prueben valores inválidos.
+
+ CHANGELOG.md                                 | 10 +++++++
+ adapters/primary/cli/cmd_mcp_review_tools.go | 20 +++++++------
+ adapters/primary/cli/cmd_mcp_schemas_test.go | 44 ++++++++++++++++++++++++++++
+ tests/contract/review_protocol_test.go       | 17 +++++++++++
+ 4 files changed, 82 insertions(+), 9 deletions(-)
+
+commit 346840eb923dbcd43cd981c5df107e7ce1418ce4
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 15:42:33 2026 -0500
+
+    ci(release): restaura workflow de GoReleaser
+
+ .github/workflows/release.yml | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+commit 37201ada77a29ff25e5fdd0dfe84c033abc82166
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 15:30:15 2026 -0500
+
+    docs: agrega changelog v2.18.1
+
+ CHANGELOG.md | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+commit 9ffb8c4e9f284068178fdb50649c5b15bf7744d1
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 15:04:08 2026 -0500
+
+    feat(octopus): aplica política de delegación a todos los agentes y retira CI
+    
+    - Hook de Octopus ahora se inyecta en Codex, Claude Code y OpenCode
+    - claude_code_setup: registro condicional de permisos de hook
+    - speckit/reader: devuelve grafo completo de Spec Kit cuando task está vacío
+    - opencode plugin: agrega manejo de hook octopus-delegation-policy
+    - Tests: cobertura de bootstrap, hooks, integración y contrato
+    - Retira workflow de GitHub Actions (no hay CI continua)
+
+ .github/workflows/release.yml                      | 32 ----------
+ README.md                                          |  2 +-
+ adapters/primary/cli/cmd_hook.go                   | 72 +++++++++++++++++++++-
+ adapters/primary/cli/cmd_hook_bootstrap_test.go    | 28 +++++++++
+ adapters/primary/cli/cmd_mcp_octopus_tools.go      |  4 +-
+ adapters/primary/cli/cmd_octopus.go                | 16 ++++-
+ adapters/primary/cli/cmd_octopus_plan.go           |  2 +-
+ adapters/primary/cli/cmd_octopus_test.go           | 24 ++++++++
+ .../primary/setup/claude_code_permissions_test.go  | 30 ++++++++-
+ adapters/primary/setup/claude_code_setup.go        | 29 ++++++---
+ adapters/secondary/speckit/reader.go               |  4 +-
+ adapters/secondary/speckit/reader_test.go          | 28 +++++++++
+ infrastructure/plugin/opencode/gomemory.ts         |  9 +++
+ tests/contract/opencode_hooks_test.go              | 14 +++++
+ tests/integration/hook_marker_integration_test.go  | 65 +++++++++++++++++++
+ 15 files changed, 309 insertions(+), 50 deletions(-)
+
+commit 543ea6679e4bdeed8ec3bb2386afd73937873e0a
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 13:44:09 2026 -0500
+
+    ci(release): restaura publicación GoReleaser
+
+ .github/workflows/release.yml | 32 ++++++++++++++++++++++++++++++++
+ 1 file changed, 32 insertions(+)
+
+commit acbde4a819812a24efa18331845676e913499410
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 13:26:47 2026 -0500
+
+    docs(release): publica v2.18.0
+
+ CHANGELOG.md                                       |  2 +-
+ README.md                                          |  2 +-
+ application/usecases/octopus_pack_contract_test.go |  4 ++--
+ docs/MANUAL.md                                     | 24 ++++++++++++++++++++++
+ docs/architecture.md                               |  2 +-
+ .../checklists/requirements.md                     |  0
+ .../contracts/cli-octopus.md                       |  0
+ .../contracts/mcp-octopus-tools.md                 |  0
+ .../contracts/module-off.md                        |  0
+ .../contracts/routing-policy.md                    |  0
+ .../data-model.md                                  |  0
+ .../ejemplo-plan.json                              |  0
+ specs/{027-octopus-aar => 029-octopus-aar}/plan.md |  6 +++---
+ .../quickstart.md                                  |  2 +-
+ .../research.md                                    |  0
+ specs/{027-octopus-aar => 029-octopus-aar}/spec.md |  0
+ .../{027-octopus-aar => 029-octopus-aar}/tasks.md  |  4 ++--
+ tasks/lessons.md                                   |  4 ++--
+ version/version.go                                 |  2 +-
+ 19 files changed, 38 insertions(+), 14 deletions(-)
+
+commit 253fc9fb660fab7901b88fa4bba2cabf30d7ee11
+Author: Autor <autor@example.com>
+Date:   Thu Sep 3 12:36:40 2026 -0500
+
+    feat(octopus): agrega enrutador adaptativo de agentes
+
+ CHANGELOG.md                                       |  12 +
+ README.md                                          |  39 ++
+ adapters/primary/cli/cli.go                        |   3 +
+ adapters/primary/cli/cmd_hook.go                   |  29 +-
+ adapters/primary/cli/cmd_hook_bootstrap_test.go    |   8 +-
+ adapters/primary/cli/cmd_mcp.go                    |   6 +
+ .../primary/cli/cmd_mcp_octopus_report_test.go     | 152 +++++
+ adapters/primary/cli/cmd_mcp_octopus_tools.go      | 283 +++++++++
+ adapters/primary/cli/cmd_octopus.go                | 375 ++++++++++++
+ adapters/primary/cli/cmd_octopus_plan.go           | 235 ++++++++
+ adapters/primary/cli/cmd_octopus_status.go         | 177 ++++++
+ adapters/primary/cli/cmd_octopus_test.go           | 213 +++++++
+ adapters/primary/cli/deps.go                       |   6 +-
+ adapters/primary/cli/dispatcher.go                 |   2 +
+ adapters/primary/setup/claude_code_setup.go        |   2 +-
+ adapters/primary/tui/tui.go                        |  32 +-
+ adapters/primary/tui/tui_docs_test.go              |  11 +-
+ adapters/primary/tui/tui_test.go                   |  72 +++
+ adapters/secondary/persistence/db.go               |  33 +-
+ adapters/secondary/persistence/globalstore.go      |  20 +-
+ adapters/secondary/persistence/globalstore_test.go |   3 +
+ adapters/secondary/persistence/octopus.go          | 201 +++++++
+ adapters/secondary/persistence/octopus_test.go     | 199 +++++++
+ adapters/secondary/persistence/repositories.go     |  16 +
+ adapters/secondary/persistence/settings.go         |  25 +
+ adapters/secondary/persistence/settings_test.go    |  48 ++
+ adapters/secondary/speckit/reader.go               |   4 +-
+ adapters/secondary/speckit/reader_test.go          |  13 +
+ application/ports/octopus_repository.go            |  26 +
+ application/ports/settings_repository.go           |  25 +
+ application/usecases/octopus_pack_contract.go      | 213 +++++++
+ application/usecases/octopus_pack_contract_test.go | 150 +++++
+ application/usecases/octopus_report.go             | 130 +++++
+ application/usecases/octopus_report_test.go        | 186 ++++++
+ application/usecases/octopus_route_plan.go         | 214 +++++++
+ application/usecases/octopus_route_task.go         | 210 +++++++
+ application/usecases/octopus_route_task_test.go    | 206 +++++++
+ docs/architecture.md                               | 111 ++++
+ domain/mcp_tools.go                                |  55 +-
+ domain/octopus_budget.go                           | 145 +++++
+ domain/octopus_budget_test.go                      | 242 ++++++++
+ domain/octopus_capability.go                       |  48 ++
+ domain/octopus_capability_test.go                  |  76 +++
+ domain/octopus_contract.go                         | 126 +++++
+ domain/octopus_contract_test.go                    | 109 ++++
+ domain/octopus_plan.go                             | 252 +++++++++
+ domain/octopus_plan_test.go                        | 369 ++++++++++++
+ domain/octopus_plan_time_test.go                   |   8 +
+ domain/octopus_policy.go                           | 371 ++++++++++++
+ domain/octopus_policy_test.go                      | 629 +++++++++++++++++++++
+ domain/octopus_result.go                           | 172 ++++++
+ domain/octopus_result_test.go                      | 146 +++++
+ domain/octopus_route.go                            | 133 +++++
+ domain/octopus_route_test.go                       |  77 +++
+ domain/octopus_telemetry.go                        |  88 +++
+ domain/octopus_workunit.go                         | 197 +++++++
+ domain/octopus_workunit_test.go                    | 114 ++++
+ infrastructure/container.go                        |   4 +
+ specs/027-octopus-aar/checklists/requirements.md   |  40 ++
+ specs/027-octopus-aar/contracts/cli-octopus.md     |  32 ++
+ .../027-octopus-aar/contracts/mcp-octopus-tools.md |  68 +++
+ specs/027-octopus-aar/contracts/module-off.md      |  30 +
+ specs/027-octopus-aar/contracts/routing-policy.md  |  76 +++
+ specs/027-octopus-aar/data-model.md                | 253 +++++++++
+ specs/027-octopus-aar/ejemplo-plan.json            |  69 +++
+ specs/027-octopus-aar/plan.md                      | 156 +++++
+ specs/027-octopus-aar/quickstart.md                | 191 +++++++
+ specs/027-octopus-aar/research.md                  | 105 ++++
+ specs/027-octopus-aar/spec.md                      | 323 +++++++++++
+ specs/027-octopus-aar/tasks.md                     | 414 ++++++++++++++
+ tasks/lessons.md                                   |  91 +++
+ tasks/todo.md                                      |  43 ++
+ tests/contract/mcp_tool_sync_test.go               | 126 ++++-
+ tests/contract/octopus_schema_test.go              | 112 ++++
+ tests/integration/octopus_cold_start_test.go       | 132 +++++
+ tests/integration/octopus_context_pack_test.go     |  92 +++
+ tests/integration/octopus_dry_run_test.go          |  60 ++
+ tests/integration/octopus_failure_test.go          | 131 +++++
+ tests/integration/octopus_helpers_test.go          |  94 +++
+ tests/integration/octopus_module_off_test.go       | 150 +++++
+ tests/integration/octopus_route_plan_test.go       | 156 +++++
+ 81 files changed, 9971 insertions(+), 24 deletions(-)
+
+commit 229ec5da94ef0aa04b9e863cb668b8b30ec88981
+Author: Autor <autor@example.com>
+Date:   Wed Sep 2 05:41:48 2026 -0500
+
+    docs: changelog v2.16.10 — paste y foco en TUI
+
+ CHANGELOG.md | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+commit 6d6a0ffd3c58b5b3551f3fb93c9a15ec4e494bbc
+Author: Autor <autor@example.com>
+Date:   Wed Sep 2 05:39:39 2026 -0500
+
+    fix(tui): paste funciona en todas las cajas y foco correcto al guardar
+    
+    updateFocusedInput now routes paste by screen instead of Focused() global, which
+    saveContent was capturing across all screens. saveAndReturn uses updateFocus()
+    instead of bare Focus() to prevent dual-focus after tabbing.
+
+ adapters/primary/tui/tui.go      |  80 +++++++++++++++++++------
+ adapters/primary/tui/tui_test.go | 124 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 185 insertions(+), 19 deletions(-)
+
+commit 9dfc3cb9db7afb831e5c5f792710a429d0173055
+Author: Autor <autor@example.com>
+Date:   Mon Aug 31 06:07:22 2026 -0500
+
+    feat(skills): ACR descargable directo desde GitHub
+    
+    Agrega skills/adversarial-consensus-review/ con SKILL.md y README
+    que explica instalación manual, con curl y con gomemory. Transversal
+    a Claude, Codex y OpenCode.
+
+ skills/adversarial-consensus-review/README.md |  123 +++
+ skills/adversarial-consensus-review/SKILL.md  | 1426 +++++++++++++++++++++++++
+ 2 files changed, 1549 insertions(+)
+
+commit 2f9a23bbda7784d8499752d2898dc6badda2f9bc
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 15:18:29 2026 -0500
+
+    fix(inspector): Codex plan-entry verificable y hooks separados
+    
+    inspectCodexPlanEntry comprueba el hook real en ~/.codex/config.toml
+    en vez de caer en inspectAgentEntryFile que no sabe de mecanismos
+    basados en archivo. Antes reportaba 'no se conoce el mecanismo' con
+    el hook instalado, y reinstalar reescribía un hook que ya estaba.
+    
+    CodexMissingLifecycleHooks separa los hooks del ciclo (session-start,
+    post-compact, turn-end) del hook de inyección (user-prompt-submit),
+    que tiene un diagnóstico distinto.
+
+ adapters/primary/setup/activation_inspect.go      |  38 ++++++-
+ adapters/primary/setup/activation_inspect_test.go | 126 ++++++++++++++++++++++
+ adapters/primary/setup/codex_setup.go             |  66 +++++++++++-
+ 3 files changed, 225 insertions(+), 5 deletions(-)
+
+commit 7e711df283d6df03070f89e0186a0b8912207d12
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 15:10:03 2026 -0500
+
+    fix(codex): migración actualiza dialecto heredado e idempotencia
+    
+    ensureCodexGomemoryHooks ahora detecta hooks heredados sin --emit=text
+    y los actualiza al dialecto plano. Antes, un turn-end sin la bandera
+    emitía JSON de Claude y Codex descartaba la inyección.
+    
+    Tests cubren: migración de dialecto heredado, idempotencia de segunda
+    pasada, normalización de dialecto sobrante.
+
+ adapters/primary/cli/codex_gomemory_hooks_test.go | 116 ++++++++++++++++++++++
+ adapters/primary/cli/codex_hooks_migration.go     |  75 ++++++++++++--
+ adapters/primary/setup/codex_setup.go             |  44 ++++++--
+ 3 files changed, 220 insertions(+), 15 deletions(-)
+
+commit fd659a564ea73c2c9cc5087ec905afa865ca7b2d
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 14:46:44 2026 -0500
+
+    fix(review): failure no reescribe fuentes del consenso
+    
+    La corrección 2.16.6 devolvió el fail-closed pero dejaba pasar todo
+    failure sin mirar su contenido. ON CONFLICT DO UPDATE en hallazgos
+    permitía que un failure reescribiera fuentes ya clasificadas.
+    
+    Ahora el dialeto de Codex se distingue del de Claude en el hook
+    user-prompt-submit, y los tests de persistencia verifican que el
+    consenso no se contamina por reenvíos.
+
+ CHANGELOG.md                                       | 38 ++++++++++
+ adapters/primary/cli/cmd_hook.go                   | 23 +++---
+ adapters/primary/cli/codex_gomemory_hooks_test.go  | 33 ++++++++
+ adapters/primary/cli/hook_dialect.go               | 46 ++++++++++++
+ adapters/primary/cli/hook_dialect_test.go          | 40 ++++++++++
+ adapters/primary/setup/codex_setup.go              |  2 +-
+ adapters/secondary/persistence/review.go           | 24 +++++-
+ application/usecases/review_test_helpers_test.go   | 14 +++-
+ tests/integration/review_escrituras_ciegas_test.go | 87 ++++++++++++++++++++++
+ 9 files changed, 292 insertions(+), 15 deletions(-)
+
+commit 40e84601e6d7e9fa1d1d3702aff06cb5f100fee1
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 14:03:04 2026 -0500
+
+    fix(review): correcciones de la revisión adversarial sobre v2.16.5
+    
+    - Guarda de fase permite failure con consensus_ready: antes rechazaba
+      cualquier escritura fuera de recogida, bloqueando la única vía a
+      INCOMPLETE cuando el consenso ya estaba listo
+    - review_submit recupera idempotencia de reenvío
+    - PersistPendingTarget conserva etapas de merge para el digest
+    - Tests de escrituras ciegas ampliados con 124 líneas
+
+ CHANGELOG.md                                       |  79 ++++++++++
+ adapters/primary/cli/cmd_review.go                 |  33 ++++-
+ adapters/primary/cli/pending_preparado_test.go     | 161 +++++++++++++++++++++
+ adapters/secondary/persistence/review.go           | 135 ++++++++++++++++-
+ adapters/secondary/persistence/review_test.go      | 158 ++++++++++++++++++++
+ application/usecases/review_test_helpers_test.go   |  57 +++++++-
+ domain/verdict_test.go                             |   9 ++
+ tests/integration/review_escrituras_ciegas_test.go | 124 ++++++++++++++++
+ 8 files changed, 741 insertions(+), 15 deletions(-)
+
+commit 5a0430d16307350f6309009dae842663f79d932f
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 07:28:27 2026 -0500
+
+    docs: changelog v2.16.5 — ReviewerResultsMark
+
+ CHANGELOG.md | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+commit a4a01c9cc70012bc9ad8dbabf3c9f7826b4fbf4b
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 07:28:02 2026 -0500
+
+    fix(review): ReviewerResultsMark para detectar cambios entre lecturas
+    
+    Agrega ReviewerResultsMark que resume resultados y hallazgos de una
+    ronda como hash SHA-256. Se usa en la comparación atómica de
+    finalización para detectar si alguien modificó los resultados entre
+    la lectura y la escritura.
+    
+    TestMain aísla HOME en tests de cli y tui para que no contaminen la
+    config real del desarrollador.
+
+ adapters/primary/cli/cmd_mcp_review_tools.go       |   4 +-
+ adapters/primary/cli/cmd_review.go                 |  15 +-
+ adapters/primary/cli/cmd_review_query.go           |   2 +-
+ adapters/primary/cli/pending_preparado_test.go     |  22 +++
+ adapters/primary/cli/testmain_test.go              |  20 +++
+ adapters/primary/tui/testmain_test.go              |  20 +++
+ adapters/secondary/persistence/review.go           | 167 ++++++++++++++++++++-
+ adapters/secondary/persistence/review_test.go      |  82 ++++++++++
+ application/ports/review_repository.go             |  16 ++
+ application/usecases/finalize_review.go            |  17 ++-
+ application/usecases/rejudge_review.go             |   5 +-
+ application/usecases/rejudge_review_test.go        |  21 +++
+ application/usecases/review_test_helpers_test.go   |  52 +++++++
+ application/usecases/submit_reviewer_result.go     |   4 +-
+ .../usecases/submit_reviewer_result_test.go        |  35 +++++
+ docs/lessons.md                                    |   4 +
+ tests/integration/review_escrituras_ciegas_test.go |  42 ++++++
+ tests/integration/review_status_perf_test.go       |   2 +-
+ 18 files changed, 510 insertions(+), 20 deletions(-)
+
+commit 23ee7fb569a68e86979e1d375fc6a3495a19d022
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 06:39:08 2026 -0500
+
+    docs: changelog v2.16.4 — vigencia de re-juicio y finalización atómica
+
+ CHANGELOG.md | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+commit 7dd3a942a0502536646f6ff3ea0a69771e5290ba
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 06:38:43 2026 -0500
+
+    fix(review): vigencia de re-juicio y finalización atómica mejorada
+    
+    FinalizeReview ahora lee la marca de re-juicios ANTES que los datos
+    de los que se deriva el veredicto. Leída después, una retractación que
+    aterrice entre ambas lecturas queda dentro de la marca y el veredicto
+    se deriva de hallazgos obsoletos.
+    
+    ConsensusFinding gana EstadoVigente y ResueltoEn: un solo criterio de
+    vigencia que evita que consultas de estado muestren RESOLVED mientras
+    la finalización se niega a cerrar.
+    
+    SetReviewStatusAtomically reemplaza a FinalizeReviewAtomically y
+    agrega ExpectedRejudgmentMark a la comparación.
+
+ adapters/primary/cli/cmd_mcp_review_tools.go       |  23 +-
+ adapters/primary/cli/cmd_review.go                 |  36 ++-
+ adapters/primary/cli/cmd_review_query.go           |  19 +-
+ adapters/primary/cli/pending_preparado_test.go     |  48 +++
+ adapters/secondary/persistence/review.go           | 101 +++++-
+ adapters/secondary/persistence/review_test.go      |  23 ++
+ application/ports/review_repository.go             |  43 ++-
+ application/usecases/finalize_review.go            |  23 +-
+ application/usecases/promote_review_memory.go      |   9 +-
+ application/usecases/rejudge_review.go             |  31 +-
+ application/usecases/rejudge_review_test.go        |  54 +++-
+ application/usecases/review_test_helpers_test.go   |  59 +++-
+ application/usecases/submit_reviewer_result.go     |  40 ++-
+ domain/consensus.go                                |  21 ++
+ domain/review_learning.go                          |  12 +-
+ domain/review_learning_test.go                     |  14 +-
+ domain/verdict.go                                  |  18 +-
+ tests/integration/review_escrituras_ciegas_test.go | 351 +++++++++++++++++++++
+ .../integration/review_rejudgment_vigencia_test.go | 117 +++++++
+ 19 files changed, 947 insertions(+), 95 deletions(-)
+
+commit 7e88ce99a6aa1ba9993b2b4c1776e323a70a599e
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 05:50:15 2026 -0500
+
+    docs: changelog v2.16.3 — consenso atómico y finalización sin carrera
+
+ CHANGELOG.md | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+commit 7ebe7e4684c50af40e60645195b7863c43f65b57
+Author: Autor <autor@example.com>
+Date:   Sun Aug 30 05:49:51 2026 -0500
+
+    fix(review): consenso atómico y finalización sin carrera
+    
+    BuildConsensus ahora llama ReplaceConsensusRound: una sola transacción
+    que verifica que no existe y escribe las filas. Antes eran listar +
+    upserts separados (check-then-write): dos llamadas concurrentes veían
+    el ledger vacío y las dos escribían, mezclando la ronda.
+    
+    FinalizeReview usa compare-and-swap: lee el estado, verifica que no
+    cambió, y actualiza solo si coincide. UpdateReview reescribía todas
+    las columnas y una ronda de corrección entre la lectura y la escritura
+    se perdía sin aviso.
+
+ adapters/primary/cli/cmd_review.go                 |  54 ++++
+ adapters/primary/cli/pending_preparado_test.go     |  93 +++++++
+ adapters/secondary/persistence/db.go               |   6 +
+ adapters/secondary/persistence/review.go           | 295 +++++++++++++++++++--
+ application/ports/consensus_repository.go          |  25 +-
+ application/ports/review_repository.go             |  28 ++
+ application/usecases/build_consensus.go            |  37 ++-
+ application/usecases/finalize_review.go            |  20 +-
+ application/usecases/record_fix.go                 |   1 +
+ application/usecases/review_test_helpers_test.go   | 100 +++++++
+ domain/consensus.go                                |  12 +
+ domain/verdict.go                                  |  18 +-
+ domain/verdict_test.go                             |  33 +++
+ tests/integration/review_consenso_atomico_test.go  | 117 ++++++++
+ tests/integration/review_finalize_carrera_test.go  | 172 ++++++++++++
+ .../integration/review_rejudgment_vigencia_test.go | 226 ++++++++++++++++
+ 16 files changed, 1188 insertions(+), 49 deletions(-)
+
+commit cb47d1c0cf60e5adaa32aae1a0713657d48f0f9b
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 19:52:34 2026 -0500
+
+    fix(review): BEGIN IMMEDIATE en UpsertReJudgment para re-juicios concurrentes
+    
+    db.Begin() emitía un BEGIN diferido que tomaba el bloqueo de escritura
+    en el primer INSERT. En WAL, el perdedor recibía SQLITE_BUSY y el
+    busy_timeout no reintenta para una transacción que ya leyó. Con 16
+    re-juicios simultáneos fallaban 11.
+    
+    Ahora usa conexión dedicada con BEGIN IMMEDIATE, igual que
+    RecordFixAtomically.
+
+ CHANGELOG.md                                       |  45 +++++++-
+ adapters/secondary/persistence/review.go           |  55 ++++++++--
+ .../integration/review_concurrent_rejudge_test.go  | 113 +++++++++++++++++++++
+ 3 files changed, 201 insertions(+), 12 deletions(-)
+
+commit 6bec7e7022dff21df8eaef19dddba3ec781480e2
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 19:42:55 2026 -0500
+
+    docs: changelog v2.16.1 — sobreescritura de consenso entre rondas
+
+ CHANGELOG.md | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+commit f1557217c67bc7627b173039146584ac198d7e47
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 19:42:29 2026 -0500
+
+    fix(review): previene sobreescritura de consenso y hallazgos huérfanos
+    
+    BuildConsensus rechaza rondas > 0: el consenso se construye una vez
+    en la ronda de descubrimiento, no se recalcula. Sin esto, los
+    ConsensusLocalID (C-001, C-002…) se reasignaban y sobre escribían
+    el hallazgo confirmado de la ronda anterior.
+    
+    SubmitReviewerResult rechaza hallazgos nuevos en rondas > 0: un
+    resultado en revalidación es una verificación, no descubrimiento.
+    Hallazgos nuevos quedaban huérfanos (sin clasificación de consenso)
+    y la revisión nunca podía finalizar.
+    
+    AggregateReJudgmentForRound filtra por ronda: un RESOLVED viejo no
+    completaba la unanimidad de una corrección posterior que el revisor
+    nunca vio.
+
+ adapters/secondary/persistence/review.go           |  4 +-
+ application/usecases/build_consensus.go            | 17 ++++++
+ application/usecases/build_consensus_test.go       | 45 ++++++++++++++
+ application/usecases/rejudge_rondas_test.go        | 70 ++++++++++++++++++++++
+ application/usecases/review_test_helpers_test.go   |  2 +-
+ application/usecases/submit_reviewer_result.go     | 17 ++++++
+ .../usecases/submit_reviewer_result_test.go        | 49 ++++++++++++++-
+ domain/rejudgment.go                               | 25 ++++++++
+ 8 files changed, 226 insertions(+), 3 deletions(-)
+
+commit 234d24e3be9c82394513d34f098d5a524f15c486
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 19:22:43 2026 -0500
+
+    docs: changelog v2.16.0 — fortalecimiento integral de ACR
+
+ CHANGELOG.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit eceb4e8f639b976702e9d4d6dcd8d471079fd09a
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 19:22:21 2026 -0500
+
+    feat(review): fortalecimiento integral de ACR (feature 028)
+    
+    Endurece el protocolo de revisión adversarial por consenso con tres
+    correcciones que dos revisores independientes confirmaron:
+    
+    - BuildConsensus ahora exige convergencia total: no permite aprobación
+      con consenso parcial o severidad degradada
+    - FinalizeReview cumple el contrato público de métricas: expone
+      findings_resolved, findings_escalated, findings_superseded y
+      review_status de forma consistente
+    - Re-review con HIGH confirmado y rondas disponibles ahora finaliza
+      correctamente en vez de quedarse en loop
+    
+    Adicionales:
+    - coverage.go: porcentaje de cobertura de convergencia por finding
+    - rejudgment.go: dominio de re-juicios con redacción de secretos
+    - policy.go: política de revisión configurable por proyecto
+    - 8 tests nuevos de integración (concurrentes, perf, edge cases)
+    - settings: review_auto_promote, review_max_rounds
+    - go.mod: bump de dependencias
+
+ CHANGELOG.md                                       |  67 +++
+ README.md                                          |  10 +-
+ .../primary/cli/cmd_mcp_review_metrics_test.go     |  58 +++
+ adapters/primary/cli/cmd_mcp_review_tools.go       | 228 +++++++++-
+ adapters/primary/cli/cmd_review.go                 | 128 +++++-
+ adapters/primary/cli/cmd_review_query.go           | 107 ++++-
+ adapters/secondary/persistence/db.go               |  29 +-
+ adapters/secondary/persistence/repositories.go     |   6 +
+ adapters/secondary/persistence/review.go           | 401 +++++++++++++++---
+ adapters/secondary/persistence/review_test.go      | 182 ++++++++
+ adapters/secondary/persistence/settings.go         |  27 ++
+ adapters/secondary/persistence/settings_test.go    |  63 +++
+ application/ports/consensus_repository.go          |  32 ++
+ application/ports/review_repository.go             |   7 +
+ application/ports/settings_repository.go           |  12 +
+ application/usecases/build_consensus.go            | 123 ++++--
+ application/usecases/build_consensus_test.go       | 173 +++++++-
+ application/usecases/finalize_review.go            |  52 ++-
+ application/usecases/finalize_review_test.go       |   7 +-
+ application/usecases/promote_review_memory.go      |  20 +
+ application/usecases/promote_review_memory_test.go |  92 ++++-
+ application/usecases/record_fix.go                 |  40 +-
+ application/usecases/record_fix_test.go            | 112 ++++-
+ application/usecases/rejudge_review.go             | 110 +++--
+ application/usecases/rejudge_review_test.go        | 159 ++++++-
+ application/usecases/review_test_helpers_test.go   |  99 ++++-
+ application/usecases/start_review.go               |  71 ++--
+ application/usecases/start_review_test.go          |  76 ++++
+ application/usecases/submit_reviewer_result.go     |  74 +++-
+ .../usecases/submit_reviewer_result_test.go        | 148 +++++++
+ docs/MANUAL.md                                     |  62 ++-
+ docs/architecture.md                               |  34 +-
+ domain/consensus.go                                |   4 +
+ domain/consensus_coverage.go                       | 211 ++++++++++
+ domain/consensus_coverage_test.go                  | 220 ++++++++++
+ domain/finding.go                                  |  32 ++
+ domain/finding_test.go                             |  35 ++
+ domain/rejudgment.go                               |  73 ++++
+ domain/rejudgment_test.go                          |  90 ++++
+ domain/review.go                                   | 111 ++++-
+ domain/review_policy.go                            |  49 +++
+ domain/review_test.go                              |  37 ++
+ domain/verdict.go                                  |  53 ++-
+ domain/verdict_test.go                             |  94 ++++-
+ go.mod                                             |   2 +-
+ .../checklists/requirements.md                     |  35 ++
+ .../contracts/cli-contracts.md                     | 140 +++++++
+ specs/028-harden-acr-review/contracts/mcp-tools.md | 246 +++++++++++
+ specs/028-harden-acr-review/data-model.md          | 235 +++++++++++
+ specs/028-harden-acr-review/plan.md                | 170 ++++++++
+ specs/028-harden-acr-review/quickstart.md          | 291 +++++++++++++
+ specs/028-harden-acr-review/research.md            | 255 ++++++++++++
+ specs/028-harden-acr-review/spec.md                | 191 +++++++++
+ specs/028-harden-acr-review/tasks.md               | 460 +++++++++++++++++++++
+ tests/contract/review_cli_test.go                  | 159 +++++++
+ tests/contract/review_protocol_test.go             |  55 ++-
+ tests/integration/review_approved_flow_test.go     |  20 +-
+ tests/integration/review_concurrent_fix_test.go    | 119 ++++++
+ tests/integration/review_escalated_flow_test.go    |  28 +-
+ tests/integration/review_memory_context_test.go    |  38 +-
+ tests/integration/review_status_perf_test.go       |  90 ++++
+ 61 files changed, 6031 insertions(+), 321 deletions(-)
+
+commit cb75ac37e7bdc017d31faa349201a8e2ab02e206
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 13:59:55 2026 -0500
+
+    fix(install): corrige branch en comentario de uso (master → main)
+
+ scripts/install.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit a6828f6160f3b05600119af8c09df7b6685f42b6
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 13:58:00 2026 -0500
+
+    docs: changelog v2.15.0 — revisión adversarial por consenso
+
+ CHANGELOG.md | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+commit 079453f8d9a2cc01cacc5c1fc324a0e50927a0a9
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 13:56:34 2026 -0500
+
+    feat(review): revisión adversarial por consenso (feature 027)
+    
+    Implementa el protocolo completo de revisión adversarial con dos
+    revisores independientes de solo lectura sobre un target congelado:
+    
+    - Dominio: review, finding, consensus, verdict, fix
+    - Use cases: start_review, submit_reviewer_result, build_consensus,
+      finalize_review, record_fix, rejudge_review, promote_review_memory
+    - Persistencia: tablas review/finding/consensus/verdict/fix con
+      migración automática, redacción de secretos en el ledger
+    - CLI: review start/submit/consensus/finalize/fix/rejudge/promote
+    - MCP: 5 tools de revisión (review_start, review_submit, etc.)
+    - Settings: redact_secrets_enabled, review_ledger_path
+    - TestMain aísla HOME para subprocesos
+    - Spec 027: research, tasks, contracts, data-model actualizados
+
+ CHANGELOG.md                                       |  22 +-
+ README.md                                          |  35 +-
+ adapters/primary/cli/cli.go                        |   4 +
+ adapters/primary/cli/cmd_mcp.go                    |   2 +
+ adapters/primary/cli/cmd_mcp_review_tools.go       | 279 +++++++++++
+ adapters/primary/cli/cmd_mcp_schemas_test.go       |  22 +-
+ adapters/primary/cli/cmd_review.go                 | 152 ++++++
+ adapters/primary/cli/cmd_review_query.go           | 201 ++++++++
+ adapters/primary/cli/deps.go                       |   2 +
+ adapters/primary/cli/dispatcher.go                 |   2 +
+ adapters/secondary/persistence/db.go               |  79 ++-
+ adapters/secondary/persistence/memory.go           |   7 +-
+ adapters/secondary/persistence/review.go           | 540 +++++++++++++++++++++
+ adapters/secondary/persistence/review_test.go      | 249 ++++++++++
+ adapters/secondary/persistence/settings.go         |  45 ++
+ adapters/secondary/persistence/settings_test.go    |  42 ++
+ application/ports/consensus_repository.go          |  20 +
+ application/ports/review_repository.go             |  15 +
+ application/usecases/build_consensus.go            | 100 ++++
+ application/usecases/build_consensus_test.go       |  72 +++
+ application/usecases/finalize_review.go            | 102 ++++
+ application/usecases/finalize_review_test.go       |  88 ++++
+ application/usecases/promote_review_memory.go      | 112 +++++
+ application/usecases/promote_review_memory_test.go | 172 +++++++
+ application/usecases/record_fix.go                 | 116 +++++
+ application/usecases/record_fix_test.go            | 222 +++++++++
+ application/usecases/rejudge_review.go             |  98 ++++
+ application/usecases/rejudge_review_test.go        | 143 ++++++
+ application/usecases/review_test_helpers_test.go   | 177 +++++++
+ application/usecases/start_review.go               |  69 +++
+ application/usecases/start_review_test.go          |  44 ++
+ application/usecases/submit_reviewer_result.go     |  83 ++++
+ .../usecases/submit_reviewer_result_test.go        |  82 ++++
+ docs/MANUAL.md                                     |  67 +++
+ docs/USAGE-REPORT-CONTRACT.md                      |   2 +-
+ docs/architecture.md                               |  35 ++
+ domain/consensus.go                                |  31 ++
+ domain/finding.go                                  |  73 +++
+ domain/finding_test.go                             |  51 ++
+ domain/fix.go                                      | 116 +++++
+ domain/fix_test.go                                 |  85 ++++
+ domain/mcp_tools.go                                |  23 +-
+ domain/memory.go                                   |  12 +-
+ domain/review.go                                   | 124 +++++
+ domain/review_learning.go                          | 147 ++++++
+ domain/review_learning_test.go                     | 115 +++++
+ domain/review_test.go                              |  58 +++
+ domain/verdict.go                                  | 106 ++++
+ domain/verdict_test.go                             | 149 ++++++
+ infrastructure/container.go                        |   8 +
+ infrastructure/plugin/opencode/gomemory.ts         |  35 ++
+ scripts/acr-smoke.py                               |  81 ++++
+ .../contracts/mcp-tools.md                         |  10 +
+ specs/027-adversarial-consensus-review/research.md |  34 ++
+ specs/027-adversarial-consensus-review/tasks.md    | 242 ++++++---
+ tests/contract/mcp_tool_sync_test.go               |  17 +
+ tests/contract/review_cli_test.go                  |  82 ++++
+ tests/contract/review_protocol_test.go             |  50 ++
+ tests/integration/review_approved_flow_test.go     |  60 +++
+ tests/integration/review_escalated_flow_test.go    | 118 +++++
+ tests/integration/review_memory_context_test.go    | 121 +++++
+ 61 files changed, 5358 insertions(+), 92 deletions(-)
+
+commit 9f6e8093ce010cfd7b6be75aa38a491f881ceb98
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 10:52:33 2026 -0500
+
+    chore: retira .agents, .specify y .github/workflows del repo
+    
+    Estos directorios son generados localmente por speckit y las herramientas
+    de setup. No se versionan en el repositorio.
+
+ .agents/skills/speckit-analyze/SKILL.md            | 259 ---------
+ .agents/skills/speckit-checklist/SKILL.md          | 373 -------------
+ .agents/skills/speckit-clarify/SKILL.md            | 291 ----------
+ .agents/skills/speckit-constitution/SKILL.md       | 168 ------
+ .agents/skills/speckit-converge/SKILL.md           | 277 ---------
+ .agents/skills/speckit-implement/SKILL.md          | 223 --------
+ .agents/skills/speckit-plan/SKILL.md               | 166 ------
+ .agents/skills/speckit-specify/SKILL.md            | 345 ------------
+ .agents/skills/speckit-tasks/SKILL.md              | 214 -------
+ .agents/skills/speckit-taskstoissues/SKILL.md      | 109 ----
+ .github/workflows/release.yml                      |  32 --
+ .gitignore                                         |   3 +
+ .specify/extensions.yml                            |  54 --
+ .specify/extensions/.registry                      |  33 --
+ .specify/extensions/agent-context/README.md        |  57 --
+ .../agent-context/agent-context-config.yml         |   4 -
+ .../commands/speckit.agent-context.update.md       |  26 -
+ .specify/extensions/agent-context/extension.yml    |  34 --
+ .../scripts/bash/update-agent-context.sh           | 200 -------
+ .../scripts/powershell/update-agent-context.ps1    | 237 --------
+ .../speckit-gomemory-context-update/SKILL.md       |  39 --
+ .specify/extensions/gomemory-context/README.md     | 119 ----
+ .../commands/speckit.gomemory-context.update.md    |  34 --
+ .specify/extensions/gomemory-context/extension.yml |  38 --
+ .../scripts/bash/update-gomemory-context.sh        |  49 --
+ .../scripts/powershell/update-gomemory-context.ps1 |  71 ---
+ .specify/feature.json                              |   3 -
+ .specify/init-options.json                         |   9 -
+ .specify/integration.json                          |  15 -
+ .specify/integrations/claude.manifest.json         |  17 -
+ .specify/integrations/codex.manifest.json          |  17 -
+ .specify/integrations/opencode.manifest.json       |  17 -
+ .specify/integrations/speckit.manifest.json        |  17 -
+ .specify/memory/constitution.md                    | 217 --------
+ .specify/scripts/bash/check-prerequisites.sh       | 189 -------
+ .specify/scripts/bash/common.sh                    | 619 ---------------------
+ .specify/scripts/bash/create-new-feature.sh        | 299 ----------
+ .specify/scripts/bash/setup-plan.sh                |  84 ---
+ .specify/scripts/bash/setup-tasks.sh               |  91 ---
+ .specify/templates/checklist-template.md           |  40 --
+ .specify/templates/constitution-template.md        |  50 --
+ .specify/templates/plan-template.md                | 113 ----
+ .specify/templates/spec-template.md                | 131 -----
+ .specify/templates/tasks-template.md               | 252 ---------
+ .specify/workflows/speckit/workflow.yml            |  77 ---
+ .specify/workflows/workflow-registry.json          |  13 -
+ 46 files changed, 3 insertions(+), 5722 deletions(-)
+
+commit 3337bb13a9f487eb859692597757b5b159203b54
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 09:39:53 2026 -0500
+
+    chore: actualiza .gitignore con vendor, editor configs y archivos temporales
+
+ .gitignore | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+commit 1f84f984cb9fde8956a26db69576bb94f48428af
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 09:39:10 2026 -0500
+
+    docs: lecciones de campo de la sesión de paridad de canales
+
+ docs/lessons.md | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+commit 1fb65f217a9a64eefd984f7d6677811d991af482
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 09:37:00 2026 -0500
+
+    docs: changelog v2.14.0 — paridad de canales Codex/OpenCode/Claude
+
+ CHANGELOG.md | 38 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 38 insertions(+)
+
+commit b389567de225bb152058142d7fe5f423af720a2b
+Author: Autor <autor@example.com>
+Date:   Sat Aug 29 09:36:12 2026 -0500
+
+    feat(codex): paridad de canales entre Codex, OpenCode y Claude Code
+    
+    Verificado en sesión interactiva real (Codex 0.151.0): UserPromptSubmit
+    dispara y su stdout llega al modelo como contexto. La matriz de canales
+    declaraba lo contrario desde hace varias versiones, y nadie lo revisó
+    porque una celda marcada 'no aplicable' no la vuelve a mirar nadie.
+    
+    Cambios principales:
+    - renderPromptContext en hook_dialect.go: user-prompt-submit pasa por el
+      traductor de dialectos; Codex recibe texto plano, Claude su JSON
+    - Campo Emit en CodexHook: permite fijar el dialecto de salida por hook
+    - AgentSkillsSetup: InstalAgentSkill distribuye habilidades a los tres
+      agentes que exponen directorio de skills (.claude, .codex, .opencode)
+    - defaultAgentList incluye codex: mem setup-mcp --scope global sin args
+      ahora registra los tres agentes, no solo opencode y claude
+    - install.sh: rm -f previo al cp en el fallback, corrige SIGKILL por
+      firma de código cacheada por inodo en macOS
+    - TestMain aísla HOME y USERPROFILE además del GOMEMORY_DATA_HOME;
+      anclarCachesDeGo() preserva las cachés del toolchain
+    - Spec 027: revisión adversarial por consenso, distribuida a los tres
+      agentes en scope global
+
+ .agents/skills/speckit-analyze/SKILL.md            |  259 ++++
+ .agents/skills/speckit-checklist/SKILL.md          |  373 +++++
+ .agents/skills/speckit-clarify/SKILL.md            |  291 ++++
+ .agents/skills/speckit-constitution/SKILL.md       |  168 +++
+ .agents/skills/speckit-converge/SKILL.md           |  277 ++++
+ .agents/skills/speckit-implement/SKILL.md          |  223 +++
+ .agents/skills/speckit-plan/SKILL.md               |  166 +++
+ .agents/skills/speckit-specify/SKILL.md            |  345 +++++
+ .agents/skills/speckit-tasks/SKILL.md              |  214 +++
+ .agents/skills/speckit-taskstoissues/SKILL.md      |  109 ++
+ .specify/feature.json                              |    2 +-
+ .specify/init-options.json                         |    8 +-
+ .specify/integration.json                          |   10 +-
+ .specify/integrations/codex.manifest.json          |   17 +
+ .specify/integrations/speckit.manifest.json        |    2 +-
+ adapters/primary/cli/cmd_hook.go                   |   41 +-
+ adapters/primary/cli/cmd_mcp_setup.go              |   44 +-
+ adapters/primary/cli/codex_gomemory_hooks_test.go  |   14 +-
+ adapters/primary/cli/hook_dialect.go               |   37 +
+ adapters/primary/cli/hook_prompt_dialect_test.go   |  148 ++
+ adapters/primary/setup/agent_skills_setup.go       |  173 +++
+ adapters/primary/setup/agent_skills_setup_test.go  |  252 ++++
+ adapters/primary/setup/codex_setup.go              |   32 +-
+ domain/agents.go                                   |   20 +-
+ domain/channel_matrix.go                           |   28 +-
+ .../adversarial-consensus-review/SKILL.md          | 1426 ++++++++++++++++++++
+ scripts/install.sh                                 |   10 +-
+ .../checklists/requirements.md                     |   36 +
+ .../contracts/cli-contracts.md                     |   36 +
+ .../contracts/mcp-tools.md                         |   54 +
+ .../027-adversarial-consensus-review/data-model.md |  207 +++
+ specs/027-adversarial-consensus-review/plan.md     |  107 ++
+ .../027-adversarial-consensus-review/quickstart.md |   54 +
+ specs/027-adversarial-consensus-review/research.md |   45 +
+ specs/027-adversarial-consensus-review/spec.md     |  175 +++
+ specs/027-adversarial-consensus-review/tasks.md    |  317 +++++
+ tasks/todo.md                                      |  205 ++-
+ tests/contract/testmain_test.go                    |   52 +-
+ tests/integration/testmain_test.go                 |   52 +-
+ 39 files changed, 5931 insertions(+), 98 deletions(-)
+
+commit 18f256bd6ce050cacf78f9ee48f27f8cdf8a29e7
+Author: Autor <autor@example.com>
+Date:   Tue Aug 25 20:33:40 2026 -0500
+
+    chore(release): prepara la versión 2.13.0
+    
+    Bump menor y no de parche: además de las correcciones del presupuesto de
+    contexto y de la deduplicación, la tanda incorpora una capacidad nueva —Codex
+    pasa a ejercer el ciclo de memoria con sus propios enganches, instrucciones y
+    canales en el diagnóstico—. Sigue el mismo criterio que la 2.11.0, que también
+    combinó novedad y corrección en una versión menor.
+    
+    La constante de versión queda alineada con la etiqueta: hasta la 2.12.0 se
+    había quedado atrás y toda compilación desde el árbol informaba una versión
+    que no correspondía al código.
+    
+    El badge de versión del README no requiere cambio: lee el último release
+    publicado desde GitHub y se actualiza solo.
+
+ CHANGELOG.md       | 54 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 55 insertions(+), 1 deletion(-)
+
+commit 736bb962c21daa682707232e64adb0e1653a771e
+Author: Autor <autor@example.com>
+Date:   Tue Aug 25 20:29:38 2026 -0500
+
+    fix(memoria): el contexto respeta el presupuesto y Codex ejerce su ciclo
+    
+    Tres fugas medidas contra el binario en ejecución hacían que get_context
+    emitiera 58 142 caracteres contra un techo de 24 000, y que Codex corriera
+    sobre un solo canal de cinco sin que el diagnóstico lo reportara.
+    
+    Presupuesto
+    - Los checkpoints eran la única sección del builder que no pasaba por
+      acota() ni fits(): ocupaban el 68 % del documento. Ahora se acotan como
+      el resto, con puntero get_memory al detalle.
+    - formatCheckpoint limitaba el número de comandos pero no su largo: un
+      heredoc con un archivo entero se persistía literal, 25 478 caracteres el
+      mayor. Se acota cada comando declarando lo omitido.
+    
+    Deduplicación
+    - findDuplicate excluía los checkpoints por tipo. El mismo turno se
+      registraba dos veces, por el agente principal y por el subagente, con
+      títulos distintos y cuerpo idéntico: 178 filas redundantes, 265 KB. Ahora
+      se deduplica por contenido exacto dentro de la ventana.
+    
+    Doble entrega
+    - hookSessionStart emitía el contexto sin anotar la entrega, así que la
+      supresión de get_plan_context no disparaba nunca y el historial viajaba
+      dos veces por sesión. La emisión se extrae a una función verificable.
+    
+    Codex
+    - Entra a KnownAgents y a la matriz de canales; sin él, mem doctor cerraba
+      con «Sin problemas» sin reportar una sola de sus filas.
+    - Se instalan sus hooks del ciclo en config.toml y el bloque de protocolo
+      en AGENTS.md, preservando la configuración ajena.
+    - EntryUnavailableReason declara la degradación que antes era un hueco
+      silencioso, y KindLifecycleHook separa poder consultar memoria de
+      ejercer el ciclo.
+    
+    version.Version pasa de 2.10.2 a 2.12.0: la constante se había quedado
+    atrás y toda compilación desde el árbol reportaba una versión falsa.
+    
+    Medido tras el cambio: get_context 23 693 caracteres, plan-context 4 231
+    frente a 63 399, y mem doctor pasa de 18 a 24 canales sin problemas.
+
+ adapters/primary/cli/cmd_hook.go                   |  53 +++++++-
+ adapters/primary/cli/cmd_hook_checkpoint_test.go   |  43 ++++++
+ adapters/primary/cli/cmd_hook_delivery_test.go     |  89 ++++++++++++
+ adapters/primary/cli/cmd_mcp_setup.go              |  18 ++-
+ adapters/primary/cli/cmd_uninstall.go              |   2 +-
+ adapters/primary/cli/codex_gomemory_hooks_test.go  | 137 +++++++++++++++++++
+ adapters/primary/cli/codex_hooks_migration.go      | 105 +++++++++++++++
+ adapters/primary/setup/activation_inspect.go       |  55 ++++++++
+ adapters/primary/setup/atomic_plan_global.go       |  16 ++-
+ adapters/primary/setup/codex_setup.go              | 149 +++++++++++++++++++++
+ adapters/primary/setup/matrix_agreement_test.go    |  21 +++
+ adapters/secondary/persistence/memory.go           |  63 +++++++--
+ .../secondary/persistence/memory_dedup_test.go     |  46 ++++++-
+ application/usecases/build_context.go              |  26 +++-
+ application/usecases/build_context_test.go         |  47 +++++++
+ application/usecases/consolidate_memories_test.go  |  27 +++-
+ domain/activation.go                               |   5 +
+ domain/agents.go                                   |  37 ++++-
+ domain/channel_matrix.go                           |  24 ++++
+ version/version.go                                 |   2 +-
+ 20 files changed, 938 insertions(+), 27 deletions(-)
+
+commit 3e43daa8b1cf4137780c4197d36f831f0e2730b0
+Author: Autor <autor@example.com>
+Date:   Tue Aug 25 11:08:54 2026 -0500
+
+    chore(ci): retira workflow redundante
+
+ .github/workflows/ci.yml | 31 -------------------------------
+ README.md                |  1 -
+ 2 files changed, 32 deletions(-)
+
+commit 2ff24985e9cdf0b554253fec45e8a5df0776362b
+Author: Autor <autor@example.com>
+Date:   Tue Aug 25 09:47:38 2026 -0500
+
+    feat(codex): consolida hooks en config.toml
+
+ .specify/feature.json                              |   2 +-
+ CHANGELOG.md                                       |  16 ++
+ adapters/primary/cli/cmd_mcp_setup.go              |  45 +++-
+ adapters/primary/cli/codex_hooks_migration.go      | 247 +++++++++++++++++++++
+ adapters/primary/cli/codex_hooks_migration_test.go | 118 ++++++++++
+ go.mod                                             |   1 +
+ go.sum                                             |   2 +
+ .../checklists/requirements.md                     |  34 +++
+ .../contracts/hooks-config.md                      |  61 +++++
+ specs/026-consolidate-codex-hooks/data-model.md    |  77 +++++++
+ specs/026-consolidate-codex-hooks/plan.md          | 110 +++++++++
+ specs/026-consolidate-codex-hooks/quickstart.md    |  72 ++++++
+ specs/026-consolidate-codex-hooks/research.md      |  84 +++++++
+ specs/026-consolidate-codex-hooks/spec.md          | 103 +++++++++
+ specs/026-consolidate-codex-hooks/tasks.md         | 192 ++++++++++++++++
+ 15 files changed, 1160 insertions(+), 4 deletions(-)
+
+commit 4f056c863621064bc94d6475c6961f5a0e69f48c
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 15:56:06 2026 -0500
+
+    docs(release): documenta v2.11.1
+
+ CHANGELOG.md | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+commit 679e3133418debc8c9ec94d8d5cb6bf5a5f2b51f
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 15:56:03 2026 -0500
+
+    docs(spec): formaliza operación agnóstica
+
+ .specify/feature.json                              |   2 +-
+ .../checklists/requirements.md                     |  36 +++
+ .../contracts/codex-mcp-registration.md            |  21 ++
+ .../contracts/constitution-default.md              |   9 +
+ .../contracts/tui-text-interaction.md              |  22 ++
+ .../025-gomemory-agnostic-operation/data-model.md  |  57 +++++
+ specs/025-gomemory-agnostic-operation/plan.md      |  97 ++++++++
+ .../025-gomemory-agnostic-operation/quickstart.md  |  57 +++++
+ specs/025-gomemory-agnostic-operation/research.md  |  93 ++++++++
+ specs/025-gomemory-agnostic-operation/spec.md      | 257 +++++++++++++++++++++
+ specs/025-gomemory-agnostic-operation/tasks.md     | 205 ++++++++++++++++
+ 11 files changed, 855 insertions(+), 1 deletion(-)
+
+commit 0ba47bd87ec7bc1cc91a27be2b24dc73a733d085
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 15:56:01 2026 -0500
+
+    chore(git): ignora credenciales locales
+
+ .gitignore | 1 +
+ 1 file changed, 1 insertion(+)
+
+commit 1d00e5b946e904362ac76ecdd4ea1889802d12ff
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 15:55:58 2026 -0500
+
+    test(cli): cubre el alcance global de Codex
+
+ adapters/primary/cli/cmd_uninstall_test.go | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+commit 77a1a113e1b4f58b57edfe8323b82f557fba73fe
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 15:55:57 2026 -0500
+
+    fix(constitution): elimina referencias residuales
+
+ application/usecases/pinned_docs_test.go            | 20 ++++++++++++++++++++
+ domain/seed_test.go                                 | 21 +++++++++++++++++++++
+ .../templates/speckit-constitution-gen.md           |  2 +-
+ 3 files changed, 42 insertions(+), 1 deletion(-)
+
+commit 79ed80b1ecf355d9287e313f31e8bdfa864124b0
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 13:57:00 2026 -0500
+
+    docs(release): documenta v2.11.0
+
+ CHANGELOG.md | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+commit a873463e96f0f51f51805ba3395fb9b9c274cc98
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 13:56:56 2026 -0500
+
+    fix(constitution): retira referencias específicas
+
+ infrastructure/templates/speckit-constitution-gen.md | 3 ---
+ 1 file changed, 3 deletions(-)
+
+commit 6b2b4f970c75dde9dc231b6a87296fd09791d8a6
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 13:56:55 2026 -0500
+
+    feat(tui): agrega portapapeles y scroll en detalles
+
+ adapters/primary/tui/tui.go      | 137 ++++++++++++++++++++++++++++++++++++---
+ adapters/primary/tui/tui_docs.go |   2 +-
+ adapters/primary/tui/tui_test.go |  51 +++++++++++++++
+ 3 files changed, 180 insertions(+), 10 deletions(-)
+
+commit 4e0d0fe9b0841a748e108e5e25da24ae714ac210
+Author: Autor <autor@example.com>
+Date:   Mon Aug 24 13:56:51 2026 -0500
+
+    fix(codex): migra el MCP a un registro global
+
+ adapters/primary/cli/cmd_mcp_setup.go      | 224 ++++++++++++++++++++---------
+ adapters/primary/cli/cmd_mcp_setup_test.go | 145 +++++++++++++++++++
+ adapters/primary/cli/cmd_uninstall.go      |   2 +-
+ 3 files changed, 302 insertions(+), 69 deletions(-)
+
+commit b263809ca11edc4e5b41abe8dae4413f494968a7
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 20:43:37 2026 -0500
+
+    feat(install): OpenCode registra su memoria en el scope usuario
+    
+    - mem install escribe el registro MCP y los permisos una sola vez en
+      ~/.config/opencode/opencode.json, y retira los que quedaran en el
+      opencode.json del proyecto: el archivo se elimina si solo conserva
+      el $schema, o se conserva sin las claves de gomemory si guarda
+      configuración ajena.
+    - mem doctor incorpora el canal opencode·user·server_config: en verde
+      con registro global, como problema con su remedio si falta. Antes,
+      perder esa entrada no producía ningún síntoma.
+    - CHANGELOG: sección [2.10.2]; version.Version al valor de desarrollo.
+
+ CHANGELOG.md                                   |  12 ++
+ adapters/primary/setup/activation_inspect.go   |  26 +++
+ adapters/primary/setup/opencode_global_test.go | 230 +++++++++++++++++++++++++
+ adapters/primary/setup/opencode_setup.go       | 113 +++++++++++-
+ version/version.go                             |   2 +-
+ 5 files changed, 373 insertions(+), 10 deletions(-)
+
+commit 815ba15209a5db4913b8927ab8be51433c9ea919
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 20:15:19 2026 -0500
+
+    fix(liveness): conteo de sesiones desconocido y rastro de fallos en el plugin
+    
+    - SessionsSince devuelve -1 ante una consulta fallida: cero fingido
+      hacía que el informe tratara un dato ausente como evidencia de que
+      nadie trabajó. El dominio trata lo desconocido como degradación, no
+      como deterioro, y el doctor calla sin evidencia en ninguna dirección.
+    - El complemento de OpenCode anota channel-error cuando la lectura del
+      contexto o del nudge falla dentro de system.transform, con el mismo
+      rastro que ya tenían los fallos del checkpoint de turno (FR-012).
+    - CHANGELOG: sección 2.10.1; version.Version al valor de desarrollo.
+
+ CHANGELOG.md                                       |  8 ++-
+ adapters/primary/cli/cmd_doctor.go                 |  6 ++-
+ adapters/primary/cli/cmd_doctor_liveness_test.go   | 61 ++++++++++++++++++++++
+ adapters/secondary/persistence/channel_activity.go |  5 +-
+ .../secondary/persistence/channel_activity_test.go | 14 +++++
+ application/ports/channel_activity.go              |  2 +
+ domain/liveness.go                                 |  6 +++
+ domain/liveness_test.go                            |  1 +
+ infrastructure/plugin/opencode/gomemory.ts         | 28 +++++++---
+ version/version.go                                 |  2 +-
+ 10 files changed, 120 insertions(+), 13 deletions(-)
+
+commit 2b9ece3e9b17a4ead16117136af1f8b605101899
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 20:06:25 2026 -0500
+
+    fix(liveness): vitalidad de Claude Code y salida única en plan-entered
+    
+    - La entrada al plan deja rastro de actividad (claude·user·plan_entry),
+      en paridad con el complemento de OpenCode, y el doctor vigila ambos
+      agentes: un canal que funcionó y se apagó se reporta con efecto y
+      remedio; uno sin uso declarado no alarmar.
+    - silence() ya no deja continuar sobre un root inválido tras fallar
+      FindRoot, ni emite dos veces el documento vacío con el gate activo.
+    - Pruebas tabulares nuevas para ambos comportamientos.
+    - Nota de corrección en CHANGELOG (No liberado).
+
+ CHANGELOG.md                                   | 16 +++++++
+ adapters/primary/cli/cmd_doctor.go             |  5 +++
+ adapters/primary/cli/cmd_hook.go               | 18 ++++++++
+ adapters/primary/cli/cmd_hook_liveness_test.go | 59 ++++++++++++++++++++++++++
+ 4 files changed, 98 insertions(+)
+
+commit 4005879657516ca2641db5bae92a57445296a597
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 18:48:29 2026 -0500
+
+    fix(release): inyectar la versión del tag por ldflags
+    
+    La versión del binario sale ahora del TAG ({{.Version}}) y no del código.
+    Un tag cortado antes del commit del bump ya no puede publicar artefactos
+    mal etiquetados (caso v2.10.0: assets publicados declarando 2.9.0).
+
+ .goreleaser.yml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+commit 86f4cbb44d5bab91ffa459357ad9e09669109c57
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 18:20:59 2026 -0500
+
+    docs: changelog y versión 2.10.0
+
+ CHANGELOG.md       | 46 ++++++++++++++++++++++++++++++++++++++++++++++
+ version/version.go |  2 +-
+ 2 files changed, 47 insertions(+), 1 deletion(-)
+
+commit b9d99bbc786bfc0fe47f8a66f3e394eab429cb9c
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 18:13:43 2026 -0500
+
+    feat(channels): matriz de canales, economía de contexto y diagnóstico accionable (022-024)
+    
+    Implementa la cartera 022-023-024. La matriz agente-canal declara una
+    sola vez qué artefacto recibe cada agente y de ahí se derivan los
+    consumidores, cerrando la fuente de los bugs recurrentes. El plan-context
+    deduplica memorias y acota el contexto por presupuesto de tokens. Doctor
+    reporta vitalidad real de los canales: distingue presencia de actividad,
+    registra fallos del complemento y entrega efecto y remedio accionables.
+
+ .specify/feature.json                              |   2 +-
+ adapters/primary/cli/cmd_context.go                |   7 +
+ adapters/primary/cli/cmd_doctor.go                 | 181 +++++++++++++-
+ adapters/primary/cli/cmd_hook.go                   |  36 +++
+ adapters/primary/cli/cmd_mcp.go                    |   8 +
+ adapters/primary/cli/cmd_mcp_setup.go              |  38 ++-
+ adapters/primary/cli/cmd_plan_context.go           |  20 +-
+ adapters/primary/cli/cmd_uninstall.go              | 127 ++++++++--
+ .../primary/cli/cmd_uninstall_opencode_test.go     | 263 ++++++++++++++++++++
+ adapters/primary/cli/deps.go                       |  19 +-
+ adapters/primary/setup/activation_inspect.go       |  14 +-
+ adapters/primary/setup/atomic_plan_setup.go        |  20 ++
+ adapters/primary/setup/matrix_agreement_test.go    | 138 +++++++++++
+ adapters/primary/setup/opencode_setup.go           |  76 ++++++
+ adapters/secondary/persistence/channel_activity.go | 144 +++++++++++
+ .../secondary/persistence/channel_activity_test.go |  84 +++++++
+ adapters/secondary/persistence/context_delivery.go |  87 +++++++
+ .../secondary/persistence/context_delivery_test.go |  62 +++++
+ adapters/secondary/persistence/db.go               |  19 +-
+ application/ports/channel_activity.go              |  19 ++
+ application/ports/delivery_log.go                  |  22 ++
+ application/usecases/activation_report.go          |  15 +-
+ application/usecases/activation_report_test.go     |  34 +++
+ application/usecases/build_plan_context.go         |  41 +++-
+ .../usecases/build_plan_context_dedupe_test.go     |  97 ++++++++
+ application/usecases/build_plan_context_test.go    |  12 +-
+ docs/AGENT-INTEGRATION.md                          |  16 +-
+ domain/channel_matrix.go                           | 257 +++++++++++++++++++
+ domain/channel_matrix_test.go                      | 131 ++++++++++
+ domain/liveness.go                                 |  62 +++++
+ domain/liveness_test.go                            |  36 +++
+ domain/remedy.go                                   |  72 ++++++
+ domain/remedy_test.go                              |  69 ++++++
+ infrastructure/container.go                        |   6 +
+ infrastructure/plugin/opencode/gomemory.ts         |  19 +-
+ .../checklists/requirements.md                     |  60 +++++
+ .../contracts/channel-matrix.md                    |  74 ++++++
+ specs/022-agent-channel-matrix/data-model.md       |  77 ++++++
+ specs/022-agent-channel-matrix/plan.md             | 142 +++++++++++
+ specs/022-agent-channel-matrix/quickstart.md       |  86 +++++++
+ specs/022-agent-channel-matrix/research.md         | 109 +++++++++
+ specs/022-agent-channel-matrix/spec.md             | 272 +++++++++++++++++++++
+ specs/022-agent-channel-matrix/tasks.md            |  94 +++++++
+ .../023-context-economy/checklists/requirements.md |  58 +++++
+ specs/023-context-economy/spec.md                  | 252 +++++++++++++++++++
+ specs/023-context-economy/tasks.md                 |  51 ++++
+ .../checklists/requirements.md                     |  60 +++++
+ specs/024-actionable-diagnostics/spec.md           | 240 ++++++++++++++++++
+ specs/024-actionable-diagnostics/tasks.md          |  68 ++++++
+ tests/contract/channel_matrix_test.go              | 130 ++++++++++
+ tests/contract/maintenance_cli_test.go             |   1 +
+ tests/contract/opencode_hooks_test.go              |  83 +++++++
+ tests/contract/plugin_placeholder_test.go          |  37 +++
+ tests/integration/uninstall_integration_test.go    |   5 +
+ 54 files changed, 4092 insertions(+), 60 deletions(-)
+
+commit 48afd31555486f1787e918a2a0a54cec294f07e8
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 11:04:18 2026 -0500
+
+    docs: changelog 2.9.0 en espanol alineado con las notas del release
+
+ CHANGELOG.md | 153 ++++++++++++++++++++++++++++++++---------------------------
+ 1 file changed, 83 insertions(+), 70 deletions(-)
+
+commit 27cf76ca052906416480bd32dfa930f8d5fc2f68
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 09:19:57 2026 -0500
+
+    chore: retirar CLAUDE.md y AGENTS.md del repositorio
+    
+    El protocolo lo entrega el servidor MCP en initialize y las reglas
+    de trabajo viven como memoria fijada; los archivos duplicaban ese
+    contenido en el repo público.
+
+ AGENTS.md | 205 --------------------------------------------------------------
+ CLAUDE.md | 187 --------------------------------------------------------
+ 2 files changed, 392 deletions(-)
+
+commit d7b63ae8496cad5cc99ef86f61b76a374096bd34
+Author: Autor <autor@example.com>
+Date:   Sun Aug 23 09:02:26 2026 -0500
+
+    feat: reglas y constitución como memorias, install sin artefactos (v2.9.0)
+    
+    Feature 021: `mem install` deja de escribir archivos de instrucciones en el
+    repositorio. El bloque de protocolo que inyectaba en AGENTS.md/CLAUDE.md era
+    una segunda copia del texto que el servidor MCP ya entrega en su respuesta
+    initialize, y la constitución copiada eran 635 líneas congeladas que divergían
+    de su fuente en cuanto alguien editaba una de las dos.
+    
+    En su lugar se siembran dos memorias: las reglas de trabajo (preference), que
+    get_context() emite ÍNTEGRAS como única excepción declarada al presupuesto de
+    contexto —el mismo trato que ya tenían los conflictos sin resolver—, y la
+    constitución (architecture), que se consulta bajo demanda para no gastar
+    cientos de líneas en cada arranque de sesión.
+    
+    Las plantillas que se envían son un punto de partida, no doctrina: sin una vía
+    cómoda de reemplazo, sembrar reglas convertiría a la herramienta en autora de
+    las normas del equipo. De ahí `mem docs` (list/show/export/import/reset), con
+    paridad verificada entre consola y TUI sobre un catálogo table-driven en el que
+    añadir un documento nuevo es una entrada, nunca un comando ni una pantalla.
+    
+    Los artefactos de instalaciones previas se retiran. Los archivos de
+    instrucciones se respaldan en .memory/backups/agent-files/ antes de borrarlos,
+    y si el respaldo no se puede escribir el original se conserva. Windsurf y Cline
+    salen de la instalación automática: creaban una carpeta en la raíz de todo
+    proyecto para un solo JSON. Siguen disponibles con setup-mcp --agents.
+    
+    Cinco bugs reales corregidos, cuatro encontrados verificando contra el binario
+    y no en la suite:
+    
+    - ListMemories no proyectaba topic_key, a diferencia de ListAllMemories: la
+      columna llegaba vacía a todo consumidor de esa vía, sin error ni aviso.
+    - Sembrar la constitución habría publicado el documento entero en el ADR
+      externo de quien tuviera adr_sync_enabled=true, síncrono y sin pedirlo.
+      Siembra, importación y restauración usan ahora una vía de inserción inerte
+      que omite sinapsis y publicación externa; la depuración de secretos sigue
+      activa, porque es una defensa de seguridad y no un canal lateral.
+    - Una memoria fijada podía desaparecer del contexto en silencio: su presencia
+      dependía de la ventana de recencia. Ahora se resuelve por clave de tópico.
+    - install sembraba en el store del directorio actual y no en el del proyecto
+      destino, e informaba "semillas ya presentes" cuando en realidad no había
+      escrito nada. El test no lo vio porque ejecutaba install con cwd == destino.
+    - `docs export <alias> -o <archivo>` escribía a stdout y dejaba el archivo
+      vacío: el parser de flags de Go se detiene en el primer posicional.
+    
+    También se cierra un flake preexistente de tests/integration: un proceso
+    desacoplado escribía el snapshot del grafo en .memory/ después de terminar el
+    test y competía con la limpieza del directorio temporal, tumbando un test
+    distinto cada cuatro corridas sin que ninguna aserción fallara.
+
+ .specify/feature.json                              |   2 +-
+ CHANGELOG.md                                       |  78 ++++
+ INSTALLATION.md                                    |  48 ++-
+ README.md                                          |   7 +-
+ adapters/primary/cli/cli.go                        |   9 +
+ adapters/primary/cli/cmd_constitution.go           |  92 ++++
+ adapters/primary/cli/cmd_constitution_test.go      | 153 +++++++
+ adapters/primary/cli/cmd_docs.go                   | 291 +++++++++++++
+ adapters/primary/cli/cmd_docs_test.go              | 338 +++++++++++++++
+ adapters/primary/cli/cmd_install.go                | 125 ++----
+ adapters/primary/cli/cmd_install_cleanup.go        | 144 +++++++
+ adapters/primary/cli/cmd_install_cleanup_test.go   | 197 +++++++++
+ adapters/primary/cli/cmd_mcp.go                    |  11 +
+ adapters/primary/cli/cmd_uninstall.go              |  12 +-
+ adapters/primary/cli/dispatcher.go                 |   8 +
+ adapters/primary/cli/seeds.go                      |  71 ++++
+ adapters/primary/setup/activation_inspect.go       |  24 +-
+ adapters/primary/setup/activation_inspect_test.go  |  60 +++
+ adapters/primary/setup/constitution_setup.go       |  97 +++++
+ adapters/primary/setup/constitution_setup_test.go  | 129 ++++++
+ adapters/primary/tui/tui.go                        |  53 ++-
+ adapters/primary/tui/tui_docs.go                   | 341 +++++++++++++++
+ adapters/primary/tui/tui_docs_test.go              | 212 ++++++++++
+ adapters/secondary/persistence/memory.go           |  89 +++-
+ adapters/secondary/persistence/memory_seed_test.go | 288 +++++++++++++
+ adapters/secondary/persistence/repositories.go     |  11 +
+ application/ports/pinned_doc.go                    |  29 ++
+ application/usecases/build_context.go              |  59 +++
+ application/usecases/build_context_pinned_test.go  | 190 +++++++++
+ application/usecases/pinned_docs.go                | 187 +++++++++
+ application/usecases/pinned_docs_test.go           | 281 +++++++++++++
+ application/usecases/seed_defaults.go              |  85 ++++
+ application/usecases/seed_defaults_test.go         | 180 ++++++++
+ docs/MANUAL.md                                     | 124 ++++--
+ docs/architecture.md                               |  13 +-
+ domain/seed.go                                     | 100 +++++
+ domain/seed_test.go                                | 101 +++++
+ infrastructure/container.go                        |   7 +
+ infrastructure/main.go                             |  15 +
+ infrastructure/templates/agent-preamble.md         |   6 +
+ .../checklists/requirements.md                     |  69 +++
+ .../contracts/cli-constitution.md                  |  49 +++
+ .../contracts/install-artifacts.md                 |  89 ++++
+ .../contracts/pinned-docs.md                       | 198 +++++++++
+ .../contracts/seed-defaults.md                     | 107 +++++
+ specs/021-install-seed-memories/data-model.md      | 237 +++++++++++
+ specs/021-install-seed-memories/plan.md            | 272 ++++++++++++
+ specs/021-install-seed-memories/quickstart.md      | 463 +++++++++++++++++++++
+ specs/021-install-seed-memories/research.md        | 317 ++++++++++++++
+ specs/021-install-seed-memories/spec.md            | 265 ++++++++++++
+ specs/021-install-seed-memories/tasks.md           | 320 ++++++++++++++
+ tests/contract/integration_block_test.go           |  58 +--
+ tests/contract/pinned_docs_parity_test.go          | 142 +++++++
+ tests/integration/backup_hook_integration_test.go  |   4 +-
+ tests/integration/hook_marker_integration_test.go  |  43 +-
+ tests/integration/lazy_init_test.go                |  14 +-
+ tests/integration/protocol_block_test.go           | 155 ++++---
+ tests/integration/seed_bootstrap_test.go           |  96 +++++
+ version/version.go                                 |   2 +-
+ 59 files changed, 6928 insertions(+), 239 deletions(-)
+
+commit 803ae59f6ea44ac70e3453b681ac6076670f3060
+Author: Autor <autor@example.com>
+Date:   Thu Aug 20 07:37:58 2026 -0500
+
+    docs: agregar badge bubbletea v2 y sección TUI al README
+
+ README.md | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+commit 31f21c6ee0d76140f9edf4a5fcb6cb9f6064d938
+Author: Autor <autor@example.com>
+Date:   Thu Aug 20 07:35:18 2026 -0500
+
+    feat: migrar TUI a bubbletea v2 + paleta Matrix (sst/opencode)
+    
+    bubbletea v1.3.10→v2.0.9, bubbles v1.0.0→v2.1.1, lipgloss v1.1.0→v2.0.6.
+    Estilos extraídos a styles.go propio, siguiendo el patrón que usa engram.
+    
+    Bug real corregido en la migración: el toggle de exclusión de duplicados
+    usaba `case " ":`, semántica de bubbletea v1. En v2 la barra espaciadora
+    reporta "space" en vez de " ", así que quedaba roto en silencio (compilaba,
+    pero dejaba de matchear) — cubierto por TestOptimizeDetail_SpaceExcludesFromDeletion.
+    
+    Paleta visual: tema oscuro fijo con los valores exactos de matrix.json de
+    sst/opencode (verde Matrix como acento primario, resto de tonos por rol
+    semántico).
+
+ adapters/primary/tui/styles.go         | 183 +++++++++++++++++++++++++++++
+ adapters/primary/tui/tui.go            | 209 ++++-----------------------------
+ adapters/primary/tui/tui_test.go       |  89 +++++++-------
+ adapters/primary/tui/tui_usage.go      |   2 +-
+ adapters/primary/tui/tui_usage_test.go |  18 ++-
+ go.mod                                 |  32 +++--
+ go.sum                                 |  71 +++++------
+ tasks/todo.md                          |  52 ++++----
+ 8 files changed, 345 insertions(+), 311 deletions(-)
+
+commit 43d9202941495359830e3601eb820eb4973b7e7c
+Author: Autor <autor@example.com>
+Date:   Thu Aug 20 06:37:34 2026 -0500
+
+    chore: marcar T073 completa tras publicar el release v2.8.0
+
+ specs/020-token-usage-benchmark/tasks.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+commit 4fbcaba2608cc38cafcc59cdc75d0b6e5067278a
+Author: Autor <autor@example.com>
+Date:   Thu Aug 20 06:34:20 2026 -0500
+
+    feat: benchmark de tokens (mem usage) + consolidación + modo índice (v2.8.0)
+    
+    Feature 020: mem usage mide, por sesión, cuántos tokens ahorra gomemory al
+    emitir contexto (línea base/emitido/ahorro, desglose por operación y canal),
+    disponible en CLI (--json), y en una pantalla propia de la TUI (tecla u).
+    
+    Dos optimizaciones validadas con esa medición:
+    - mem consolidate: funde memorias redundantes por clave de tópico y por
+      registros de actividad idénticos (Δ medido en vivo: -54.6% de línea base).
+    - Modo índice de get_context (context_index_mode): protocolo íntegro + índice
+      por memoria, detalle bajo demanda (Δ medido en vivo: -63% de lo emitido).
+    
+    mem get <id> añade el drill-down por CLI que el modo índice necesita.
+    bubbletea sube de v0.26.1 a v1.3.10 sin cambios de comportamiento.
+    
+    Bugs reales corregidos en verificación en vivo, no solo en tests:
+    - El middleware de respaldo del canal MCP nunca funcionó (type assertion a
+      *mcp.CallToolParams en vez de *mcp.CallToolParamsRaw, que es lo que el SDK
+      entrega sin parsear) — encontrado por un test end-to-end contra el
+      servidor real, no por measurePublishedSchemas.
+    - ListAllMemories nunca seleccionaba topic_key.
+    - rawCharsOf podía reportar emitido > línea base en memorias cortas.
+    - El reporte de "sin sesión" colapsaba con el de "todas las sesiones".
+
+ .specify/feature.json                              |   2 +-
+ AGENTS.md                                          |   9 +
+ CHANGELOG.md                                       |  71 +++
+ INSTALLATION.md                                    |   3 +
+ README.md                                          |   6 +
+ adapters/primary/cli/cli.go                        |  14 +-
+ adapters/primary/cli/cmd_consolidate.go            |  55 +++
+ adapters/primary/cli/cmd_consolidate_test.go       |  85 ++++
+ adapters/primary/cli/cmd_get.go                    |  32 ++
+ adapters/primary/cli/cmd_get_test.go               |  29 ++
+ adapters/primary/cli/cmd_mcp.go                    |  69 ++-
+ adapters/primary/cli/cmd_mcp_schemas.go            |  60 +++
+ adapters/primary/cli/cmd_mcp_schemas_test.go       |  34 ++
+ adapters/primary/cli/cmd_mcp_usage_test.go         | 177 ++++++++
+ adapters/primary/cli/cmd_pack.go                   |   4 +
+ adapters/primary/cli/cmd_usage.go                  | 170 ++++++++
+ adapters/primary/cli/cmd_usage_test.go             | 126 ++++++
+ adapters/primary/cli/deps.go                       |   3 +
+ adapters/primary/cli/dispatcher.go                 |   6 +
+ adapters/primary/cli/footprint.go                  |  65 +++
+ adapters/primary/tui/tui.go                        | 148 ++++++-
+ adapters/primary/tui/tui_usage.go                  | 189 ++++++++
+ adapters/primary/tui/tui_usage_test.go             | 354 +++++++++++++++
+ adapters/secondary/persistence/db.go               |  14 +-
+ adapters/secondary/persistence/db_test.go          |  49 +++
+ adapters/secondary/persistence/memory.go           |   4 +-
+ adapters/secondary/persistence/repositories.go     |   4 +
+ adapters/secondary/persistence/settings.go         |   8 +
+ adapters/secondary/persistence/settings_test.go    |  55 +++
+ adapters/secondary/persistence/usage.go            | 129 ++++++
+ adapters/secondary/persistence/usage_test.go       | 122 ++++++
+ adapters/secondary/usage/recorder.go               |  52 +++
+ adapters/secondary/usage/recorder_test.go          |  86 ++++
+ application/ports/settings_repository.go           |  11 +
+ application/ports/usage_recorder.go                |  14 +
+ application/ports/usage_repository.go              |  20 +
+ application/usecases/build_context.go              |  85 +++-
+ application/usecases/build_context_pack.go         |   9 +
+ application/usecases/build_context_test.go         | 232 ++++++++++
+ application/usecases/build_usage_report.go         |  78 ++++
+ application/usecases/build_usage_report_test.go    | 145 +++++++
+ application/usecases/consolidate_memories.go       | 163 +++++++
+ application/usecases/consolidate_memories_test.go  | 181 ++++++++
+ application/usecases/format_usage_report.go        |  70 +++
+ docs/MANUAL.md                                     |  55 +++
+ docs/USAGE-REPORT-CONTRACT.md                      | 148 +++++++
+ domain/usage.go                                    |  98 +++++
+ domain/usage_test.go                               |  88 ++++
+ go.mod                                             |  24 +-
+ go.sum                                             |  51 ++-
+ infrastructure/container.go                        |  46 +-
+ infrastructure/main.go                             |  19 +-
+ specs/017-context-snapshot-tui/spec.md             |   7 +-
+ .../checklists/requirements.md                     |  64 +++
+ .../contracts/usage-recorder.md                    | 122 ++++++
+ .../contracts/usage-report.md                      | 148 +++++++
+ specs/020-token-usage-benchmark/data-model.md      | 205 +++++++++
+ specs/020-token-usage-benchmark/plan.md            | 203 +++++++++
+ specs/020-token-usage-benchmark/quickstart.md      | 240 +++++++++++
+ specs/020-token-usage-benchmark/research.md        | 243 +++++++++++
+ specs/020-token-usage-benchmark/spec.md            | 474 +++++++++++++++++++++
+ specs/020-token-usage-benchmark/tasks.md           | 343 +++++++++++++++
+ version/version.go                                 |   2 +-
+ 63 files changed, 5755 insertions(+), 67 deletions(-)
+
+commit 877512770a792850a1cdcc83f09133b25788d625
+Author: Autor <autor@example.com>
+Date:   Mon Aug 17 15:44:58 2026 -0500
+
+    docs: poner al día AGENTS.md e INSTALLATION.md con el estado real de v2.7.0
+    
+    Quedaron fuera de la sincronización de la feature 019: faltaba mem doctor,
+    el enlace a docs/AGENT-INTEGRATION.md y las tools pack_* en AGENTS.md;
+    INSTALLATION.md seguía en v1.12.0, sin el flujo mem update ni el hook
+    global de la 019.
+
+ AGENTS.md       |  9 +++++++++
+ INSTALLATION.md | 50 ++++++++++++++++++++++++++++++++++++++++++++------
+ 2 files changed, 53 insertions(+), 6 deletions(-)
+
+commit 71c61ae10891bcbce384d36615fec7af521d1672
+Author: Autor <autor@example.com>
+Date:   Mon Aug 17 15:35:03 2026 -0500
+
+    chore: go mod tidy tras el release v2.7.0 + ignorar dist/ de goreleaser
+
+ .gitignore | 1 +
+ go.mod     | 1 -
+ go.sum     | 4 ----
+ 3 files changed, 1 insertion(+), 5 deletions(-)
+
+commit aea9366d1448cb30bf554b00c2408efd44be1714
+Author: Autor <autor@example.com>
+Date:   Mon Aug 17 15:33:20 2026 -0500
+
+    feat: activación determinista del modo plan atómico + mem doctor (v2.7.0)
+    
+    Feature 019: capa determinista sobre el protocolo textual de activación
+    del modo plan (spec 013). Antes, un agente podía presentar un plan sin
+    descomposición atómica y el sistema solo confiaba en que el modelo
+    siguiera la instrucción del prompt. Ahora hay un punto de decisión real:
+    
+    - domain/plan_shape.go: EvaluatePlanShape juzga si un plan tiene forma
+      de árbol de tareas verificables (umbral 200 caracteres, sesgada a
+      permitir).
+    - mem hook plan-guard: PreToolUse:ExitPlanMode en Claude Code deniega
+      con motivo cuando el plan es solo prosa; permite si tiene forma de
+      árbol, si el episodio ya se devolvió, o si plan_guard_disabled=true.
+    - mem hook plan-entered: al entrar a modo plan, entrega el método de
+      descomposición completo la primera vez de la sesión y un recordatorio
+      de una línea en las entradas siguientes (domain/plan_budget.go ajusta
+      al presupuesto del canal).
+    - Contrato agnóstico de agente (docs/AGENT-INTEGRATION.md): registro de
+      capacidades por agente (domain/agents.go) + traductor de dialectos
+      (adapters/primary/cli/hook_dialect.go) para que ningún formato de
+      agente concreto se filtre al dominio. OpenCode declara explícitamente
+      por qué el guard no aplica (GuardUnavailableReason) en vez de omitirse
+      en silencio.
+    - mem doctor [--json] [--strict]: reporte de cobertura de los canales
+      de activación (instrucciones de usuario/proyecto, hooks, plugin,
+      brazo de código) para los agentes soportados.
+    - Hooks en el ámbito global (--scope global) ahora también se escriben
+      en ~/.claude/settings.json — antes ese ámbito solo dejaba MCP + texto,
+      nunca hooks.
+    - scripts/test-codebase-memory-activation.sh extendido con mem doctor
+      --json (spec 014, implementada en su momento y comiteada ahora junto
+      con esta feature).
+    
+    Dos bugs reales encontrados y corregidos en la verificación final
+    contra $HOME real: el inspector de activación miraba ~/CLAUDE.md en vez
+    de ~/.claude/CLAUDE.md, y evaluaba el canal plan_entered de OpenCode con
+    el mecanismo de hooks de Claude Code. Ambos compartían la misma causa:
+    asumir que un agente comparte ruta/mecanismo con Claude Code en vez de
+    consultar la fuente real de cada uno.
+    
+    specs/019-deterministic-plan-trigger/ (spec → plan → tasks, 69/69,
+    TDD estricto). go build/vet/test ./... en verde; script de regresión
+    63/63.
+
+ .specify/feature.json                              |   2 +-
+ README.md                                          |   3 +
+ adapters/primary/cli/cmd_doctor.go                 |  96 +++++
+ adapters/primary/cli/cmd_hook.go                   | 183 ++++++++-
+ adapters/primary/cli/cmd_install.go                |  82 +++-
+ adapters/primary/cli/cmd_mcp_setup.go              |  22 +
+ adapters/primary/cli/cmd_mcp_setup_hooks_test.go   | 134 ++++++
+ adapters/primary/cli/dispatcher.go                 |   2 +
+ adapters/primary/cli/hook_dialect.go               | 198 +++++++++
+ adapters/primary/cli/hook_dialect_flags_test.go    |  67 +++
+ adapters/primary/cli/hook_dialect_test.go          | 212 ++++++++++
+ adapters/primary/cli/nudge.go                      |  23 ++
+ adapters/primary/cli/nudge_test.go                 |  32 ++
+ adapters/primary/cli/plan_episode.go               |  49 +++
+ adapters/primary/cli/plan_episode_test.go          |  54 +++
+ adapters/primary/setup/activation_inspect.go       | 316 ++++++++++++++
+ adapters/primary/setup/activation_inspect_test.go  | 281 +++++++++++++
+ adapters/primary/setup/claude_code_setup.go        |  78 +++-
+ adapters/primary/setup/claude_code_setup_test.go   |  17 +
+ adapters/primary/tui/tui.go                        |  19 +-
+ adapters/primary/tui/tui_test.go                   |  25 ++
+ adapters/secondary/persistence/repositories.go     |   2 +
+ adapters/secondary/persistence/settings.go         |   5 +
+ adapters/secondary/persistence/settings_test.go    |  43 ++
+ application/ports/activation.go                    |  17 +
+ application/ports/settings_repository.go           |   5 +
+ application/usecases/activation_report.go          |  27 ++
+ application/usecases/activation_report_test.go     |  63 +++
+ docs/AGENT-INTEGRATION.md                          | 163 ++++++++
+ docs/MANUAL.md                                     |  52 +++
+ docs/architecture.md                               |  51 ++-
+ docs/lessons.md                                    |   8 +
+ domain/activation.go                               |  94 +++++
+ domain/activation_test.go                          |  58 +++
+ domain/agents.go                                   | 126 ++++++
+ domain/agents_test.go                              |  85 ++++
+ domain/plan_budget.go                              |  70 ++++
+ domain/plan_budget_test.go                         | 123 ++++++
+ domain/plan_shape.go                               |  75 ++++
+ domain/plan_shape_test.go                          |  90 ++++
+ domain/protocol.go                                 |  16 +
+ infrastructure/plugin/opencode/gomemory.ts         |   9 +-
+ scripts/test-codebase-memory-activation.sh         | 419 +++++++++++++++++++
+ .../checklists/requirements.md                     |  35 ++
+ .../contracts/hook-schemas.md                      | 103 +++++
+ .../data-model.md                                  |  59 +++
+ specs/014-codebase-memory-activation-tests/plan.md |  74 ++++
+ .../quickstart.md                                  |  95 +++++
+ .../research.md                                    |  56 +++
+ specs/014-codebase-memory-activation-tests/spec.md | 150 +++++++
+ .../014-codebase-memory-activation-tests/tasks.md  | 225 ++++++++++
+ .../checklists/requirements.md                     |  84 ++++
+ .../contracts/agent-integration.md                 | 168 ++++++++
+ .../contracts/doctor-report.md                     | 112 +++++
+ .../contracts/hook-plan-entered.md                 | 111 +++++
+ .../contracts/hook-plan-guard.md                   | 119 ++++++
+ specs/019-deterministic-plan-trigger/data-model.md | 160 ++++++++
+ specs/019-deterministic-plan-trigger/plan.md       | 216 ++++++++++
+ specs/019-deterministic-plan-trigger/quickstart.md | 245 +++++++++++
+ specs/019-deterministic-plan-trigger/research.md   | 455 +++++++++++++++++++++
+ specs/019-deterministic-plan-trigger/spec.md       | 453 ++++++++++++++++++++
+ specs/019-deterministic-plan-trigger/tasks.md      | 292 +++++++++++++
+ tests/contract/agent_integration_doc_test.go       |  51 +++
+ tests/contract/claude_hooks_merge_test.go          | 186 +++++++++
+ tests/contract/doctor_report_test.go               | 100 +++++
+ tests/contract/hook_plan_entered_test.go           | 223 ++++++++++
+ tests/contract/hook_plan_guard_test.go             | 189 +++++++++
+ tests/contract/integration_block_test.go           |  76 ++++
+ tests/contract/plan_guard_neutral_test.go          | 229 +++++++++++
+ tests/integration/foreign_agent_test.go            | 111 +++++
+ tests/integration/hook_marker_integration_test.go  |   9 +-
+ tests/integration/protocol_block_test.go           |  78 ++++
+ version/version.go                                 |   2 +-
+ 73 files changed, 7929 insertions(+), 33 deletions(-)
+
+commit 93b79ac23bc8ab51dfadf3d3757d275254a3b9f5
+Author: Autor <autor@example.com>
+Date:   Sat Aug 15 16:02:50 2026 -0500
+
+    docs: sincronizar README/MANUAL/architecture con el estado real del proyecto
+    
+    Auditoría de docs/ + README.md contra el código actual, sin cambios de
+    comportamiento:
+    
+    - README: tabla de MCP Tools completa (mostraba 10 de 19 — faltaban las 5
+      de grafo de código y las 4 de mem pack); árbol de CLI con los comandos
+      reales (faltaban pack, session, mcp, wrap, hook, install/setup-mcp,
+      compare/judge, adr-sync); tabla de configuración con los ajustes del
+      grafo de código externo.
+    - docs/MANUAL.md: nueva sección "Grafo de Código (mem index)" — el comando
+      no aparecía documentado en ningún lado, incluyendo --skip-graph y el
+      reindexado dual de la feature 016; secciones 9-13 renumeradas a 10-14.
+      Corrección: la huella de contexto es editable desde la TUI, no solo
+      visible.
+    - docs/architecture.md: sección de TUI reescrita (describía 3 pantallas y
+      un modelo de 4 campos; la real tiene 11 pantallas — mantenimiento,
+      configuración, optimizar duplicados, edición de ajustes, importar).
+      Documentada la feature 016 (reindexado dual + acción de TUI), ausente
+      hasta ahora. Anotado el bug de resolveHotspotFiles corregido hoy donde
+      se documenta esa capacidad.
+    - docs/lessons.md: entrada nueva con las lecciones de hoy (un test que
+      nunca ejerció el camino real dejó un bug de ~7 versiones sin detectar;
+      search_graph vs search_code; verificar JSON antes de diagnosticar un
+      fix como intermitente).
+    
+    specs/017-context-snapshot-tui sigue sin implementar (solo spec.md) —
+    deliberadamente no se documenta como si existiera.
+
+ README.md            | 73 ++++++++++++++++++++++++++++++++++++++++------------
+ docs/MANUAL.md       | 62 +++++++++++++++++++++++++++++++++++---------
+ docs/architecture.md | 58 ++++++++++++++++++++++++++++++++---------
+ docs/lessons.md      |  6 +++++
+ 4 files changed, 159 insertions(+), 40 deletions(-)
+
+commit 6a82dfa5a212948429bbe8bc0752cbd0143ebbdb
+Author: Autor <autor@example.com>
+Date:   Sat Aug 15 15:41:51 2026 -0500
+
+    feat: grafo de código como señal de Retrieval en mem pack — fix: resolveHotspotFiles resuelve archivo real, no ruido de grep BM25 (v2.6.0)
+    
+    mem pack build (Retrieval → Dedup → Priority → Compression → Token Budget →
+    ContextPack) no conocía el grafo de código externo — solo mem context lo
+    usaba. Ahora BuildContextPack también lo consulta, mismo contrato de
+    no-bloqueo (snapshot cacheado, degradación silenciosa):
+    
+    - Memorias candidatas cuyo archivo es un hotspot vigente suben de prioridad
+      Optional a Relevant (boostHotspotCandidates).
+    - Ítem opcional de arquitectura compacta cuando hay presupuesto
+      (codeGraphArchitectureCandidate, reusa formatCodeArchitecture extraído de
+      writeCodeProviderSection).
+    - --no-code-graph (CLI) / no_code_graph (tool MCP pack_build) para
+      desactivar por invocación — default activado en ambos.
+    
+    specs/018-codegraph-pack-retrieval/ (spec → plan → tasks → implement,
+    21/21 tareas, TDD estricto).
+    
+    Bug encontrado y corregido al validar en vivo: resolveHotspotFiles nunca
+    poblaba CodeHotspot.File en ningún proyecto real. Causa raíz: usaba
+    search_code (grep/BM25 de texto libre) pasándole el qualified_name completo
+    como patrón — contra un repo real ese texto nunca gana el ranking, el
+    primer resultado es ruido no relacionado. Fix: search_graph con qn_pattern
+    (regex anclada), que sí resuelve el símbolo exacto. Esto también arregla
+    la sección preexistente "🔥 Memoria conectada a código activo" de
+    mem context (feature 010), que llevaba sin funcionar en la práctica desde
+    que se implementó.
+    
+    go build/go test ./... completo en verde. Verificado en vivo contra
+    codebase-memory-mcp real de este repo.
+
+ .specify/feature.json                              |   2 +-
+ README.md                                          |   1 -
+ adapters/primary/cli/cmd_mcp.go                    |  17 +-
+ adapters/primary/cli/cmd_pack.go                   |  17 +-
+ .../secondary/codegraph/codebasememory/provider.go |  37 ++-
+ .../codegraph/codebasememory/provider_test.go      |  53 +++-
+ .../testdata/search_graph_writefile.json           |  59 ++++
+ application/usecases/build_context.go              |  10 +
+ application/usecases/build_context_pack.go         |  73 +++++
+ application/usecases/build_context_pack_test.go    | 235 ++++++++++++++++
+ docs/MANUAL.md                                     |  14 +-
+ docs/architecture.md                               |  14 +
+ .../checklists/requirements.md                     |  38 +++
+ .../018-codegraph-pack-retrieval/contracts/cli.md  |  28 ++
+ .../contracts/go-api.md                            |  90 ++++++
+ .../contracts/mcp-tools.md                         |  50 ++++
+ specs/018-codegraph-pack-retrieval/data-model.md   |  66 +++++
+ specs/018-codegraph-pack-retrieval/plan.md         | 123 ++++++++
+ specs/018-codegraph-pack-retrieval/quickstart.md   |  97 +++++++
+ specs/018-codegraph-pack-retrieval/research.md     | 140 +++++++++
+ specs/018-codegraph-pack-retrieval/spec.md         | 102 +++++++
+ specs/018-codegraph-pack-retrieval/tasks.md        | 313 +++++++++++++++++++++
+ tests/contract/pack_build_cli_test.go              |  18 ++
+ .../build_context_pack_codegraph_test.go           |  85 ++++++
+ version/version.go                                 |   2 +-
+ 25 files changed, 1651 insertions(+), 33 deletions(-)
+
+commit 7d2533e6e06a99d27bb6414953d7a184280f09a4
+Author: Autor <autor@example.com>
+Date:   Sat Aug 15 11:53:31 2026 -0500
+
+    docs: especificar snapshot de optimización de contexto en la TUI (spec 017)
+    
+    mem pack build (feature 015) hoy solo es accesible vía CLI/MCP. El
+    usuario quiere, desde la TUI, escribir una tarea y un presupuesto de
+    tokens, correr el mismo pipeline (retrieval → compresión → ajuste al
+    presupuesto) y ver el resultado (tokens antes/después, % de reducción,
+    conteo de items por categoría) para esa tarea puntual, sin histórico
+    acumulado entre sesiones.
+    
+    Solo especificación (spec.md + checklist, 16/16 ítems en verde, sin
+    NEEDS CLARIFICATION) — sin plan ni implementación todavía.
+
+ .specify/feature.json                              |   2 +-
+ .../checklists/requirements.md                     |  39 ++++++
+ specs/017-context-snapshot-tui/spec.md             | 156 +++++++++++++++++++++
+ 3 files changed, 196 insertions(+), 1 deletion(-)
+
+commit ac72ab9d6b292d80bd9af10a35b6ad45bb2cbb61
+Author: Autor <autor@example.com>
+Date:   Sat Aug 15 11:53:19 2026 -0500
+
+    feat: mem index refresca grafo externo + acciones equivalentes en TUI (v2.5.0)
+    
+    mem index solo actualizaba el grafo de código propio (Go). El grafo
+    externo multi-lenguaje (proveedor opcional codebase-memory-mcp) requería
+    invocarse a mano por separado, y la TUI no tenía ninguna acción
+    equivalente.
+    
+    - Nueva interfaz ports.CodeGraphIndexer (separada de CodeGraphProvider,
+      que mantiene su contrato de no-bloqueo intacto) con IndexRepository,
+      implementada por el adaptador codebasememory.Provider existente.
+    - mem index dispara el reindexado externo tras el nativo (--skip-graph
+      para omitirlo); nunca hace fallar el comando si el proveedor no está
+      instalado o falla — solo informa/advierte, exit code en 0.
+    - TUI: acción "Reindexar grafo externo" en Configuración, primer tea.Cmd
+      asíncrono real de esta interfaz (no bloquea mientras corre, con
+      guardia contra disparos concurrentes).
+    - TUI: los 3 ajustes de huella de contexto (Budget, CompactThreshold,
+      DedupWindowDays) ahora se editan desde Configuración, sin salir a
+      .memory/settings.json a mano.
+    
+    specs/016-external-graph-reindex/ (spec → plan → tasks → implement,
+    22/22 tareas). Verificado en vivo contra codebase-memory-mcp real:
+    mem index con proveedor instalado, sin instalar, con --skip-graph, y
+    con fallo simulado del proceso externo — los 4 casos terminan en
+    exit 0. go test ./... completo en verde, cero regresiones.
+
+ adapters/primary/cli/cmd_index.go                  |  41 ++-
+ adapters/primary/tui/tui.go                        | 281 +++++++++++++++++--
+ adapters/primary/tui/tui_test.go                   | 283 ++++++++++++++++++-
+ .../secondary/codegraph/codebasememory/provider.go |  51 +++-
+ .../codegraph/codebasememory/provider_test.go      |  37 +++
+ .../codebasememory/testdata/index_repository.json  |   1 +
+ application/ports/code_graph_indexer.go            |  29 ++
+ .../checklists/requirements.md                     |  34 +++
+ .../contracts/code-graph-indexer.md                |  58 ++++
+ specs/016-external-graph-reindex/data-model.md     | 104 +++++++
+ specs/016-external-graph-reindex/plan.md           | 115 ++++++++
+ specs/016-external-graph-reindex/quickstart.md     | 117 ++++++++
+ specs/016-external-graph-reindex/research.md       | 113 ++++++++
+ specs/016-external-graph-reindex/spec.md           | 115 ++++++++
+ specs/016-external-graph-reindex/tasks.md          | 309 +++++++++++++++++++++
+ version/version.go                                 |   2 +-
+ 16 files changed, 1658 insertions(+), 32 deletions(-)
+
+commit e106d1bd93c962a0597edc489167b675a0b79e95
+Author: Autor <autor@example.com>
+Date:   Sat Aug 15 11:52:52 2026 -0500
+
+    docs: documentar mem pack (optimización de contexto) en MANUAL y architecture, actualizar badge de MCP tools a 19
+    
+    Catch-up de documentación para la feature 015 (context-optimization,
+    ya mergeada en v2.4.0): mem pack build/show/compress/stats no tenía
+    sección en el manual ni en architecture.md, y el badge de README seguía
+    contando 15 tools MCP en vez de las 19 actuales (10 memoria + 5 grafo
+    de código + 4 optimización de contexto).
+
+ README.md            |  2 +-
+ docs/MANUAL.md       | 76 +++++++++++++++++++++++++++++++++++++++++++++-------
+ docs/architecture.md | 49 ++++++++++++++++++++++++++++++++-
+ 3 files changed, 116 insertions(+), 11 deletions(-)
+
+commit 4ba75fced85f0548078157c9ddaff5c1b50c0e4b
+Author: Autor <autor@example.com>
+Date:   Fri Aug 14 18:50:34 2026 -0500
+
+    feat: motor de optimización de contexto — mem pack build/show/compress/stats (v2.4.0)
+    
+    Nuevo Context Optimization Engine (specs/015-context-optimization): dado
+    una tarea y un presupuesto de tokens, arma un ContextPack con solo las
+    memorias relevantes del proyecto, sin duplicados, con lo no crítico
+    comprimido de forma determinista, sin exceder nunca el presupuesto ni
+    descartar contenido crítico en silencio (falla explícito si lo crítico
+    no cabe, en vez de devolver un paquete parcial).
+    
+    - mem pack build|show|compress|stats (CLI nuevo, no reemplaza mem context)
+    - 4 tools MCP nuevas: pack_build, pack_show, pack_compress, pack_stats
+    - Deduplicación reusa DetectDuplicateGroups ya existente, acotada al
+      subconjunto de candidatos de cada request, no a todo el proyecto
+    - Compresión estructural determinista (sin LLM): preserva siempre código,
+      URLs, rutas, números y mensajes de error
+    - Ingesta opcional de artefactos de Spec Kit (requisitos/decisiones/tareas)
+      acotada a la feature activa vía .specify/feature.json
+    - Optimización de descripciones de tools MCP sin alterar su schema
+    - 5 campos nuevos de configuración en SettingsData, mismo patrón opt-out
+      ya usado por SpeckitContextDisabled/AtomicPlanDisabled
+    
+    Aditivo: get_context/search_memories/mem context no cambian de
+    comportamiento si no se invoca la feature nueva explícitamente.
+
+ .specify/feature.json                              |   2 +-
+ adapters/primary/cli/cmd_mcp.go                    |  78 ++++++
+ adapters/primary/cli/cmd_pack.go                   | 229 ++++++++++++++++
+ adapters/primary/cli/deps.go                       |   6 +
+ adapters/primary/cli/dispatcher.go                 |   2 +
+ adapters/secondary/compression/compression_test.go | 105 ++++++++
+ adapters/secondary/compression/noop.go             |  19 ++
+ adapters/secondary/compression/structural.go       | 104 ++++++++
+ adapters/secondary/persistence/repositories.go     |  10 +
+ adapters/secondary/persistence/settings.go         |  47 +++-
+ adapters/secondary/persistence/settings_test.go    |  76 ++++++
+ adapters/secondary/speckit/reader.go               | 127 +++++++++
+ adapters/secondary/speckit/reader_test.go          |  84 ++++++
+ adapters/secondary/tokens/approximate.go           |  27 ++
+ adapters/secondary/tokens/approximate_test.go      |  52 ++++
+ application/ports/compressor.go                    |  47 ++++
+ application/ports/settings_repository.go           |  21 ++
+ application/ports/speckit_reader.go                |  17 ++
+ application/ports/token_counter.go                 |  10 +
+ application/usecases/build_context_pack.go         | 288 +++++++++++++++++++++
+ application/usecases/build_context_pack_test.go    | 117 +++++++++
+ application/usecases/optimize_tool.go              |  36 +++
+ application/usecases/optimize_tool_test.go         |  44 ++++
+ domain/context_pack.go                             |  69 +++++
+ domain/errors.go                                   |   9 +
+ domain/mcp_tools.go                                |  20 +-
+ infrastructure/container.go                        |  12 +
+ infrastructure/plugin/opencode/gomemory.ts         |  15 ++
+ .../checklists/requirements.md                     |  36 +++
+ specs/015-context-optimization/contracts/cli.md    |  91 +++++++
+ specs/015-context-optimization/contracts/go-api.md | 137 ++++++++++
+ .../contracts/mcp-tools.md                         |  88 +++++++
+ specs/015-context-optimization/data-model.md       | 141 ++++++++++
+ specs/015-context-optimization/plan.md             | 145 +++++++++++
+ specs/015-context-optimization/quickstart.md       | 108 ++++++++
+ specs/015-context-optimization/research.md         | 193 ++++++++++++++
+ specs/015-context-optimization/spec.md             | 153 +++++++++++
+ specs/015-context-optimization/tasks.md            | 272 +++++++++++++++++++
+ tests/contract/pack_build_cli_test.go              |  71 +++++
+ tests/contract/pack_compress_cli_test.go           |  26 ++
+ tests/contract/pack_stats_cli_test.go              |  67 +++++
+ tests/integration/build_context_pack_dedup_test.go |  57 ++++
+ .../integration/build_context_pack_speckit_test.go |  97 +++++++
+ tests/integration/build_context_pack_test.go       | 107 ++++++++
+ version/version.go                                 |   2 +-
+ 45 files changed, 3456 insertions(+), 8 deletions(-)
+
+commit 08fc9ea3dde0ffbc0268e352cca3f59059831701
+Merge: 50429e4 b2034f4
+Author: Autor <autor@example.com>
+Date:   Tue Aug 11 04:57:58 2026 -0500
+
+    Merge pull request #1 from Sayoner-000/chore/update-readme-logo
+    
+    chore: actualizar logo del README a gomemory_light.png
+
+commit b2034f439efcacd248d1a1e2d6437e14d96713d5
+Author: Autor <autor@example.com>
+Date:   Tue Aug 11 04:53:18 2026 -0500
+
+    chore: actualizar logo del README a gomemory_light.png + agregar assets de logos
+
+ README.md                                          |   2 +-
+ assets/gomemory_dark.png                           | Bin 0 -> 321773 bytes
+ assets/gomemory_dark.svg                           |   4 ++++
+ assets/gomemory_light.png                          | Bin 0 -> 299567 bytes
+ assets/gomemory_light.svg                          |   4 ++++
+ assets/gopher.png                                  | Bin 0 -> 1682333 bytes
+ assets/{logo-gomemory.png => logo-gomemory_v1.png} | Bin
+ assets/logo-gomemory_v2.png                        | Bin 0 -> 946707 bytes
+ 8 files changed, 9 insertions(+), 1 deletion(-)
+
+commit 50429e4a894aeb41dcbc34fe7f5df067ea99bcc2
+Author: Autor <autor@example.com>
+Date:   Mon Aug 10 06:11:10 2026 -0500
+
+    docs: reescribir README para open source + LICENSE, CONTRIBUTING, CODE_OF_CONDUCT, CI workflow
+
+ .github/workflows/ci.yml |  31 ++++
+ CODE_OF_CONDUCT.md       |  53 ++++++
+ CONTRIBUTING.md          |  59 +++++++
+ LICENSE                  |  21 +++
+ README.md                | 418 ++++++++++++++++++++++++++++++++---------------
+ assets/logo-gomemory.png | Bin 0 -> 950336 bytes
+ 6 files changed, 447 insertions(+), 135 deletions(-)
+
+commit f7a1e5eb0b2f01403978b1510fb3d40ae3d255b5
+Author: Autor <autor@example.com>
+Date:   Sat Aug 8 06:22:23 2026 -0500
+
+    fix: subagentes de Claude Code sin bootstrap + compact-nudge/preferencias no llegaban al modelo en OpenCode (v2.3.3)
+    
+    Un subagente (tool Task) es un contexto aislado que nunca pasaba por
+    session-start ni por el primer prompt de user-prompt-submit, así que arrancaba
+    sin el bootstrap de ToolSearch: no sabía que codebase-memory-mcp existía y
+    recurría a grep/glob manuales. Se registra el hook SubagentStart (existe en
+    Claude Code, paralelo a SubagentStop, nunca usado) con el mismo contenido que
+    el primer prompt de sesión.
+    
+    Verificado que esto es específico de Claude Code: OpenCode no difiere tools
+    MCP y sus subagentes comparten el mismo hook de plugin; Cursor/Windsurf/
+    Cline/Codex no tienen subagentes.
+    
+    De paso, se encontró y corrigió un segundo gap en OpenCode: el compact-nudge
+    y el refuerzo de preferencias (ya corregidos para Claude Code en v2.3.2) nunca
+    llegaban al modelo ahí porque su plugin descarta la salida de `turn-end`, y
+    session.idle ocurre después de que el modelo ya respondió. Se consolidan en
+    `mem hook nudge`, el único punto de OpenCode que sí llega al modelo antes de
+    cada turno.
+    
+    Tests de integración nuevos para ambos casos.
+
+ adapters/primary/cli/cmd_hook.go                  | 67 +++++++++++++++++--
+ adapters/primary/cli/cmd_uninstall.go             |  2 +-
+ adapters/primary/setup/claude_code_hooks_test.go  |  2 +-
+ adapters/primary/setup/claude_code_setup.go       |  2 +
+ tests/integration/hook_marker_integration_test.go | 80 +++++++++++++++++++++++
+ version/version.go                                |  2 +-
+ 6 files changed, 146 insertions(+), 9 deletions(-)
+
+commit 3b83f08c1938fcd3e695f38bcd9a93091a5c5efd
+Author: Autor <autor@example.com>
+Date:   Sat Aug 8 05:41:01 2026 -0500
+
+    fix: mensajes dirigidos al agente viajaban en systemMessage, invisible para el modelo (v2.3.2)
+    
+    systemMessage en la salida JSON de un hook de Claude Code se muestra solo al
+    humano en la terminal; nunca se inyecta en el contexto del modelo. El bootstrap
+    forzado de ToolSearch (gomemory + codebase-memory-mcp), el recordatorio de
+    save_memory y el refuerzo de preferencias usaban ese campo, así que ninguno de
+    los tres llegaba nunca al agente pese a estar redactados como instrucción
+    directa. Movidos a hookSpecificOutput.additionalContext, que sí se inyecta en
+    el contexto. computeCompactNudge se deja igual: es una sugerencia
+    deliberadamente dirigida al humano.
+    
+    Se añaden tests de integración que parsean el JSON real del hook y verifican
+    el campo correcto; confirmado que fallan contra el código anterior.
+
+ adapters/primary/cli/cmd_hook.go                  | 51 ++++++++++---
+ tests/integration/hook_marker_integration_test.go | 93 +++++++++++++++++++++++
+ version/version.go                                |  2 +-
+ 3 files changed, 135 insertions(+), 11 deletions(-)
+
+commit 44b9b098a6d3d2716ef18ca49af58371baf7621f
+Author: Autor <autor@example.com>
+Date:   Thu Aug 6 20:05:12 2026 -0500
+
+    fix: nombres de tool prefijados en el protocolo de OpenCode (v2.3.1)
+    
+    El protocolo inyectado por gomemory.ts mencionaba las tools MCP con nombres
+    pelados (get_plan_context, save_memory, ...) pero OpenCode las expone con
+    prefijo por servidor (gomemory_get_plan_context, codebase-memory-mcp_...).
+    El modelo intentaba invocar el nombre pelado y OpenCode lo rechazaba como
+    tool inválida (⚙invalid[tool=, error=Model tried to call unavailable tool '']).
+    
+    Se corrigen los nombres y se añade un test de contrato que compara el texto
+    del plugin contra domain.MCPAllTools(), mismo guardarraíl que ya existía
+    para el bootstrap de Claude Code.
+
+ infrastructure/plugin/opencode/gomemory.ts | 93 ++++++++++++++++++++++++------
+ tests/contract/mcp_tool_sync_test.go       | 31 ++++++++++
+ version/version.go                         |  2 +-
+ 3 files changed, 107 insertions(+), 19 deletions(-)
+
+commit 656307fdae5a2a125c50fae19f0ee945f4c0ba65
+Author: Autor <autor@example.com>
+Date:   Thu Aug 6 19:42:35 2026 -0500
+
+    fix: bootstrap forzado cubre también el grafo de código externo (v2.3.0)
+    
+    El protocolo se declara "OBLIGATORIO y SIEMPRE ACTIVO — sin esperar a que el
+    usuario lo pida", sin excepción por tipo de tarea. El bootstrap que fuerza la
+    materialización de tools diferidas en Claude Code solo cubría las propias de
+    gomemory; el proveedor externo de grafo de código (codebase-memory-mcp)
+    quedaba a que el agente recordara por su cuenta un mensaje aparte, y en la
+    práctica no se usaba ni una vez en una sesión completa de trabajo real.
+    
+    - fix: buildMemoryToolBootstrap (antes var estática) ahora añade, cuando el
+      interruptor "Grafo de código externo" está activo, las 6 tools de
+      descubrimiento del proveedor al MISMO select: de ToolSearch — una sola
+      llamada materializa memoria + grafo propio + grafo externo, siempre en el
+      primer prompt, sin mirar qué pide ese prompt
+    - feat: la misma guía se añade a los otros tres canales, para que sea
+      agnóstica al agente: buildIntegrationBlock() (AGENTS.md/CLAUDE.md/
+      .cursorrules/.windsurfrules + initialize.instructions de MCP), el
+      recordatorio embebido en get_context/get_plan_context (el canal más fuerte:
+      llega en la respuesta de la tool a cualquier cliente), y la copia propia del
+      plugin de OpenCode
+    - fix: get_plan_context no llevaba el recordatorio general de protocolo que sí
+      lleva get_context — una sesión que solo entra en modo plan se quedaba sin
+      guardar proactivamente, juez imparcial, etc. Corregido, respetando el
+      apagado explícito (salida vacía sigue vacía, sin recordatorio)
+    - fix: protocolo v6 → v7 (el contenido cambió sin subir el marcador se habría
+      quedado sin aplicar en proyectos ya instalados, este mismo repo incluido)
+    - docs: CLAUDE.md/AGENTS.md regenerados con mem install para reflejar lo que
+      el propio binario produce
+
+ AGENTS.md                                         |   9 +-
+ CLAUDE.md                                         |   9 +-
+ adapters/primary/cli/cmd_hook.go                  |  83 ++++++++++----
+ adapters/primary/cli/cmd_hook_bootstrap_test.go   |  81 ++++++++++++++
+ adapters/primary/cli/cmd_install.go               |   7 +-
+ adapters/primary/cli/cmd_install_protocol_test.go |  49 ++++++--
+ adapters/primary/cli/cmd_mcp.go                   |  11 ++
+ domain/mcp_tools.go                               |  32 ++++++
+ infrastructure/plugin/opencode/gomemory.ts        |   6 +
+ tests/contract/get_plan_context_reminder_test.go  | 129 ++++++++++++++++++++++
+ version/version.go                                |   2 +-
+ 11 files changed, 381 insertions(+), 37 deletions(-)
+
+commit 4bc2949bfe68e5b44f2a1475471810859bc0c84c
+Author: Autor <autor@example.com>
+Date:   Thu Aug 6 19:23:41 2026 -0500
+
+    docs: sincronizar CLAUDE.md y AGENTS.md al protocolo v6 (modo plan atómico)
+    
+    Estos archivos son el colchón de refuerzo del protocolo MCP (documentado en
+    docs/MEMORY-PROTOCOL.md): no son necesarios para que gomemory funcione — el
+    mismo texto ya viaja por initialize.instructions, las descripciones de tools y
+    el recordatorio embebido en get_context — pero mem install los mantiene
+    sincronizados y el repo debe reflejar lo que genera su propia herramienta.
+    
+    Sin este commit, el repo mostraba v5 (sin la sección de modo plan) mientras el
+    binario publicado en v2.2.0 ya escribe v6 al instalar.
+
+ AGENTS.md | 10 +++++++++-
+ CLAUDE.md | 10 +++++++++-
+ 2 files changed, 18 insertions(+), 2 deletions(-)
+
+commit 8665327d89bfa211a36a27cbf8772f83e939ccc8
+Author: Autor <autor@example.com>
+Date:   Thu Aug 6 19:10:24 2026 -0500
+
+    feat: modo plan atómico con memoria — get_plan_context + protocolo v6 (v2.2.0)
+    
+    Al entrar en modo plan el agente invoca gomemory por su cuenta y recibe, en una
+    sola llamada, el método de descomposición atómica y el historial del proyecto.
+    La activación viaja en el bloque de protocolo, no en hooks por agente: cualquier
+    agente que lea el protocolo y alcance gomemory queda cubierto.
+    
+    - feat: tool MCP get_plan_context + comando mem plan-context (exit 0 siempre)
+    - feat: método de descomposición atómica embebido, con autoverificación previa
+      a la entrega y marcado de hojas no atómicas con su motivo
+    - feat: ajuste atomic_plan_disabled (TUI + mem settings --atomic-plan)
+    - feat: ámbito global (~/.claude, ~/.config/opencode) además de por proyecto
+    - feat: permisos MCP para OpenCode, que no tenía ninguna gestión
+      (permission.gomemory_* = allow, forget_memory = ask)
+    - fix: listas de tools desincronizadas dejaban get_plan_context y las 5 tools
+      de grafo fuera del bootstrap de ToolSearch, volviéndolas ininvocables en
+      Claude Code. Fuente única en domain/mcp_tools.go + test de contrato que
+      compara contra las tools que el servidor registra de verdad
+    - fix: protocolo de OpenCode no nombraba las tools nuevas ni el modo plan
+    - docs: badge 15 tools, decisión de arquitectura 17, conteos corregidos
+
+ .gitignore                                         |   1 +
+ .specify/feature.json                              |   2 +-
+ README.md                                          |   7 +-
+ adapters/primary/cli/cli.go                        |   1 +
+ adapters/primary/cli/cmd_hook.go                   |  22 +-
+ adapters/primary/cli/cmd_hook_plan_test.go         |  73 +++
+ adapters/primary/cli/cmd_install.go                |  25 +-
+ adapters/primary/cli/cmd_install_protocol_test.go  | 103 +++++
+ adapters/primary/cli/cmd_mcp.go                    |  27 ++
+ adapters/primary/cli/cmd_mcp_setup.go              |  23 +-
+ adapters/primary/cli/cmd_plan_context.go           |  60 +++
+ adapters/primary/cli/cmd_plan_context_test.go      | 123 +++++
+ adapters/primary/cli/cmd_settings.go               |   4 +
+ adapters/primary/cli/dispatcher.go                 |   2 +
+ adapters/primary/setup/atomic_plan_global.go       | 139 ++++++
+ adapters/primary/setup/atomic_plan_global_test.go  | 142 ++++++
+ adapters/primary/setup/atomic_plan_setup.go        |  70 +++
+ adapters/primary/setup/atomic_plan_setup_test.go   | 147 ++++++
+ .../primary/setup/claude_code_permissions_test.go  |  31 ++
+ adapters/primary/setup/claude_code_setup.go        |  23 +-
+ .../primary/setup/opencode_permissions_test.go     | 162 +++++++
+ adapters/primary/setup/opencode_setup.go           |  72 +++
+ adapters/primary/tui/tui.go                        |  40 +-
+ adapters/primary/tui/tui_test.go                   |  61 +++
+ adapters/secondary/persistence/repositories.go     |   2 +
+ adapters/secondary/persistence/settings.go         |  17 +-
+ adapters/secondary/persistence/settings_test.go    |  44 ++
+ application/ports/settings_repository.go           |   4 +
+ application/usecases/build_plan_context.go         |  65 +++
+ application/usecases/build_plan_context_test.go    | 135 ++++++
+ docs/architecture.md                               |  22 +-
+ domain/mcp_tools.go                                |  99 ++++
+ infrastructure/main.go                             |   8 +
+ infrastructure/plugin/opencode/gomemory.ts         |  14 +-
+ infrastructure/templates/atomic-plan-method.md     |  90 ++++
+ .../checklists/requirements.md                     | 112 +++++
+ .../contracts/get-plan-context.md                  | 226 +++++++++
+ specs/013-atomic-plan-mode/data-model.md           | 222 +++++++++
+ specs/013-atomic-plan-mode/plan.md                 | 201 ++++++++
+ specs/013-atomic-plan-mode/quickstart.md           | 303 ++++++++++++
+ .../013-atomic-plan-mode/reference-ads-baseline.md | 113 +++++
+ specs/013-atomic-plan-mode/research.md             | 351 ++++++++++++++
+ specs/013-atomic-plan-mode/spec.md                 | 513 +++++++++++++++++++++
+ specs/013-atomic-plan-mode/tasks.md                | 371 +++++++++++++++
+ tests/contract/atomic_plan_method_test.go          | 110 +++++
+ tests/contract/mcp_tool_sync_test.go               | 194 ++++++++
+ tests/integration/plan_context_integration_test.go | 121 +++++
+ version/version.go                                 |   2 +-
+ 48 files changed, 4662 insertions(+), 37 deletions(-)
+
+commit ab70d0b37db5f1dfb0c68df3a307cadde14fbf4e
+Author: Autor <autor@example.com>
+Date:   Mon Aug 3 21:57:03 2026 -0500
+
+    feat: distribuir el brazo extensor gomemory-context vía mem install (Claude Code + OpenCode) — v2.1.0
+
+ .specify/feature.json                              |   2 +-
+ README.md                                          |   2 +-
+ adapters/primary/cli/cmd_install.go                |   7 +
+ adapters/primary/setup/speckit_extension.go        |  68 +++++
+ adapters/primary/setup/speckit_extension_test.go   | 210 +++++++++++++
+ .../speckit-gomemory-context-update/SKILL.md       |   4 +
+ .../gomemory-context/extension/extension.yml       |   3 +
+ .../scripts/bash/update-gomemory-context.sh        |   2 +
+ .../opencode/speckit.gomemory-context.update.md    |   4 +
+ docs/architecture.md                               |  29 ++
+ .../speckit-gomemory-context-update/SKILL.md       |  39 +++
+ .../templates/gomemory-context/extension/README.md | 119 ++++++++
+ .../commands/speckit.gomemory-context.update.md    |  34 +++
+ .../gomemory-context/extension/extension.yml       |  38 +++
+ .../scripts/bash/update-gomemory-context.sh        |  49 +++
+ .../scripts/powershell/update-gomemory-context.ps1 |  71 +++++
+ .../opencode/speckit.gomemory-context.update.md    |  37 +++
+ .../checklists/requirements.md                     |  42 +++
+ .../contracts/README.md                            |  22 ++
+ .../contracts/claude-artifact/SKILL.md             |  39 +++
+ .../contracts/install-speckit-extension.md         | 101 ++++++
+ .../speckit.gomemory-context.update.md             |  37 +++
+ .../data-model.md                                  |  55 ++++
+ specs/012-gomemory-context-distribution/plan.md    | 150 +++++++++
+ .../quickstart.md                                  |  68 +++++
+ .../012-gomemory-context-distribution/research.md  | 130 ++++++++
+ specs/012-gomemory-context-distribution/spec.md    | 259 ++++++++++++++++
+ specs/012-gomemory-context-distribution/tasks.md   | 340 +++++++++++++++++++++
+ version/version.go                                 |   2 +-
+ 29 files changed, 1960 insertions(+), 3 deletions(-)
+
+commit d763ae251119a55155a7ac692efa5b0f4b30af76
+Author: Autor <autor@example.com>
+Date:   Mon Aug 3 20:20:52 2026 -0500
+
+    feat: brazo extensor de gomemory hacia spec-kit (extensión gomemory-context) — v2.0.0
+
+ .specify/extensions.yml                            |  31 ++
+ .specify/extensions/.registry                      |  14 +
+ .../speckit-gomemory-context-update/SKILL.md       |  39 +++
+ .specify/extensions/gomemory-context/README.md     | 119 +++++++
+ .../commands/speckit.gomemory-context.update.md    |  34 ++
+ .specify/extensions/gomemory-context/extension.yml |  38 +++
+ .../scripts/bash/update-gomemory-context.sh        |  49 +++
+ .../scripts/powershell/update-gomemory-context.ps1 |  71 +++++
+ .specify/feature.json                              |   2 +-
+ README.md                                          |   1 +
+ adapters/primary/cli/cmd_settings.go               |   4 +
+ adapters/primary/tui/tui.go                        |  14 +-
+ adapters/secondary/persistence/repositories.go     |   2 +
+ adapters/secondary/persistence/settings.go         |   7 +
+ adapters/secondary/persistence/settings_test.go    |  49 ++-
+ application/ports/settings_repository.go           |   3 +
+ docs/architecture.md                               |  21 ++
+ .../checklists/requirements.md                     |  46 +++
+ .../contracts/gomemory-context-extension.yml       |  54 ++++
+ .../contracts/mem-settings-cli.md                  |  44 +++
+ .../contracts/update-gomemory-context-script.md    |  56 ++++
+ specs/011-gomemory-spec-context/data-model.md      |  48 +++
+ specs/011-gomemory-spec-context/plan.md            | 148 +++++++++
+ specs/011-gomemory-spec-context/quickstart.md      |  77 +++++
+ specs/011-gomemory-spec-context/research.md        | 139 ++++++++
+ specs/011-gomemory-spec-context/spec.md            | 299 +++++++++++++++++
+ specs/011-gomemory-spec-context/tasks.md           | 353 +++++++++++++++++++++
+ version/version.go                                 |   2 +-
+ 28 files changed, 1759 insertions(+), 5 deletions(-)
+
+commit 8e42b56d62332a5fef4b9c9d9306fd5b124af06d
+Author: Autor <autor@example.com>
+Date:   Tue Jul 28 07:27:05 2026 -0500
+
+    fix: búsqueda FTS5 con OR en vez de AND — feat: lista principal compacta enmarcada (v1.30.0)
+
+ adapters/primary/tui/tui.go                        | 220 ++++++++++++---------
+ adapters/primary/tui/tui_test.go                   |  81 ++------
+ adapters/secondary/persistence/memory.go           |  11 +-
+ .../secondary/persistence/memory_search_test.go    |  36 ++++
+ version/version.go                                 |   2 +-
+ 5 files changed, 192 insertions(+), 158 deletions(-)
+
+commit 5b3ed3db6dab8077d99f42557018b270294e03f5
+Author: Autor <autor@example.com>
+Date:   Mon Jul 27 21:34:46 2026 -0500
+
+    fix: pulido visual TUI — estilos extraídos, helper functions, empty state para tabla — v1.29.1
+
+ AGENTS.md                   |  4 +-
+ CLAUDE.md                   |  4 +-
+ adapters/primary/tui/tui.go | 97 ++++++++++++++++++++++++++++++++-------------
+ version/version.go          |  2 +-
+ 4 files changed, 75 insertions(+), 32 deletions(-)
+
+commit cfd5930c0e6f7ccf9ae4921205d14d0b743f50bd
+Author: Autor <autor@example.com>
+Date:   Mon Jul 27 21:14:58 2026 -0500
+
+    feat: reemplazar list por table con filtro manual — vista de tabla con columnas — v1.29.0
+
+ adapters/primary/tui/tui.go      | 237 +++++++++++++++++++++++----------------
+ adapters/primary/tui/tui_test.go | 199 ++++++++++++++++----------------
+ version/version.go               |   2 +-
+ 3 files changed, 241 insertions(+), 197 deletions(-)
+
+commit fbe862078a86447d4acaf702acdb28dbf8e4251d
+Author: Autor <autor@example.com>
+Date:   Mon Jul 27 20:43:37 2026 -0500
+
+    fix: filtrado no funcionaba — teclas custom se interceptaban durante modo filtro — v1.28.1
+
+ adapters/primary/tui/tui.go | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+commit f7abfdff6d7901b473cdd8da2ae4ad47b1828214
+Author: Autor <autor@example.com>
+Date:   Mon Jul 27 20:40:23 2026 -0500
+
+    fix: restaurar footer de opciones de teclado en la pantalla principal — v1.28.1
+
+ adapters/primary/tui/tui.go | 21 ++++++---------------
+ version/version.go          |  2 +-
+ 2 files changed, 7 insertions(+), 16 deletions(-)

@@ -25,6 +25,7 @@ func nuevoLog(previas map[string]string) *logFalso {
 }
 func (l *logFalso) Last(kind string) (string, bool) { h, ok := l.entregas[kind]; return h, ok }
 func (l *logFalso) Record(kind, hash string) error  { l.grabado[kind] = hash; return nil }
+func (l *logFalso) Reset() error                    { l.entregas = map[string]string{}; return nil }
 
 const historial = "## Memoria del Proyecto\n\nDecisiones y aprendizajes."
 

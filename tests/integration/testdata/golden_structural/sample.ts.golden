@@ -1,0 +1,461 @@
+// Cliente de facturación: agrupa pedidos y calcula impuestos.
+import { readFile } from "node:fs/promises";
+import type { Pedido, Linea } from "./tipos";
+
+/** Configuración del cliente. */
+export interface Config {
+ baseUrl: string;
+ timeoutMs: number;
+ reintentos: number;
+}
+
+export class Facturador {
+ private cache = new Map<string, number>();
+
+constructor(private readonly cfg: Config) {}
+
+/** Paso «agrupa» del proceso de facturación. */
+ async agrupa(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("agrupa", total);
+ return total;
+ }
+
+/** Paso «calculaIva» del proceso de facturación. */
+ async calculaIva(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("calculaIva", total);
+ return total;
+ }
+
+/** Paso «aplicaDescuento» del proceso de facturación. */
+ async aplicaDescuento(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("aplicaDescuento", total);
+ return total;
+ }
+
+/** Paso «redondea» del proceso de facturación. */
+ async redondea(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("redondea", total);
+ return total;
+ }
+
+/** Paso «valida» del proceso de facturación. */
+ async valida(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("valida", total);
+ return total;
+ }
+
+/** Paso «serializa» del proceso de facturación. */
+ async serializa(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("serializa", total);
+ return total;
+ }
+
+/** Paso «envia» del proceso de facturación. */
+ async envia(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("envia", total);
+ return total;
+ }
+
+/** Paso «reintenta» del proceso de facturación. */
+ async reintenta(pedidos: Pedido[], factor = 1): Promise<number> {
+ let total = 0;
+ for (const p of pedidos) {
+ const v0 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 1, 0);
+ if (v0 > 0) total += v0 * factor;
+ }
+ for (const p of pedidos) {
+ const v1 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 2, 0);
+ if (v1 > 100) total += v1 * factor;
+ }
+ for (const p of pedidos) {
+ const v2 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 3, 0);
+ if (v2 > 200) total += v2 * factor;
+ }
+ for (const p of pedidos) {
+ const v3 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 4, 0);
+ if (v3 > 300) total += v3 * factor;
+ }
+ for (const p of pedidos) {
+ const v4 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 5, 0);
+ if (v4 > 400) total += v4 * factor;
+ }
+ for (const p of pedidos) {
+ const v5 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 6, 0);
+ if (v5 > 500) total += v5 * factor;
+ }
+ for (const p of pedidos) {
+ const v6 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 7, 0);
+ if (v6 > 600) total += v6 * factor;
+ }
+ for (const p of pedidos) {
+ const v7 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 8, 0);
+ if (v7 > 700) total += v7 * factor;
+ }
+ for (const p of pedidos) {
+ const v8 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 9, 0);
+ if (v8 > 800) total += v8 * factor;
+ }
+ for (const p of pedidos) {
+ const v9 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 10, 0);
+ if (v9 > 900) total += v9 * factor;
+ }
+ for (const p of pedidos) {
+ const v10 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 11, 0);
+ if (v10 > 1000) total += v10 * factor;
+ }
+ for (const p of pedidos) {
+ const v11 = p.lineas.reduce((a: number, l: Linea) => a + l.precio * l.cantidad * 12, 0);
+ if (v11 > 1100) total += v11 * factor;
+ }
+ this.cache.set("reintenta", total);
+ return total;
+ }
+
+}
+
+export async function cargaPedidos(ruta: string): Promise<Pedido[]> {
+ return JSON.parse(await readFile(ruta, "utf8"));
+}

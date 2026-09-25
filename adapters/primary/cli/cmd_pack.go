@@ -16,7 +16,7 @@ import (
 // CmdPack despacha `mem pack <subcomando>`, mismo patrón que CmdSession.
 func CmdPack(deps *Deps, args []string) {
 	if len(args) == 0 {
-		fail("subcomando requerido: build, show, compress, stats\nEjemplo: mem pack build --task \"...\" --max-tokens 4000")
+		fail("subcomando requerido: build, show, compress, retrieve, savings, tune, purge, stats\nEjemplo: mem pack build --task \"...\" --max-tokens 4000")
 	}
 
 	sub := args[0]
@@ -31,8 +31,16 @@ func CmdPack(deps *Deps, args []string) {
 		cmdPackCompress(deps, subArgs)
 	case "stats":
 		cmdPackStats(deps, subArgs)
+	case "retrieve":
+		cmdPackRetrieve(deps, subArgs)
+	case "savings":
+		cmdPackSavings(deps, subArgs)
+	case "tune":
+		cmdPackTune(deps, subArgs)
+	case "purge":
+		cmdPackPurge(deps, subArgs)
 	default:
-		fail("subcomando desconocido: %s (opciones: build, show, compress, stats)", sub)
+		fail("subcomando desconocido: %s (opciones: build, show, compress, retrieve, savings, tune, purge, stats)", sub)
 	}
 }
 
@@ -90,6 +98,10 @@ func cmdPackBuild(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 	req.Root = deps.Root
+	// --no-compress manda; si no, el nivel efectivo del proyecto (feature 033).
+	if req.Compression == ports.CompressionStructural {
+		req.Compression = deps.CompressionLevel
+	}
 	req.CodeProviders = deps.CodeProviders
 	req.Recorder = deps.UsageRecorder
 	req.Relations = deps.RelationRepo
@@ -170,37 +182,18 @@ func cmdPackStats(_ *Deps, args []string) {
 // CompressText corre solo el paso de compresión estructural sobre input, sin
 // retrieval ni budget (contracts/cli.md `mem pack compress`).
 func CompressText(compressor ports.Compressor, input string) (ports.CompressionResult, error) {
-	return compressor.Compress(input, ports.CompressionOptions{
-		Level:          ports.CompressionStructural,
-		PreserveCode:   true,
-		PreserveURLs:   true,
-		PreservePaths:  true,
-		PreserveErrors: true,
-	})
+	return CompressTextAt(compressor, ports.CompressionStructural, input)
 }
 
-func cmdPackCompress(deps *Deps, args []string) {
-	in, err := openPackInput(args)
-	if err != nil {
-		fail("abrir input: %v", err)
-	}
-	defer func() { _ = in.Close() }()
-
-	raw, err := io.ReadAll(in)
-	if err != nil {
-		fail("leer input: %v", err)
-	}
-
-	result, err := CompressText(deps.Compressor, string(raw))
-	if err != nil {
-		fail("comprimir: %v", err)
-	}
-	if deps.UsageRecorder != nil {
-		deps.UsageRecorder.Record(domain.OpCompressPack, result.RawTokens, result.Tokens)
-	}
-
-	_, _ = os.Stdout.WriteString(result.Content)
-	fmt.Fprintf(os.Stderr, "tokens: %d → %d\n", result.RawTokens, result.Tokens)
+// CompressTextAt comprime input con el nivel indicado (feature 033).
+func CompressTextAt(compressor ports.Compressor, level ports.CompressionLevel, input string) (ports.CompressionResult, error) {
+	return compressor.Compress(input, ports.CompressionOptions{
+		Level:          level,
+		PreserveCode:   true,
+		PreservePaths:  true,
+		PreserveURLs:   true,
+		PreserveErrors: true,
+	})
 }
 
 // formatContextPack renderiza un domain.ContextPack en Markdown (items +

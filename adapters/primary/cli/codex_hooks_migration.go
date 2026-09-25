@@ -409,3 +409,52 @@ func ensureCodexHooksFeature(base string) string {
 	}
 	return base + "\n[features]\nhooks = true\n"
 }
+
+// syncCodexToolOutputHook añade o retira el hook opt-in de salidas de
+// herramientas (feature 033) en config.toml. Solo toca grupos cuyo comando es
+// `hook tool-output`; los hooks ajenos y el resto del ciclo no cambian.
+func syncCodexToolOutputHook(config []byte, memCommand string, enabled bool) ([]byte, bool, error) {
+	doc := map[string]any{}
+	if len(bytes.TrimSpace(config)) > 0 {
+		if err := toml.Unmarshal(config, &doc); err != nil {
+			return nil, false, fmt.Errorf("config.toml inválido: %w", err)
+		}
+	}
+	hooks, _ := stringMap(doc["hooks"])
+	if hooks == nil {
+		hooks = make(map[string]any)
+	}
+	h := setup.CodexToolOutputHook
+	grupos, _ := anySlice(hooks[h.Event])
+	kept := make([]any, 0, len(grupos)+1)
+	present := false
+	for _, g := range grupos {
+		if strings.Contains(fmt.Sprint(g), "hook tool-output") {
+			present = true
+			continue
+		}
+		kept = append(kept, g)
+	}
+	if present == enabled && (!enabled || setup.CodexHookPresente(hooks, h)) {
+		return config, false, nil
+	}
+	if enabled {
+		kept = append(kept, setup.CodexHookGroup(h, memCommand))
+	}
+	if len(kept) == 0 {
+		delete(hooks, h.Event)
+	} else {
+		hooks[h.Event] = kept
+	}
+	bloque, err := toml.Marshal(map[string]any{"hooks": hooks})
+	if err != nil {
+		return nil, false, fmt.Errorf("serializar hooks: %w", err)
+	}
+	base := ensureCodexHooksFeature(stripCodexHooksTables(string(config)))
+	candidate := []byte(strings.TrimRight(base, "\n") + "\n\n" + strings.TrimLeft(string(bloque), "\n"))
+	var validado map[string]any
+	if err := toml.Unmarshal(candidate, &validado); err != nil {
+		return nil, false, fmt.Errorf("candidato TOML inválido: %w", err)
+	}
+	return candidate, true, nil
+}

@@ -1,0 +1,597 @@
+commit 5dece4b83181620fb2664e0ebd4b0636106156aa
+Author: Autor <autor@example.com>
+Date: Thu Sep 24 13:45:52 2026 -0500
+
+feat(seed): actualiza solas las semillas que nadie editó
+
+Una plantilla nueva de los documentos fijados no llegaba nunca a los
+ proyectos ya sembrados: la siembra no toca un documento existente para no
+ pisar el texto del equipo, aunque ese texto fuera la plantilla vieja intacta.
+
+El catálogo registra la huella SHA-256 de cada plantilla distribuida. Si el
+ documento guardado es, intacto, una plantilla anterior, mem seed (y por
+ tanto install y update) o el arranque del servidor MCP lo llevan a la
+ actual por la misma vía inerte que mem docs reset. Si el equipo lo editó,
+ no se toca y la siembra avisa cómo adoptar la versión nueva. mem seed
+ aplica el mismo criterio a .specify/memory/constitution.md. Un test obliga
+ a registrar la huella anterior cada vez que se edita una plantilla.
+
+diff --git a/adapters/primary/cli/cmd_mcp.go b/adapters/primary/cli/cmd_mcp.go
+index 0c3bd13..a55e9c7 100644
+--- a/adapters/primary/cli/cmd_mcp.go
++++ b/adapters/primary/cli/cmd_mcp.go
+@@ -41,10 +41,15 @@ func CmdMCP(deps *Deps, args []string) {
+ // otro punto de entrada que hace cierta la promesa de que las reglas y la
+ // constitución "se agregan solas". Best-effort, igual que el auto-arranque
+ // de sesión de arriba: nunca impide servir.
+-	if created, err := seedProject(deps, project); err != nil {
++	if rep, err := seedProject(deps, project); err != nil {
+ log.Printf("Siembra de memorias por defecto incompleta: %v", err)
+-	} else if len(created) > 0 {
+- log.Printf("Sembradas %d memoria(s) por defecto para el proyecto '%s'", len(created), project)
++	} else {
++ if len(rep.Created) > 0 {
++ log.Printf("Sembradas %d memoria(s) por defecto para el proyecto '%s'", len(rep.Created), project)
++ }
++ if len(rep.Upgraded) > 0 {
++ log.Printf("Actualizadas a la plantilla vigente %d memoria(s) por defecto sin ediciones propias en '%s'", len(rep.Upgraded), project)
++ }
+ }
+
+log.Printf("MCP server iniciado para proyecto '%s'", project)
+diff --git a/adapters/primary/cli/seeds.go b/adapters/primary/cli/seeds.go
+index a6a078e..822bd2f 100644
+--- a/adapters/primary/cli/seeds.go
++++ b/adapters/primary/cli/seeds.go
+@@ -1,7 +1,12 @@
+ package cli
+
+import (
++	"errors"
+ "fmt"
++	"io"
++	"os"
++	"path/filepath"
++	"strings"
+
+"mem/application/ports"
+ "mem/application/usecases"
+@@ -20,6 +25,8 @@ func seedsFromCatalog() []usecases.Seed {
+ Type: d.Type,
+ Title: d.Title,
+ Content: embeddedTemplate(d.Template),
++
++ PreviousDefaultSHA256: d.PreviousDefaultSHA256,
+ })
+ }
+ return out
+@@ -34,19 +41,40 @@ func seedDeps(deps *Deps) (ports.MemorySeeder, ports.MemoryTopicQuerier, bool) {
+ return seeder, topics, ok1 && ok2
+ }
+
+-// seedProject siembra las memorias por defecto del proyecto. Devuelve cuántas
+-// se crearon y el error acumulado.
++// seedReport resume una siembra: las semillas creadas, las intactas que se
++// llevaron a la plantilla actual y las personalizadas que tienen una versión
++// nueva disponible.
++type seedReport struct {
++	Created []string
++	Upgraded []string
++	Customized []string
++}
++
++// seedProject siembra las memorias por defecto que falten y actualiza las
++// intactas de versiones anteriores (usecases.UpgradePristineSeeds), de modo
++// que una plantilla nueva llega sola con `mem update`.
+ //
+ // Es una capa OPORTUNISTA: quien la llama informa el resultado pero nunca
+ // aborta por él. Se invoca desde dos sitios —`mem install` y el arranque del
+ // servidor MCP— porque desde v1.9 mucha gente registra el MCP en ámbito global
+ // y no ejecuta `install` nunca (research.md §R6).
+-func seedProject(deps *Deps, project string) ([]string, error) {
++func seedProject(deps *Deps, project string) (seedReport, error) {
+ seeder, topics, ok := seedDeps(deps)
+ if !ok {
+- return nil, nil
++ return seedReport{}, nil
++	}
++	seeds := seedsFromCatalog()
++	created, errSeed := usecases.SeedDefaults(seeder, topics, project, seeds)
++	upg, errUpg := usecases.UpgradePristineSeeds(seeder, topics, project, seeds)
++	return seedReport{Created: created, Upgraded: upg.Upgraded, Customized: upg.Customized}, errors.Join(errSeed, errUpg)
++}
++
++// aliasForTopic traduce una clave de tópico al alias que teclea la persona.
++func aliasForTopic(topicKey string) string {
++	if d, ok := domain.PinnedDocByTopicKey(topicKey); ok {
++ return d.Alias
+ }
+-	return usecases.SeedDefaults(seeder, topics, project, seedsFromCatalog())
++	return topicKey
+ }
+
+// CmdSeed siembra las memorias por defecto del proyecto del directorio actual.
+@@ -59,13 +87,61 @@ func seedProject(deps *Deps, project string) ([]string, error) {
+ //
+ // También sirve de escape manual: `mem seed` recrea una semilla borrada.
+ func CmdSeed(deps *Deps, _ []string) {
+-	created, err := seedProject(deps, deps.Project)
++	rep, err := seedProject(deps, deps.Project)
+ if err != nil {
+ fail("sembrar memorias por defecto: %v", err)
+ }
+-	if len(created) == 0 {
+- fmt.Println("Semillas ya presentes, no se sobrescriben.")
++	printSeedReport(os.Stdout, rep)
++	if doc, ok := domain.PinnedDocByAlias("constitution"); ok {
++ refreshSpeckitConstitution(os.Stdout, deps.Root, doc, embeddedTemplate(doc.Template))
++	}
++}
++
++// refreshSpeckitConstitution mantiene al día la copia que dejó
++// `mem constitution --sync` en .specify/memory/constitution.md, que es la que
++// leen los comandos de spec-kit. Mismo criterio que UpgradePristineSeeds: se
++// reescribe solo si es, intacta, una plantilla anterior; si el equipo la
++// editó, se avisa y no se toca. Nunca crea .specify/.
++func refreshSpeckitConstitution(w io.Writer, root string, doc domain.PinnedDoc, current string) {
++	if root == "" || strings.TrimSpace(current) == "" {
++ return
++	}
++	ruta := filepath.Join(root, ".specify", "memory", "constitution.md")
++	data, err := os.ReadFile(ruta)
++	if err != nil {
++ return
++	}
++	previo := string(data)
++	if strings.TrimSpace(previo) == strings.TrimSpace(current) {
++ return
++	}
++	if !doc.IsPreviousDefault(previo) {
++ _, _ = fmt.Fprintf(w, "ℹ️ .specify/memory/constitution.md tiene ediciones del equipo y no se modificó; "+
++ "para reflejar la constitución vigente: mem constitution --sync\n")
++ return
++	}
++	if err := os.WriteFile(ruta, []byte(current), 0o644); err != nil {
++ _, _ = fmt.Fprintf(w, "⚠️ no se pudo actualizar %s: %v\n", ruta, err)
+ return
+ }
+-	fmt.Printf("✓ %d memoria(s) por defecto sembradas\n", len(created))
++	_, _ = fmt.Fprintln(w, "✓ .specify/memory/constitution.md actualizada a la versión por defecto de este binario")
++}
++
++// printSeedReport informa la siembra. Es lo que ve la persona durante
++// `mem install` y `mem update`, que ejecutan `mem seed` como subproceso.
++func printSeedReport(w io.Writer, rep seedReport) {
++	if len(rep.Created) > 0 {
++ _, _ = fmt.Fprintf(w, "✓ %d memoria(s) por defecto sembradas\n", len(rep.Created))
++	}
++	for _, k := range rep.Upgraded {
++ _, _ = fmt.Fprintf(w, "✓ %s actualizada a la versión por defecto de este binario (no tenía ediciones propias)\n", aliasForTopic(k))
++	}
++	for _, k := range rep.Customized {
++ a := aliasForTopic(k)
++ _, _ = fmt.Fprintf(w, "ℹ️ %s tiene ediciones del equipo y no se modificó. Hay una versión por defecto nueva; "+
++ "para adoptarla: mem docs export %s -o respaldo.md && mem docs reset %s\n", a, a, a)
++	}
++	if len(rep.Created)+len(rep.Upgraded)+len(rep.Customized) == 0 {
++ _, _ = fmt.Fprintln(w, "Semillas ya presentes y al día.")
++	}
+ }
+diff --git a/adapters/primary/cli/seeds_test.go b/adapters/primary/cli/seeds_test.go
+new file mode 100644
+index 0000000..82d2ea5
+--- /dev/null
++++ b/adapters/primary/cli/seeds_test.go
+@@ -0,0 +1,81 @@
++package cli
++
++import (
++	"bytes"
++	"os"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"mem/domain"
++)
++
++// TestPrintSeedReport: lo que ve la persona durante `mem install` y
++// `mem update` dice qué se actualizó solo y cómo adoptar la versión nueva
++// cuando el equipo editó el documento.
++func TestPrintSeedReport(t *testing.T) {
++	var b bytes.Buffer
++	printSeedReport(&b, seedReport{
++ Upgraded: []string{domain.TopicConstitution},
++ Customized: []string{domain.TopicWorkRules},
++	})
++	out := b.String()
++	for _, q := range []string{
++ "constitution actualizada a la versión por defecto",
++ "rules tiene ediciones del equipo y no se modificó",
++ "mem docs export rules -o respaldo.md && mem docs reset rules",
++	} {
++ if !strings.Contains(out, q) {
++ t.Errorf("falta %q en:\n%s", q, out)
++ }
++	}
++
++	b.Reset()
++	printSeedReport(&b, seedReport{})
++	if !strings.Contains(b.String(), "al día") {
++ t.Errorf("sin cambios debía decir que las semillas están al día: %q", b.String())
++	}
++}
++
++// TestRefreshSpeckitConstitution: la copia de spec-kit que dejó
++// `mem constitution --sync` es la que leen /speckit-plan y compañía. Si es
++// intacta de una versión anterior se refresca; si el equipo la editó, no.
++func TestRefreshSpeckitConstitution(t *testing.T) {
++	doc := domain.PinnedDoc{Alias: "constitution", PreviousDefaultSHA256: []string{domain.ContentFingerprint("VIEJA")}}
++	casos := []struct {
++ nombre, previo, want string
++ aviso string
++	}{
++ {"intacta", "VIEJA\n", "NUEVA", "actualizada"},
++ {"editada", "DEL EQUIPO", "DEL EQUIPO", "tiene ediciones"},
++ {"al día", "NUEVA", "NUEVA", ""},
++	}
++	for _, c := range casos {
++ t.Run(c.nombre, func(t *testing.T) {
++ root := t.TempDir()
++ ruta := filepath.Join(root, ".specify", "memory", "constitution.md")
++ if err := os.MkdirAll(filepath.Dir(ruta), 0o755); err != nil {
++ t.Fatal(err)
++ }
++ if err := os.WriteFile(ruta, []byte(c.previo), 0o644); err != nil {
++ t.Fatal(err)
++ }
++ var b bytes.Buffer
++ refreshSpeckitConstitution(&b, root, doc, "NUEVA")
++ got, _ := os.ReadFile(ruta)
++ if string(got) != c.want {
++ t.Errorf("contenido = %q; want %q", got, c.want)
++ }
++ if c.aviso == "" && b.Len() != 0 || c.aviso != "" && !strings.Contains(b.String(), c.aviso) {
++ t.Errorf("aviso = %q; want que contenga %q", b.String(), c.aviso)
++ }
++ })
++	}
++
++	// Sin spec-kit no se crea nada.
++	root := t.TempDir()
++	refreshSpeckitConstitution(&bytes.Buffer{}, root, doc, "NUEVA")
++	if _, err := os.Stat(filepath.Join(root, ".specify")); !os.IsNotExist(err) {
++ t.Error("en un proyecto sin spec-kit no debe crearse .specify/")
++	}
++}
+diff --git a/application/usecases/seed_defaults.go b/application/usecases/seed_defaults.go
+index 62bb95e..3550eb6 100644
+--- a/application/usecases/seed_defaults.go
++++ b/application/usecases/seed_defaults.go
+@@ -17,6 +17,9 @@ type Seed struct {
+ Type domain.MemoryType
+ Title string
+ Content string
++	// PreviousDefaultSHA256 son las huellas de las plantillas anteriores del
++	// documento (domain.PinnedDoc). Solo las usa UpgradePristineSeeds.
++	PreviousDefaultSHA256 []string
+ }
+
+// SeedDefaults siembra las memorias que falten y devuelve las claves de tópico
+diff --git a/application/usecases/seed_upgrade.go b/application/usecases/seed_upgrade.go
+new file mode 100644
+index 0000000..a749976
+--- /dev/null
++++ b/application/usecases/seed_upgrade.go
+@@ -0,0 +1,74 @@
++package usecases
++
++import (
++	"errors"
++	"strings"
++
++	"mem/application/ports"
++	"mem/domain"
++)
++
++// SeedUpgradeReport resume qué hizo UpgradePristineSeeds, por clave de tópico.
++type SeedUpgradeReport struct {
++	// Upgraded son las semillas intactas llevadas a la plantilla actual.
++	Upgraded []string
++	// Customized son las semillas que el equipo editó y que difieren de la
++	// plantilla actual: no se tocan, pero hay una versión nueva disponible.
++	Customized []string
++}
++
++// UpgradePristineSeeds lleva a la plantilla actual las semillas que nadie
++// editó. Es lo que permite que una plantilla nueva (por ejemplo, la
++// constitución) llegue sola con `mem update` a los proyectos ya sembrados.
++//
++// Complementa a SeedDefaults sin relajar su invariante: esta sigue sin pisar
++// nunca un documento existente. Aquí solo se reemplaza una semilla cuyo
++// contenido es, intacto, una plantilla que distribuyó una versión anterior
++// (huella en Seed.PreviousDefaultSHA256). Ese texto no es del equipo, es del
++// binario viejo, y actualizarlo no pierde trabajo de nadie. Cualquier
++// diferencia, aunque sea mínima, marca la semilla como personalizada y la deja
++// como está (el texto del equipo gana, research.md §R5 de la feature 021).
++//
++// Escribe por la misma vía inerte que `mem docs reset`: sin sinapsis ni
++// publicación al ADR externo. Es oportunista, igual que la siembra: acumula
++// errores sin abortar el resto.
++func UpgradePristineSeeds(
++	seeder ports.MemorySeeder,
++	topics ports.MemoryTopicQuerier,
++	project string,
++	seeds []Seed,
++) (SeedUpgradeReport, error) {
++	var rep SeedUpgradeReport
++	if seeder == nil || topics == nil {
++ return rep, nil
++	}
++
++	var errs []error
++	for _, s := range seeds {
++ if strings.TrimSpace(s.Content) == "" {
++ continue // plantilla no embebida en este binario
++ }
++ existente, err := topics.ByTopicKey(project, s.TopicKey)
++ if err != nil {
++ errs = append(errs, err)
++ continue
++ }
++ if existente == nil {
++ continue // la siembra la crea; no es una actualización
++ }
++ if strings.TrimSpace(existente.Content) == strings.TrimSpace(s.Content) {
++ continue
++ }
++ doc := domain.PinnedDoc{PreviousDefaultSHA256: s.PreviousDefaultSHA256}
++ if !doc.IsPreviousDefault(existente.Content) {
++ rep.Customized = append(rep.Customized, s.TopicKey)
++ continue
++ }
++ if _, err := ImportPinnedDoc(seeder, topics, project, s.TopicKey, s.Type, s.Title, s.Content); err != nil {
++ errs = append(errs, err)
++ continue
++ }
++ rep.Upgraded = append(rep.Upgraded, s.TopicKey)
++	}
++	return rep, errors.Join(errs...)
++}
+diff --git a/application/usecases/seed_upgrade_test.go b/application/usecases/seed_upgrade_test.go
+new file mode 100644
+index 0000000..29bf40f
+--- /dev/null
++++ b/application/usecases/seed_upgrade_test.go
+@@ -0,0 +1,95 @@
++package usecases_test
++
++import (
++	"reflect"
++	"testing"
++
++	"mem/application/usecases"
++	"mem/domain"
++)
++
++// constitucionV1 es una plantilla "distribuida antes"; la semilla que la
++// contiene intacta nunca la editó nadie.
++const constitucionV1 = "CONSTITUCIÓN v1"
++
++func semillaV2() []usecases.Seed {
++	return []usecases.Seed{{
++ TopicKey: domain.TopicConstitution, Type: domain.Architecture,
++ Title: "Constitución del proyecto (spec-kit)", Content: "CONSTITUCIÓN v2",
++ PreviousDefaultSHA256: []string{domain.ContentFingerprint(constitucionV1)},
++	}}
++}
++
++func sembrarCon(t *testing.T, contenido string) (func(string) string, usecases.SeedUpgradeReport) {
++	t.Helper()
++	_, topics, seeder := repoDocs(t)
++	doc, _ := domain.PinnedDocByAlias("constitution")
++	if contenido != "" {
++ if _, err := usecases.ImportPinnedDoc(seeder, topics, "proj", doc.TopicKey, doc.Type, doc.Title, contenido); err != nil {
++ t.Fatalf("sembrar: %v", err)
++ }
++	}
++	rep, err := usecases.UpgradePristineSeeds(seeder, topics, "proj", semillaV2())
++	if err != nil {
++ t.Fatalf("actualizar: %v", err)
++	}
++	leer := func(key string) string {
++ m, _ := topics.ByTopicKey("proj", key)
++ if m == nil {
++ return ""
++ }
++ return m.Content
++	}
++	return leer, rep
++}
++
++// Una semilla intacta de una versión anterior se lleva a la plantilla actual:
++// es lo que hace que `mem update` entregue la constitución nueva sin pasos.
++func TestUpgradePristineSeeds_ActualizaLaSemillaIntacta(t *testing.T) {
++	leer, rep := sembrarCon(t, constitucionV1+"\n")
++	if got := leer(domain.TopicConstitution); got != "CONSTITUCIÓN v2" {
++ t.Errorf("la semilla intacta debía actualizarse; contenido %q", got)
++	}
++	if !reflect.DeepEqual(rep.Upgraded, []string{domain.TopicConstitution}) || len(rep.Customized) != 0 {
++ t.Errorf("reporte = %+v; want Upgraded=[constitution]", rep)
++	}
++}
++
++// La edición del equipo gana siempre: una semilla personalizada no se toca y
++// se informa que hay una plantilla nueva disponible.
++func TestUpgradePristineSeeds_NoTocaLaPersonalizada(t *testing.T) {
++	leer, rep := sembrarCon(t, "CONSTITUCIÓN DEL EQUIPO")
++	if got := leer(domain.TopicConstitution); got != "CONSTITUCIÓN DEL EQUIPO" {
++ t.Errorf("la edición del equipo no debía tocarse; contenido %q", got)
++	}
++	if len(rep.Upgraded) != 0 || !reflect.DeepEqual(rep.Customized, []string{domain.TopicConstitution}) {
++ t.Errorf("reporte = %+v; want Customized=[constitution]", rep)
++	}
++}
++
++func TestUpgradePristineSeeds_ActualYAusenteNoHacenNada(t *testing.T) {
++	leer, rep := sembrarCon(t, "CONSTITUCIÓN v2")
++	if leer(domain.TopicConstitution) != "CONSTITUCIÓN v2" || len(rep.Upgraded)+len(rep.Customized) != 0 {
++ t.Errorf("la semilla ya actual no debía tocarse ni reportarse: %+v", rep)
++	}
++	leer, rep = sembrarCon(t, "")
++	if leer(domain.TopicConstitution) != "" || len(rep.Upgraded)+len(rep.Customized) != 0 {
++ t.Errorf("una semilla ausente es trabajo de SeedDefaults, no de la actualización: %+v", rep)
++	}
++}
++
++// Idempotencia: la segunda pasada no vuelve a escribir ni a reportar.
++func TestUpgradePristineSeeds_EsIdempotente(t *testing.T) {
++	_, topics, seeder := repoDocs(t)
++	doc, _ := domain.PinnedDocByAlias("constitution")
++	if _, err := usecases.ImportPinnedDoc(seeder, topics, "proj", doc.TopicKey, doc.Type, doc.Title, constitucionV1); err != nil {
++ t.Fatalf("sembrar: %v", err)
++	}
++	if _, err := usecases.UpgradePristineSeeds(seeder, topics, "proj", semillaV2()); err != nil {
++ t.Fatalf("actualizar 1: %v", err)
++	}
++	rep, err := usecases.UpgradePristineSeeds(seeder, topics, "proj", semillaV2())
++	if err != nil || len(rep.Upgraded)+len(rep.Customized) != 0 {
++ t.Errorf("la segunda pasada no debía hacer nada: %+v, %v", rep, err)
++	}
++}
+diff --git a/domain/seed.go b/domain/seed.go
+index 66bdac4..ae63818 100644
+--- a/domain/seed.go
++++ b/domain/seed.go
+@@ -1,5 +1,11 @@
+ package domain
+
++import (
++	"crypto/sha256"
++	"encoding/hex"
++	"strings"
++)
++
+ // Claves de tópico canónicas de las memorias que gomemory siembra al usarse por
+ // primera vez en un proyecto (feature 021).
+ //
+@@ -40,6 +46,35 @@ type PinnedDoc struct {
+ // Template es el nombre del archivo embebido bajo templates/ que aporta el
+ // contenido por defecto y el punto de retorno de una restauración.
+ Template string
++	// DefaultSHA256 es la huella (ContentFingerprint) de la plantilla que trae
++	// este binario. Un test la compara con el archivo embebido: editar la
++	// plantilla obliga a mover la huella vieja a PreviousDefaultSHA256.
++	DefaultSHA256 string
++	// PreviousDefaultSHA256 son las huellas de las plantillas que distribuyeron
++	// versiones anteriores. Una semilla cuyo contenido coincide con una de
++	// ellas nunca la editó nadie: la siembra puede llevarla a la plantilla
++	// actual sin pisar el trabajo de ningún equipo.
++	PreviousDefaultSHA256 []string
++}
++
++// ContentFingerprint es la huella con la que se reconoce una plantilla: SHA-256
++// del contenido sin espacios en los extremos, el mismo criterio que usa
++// PinnedDocState para decidir si un documento sigue "por defecto".
++func ContentFingerprint(content string) string {
++	sum := sha256.Sum256([]byte(strings.TrimSpace(content)))
++	return hex.EncodeToString(sum[:])
++}
++
++// IsPreviousDefault informa si content es, intacta, una plantilla que
++// distribuyó una versión anterior del binario.
++func (d PinnedDoc) IsPreviousDefault(content string) bool {
++	h := ContentFingerprint(content)
++	for _, previa := range d.PreviousDefaultSHA256 {
++ if previa == h {
++ return true
++ }
++	}
++	return false
+ }
+
+// PinnedDocs es el catálogo de documentos fijados que gomemory conoce por su
+@@ -53,6 +88,12 @@ var PinnedDocs = []PinnedDoc{
+ Title: "Reglas de trabajo del proyecto",
+ Label: "Reglas IA",
+ Template: "agent-preamble.md",
++ // Huellas por commit de la plantilla: 8edbddd y d7b63ae.
++ DefaultSHA256: "9dc0258d753c3b77fc16ee69a654a9eb96513205e1b6c4797e1a22b048003b8a",
++ PreviousDefaultSHA256: []string{
++ "d742e66f6593cd7d60ac6b59cdc7e046371f6ab570f67742dc4f432aba78b669",
++ "aaf5312676b94b034a6923b0e01dddb9b091c7035eee54d6fd75b5f7298d807e",
++ },
+ },
+ {
+ Alias: "constitution",
+@@ -61,6 +102,15 @@ var PinnedDocs = []PinnedDoc{
+ Title: "Constitución del proyecto (spec-kit)",
+ Label: "Constitución",
+ Template: "speckit-constitution-gen.md",
++ // Constitución técnica 2.0.0 (fecha de corte 2026-09-24). Las anteriores
++ // son, por commit, 8edbddd, a873463, 77a1a11 y 4514061.
++ DefaultSHA256: "6903740dcb4f1f631c14954b7f54a337dac37da62169bbd0d5a8cf719bdcc3f7",
++ PreviousDefaultSHA256: []string{
++ "7acc79bc12fe8351afcc8a02e0aa933996b0606b439f4710fcafafa0c6e50a79",
++ "ce0774314fe7d124325e7716a7b024b95e4f826dd567138b815a1bef2d635759",
++ "ca5b8802e8e427f67c657ddb2bb41a4abf391f09259a8cd4178302e225ba03f0",
++ "25cce48ee8896714d4a740b35f045f388f0aeaf6592995d21787d088232d279c",
++ },
+ },
+ }
+
+diff --git a/domain/seed_test.go b/domain/seed_test.go
+index 29b033d..79fa80a 100644
+--- a/domain/seed_test.go
++++ b/domain/seed_test.go
+@@ -120,3 +120,50 @@ func TestPinnedDocAliases(t *testing.T) {
+ t.Fatalf("PinnedDocAliases devolvió %d alias, el catálogo tiene %d", len(got), len(PinnedDocs))
+ }
+ }
++
++// TestPinnedDocs_HuellaActualCoincideConLaPlantilla es el guardián que hace
++// sostenible la actualización de semillas intactas: si alguien edita una
++// plantilla sin registrar la huella anterior en PreviousDefaultSHA256, las
++// semillas que la usaban quedarían congeladas para siempre sin que nadie lo
++// note. Este test lo convierte en un fallo de CI con la instrucción exacta.
++func TestPinnedDocs_HuellaActualCoincideConLaPlantilla(t *testing.T) {
++	for _, d := range PinnedDocs {
++ data, err := os.ReadFile(filepath.Join("..", "infrastructure", "templates", d.Template))
++ if err != nil {
++ t.Fatalf("leer plantilla %s: %v", d.Template, err)
++ }
++ got := ContentFingerprint(string(data))
++ if got != d.DefaultSHA256 {
++ t.Errorf("%s: la plantilla %s cambió (huella %s) y el catálogo dice %s. "+
++ "Mueve la huella anterior a PreviousDefaultSHA256 y registra la nueva en DefaultSHA256",
++ d.Alias, d.Template, got, d.DefaultSHA256)
++ }
++ for _, previa := range d.PreviousDefaultSHA256 {
++ if previa == d.DefaultSHA256 {
++ t.Errorf("%s: la huella actual no puede figurar también como anterior", d.Alias)
++ }
++ }
++	}
++}
++
++func TestIsPreviousDefault(t *testing.T) {
++	d := PinnedDoc{PreviousDefaultSHA256: []string{ContentFingerprint("vieja")}}
++	if !d.IsPreviousDefault(" vieja\n") {
++ t.Error("una semilla idéntica a una plantilla anterior (salvo espacios en los extremos) debía reconocerse")
++	}
++	if d.IsPreviousDefault("vieja editada") {
++ t.Error("una semilla editada no es una plantilla anterior")
++	}
++}
++
++func TestConstitutionTemplateSinMarcas(t *testing.T) {
++	content, err := os.ReadFile(filepath.Join("..", "infrastructure", "templates", "speckit-constitution-gen.md"))
++	if err != nil {
++ t.Fatalf("leer plantilla de constitución: %v", err)
++	}
++	for _, forbidden := range []string{"Kolmena", "Speckit"} {
++ if strings.Contains(string(content), forbidden) {
++ t.Errorf("la constitución distribuida no debe nombrar organizaciones ni ecosistemas propios (FR-020 de 025): contiene %q", forbidden)
++ }
++	}
++}

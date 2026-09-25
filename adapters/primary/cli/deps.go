@@ -47,6 +47,21 @@ type Deps struct {
 	Compressor    ports.Compressor
 	TokenCounter  ports.TokenCounter
 	SpecKitReader ports.SpecKitReader
+	// CompressionLevel es el nivel efectivo del proyecto (feature 033), ya
+	// resuelto en el composition root a partir de context_compression_level y
+	// del heredado context_compression_disabled.
+	CompressionLevel ports.CompressionLevel
+	// OriginalStore devuelve los originales omitidos por el motor nativo
+	// (pack_retrieve). Puede ser nil: la recuperación responde «no encontrada».
+	OriginalStore ports.OriginalStoreRepository
+	// DeliveredBlocks registra qué entradas recibió ya el agente en la sesión,
+	// para el delta del nivel max (feature 033, FR-018). Puede ser nil.
+	DeliveredBlocks ports.DeliveredBlocksRepository
+	// CompressionStats/CompressionTuning: estadísticas por compresor y ajuste
+	// adaptativo (feature 033, FR-026/FR-027). Pueden ser nil.
+	CompressionStats             ports.CompressionStatsRepository
+	CompressionTuning            ports.CompressionTuningRepository
+	CompressionAdaptiveThreshold float64
 	// UsageRepo/UsageRecorder (feature 020): opcionales, admiten nil.
 	UsageRepo ports.UsageRepository
 	// OctopusRepo (feature 027): telemetría del enrutador adaptativo. Admite

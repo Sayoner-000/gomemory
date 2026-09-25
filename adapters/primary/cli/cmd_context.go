@@ -37,6 +37,6 @@ func CmdContext(deps *Deps, args []string) {
 		if err != nil {
 			fail("generar contexto: %v", err)
 		}
-		_, _ = os.Stdout.WriteString(output)
+		_, _ = os.Stdout.WriteString(deliverContextDoc(deps, output))
 	}
 }

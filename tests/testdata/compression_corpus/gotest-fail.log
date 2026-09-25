@@ -1,0 +1,478 @@
+=== RUN   TestProcesaLotes
+    x_test.go:10: INFO procesando lote id=0 filas=1000 duracion=12ms
+    x_test.go:15: WARN reintento lote id=0: timeout conectando a 10.0.0.0:5432
+    x_test.go:10: INFO procesando lote id=1 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=2 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=3 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=4 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=5 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=6 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=7 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=8 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=9 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=10 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=11 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=12 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=13 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=14 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=15 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=16 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=17 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=18 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=19 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=20 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=21 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=22 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=23 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=24 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=25 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=26 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=27 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=28 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=29 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=30 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=31 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=32 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=33 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=34 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=35 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=36 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=37 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=38 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=39 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=40 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=41 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=42 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=43 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=44 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=45 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=46 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=47 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=48 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=49 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=50 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=51 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=52 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=53 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=54 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=55 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=56 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=57 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=58 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=59 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=60 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=61 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=62 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=63 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=64 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=65 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=66 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=67 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=68 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=69 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=70 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=71 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=72 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=73 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=74 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=75 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=76 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=77 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=78 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=79 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=80 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=81 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=82 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=83 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=84 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=85 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=86 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=87 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=88 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=89 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=90 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=91 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=92 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=93 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=94 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=95 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=96 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=97 filas=1006 duracion=14ms
+    x_test.go:15: WARN reintento lote id=97: timeout conectando a 10.0.0.97:5432
+    x_test.go:10: INFO procesando lote id=98 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=99 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=100 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=101 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=102 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=103 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=104 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=105 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=106 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=107 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=108 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=109 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=110 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=111 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=112 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=113 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=114 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=115 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=116 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=117 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=118 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=119 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=120 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=121 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=122 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=123 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=124 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=125 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=126 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=127 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=128 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=129 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=130 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=131 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=132 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=133 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=134 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=135 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=136 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=137 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=138 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=139 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=140 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=141 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=142 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=143 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=144 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=145 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=146 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=147 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=148 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=149 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=150 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=151 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=152 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=153 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=154 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=155 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=156 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=157 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=158 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=159 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=160 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=161 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=162 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=163 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=164 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=165 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=166 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=167 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=168 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=169 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=170 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=171 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=172 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=173 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=174 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=175 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=176 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=177 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=178 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=179 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=180 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=181 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=182 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=183 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=184 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=185 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=186 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=187 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=188 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=189 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=190 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=191 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=192 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=193 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=194 filas=1005 duracion=16ms
+    x_test.go:15: WARN reintento lote id=194: timeout conectando a 10.0.0.194:5432
+    x_test.go:10: INFO procesando lote id=195 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=196 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=197 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=198 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=199 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=200 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=201 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=202 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=203 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=204 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=205 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=206 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=207 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=208 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=209 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=210 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=211 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=212 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=213 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=214 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=215 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=216 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=217 filas=1000 duracion=14ms
+    x_test.go:12: ERROR lote id=217: checksum inválido: esperado deadbeef, obtenido deadbee0
+    x_test.go:10: INFO procesando lote id=218 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=219 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=220 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=221 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=222 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=223 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=224 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=225 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=226 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=227 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=228 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=229 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=230 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=231 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=232 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=233 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=234 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=235 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=236 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=237 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=238 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=239 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=240 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=241 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=242 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=243 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=244 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=245 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=246 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=247 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=248 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=249 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=250 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=251 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=252 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=253 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=254 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=255 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=256 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=257 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=258 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=259 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=260 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=261 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=262 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=263 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=264 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=265 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=266 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=267 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=268 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=269 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=270 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=271 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=272 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=273 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=274 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=275 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=276 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=277 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=278 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=279 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=280 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=281 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=282 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=283 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=284 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=285 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=286 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=287 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=288 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=289 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=290 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=291 filas=1004 duracion=13ms
+    x_test.go:15: WARN reintento lote id=291: timeout conectando a 10.0.0.41:5432
+    x_test.go:10: INFO procesando lote id=292 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=293 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=294 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=295 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=296 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=297 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=298 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=299 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=300 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=301 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=302 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=303 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=304 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=305 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=306 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=307 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=308 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=309 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=310 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=311 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=312 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=313 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=314 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=315 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=316 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=317 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=318 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=319 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=320 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=321 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=322 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=323 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=324 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=325 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=326 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=327 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=328 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=329 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=330 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=331 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=332 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=333 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=334 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=335 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=336 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=337 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=338 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=339 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=340 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=341 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=342 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=343 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=344 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=345 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=346 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=347 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=348 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=349 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=350 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=351 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=352 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=353 filas=1003 duracion=15ms
+    x_test.go:10: INFO procesando lote id=354 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=355 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=356 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=357 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=358 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=359 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=360 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=361 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=362 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=363 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=364 filas=1000 duracion=16ms
+    x_test.go:10: INFO procesando lote id=365 filas=1001 duracion=12ms
+    x_test.go:10: INFO procesando lote id=366 filas=1002 duracion=13ms
+    x_test.go:10: INFO procesando lote id=367 filas=1003 duracion=14ms
+    x_test.go:10: INFO procesando lote id=368 filas=1004 duracion=15ms
+    x_test.go:10: INFO procesando lote id=369 filas=1005 duracion=16ms
+    x_test.go:10: INFO procesando lote id=370 filas=1006 duracion=12ms
+    x_test.go:10: INFO procesando lote id=371 filas=1000 duracion=13ms
+    x_test.go:10: INFO procesando lote id=372 filas=1001 duracion=14ms
+    x_test.go:10: INFO procesando lote id=373 filas=1002 duracion=15ms
+    x_test.go:10: INFO procesando lote id=374 filas=1003 duracion=16ms
+    x_test.go:10: INFO procesando lote id=375 filas=1004 duracion=12ms
+    x_test.go:10: INFO procesando lote id=376 filas=1005 duracion=13ms
+    x_test.go:10: INFO procesando lote id=377 filas=1006 duracion=14ms
+    x_test.go:10: INFO procesando lote id=378 filas=1000 duracion=15ms
+    x_test.go:10: INFO procesando lote id=379 filas=1001 duracion=16ms
+    x_test.go:10: INFO procesando lote id=380 filas=1002 duracion=12ms
+    x_test.go:10: INFO procesando lote id=381 filas=1003 duracion=13ms
+    x_test.go:10: INFO procesando lote id=382 filas=1004 duracion=14ms
+    x_test.go:10: INFO procesando lote id=383 filas=1005 duracion=15ms
+    x_test.go:10: INFO procesando lote id=384 filas=1006 duracion=16ms
+    x_test.go:10: INFO procesando lote id=385 filas=1000 duracion=12ms
+    x_test.go:10: INFO procesando lote id=386 filas=1001 duracion=13ms
+    x_test.go:10: INFO procesando lote id=387 filas=1002 duracion=14ms
+    x_test.go:10: INFO procesando lote id=388 filas=1003 duracion=15ms
+    x_test.go:15: WARN reintento lote id=388: timeout conectando a 10.0.0.138:5432
+    x_test.go:10: INFO procesando lote id=389 filas=1004 duracion=16ms
+    x_test.go:10: INFO procesando lote id=390 filas=1005 duracion=12ms
+    x_test.go:10: INFO procesando lote id=391 filas=1006 duracion=13ms
+    x_test.go:10: INFO procesando lote id=392 filas=1000 duracion=14ms
+    x_test.go:10: INFO procesando lote id=393 filas=1001 duracion=15ms
+    x_test.go:10: INFO procesando lote id=394 filas=1002 duracion=16ms
+    x_test.go:10: INFO procesando lote id=395 filas=1003 duracion=12ms
+    x_test.go:10: INFO procesando lote id=396 filas=1004 duracion=13ms
+    x_test.go:10: INFO procesando lote id=397 filas=1005 duracion=14ms
+    x_test.go:10: INFO procesando lote id=398 filas=1006 duracion=15ms
+    x_test.go:10: INFO procesando lote id=399 filas=1000 duracion=16ms
+--- FAIL: TestProcesaLotes (0.00s)
+=== RUN   TestPanico
+    x_test.go:23: DEBUG clave=k0
+    x_test.go:23: DEBUG clave=k1
+    x_test.go:23: DEBUG clave=k2
+    x_test.go:23: DEBUG clave=k3
+    x_test.go:23: DEBUG clave=k4
+    x_test.go:23: DEBUG clave=k5
+    x_test.go:23: DEBUG clave=k6
+    x_test.go:23: DEBUG clave=k7
+    x_test.go:23: DEBUG clave=k8
+    x_test.go:23: DEBUG clave=k9
+    x_test.go:23: DEBUG clave=k10
+    x_test.go:23: DEBUG clave=k11
+    x_test.go:23: DEBUG clave=k12
+    x_test.go:23: DEBUG clave=k13
+    x_test.go:23: DEBUG clave=k14
+    x_test.go:23: DEBUG clave=k15
+    x_test.go:23: DEBUG clave=k16
+    x_test.go:23: DEBUG clave=k17
+    x_test.go:23: DEBUG clave=k18
+    x_test.go:23: DEBUG clave=k19
+    x_test.go:23: DEBUG clave=k20
+    x_test.go:23: DEBUG clave=k21
+    x_test.go:23: DEBUG clave=k22
+    x_test.go:23: DEBUG clave=k23
+    x_test.go:23: DEBUG clave=k24
+    x_test.go:23: DEBUG clave=k25
+    x_test.go:23: DEBUG clave=k26
+    x_test.go:23: DEBUG clave=k27
+    x_test.go:23: DEBUG clave=k28
+    x_test.go:23: DEBUG clave=k29
+    x_test.go:23: DEBUG clave=k30
+    x_test.go:23: DEBUG clave=k31
+    x_test.go:23: DEBUG clave=k32
+    x_test.go:23: DEBUG clave=k33
+    x_test.go:23: DEBUG clave=k34
+    x_test.go:23: DEBUG clave=k35
+    x_test.go:23: DEBUG clave=k36
+    x_test.go:23: DEBUG clave=k37
+    x_test.go:23: DEBUG clave=k38
+    x_test.go:23: DEBUG clave=k39
+    x_test.go:23: DEBUG clave=k40
+    x_test.go:23: DEBUG clave=k41
+    x_test.go:23: DEBUG clave=k42
+    x_test.go:23: DEBUG clave=k43
+    x_test.go:23: DEBUG clave=k44
+    x_test.go:23: DEBUG clave=k45
+    x_test.go:23: DEBUG clave=k46
+    x_test.go:23: DEBUG clave=k47
+    x_test.go:23: DEBUG clave=k48
+    x_test.go:23: DEBUG clave=k49
+--- FAIL: TestPanico (0.00s)
+panic: runtime error: index out of range [3] with length 0 [recovered]
+	panic: runtime error: index out of range [3] with length 0
+
+goroutine 7 [running]:
+testing.tRunner.func1.2({0x52eb40, 0xc00017abe8})
+	/usr/lib/go-1.22/src/testing/testing.go:1631 +0x24a
+testing.tRunner.func1()
+	/usr/lib/go-1.22/src/testing/testing.go:1634 +0x377
+panic({0x52eb40?, 0xc00017abe8?})
+	/usr/lib/go-1.22/src/runtime/panic.go:770 +0x132
+example.com/logs.TestPanico(0xc000124680)
+	/work/x_test.go:25 +0xf5
+testing.tRunner(0xc000124680, 0x5486a0)
+	/usr/lib/go-1.22/src/testing/testing.go:1689 +0xfb
+created by testing.(*T).Run in goroutine 1
+	/usr/lib/go-1.22/src/testing/testing.go:1742 +0x390
+FAIL	example.com/logs	0.006s
+FAIL

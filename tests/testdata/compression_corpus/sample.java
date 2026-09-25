@@ -1,0 +1,471 @@
+package com.ejemplo.reservas;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Servicio de reservas: disponibilidad, tarifas y cancelaciones.
+ */
+public class ServicioReservas {
+
+    private final List<String> auditoria = new ArrayList<>();
+
+    /**
+     * Operación disponibilidad sobre la reserva indicada.
+     */
+    public double disponibilidad(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("disponibilidad:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("disponibilidad:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("disponibilidad:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("disponibilidad:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("disponibilidad:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("disponibilidad:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("disponibilidad:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("disponibilidad:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("disponibilidad:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("disponibilidad:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("disponibilidad:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("disponibilidad:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+    /**
+     * Operación tarifa sobre la reserva indicada.
+     */
+    public double tarifa(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("tarifa:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("tarifa:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("tarifa:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("tarifa:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("tarifa:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("tarifa:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("tarifa:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("tarifa:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("tarifa:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("tarifa:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("tarifa:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("tarifa:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+    /**
+     * Operación confirma sobre la reserva indicada.
+     */
+    public double confirma(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("confirma:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("confirma:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("confirma:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("confirma:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("confirma:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("confirma:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("confirma:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("confirma:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("confirma:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("confirma:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("confirma:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("confirma:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+    /**
+     * Operación cancela sobre la reserva indicada.
+     */
+    public double cancela(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("cancela:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("cancela:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("cancela:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("cancela:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("cancela:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("cancela:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("cancela:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("cancela:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("cancela:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("cancela:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("cancela:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("cancela:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+    /**
+     * Operación reprograma sobre la reserva indicada.
+     */
+    public double reprograma(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("reprograma:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("reprograma:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("reprograma:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("reprograma:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("reprograma:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("reprograma:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("reprograma:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("reprograma:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("reprograma:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("reprograma:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("reprograma:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("reprograma:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+    /**
+     * Operación penalizacion sobre la reserva indicada.
+     */
+    public double penalizacion(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("penalizacion:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("penalizacion:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("penalizacion:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("penalizacion:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("penalizacion:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("penalizacion:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("penalizacion:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("penalizacion:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("penalizacion:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("penalizacion:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("penalizacion:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("penalizacion:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+    /**
+     * Operación notifica sobre la reserva indicada.
+     */
+    public double notifica(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("notifica:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("notifica:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("notifica:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("notifica:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("notifica:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("notifica:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("notifica:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("notifica:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("notifica:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("notifica:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("notifica:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("notifica:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+    /**
+     * Operación cierraDia sobre la reserva indicada.
+     */
+    public double cierraDia(String reservaId, LocalDate fecha, int noches) {
+        Objects.requireNonNull(reservaId, "reservaId");
+        double acumulado = 0;
+        for (int n0 = 0; n0 < noches; n0++) {
+            acumulado += (n0 + 0) * 1.1;
+            if (acumulado > 0) auditoria.add("cierraDia:" + reservaId + ":" + n0);
+        }
+        for (int n1 = 0; n1 < noches; n1++) {
+            acumulado += (n1 + 1) * 1.2;
+            if (acumulado > 50) auditoria.add("cierraDia:" + reservaId + ":" + n1);
+        }
+        for (int n2 = 0; n2 < noches; n2++) {
+            acumulado += (n2 + 2) * 1.3;
+            if (acumulado > 100) auditoria.add("cierraDia:" + reservaId + ":" + n2);
+        }
+        for (int n3 = 0; n3 < noches; n3++) {
+            acumulado += (n3 + 3) * 1.4;
+            if (acumulado > 150) auditoria.add("cierraDia:" + reservaId + ":" + n3);
+        }
+        for (int n4 = 0; n4 < noches; n4++) {
+            acumulado += (n4 + 4) * 1.5;
+            if (acumulado > 200) auditoria.add("cierraDia:" + reservaId + ":" + n4);
+        }
+        for (int n5 = 0; n5 < noches; n5++) {
+            acumulado += (n5 + 5) * 1.6;
+            if (acumulado > 250) auditoria.add("cierraDia:" + reservaId + ":" + n5);
+        }
+        for (int n6 = 0; n6 < noches; n6++) {
+            acumulado += (n6 + 6) * 1.7;
+            if (acumulado > 300) auditoria.add("cierraDia:" + reservaId + ":" + n6);
+        }
+        for (int n7 = 0; n7 < noches; n7++) {
+            acumulado += (n7 + 7) * 1.8;
+            if (acumulado > 350) auditoria.add("cierraDia:" + reservaId + ":" + n7);
+        }
+        for (int n8 = 0; n8 < noches; n8++) {
+            acumulado += (n8 + 8) * 1.9;
+            if (acumulado > 400) auditoria.add("cierraDia:" + reservaId + ":" + n8);
+        }
+        for (int n9 = 0; n9 < noches; n9++) {
+            acumulado += (n9 + 9) * 1.10;
+            if (acumulado > 450) auditoria.add("cierraDia:" + reservaId + ":" + n9);
+        }
+        for (int n10 = 0; n10 < noches; n10++) {
+            acumulado += (n10 + 10) * 1.11;
+            if (acumulado > 500) auditoria.add("cierraDia:" + reservaId + ":" + n10);
+        }
+        for (int n11 = 0; n11 < noches; n11++) {
+            acumulado += (n11 + 11) * 1.12;
+            if (acumulado > 550) auditoria.add("cierraDia:" + reservaId + ":" + n11);
+        }
+        return acumulado;
+    }
+
+}

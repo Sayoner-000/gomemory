@@ -45,6 +45,26 @@ type hookReg struct {
 // única fuente de verdad — ver buildClaudeHookEvents.
 var claudeHookEvents = buildClaudeHookEvents()
 
+// claudeToolOutputMatcher: herramientas cuya salida comprime el hook opt-in de
+// la feature 033. Read/Edit/Write quedan fuera a propósito (Edit necesita el
+// texto exacto de Read), y las de gomemory las excluye el propio subcomando.
+const claudeToolOutputMatcher = "Bash|Grep|Glob|WebFetch|WebSearch|mcp__.*"
+
+// claudeHookEventsFor añade a los eventos fijos el hook de salidas de
+// herramientas SOLO con tool_output_compression activo (opt-in, research R11).
+// Con el ajuste apagado devuelve exactamente claudeHookEvents: huella cero.
+func claudeHookEventsFor(toolOutput bool) map[string][]hookReg {
+	if !toolOutput {
+		return claudeHookEvents
+	}
+	out := make(map[string][]hookReg, len(claudeHookEvents))
+	for k, v := range claudeHookEvents {
+		out[k] = append([]hookReg(nil), v...)
+	}
+	out["PostToolUse"] = append(out["PostToolUse"], hookReg{matcher: claudeToolOutputMatcher, sub: "tool-output claude"})
+	return out
+}
+
 // buildClaudeHookEvents arma el mapa de eventos de Claude Code. Las entradas
 // que no dependen de una capacidad concreta del modo plan atómico van fijas;
 // PreToolUse(ExitPlanMode) → plan-guard se añade SOLO si domain.KnownAgents
@@ -378,7 +398,7 @@ func writeClaudeHooks(root string, ref AgentRef) error {
 		hooks = map[string]interface{}{}
 	}
 
-	for event, regs := range claudeHookEvents {
+	for event, regs := range claudeHookEventsFor(persistence.ReadSettings(root).ToolOutputCompression) {
 		kept := filterOutGomemoryHooks(hooks[event])
 		for _, r := range regs {
 			command := ref.HookCommand + " hook " + r.sub
@@ -466,6 +486,7 @@ func hookCommandIsGomemory(cmd string) bool {
 		strings.Contains(cmd, "hook plan-approved") ||
 		strings.Contains(cmd, "hook plan-guard") ||
 		strings.Contains(cmd, "hook plan-entered") ||
+		strings.Contains(cmd, "hook tool-output") ||
 		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
 		strings.Contains(cmd, "plugins/gomemory")
 }

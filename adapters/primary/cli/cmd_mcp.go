@@ -190,7 +190,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 				Content: []mcp.Content{&mcp.TextContent{Text: "Sin resultados para: " + in.Query}},
 			}, nil, nil
 		}
-		out := renderSearchResults(mems)
+		out := deliverSearchDoc(deps, renderSearchResults(mems))
 		recordUsage(deps, domain.OpSearchMemories, rawCharsOf(mems, len(out)), len(out))
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: out}},
@@ -239,7 +239,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			}, nil, nil
 		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: renderMemoryDetail(*m)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: compressDeliveredContext(deps, renderMemoryDetail(*m))}},
 		}, nil, nil
 	})
 
@@ -416,7 +416,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
 		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + output}},
+			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + deliverContextDoc(deps, output)}},
 		}, nil, nil
 	})
 
@@ -491,6 +491,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			CodeProviders:    deps.CodeProviders,
 			Recorder:         deps.UsageRecorder,
 			Relations:        deps.RelationRepo,
+			Compression:      deps.CompressionLevel,
 		})
 		if err != nil {
 			return nil, nil, err
@@ -528,11 +529,23 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	addTool(server, &mcp.Tool{
 		Name: "pack_compress",
 		Description: "Comprime un texto arbitrario de forma determinista (sin retrieval ni presupuesto) " +
-			"y reporta el costo en tokens antes/después.",
+			"y reporta el costo en tokens antes/después. level=max aplica el motor nativo: las partes " +
+			"omitidas quedan marcadas con ⟦mem⟧ … ref=X y se recuperan con pack_retrieve.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
-		Text string `json:"text" jsonschema:"Texto a comprimir"`
+		Text    string `json:"text" jsonschema:"Texto a comprimir"`
+		Level   string `json:"level,omitempty" jsonschema:"none, structural o max (default: el nivel del proyecto)"`
+		Compare bool   `json:"compare,omitempty" jsonschema:"Devolver la tabla comparativa de los tres niveles en vez del contenido"`
 	}) (*mcp.CallToolResult, any, error) {
-		result, err := CompressText(deps.Compressor, in.Text)
+		level, err := levelArg(deps, in.Level)
+		if err != nil {
+			return nil, nil, err
+		}
+		if in.Compare {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: FormatCompare(deps.Compressor, in.Text)}},
+			}, nil, nil
+		}
+		result, err := CompressTextAt(deps.Compressor, level, in.Text)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -542,6 +555,41 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: result.Content}},
 		}, result, nil
+	})
+
+	// pack_savings (feature 033, FR-026): informe de ahorro por compresor.
+	addTool(server, &mcp.Tool{
+		Name:        "pack_savings",
+		Description: "Informe de ahorro del motor de compresión de gomemory en este proyecto: tokens antes/después por compresor, tasa de recuperación, degradaciones, latencia, ajustes adaptativos y espacio de originales.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+		rctx, cancel := context.WithTimeout(ctx, 2*domain.StoreTimeout)
+		defer cancel()
+		rep, err := savingsReport(deps, rctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: rep.Format()}}}, nil, nil
+	})
+
+	// pack_retrieve (feature 033): devuelve el original exacto de una omisión
+	// ⟦mem⟧. Solo lee, así que es auto-aprobable.
+	addTool(server, &mcp.Tool{
+		Name: "pack_retrieve",
+		Description: "Devuelve íntegro, byte a byte, el contenido original que gomemory omitió al comprimir. " +
+			"Úsala cuando veas una marca ⟦mem⟧ … ref=X y necesites lo omitido: pack_retrieve(ref=X).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Ref string `json:"ref" jsonschema:"Referencia de la marca ⟦mem⟧ (ref=X)"`
+	}) (*mcp.CallToolResult, any, error) {
+		rctx, cancel := context.WithTimeout(ctx, 2*domain.StoreTimeout)
+		defer cancel()
+		content, meta, err := usecases.RetrieveOriginal(rctx, deps.OriginalStore, in.Ref)
+		if err != nil {
+			return nil, nil, err
+		}
+		_, _ = usecases.RecordRetrievalAndTune(rctx, deps.CompressionStats, deps.CompressionTuning, project, meta, deps.CompressionAdaptiveThreshold)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: content}},
+		}, nil, nil
 	})
 }
 

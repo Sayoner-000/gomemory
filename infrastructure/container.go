@@ -6,14 +6,16 @@ import (
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/tui"
+	"mem/adapters/secondary/clock"
 	"mem/adapters/secondary/codegraph/codebasememory"
-	"mem/adapters/secondary/compression"
+	"mem/adapters/secondary/compression/native"
 	"mem/adapters/secondary/persistence"
 	"mem/adapters/secondary/speckit"
 	"mem/adapters/secondary/tokens"
 	"mem/adapters/secondary/usage"
 	"mem/application/ports"
 	"mem/application/usecases"
+	"mem/domain"
 )
 
 type Container struct {
@@ -41,7 +43,19 @@ type Container struct {
 	ADRSyncRepo     ports.ADRSyncRepository
 	Compressor      ports.Compressor
 	TokenCounter    ports.TokenCounter
-	SpecKitReader   ports.SpecKitReader
+	// CompressionLevel: nivel efectivo de compresión (feature 033).
+	CompressionLevel ports.CompressionLevel
+	// OriginalStore guarda los originales que el motor nativo omite, para
+	// pack_retrieve / mem pack retrieve (feature 033).
+	OriginalStore ports.OriginalStoreRepository
+	// DeliveredBlocks: registro por bloques de lo entregado en la sesión.
+	DeliveredBlocks ports.DeliveredBlocksRepository
+	// CompressionStats/CompressionTuning: estadísticas y ajuste adaptativo.
+	CompressionStats  ports.CompressionStatsRepository
+	CompressionTuning ports.CompressionTuningRepository
+	// CompressionAdaptiveThreshold: umbral del ajuste (0 = de fábrica).
+	CompressionAdaptiveThreshold float64
+	SpecKitReader                ports.SpecKitReader
 	// UsageRepo/UsageRecorder (feature 020): opcionales — admiten nil sin que
 	// ningún emisor se entere. La etiqueta de canal viaja SOLO en la
 	// construcción de UsageRecorder (research.md §1); este es el ÚNICO lugar
@@ -172,32 +186,57 @@ func NewContainer(root, channel string) (*Container, error) {
 	sessionSummaries, _ := sessRepo.(ports.SessionSummaryUpdater)
 	sessionMemories, _ := memRepo.(ports.SessionMemoryLister)
 
+	// Motor nativo de compresión (feature 033). Sustituye a la compresión
+	// estructural como ports.Compressor: con los niveles none y structural
+	// delega en ella (salida idéntica a la v2.25.0) y solo con max aplica el
+	// motor completo, con estadísticas por compresor y ajuste adaptativo.
+	originalStore := persistence.NewOriginalStoreRepository(db, clock.SystemClock{}, settings.CompressionOriginalsTTLDays, settings.CompressionOriginalsMaxMB)
+	compressionStats := persistence.NewCompressionStatsRepository(db, clock.SystemClock{})
+	compressionTuning := persistence.NewCompressionTuningRepository(db, clock.SystemClock{})
+	engine := native.NewEngine(originalStore, compressionStats, compressionTuning, project)
+	engine.MinTokens = settings.CompressionMinTokens
+	// Orden estable → volátil del contexto (feature 033): solo en max, para que
+	// structural siga idéntico a la v2.25.0 (SC-008).
+	contextBuilder.ConciseDirective = settings.ConciseOutputDirective
+	compactContextBuilder.ConciseDirective = settings.ConciseOutputDirective
+	if domain.ParseCompressionLevel(settings.ContextCompressionLevel, settings.ContextCompressionDisabled) == domain.CompressionLevelMax {
+		contextBuilder.StableOrder = true
+		compactContextBuilder.StableOrder = true
+	}
+
 	c := &Container{
 		Root:     root,
 		Project:  project,
 		db:       db,
 		settings: settings,
 
-		MemoryRepo:      memRepo,
-		SessionRepo:     sessRepo,
-		RelationRepo:    relRepo,
-		ReviewRepo:      reviewRepo,
-		ConsensusRepo:   consensusRepo,
-		SettingsRepo:    persistence.NewSettingsRepository(),
-		ProjectRepo:     persistence.NewProjectRepository(),
-		ContextBuilder:  contextBuilder,
-		DeliveryLog:     persistence.NewDeliveryLogRepository(db, project),
-		ChannelActivity: persistence.NewChannelActivityRepository(db, project),
-		MaintenanceRepo: persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
-		CodeGraphRepo:   codeGraphRepo,
-		CodeProviders:   codeProviders,
-		ADRSyncRepo:     adrSyncRepo,
-		Compressor:      compression.StructuralCompressor{},
-		TokenCounter:    tokens.ApproximateTokenCounter{},
-		SpecKitReader:   speckit.Reader{},
-		UsageRepo:       usageRepo,
-		OctopusRepo:     octopusRepo,
-		UsageRecorder:   usageRecorder,
+		MemoryRepo:                   memRepo,
+		SessionRepo:                  sessRepo,
+		RelationRepo:                 relRepo,
+		ReviewRepo:                   reviewRepo,
+		ConsensusRepo:                consensusRepo,
+		SettingsRepo:                 persistence.NewSettingsRepository(),
+		ProjectRepo:                  persistence.NewProjectRepository(),
+		ContextBuilder:               contextBuilder,
+		DeliveryLog:                  persistence.NewDeliveryLogRepository(db, project),
+		ChannelActivity:              persistence.NewChannelActivityRepository(db, project),
+		MaintenanceRepo:              persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
+		CodeGraphRepo:                codeGraphRepo,
+		CodeProviders:                codeProviders,
+		ADRSyncRepo:                  adrSyncRepo,
+		Compressor:                   engine,
+		OriginalStore:                originalStore,
+		DeliveredBlocks:              persistence.NewDeliveredBlocksRepository(db, project, clock.SystemClock{}),
+		CompressionStats:             compressionStats,
+		CompressionTuning:            compressionTuning,
+		CompressionAdaptiveThreshold: float64(settings.CompressionAdaptiveThresholdPct) / 100,
+		CompressionLevel: ports.CompressionLevelFromSetting(
+			domain.ParseCompressionLevel(settings.ContextCompressionLevel, settings.ContextCompressionDisabled)),
+		TokenCounter:  tokens.ApproximateTokenCounter{},
+		SpecKitReader: speckit.Reader{},
+		UsageRepo:     usageRepo,
+		OctopusRepo:   octopusRepo,
+		UsageRecorder: usageRecorder,
 
 		SessionSummaries:      sessionSummaries,
 		SessionMemories:       sessionMemories,
@@ -219,30 +258,36 @@ func (c *Container) Close() error {
 
 func (c *Container) ToDeps() *cli.Deps {
 	return &cli.Deps{
-		Root:            c.Root,
-		Project:         c.Project,
-		MemoryRepo:      c.MemoryRepo,
-		SessionRepo:     c.SessionRepo,
-		RelationRepo:    c.RelationRepo,
-		ReviewRepo:      c.ReviewRepo,
-		ConsensusRepo:   c.ConsensusRepo,
-		SettingsRepo:    c.SettingsRepo,
-		ProjectRepo:     c.ProjectRepo,
-		ContextBuilder:  c.ContextBuilder,
-		DeliveryLog:     c.DeliveryLog,
-		ChannelActivity: c.ChannelActivity,
-		MaintenanceRepo: c.MaintenanceRepo,
-		CodeGraphRepo:   c.CodeGraphRepo,
-		CodeProviders:   c.CodeProviders,
-		TUIProvider:     c.tuiProvider(),
-		ADRSyncProvider: c.ADRSyncProvider,
-		ADRSyncRepo:     c.ADRSyncRepo,
-		Compressor:      c.Compressor,
-		TokenCounter:    c.TokenCounter,
-		SpecKitReader:   c.SpecKitReader,
-		UsageRepo:       c.UsageRepo,
-		OctopusRepo:     c.OctopusRepo,
-		UsageRecorder:   c.UsageRecorder,
+		Root:                         c.Root,
+		Project:                      c.Project,
+		MemoryRepo:                   c.MemoryRepo,
+		SessionRepo:                  c.SessionRepo,
+		RelationRepo:                 c.RelationRepo,
+		ReviewRepo:                   c.ReviewRepo,
+		ConsensusRepo:                c.ConsensusRepo,
+		SettingsRepo:                 c.SettingsRepo,
+		ProjectRepo:                  c.ProjectRepo,
+		ContextBuilder:               c.ContextBuilder,
+		DeliveryLog:                  c.DeliveryLog,
+		ChannelActivity:              c.ChannelActivity,
+		MaintenanceRepo:              c.MaintenanceRepo,
+		CodeGraphRepo:                c.CodeGraphRepo,
+		CodeProviders:                c.CodeProviders,
+		TUIProvider:                  c.tuiProvider(),
+		ADRSyncProvider:              c.ADRSyncProvider,
+		ADRSyncRepo:                  c.ADRSyncRepo,
+		Compressor:                   c.Compressor,
+		TokenCounter:                 c.TokenCounter,
+		SpecKitReader:                c.SpecKitReader,
+		CompressionLevel:             c.CompressionLevel,
+		OriginalStore:                c.OriginalStore,
+		DeliveredBlocks:              c.DeliveredBlocks,
+		CompressionStats:             c.CompressionStats,
+		CompressionTuning:            c.CompressionTuning,
+		CompressionAdaptiveThreshold: c.CompressionAdaptiveThreshold,
+		UsageRepo:                    c.UsageRepo,
+		OctopusRepo:                  c.OctopusRepo,
+		UsageRecorder:                c.UsageRecorder,
 
 		SessionSummaries:      c.SessionSummaries,
 		SessionMemories:       c.SessionMemories,

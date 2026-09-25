@@ -85,7 +85,7 @@ func registerCodeTools(server *mcp.Server, deps *Deps, root, project string) {
 		for _, n := range nodes {
 			sb.WriteString(formatCodeNodeLine(n))
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: sb.String()}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: compressDeliveredContext(deps, sb.String())}}}, nil, nil
 	})
 
 	addTool(server, &mcp.Tool{

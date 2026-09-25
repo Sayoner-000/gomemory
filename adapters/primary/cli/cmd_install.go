@@ -41,6 +41,10 @@ func CmdInstall(deps *Deps, args []string) {
 
 	fmt.Printf("📦 Instalando gomemory en %s\n\n", target)
 
+	// Instalación nueva = proyecto sin settings.json todavía. Se mira ANTES de
+	// cualquier paso que pueda crearlo (feature 033, research R13).
+	nuevaInstalacion := !settingsFileExists(target)
+
 	// 1. Copy binary
 	self, err := os.Executable()
 	if err != nil {
@@ -195,7 +199,14 @@ func CmdInstall(deps *Deps, args []string) {
 	// único JSON de configuración. Siguen soportados por la vía explícita:
 	// `mem setup-mcp --agents windsurf,cline`.
 
-	// 6. Apply autoApprove settings if configured
+	// 6. Nivel de compresión por defecto (feature 033): una instalación nueva
+	// arranca en max, porque toda omisión es recuperable. Una existente
+	// conserva su nivel (ausente = structural, el comportamiento anterior).
+	if err := applyInstallCompressionDefault(deps, target, nuevaInstalacion); err != nil {
+		fmt.Printf("  ⚠️  Nivel de compresión: %v\n", err)
+	}
+
+	// 7. Apply autoApprove settings if configured
 	settings := deps.SettingsRepo.Read(target)
 	if settings.AutoApprove {
 		deps.SettingsRepo.ApplyAutoApprove(target, settings)
@@ -491,4 +502,29 @@ func buildIntegrationBlock() string {
 		integrationEndMarker,
 	}
 	return strings.Join(lines, "\n")
+}
+
+// settingsFileExists dice si el proyecto ya tiene settings.json.
+func settingsFileExists(target string) bool {
+	_, err := os.Stat(filepath.Join(target, ".memory", "settings.json"))
+	return err == nil
+}
+
+// applyInstallCompressionDefault escribe context_compression_level=max solo en
+// una instalación nueva y solo si nadie lo fijó ya. Nunca toca una instalación
+// existente: cambiar su comportamiento sin avisar está fuera de alcance.
+func applyInstallCompressionDefault(deps *Deps, target string, nueva bool) error {
+	if !nueva || deps.SettingsRepo == nil {
+		return nil
+	}
+	s := deps.SettingsRepo.Read(target)
+	if s.ContextCompressionLevel != "" {
+		return nil
+	}
+	s.ContextCompressionLevel = domain.CompressionLevelMax
+	if err := deps.SettingsRepo.Write(target, s); err != nil {
+		return err
+	}
+	fmt.Println("  ✅ Compresión de contexto: max (instalación nueva; cámbiala con mem settings --compression-level)")
+	return nil
 }

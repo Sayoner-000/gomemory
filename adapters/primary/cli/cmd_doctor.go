@@ -39,6 +39,8 @@ type doctorReportJSON struct {
 	Channels     []doctorChannelJSON `json:"channels"`
 	Degradations []string            `json:"degradations"`
 	OpenCode     *doctorOpenCodeJSON `json:"opencode,omitempty"`
+	// Compression (feature 033, FR-029): estado del motor nativo.
+	Compression doctorCompressionJSON `json:"compression"`
 }
 
 // CmdDoctor implementa `mem doctor [--json] [--strict]`: el reporte de
@@ -63,6 +65,8 @@ func CmdDoctor(deps *Deps, args []string) {
 	// Un plugin de OpenCode que no carga ya cuenta en report.Problems(): el
 	// inspector marca outdated los canales que sostiene (contrato 019).
 	problems := report.Problems()
+	compressionState := buildDoctorCompression(deps, root)
+	problems += len(compressionState.Problems)
 
 	if *asJSON {
 		out := doctorReportJSON{
@@ -70,6 +74,7 @@ func CmdDoctor(deps *Deps, args []string) {
 			Problems:     problems,
 			Degradations: report.Degradations,
 			OpenCode:     openCodeJSON(openCode),
+			Compression:  compressionState,
 		}
 		if out.Degradations == nil {
 			out.Degradations = []string{}
@@ -95,6 +100,7 @@ func CmdDoctor(deps *Deps, args []string) {
 	} else {
 		printDoctorHuman(report, deps)
 		printDoctorOpenCode(openCode)
+		printDoctorCompression(compressionState)
 	}
 
 	if *strict && problems > 0 {

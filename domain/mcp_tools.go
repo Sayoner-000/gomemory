@@ -37,6 +37,10 @@ const (
 	ToolPackShow     = "pack_show"
 	ToolPackCompress = "pack_compress"
 	ToolPackStats    = "pack_stats"
+	// ToolPackRetrieve (feature 033): recupera el original de una omisión ⟦mem⟧.
+	ToolPackRetrieve = "pack_retrieve"
+	// ToolPackSavings (feature 033): informe de ahorro del motor.
+	ToolPackSavings = "pack_savings"
 
 	ToolReviewStart     = "review_start"
 	ToolReviewSubmit    = "review_submit"
@@ -87,6 +91,8 @@ var MCPContextPackTools = []string{
 	ToolPackShow,
 	ToolPackCompress,
 	ToolPackStats,
+	ToolPackRetrieve,
+	ToolPackSavings,
 }
 
 var MCPReviewTools = []string{

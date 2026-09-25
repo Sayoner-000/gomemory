@@ -68,6 +68,10 @@ type PackContractUseCase struct {
 	compressor ports.Compressor
 	counter    ports.TokenCounter
 	specKit    ports.SpecKitReader
+	// Compression es el nivel del paquete delegado (feature 033). El valor
+	// cero es structural, el comportamiento anterior; el llamador fija el
+	// nivel efectivo del proyecto.
+	Compression ports.CompressionLevel
 }
 
 func NewPackContractUseCase(
@@ -127,7 +131,7 @@ func (uc *PackContractUseCase) construirPack(req PackContractRequest, presupuest
 		MaxItems:       req.MaxItems,
 		IncludeSpecKit: req.IncludeSpecKit,
 		Root:           req.Root,
-		Compression:    ports.CompressionStructural,
+		Compression:    uc.Compression,
 	})
 	if err != nil {
 		return domain.ContextPack{}, fmt.Errorf("construir contexto de %s: %w", req.Unit.ID, err)

@@ -13,6 +13,9 @@ type DeliveryLog interface {
 	Last(kind string) (hash string, ok bool)
 	// Record anota lo que un canal acaba de entregar.
 	Record(kind, hash string) error
+	// Reset olvida lo entregado en la sesión activa (feature 033, FR-019): tras
+	// compactar, el agente ya no tiene ese material.
+	Reset() error
 }
 
 // Canales del registro de entregas.

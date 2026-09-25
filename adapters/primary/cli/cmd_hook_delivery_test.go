@@ -22,6 +22,8 @@ func (r *registroDeEntregasFalso) Last(kind string) (string, bool) {
 	return h, ok
 }
 
+func (r *registroDeEntregasFalso) Reset() error { r.porCanal = nil; return nil }
+
 func (r *registroDeEntregasFalso) Record(kind, hash string) error {
 	if r.porCanal == nil {
 		r.porCanal = map[string]string{}

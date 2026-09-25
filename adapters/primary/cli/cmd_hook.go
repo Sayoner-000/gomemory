@@ -78,6 +78,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookPrompt(deps)
 	case "agent-notice":
 		hookAgentNotice(deps)
+	case "tool-output":
+		hookToolOutput(deps, args[1:])
 	default:
 		// Evento desconocido: salida vacía, sin error.
 		os.Exit(0)
@@ -142,10 +144,15 @@ func entregaContextoDeArranque(deps *Deps) string {
 	if err != nil || ctx == "" {
 		return ""
 	}
+	resetDeliveries(deps)
 	if deps.DeliveryLog != nil {
 		_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(ctx))
 	}
-	return ctx
+	// Arranque: el agente recibe el contexto completo, así que el registro de
+	// la sesión se vacía y se anota todo como entregado (FR-019). El hash del
+	// canal se registró arriba sobre el documento crudo (I1).
+	markContextDelivered(deps, ctx)
+	return compressDeliveredContext(deps, ctx)
 }
 
 // hookSessionEnd cierra la sesión activa como red de seguridad. El resumen
@@ -207,6 +214,7 @@ func backupSessionSnapshot(deps *Deps, project string) {
 // cuya salida sobrevive a la compactación. Se conserva el handler para
 // instalaciones anteriores que aún lo tengan registrado.
 func hookPreCompact(deps *Deps) {
+	resetDeliveries(deps) // lo entregado antes de compactar se pierde (FR-019)
 	printRecoveryAndContext(deps)
 	os.Exit(0)
 }
@@ -226,6 +234,9 @@ func hookPostCompact(deps *Deps) {
 		ensureActiveSession(deps, root)               // R4: sin esto, toda memoria guardada tras
 		// compactar quedaba sin sesión asociada (ver dominio de RecoverySteps).
 	}
+	// Tras compactar, el agente perdió lo entregado: get_context y
+	// get_plan_context deben volver a entregarlo completo (FR-019).
+	resetDeliveries(deps)
 	printRecoveryAndContext(deps)
 	os.Exit(0)
 }
@@ -355,7 +366,7 @@ func printRecoveryAndContext(deps *Deps) {
 		compactCtx, err := usecases.BuildCompactionContext(deps.SessionRepo, deps.SessionMemories, project, compactionContextBudget(budget))
 		if err == nil && compactCtx != "" {
 			fmt.Print("\n\n")
-			fmt.Print(compactCtx)
+			fmt.Print(compressDeliveredContext(deps, compactCtx))
 		}
 	}
 
@@ -366,7 +377,7 @@ func printRecoveryAndContext(deps *Deps) {
 	if builder != nil {
 		if ctx, err := builder.Build(); err == nil && ctx != "" {
 			fmt.Print("\n\nContexto de la sesión previa:\n")
-			fmt.Print(ctx)
+			fmt.Print(compressDeliveredContext(deps, ctx))
 		}
 	}
 }

@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"os"
+	"strings"
 
 	"mem/application/usecases"
 )
@@ -72,5 +73,42 @@ func buildPlanContextDocFull(deps *Deps, full bool) (string, error) {
 	if full {
 		log = nil // sin registro, el caso de uso entrega el documento completo
 	}
-	return usecases.NewPlanContext(planMethod, deps.ContextBuilder, log).Build(disabled)
+	doc, err := usecases.NewPlanContext(planMethod, deps.ContextBuilder, log).Build(disabled)
+	if err != nil || full {
+		return doc, err
+	}
+	// Nivel max (feature 033): SOLO el delta de sesión. No se pasa por el motor
+	// de compresión porque el documento lleva el método de planificación, que
+	// son instrucciones y no admite recortes. El delta no toca el método (no es
+	// una sección de memorias) y la supresión por hash del caso de uso sigue
+	// siendo la primera defensa.
+	return applyPlanDelta(deps, doc), nil
 }
+
+// applyPlanDelta separa el método del historial (PlanContext los une con
+// planSeparator) y aplica a cada parte su delta: el método como bloque
+// entero, el historial por entradas.
+func applyPlanDelta(deps *Deps, doc string) string {
+	if !deltaActivo(deps) {
+		return doc
+	}
+	method, history, found := strings.Cut(doc, planSeparator)
+	if !found {
+		// Solo método o solo historial.
+		if strings.HasPrefix(strings.TrimSpace(doc), "# Memoria del Proyecto") {
+			return applyContextDelta(deps, doc)
+		}
+		method, history = doc, ""
+	}
+	ctx, cancel := deltaCtx()
+	defer cancel()
+	method = usecases.SessionDelta{Blocks: deps.DeliveredBlocks}.ApplyWhole(ctx, method, usecases.MethodAlreadyDelivered)
+	if !found {
+		return method
+	}
+	return method + planSeparator + applyContextDelta(deps, history)
+}
+
+// planSeparator es el mismo que usa usecases.PlanContext para unir método e
+// historial.
+const planSeparator = "\n\n---\n\n"

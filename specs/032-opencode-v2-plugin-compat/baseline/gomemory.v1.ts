@@ -52,6 +52,9 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     }
   };
 
+  // Ajuste tool_output_compression (feature 033), leído una vez por proceso.
+  let toolOutputEnabled: boolean | undefined;
+
   // Último messageID de sesión ya inspeccionado para checkpoint, para no
   // reprocesar el historial completo en cada session.idle.
   const lastCheckpointedMessage = new Map<string, string>();
@@ -285,6 +288,27 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // "task" está definido en packages/opencode/src/tool/task.ts del upstream.
     // La validación interactiva de extremo a extremo sigue en quickstart.md Q0.
     "tool.execute.after": async (input, output) => {
+      // Compresión de salidas de herramientas (feature 033, opt-in). El ajuste
+      // se consulta una sola vez por proceso: con el ajuste apagado no se
+      // lanza ningún proceso por herramienta. read/edit/write y las tools de
+      // gomemory quedan excluidas en el propio subcomando.
+      if (input.tool !== "task" && typeof output?.output === "string" && output.output.length > 1600) {
+        try {
+          if (toolOutputEnabled === undefined) {
+            toolOutputEnabled = (await mem(["hook", "tool-output", "--enabled"])).trim() === "true";
+          }
+          if (toolOutputEnabled) {
+            const res = await memWithStdin(["hook", "tool-output", "opencode"], JSON.stringify({ tool: input.tool, output: output.output }));
+            if (res) {
+              const parsed = JSON.parse(res);
+              if (typeof parsed?.output === "string") output.output = parsed.output;
+            }
+          }
+        } catch {
+          // best-effort: la salida original sigue intacta
+        }
+        return;
+      }
       if (input.tool !== "task" || !output?.output) return;
       const texto = String(output.output);
       if (texto.length === 0) return;

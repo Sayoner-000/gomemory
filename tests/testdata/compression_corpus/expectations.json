@@ -1,0 +1,20 @@
+{
+  "_comment": "Mínimos de ahorro del nivel max. min_saving_vs_raw_pct: frente al contenido sin comprimir; min_saving_vs_structural_pct: frente a la compresión estructural. corpus_min_saving_vs_structural_pct aplica a la suma de todas las muestras (SC-001).",
+  "corpus_min_saving_vs_structural_pct": 40,
+  "samples": {
+    "golist.json":        {"type": "json",  "min_saving_vs_raw_pct": 70},
+    "gotest.jsonl":       {"type": "json",  "min_saving_vs_raw_pct": 70},
+    "gotest-fail.log":    {"type": "log",   "min_saving_vs_raw_pct": 50},
+    "py-traceback.log":   {"type": "log",   "min_saving_vs_raw_pct": 50},
+    "gitlog.txt":         {"type": "log",   "min_saving_vs_raw_pct": 0},
+    "repo.diff":          {"type": "diff",  "min_saving_vs_raw_pct": 0},
+    "sample.go":          {"type": "code",  "min_saving_vs_raw_pct": 30},
+    "sample.py":          {"type": "code",  "min_saving_vs_raw_pct": 30},
+    "sample.ts":          {"type": "code",  "min_saving_vs_raw_pct": 30},
+    "sample.java":        {"type": "code",  "min_saving_vs_raw_pct": 30},
+    "listing.txt":        {"type": "table", "min_saving_vs_raw_pct": 0},
+    "mem-context.md":     {"type": "prose", "min_saving_vs_raw_pct": 0},
+    "search-results.txt": {"type": "table", "min_saving_vs_raw_pct": 0},
+    "prose.md":           {"type": "prose", "min_saving_vs_raw_pct": 0}
+  }
+}

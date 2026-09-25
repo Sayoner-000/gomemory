@@ -59,6 +59,9 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     }
   };
 
+  // Ajuste tool_output_compression (feature 033), leído una vez por proceso.
+  let toolOutputEnabled: boolean | undefined;
+
   // Último messageID de sesión ya inspeccionado para checkpoint, para no
   // reprocesar el historial completo en cada session.idle.
   const lastCheckpointedMessage = new Map<string, string>();
@@ -292,6 +295,27 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // "task" está definido en packages/opencode/src/tool/task.ts del upstream.
     // La validación interactiva de extremo a extremo sigue en quickstart.md Q0.
     "tool.execute.after": async (input, output) => {
+      // Compresión de salidas de herramientas (feature 033, opt-in). El ajuste
+      // se consulta una sola vez por proceso: con el ajuste apagado no se
+      // lanza ningún proceso por herramienta. read/edit/write y las tools de
+      // gomemory quedan excluidas en el propio subcomando.
+      if (input.tool !== "task" && typeof output?.output === "string" && output.output.length > 1600) {
+        try {
+          if (toolOutputEnabled === undefined) {
+            toolOutputEnabled = (await mem(["hook", "tool-output", "--enabled"])).trim() === "true";
+          }
+          if (toolOutputEnabled) {
+            const res = await memWithStdin(["hook", "tool-output", "opencode"], JSON.stringify({ tool: input.tool, output: output.output }));
+            if (res) {
+              const parsed = JSON.parse(res);
+              if (typeof parsed?.output === "string") output.output = parsed.output;
+            }
+          }
+        } catch {
+          // best-effort: la salida original sigue intacta
+        }
+        return;
+      }
       if (input.tool !== "task" || !output?.output) return;
       const texto = String(output.output);
       if (texto.length === 0) return;
@@ -361,11 +385,13 @@ const [T_SEARCH_CODE, T_GET_SYMBOL, T_LIST_DEPENDENCIES, T_GRAPH_STATUS, T_INDEX
 ];
 
 // Context Optimization Engine (feature 015): domain.MCPContextPackTools.
-const [T_PACK_BUILD, T_PACK_SHOW, T_PACK_COMPRESS, T_PACK_STATS] = [
+const [T_PACK_BUILD, T_PACK_SHOW, T_PACK_COMPRESS, T_PACK_STATS, T_PACK_RETRIEVE, T_PACK_SAVINGS] = [
   "gomemory_pack_build",
   "gomemory_pack_show",
   "gomemory_pack_compress",
   "gomemory_pack_stats",
+  "gomemory_pack_retrieve",
+  "gomemory_pack_savings",
 ];
 
 // Revisión adversarial por consenso (feature 027): domain.MCPReviewTools.
