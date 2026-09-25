@@ -5,6 +5,36 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.26.0] - 2026-09-25
+
+### Added
+
+- Nuevo nivel de compresión nativa `max` para JSON, código, logs, diffs,
+  tablas y prosa. Las omisiones usan referencias temporales recuperables con
+  `mem pack retrieve` o `pack_retrieve`; el contenido privado no se almacena.
+- `mem pack savings`, `tune` y `purge` permiten consultar el ahorro, controlar
+  el ajuste adaptativo y administrar los originales recuperables.
+- Compresión opt-in de salidas de herramientas y directiva opcional para
+  respuestas concisas, configurables desde `mem settings` y la TUI.
+
+### Changed
+
+- En el corpus de referencia, el nivel `max` reduce un 72,6 % adicional frente
+  a la compresión `structural`; `golist.json` pasa de 21 511 a 385 tokens
+  aproximados. El nivel `structural` conserva su salida anterior.
+- El contexto de sesiones con nivel `max` mantiene un prefijo estable y evita
+  reenviar bloques ya entregados; la simulación de 20 turnos reduce el reenvío
+  un 89,8 %.
+
+### Fixed
+
+- `mem pack compress` separa el informe de tokens del contenido y mantiene
+  `stdout` apto para redirección.
+- Las referencias recuperables permanecen disponibles tras aplicar el límite
+  del almacén; si un original no cabe, se entrega la salida estructural.
+- La ampliación de referencias ante colisiones conserva los valores literales
+  de texto y JSON y mantiene cada marca asociada a su bloque original.
+
 ## [v2.25.0] - 2026-09-24
 
 ### Changed

@@ -250,3 +250,23 @@ El tamaño depende de la configuración, el historial y las capacidades del
 cliente. `mem usage` muestra la línea base, lo emitido y el ahorro medido por
 sesión y canal. No se mantienen estimaciones fijas en este documento porque se
 desactualizan cuando cambia el protocolo.
+
+## Recuperación de contenido comprimido
+
+Con el nivel de compresión `max`, las salidas pueden sustituir bloques por una
+marca recuperable:
+
+```text
+⟦mem⟧ <resumen> · ref=<ref>
+```
+
+La salida que contiene marcas termina con esta instrucción:
+
+```text
+> Marcas ⟦mem⟧ … ref=X: contenido omitido para ahorrar tokens; recupéralo íntegro con pack_retrieve(ref=X) (CLI: mem pack retrieve X).
+```
+
+`pack_retrieve` devuelve el bloque original exacto. Las referencias son
+temporales: caducan según la política del proyecto y pueden desaparecer al
+aplicar el límite del almacén. El contenido privado o con credenciales
+detectadas no se almacena y, por tanto, nunca genera referencias.

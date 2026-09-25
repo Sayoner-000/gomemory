@@ -1169,3 +1169,82 @@ mem octopus history -n 20
 ```
 
 Las tools MCP disponibles al activar el módulo son `octopus_route_task`, `octopus_route_plan`, `octopus_report` y `octopus_status`.
+
+---
+
+## 19. Compresión nativa de contexto
+
+GoMemory ofrece tres niveles de compresión:
+
+- `none`: conserva el contenido sin compresión.
+- `structural`: mantiene el comportamiento compatible con versiones anteriores.
+- `max`: selecciona compresores deterministas para JSON, código, logs, diffs,
+  tablas y prosa. El contenido omitido se conserva temporalmente y se identifica
+  con marcas `⟦mem⟧ … ref=<ref>`.
+
+Configura el nivel y las opciones relacionadas con `mem settings`:
+
+```bash
+mem settings --compression-level=max
+mem settings --tool-output-compression=true
+mem settings --concise-output=true
+mem settings --show
+```
+
+La TUI expone las mismas opciones en la pantalla **Configuración**. Después de
+cambiar `--tool-output-compression`, ejecuta `mem install` para registrar o
+retirar el hook del runtime.
+
+### Comprimir y recuperar contenido
+
+```bash
+mem pack compress salida.json --level max
+mem pack compress salida.json --compare
+mem pack compress salida.json --level max --json
+mem pack retrieve <ref>
+```
+
+`mem pack retrieve` escribe el original exacto en `stdout`. Una referencia
+desconocida o caducada produce el código de salida 2. Los originales caducan
+por inactividad y están sujetos al límite de almacenamiento configurado.
+
+Las herramientas MCP equivalentes son `pack_compress`, `pack_retrieve` y
+`pack_savings`. Cuando una salida incluye una marca, la línea de recuperación
+indica cómo consultar el bloque omitido.
+
+### Medición y ajuste
+
+```bash
+mem pack savings
+mem pack savings --json
+mem pack tune --reset
+mem pack tune --reset --type code/go
+mem pack purge
+```
+
+`savings` informa de usos, tokens antes y después, recuperaciones,
+degradaciones y latencia. Si una categoría acumula al menos 20 omisiones y su
+tasa de recuperación supera el umbral configurado, GoMemory reduce su
+agresividad. El ajuste nunca aumenta automáticamente; `tune --reset` lo
+restablece.
+
+### Compresión de salidas de herramientas
+
+La compresión de herramientas es opt-in y nunca reemplaza la salida si no hay
+ganancia, si vence el presupuesto de 150 ms o si la forma no es compatible.
+Excluye operaciones de lectura y edición, y todas las herramientas de
+GoMemory. Los textos privados o que parecen contener credenciales no generan
+referencias recuperables.
+
+Compatibilidad verificada:
+
+- Claude Code 2.1.282: salida sustituida mediante `PostToolUse`.
+- Codex 0.157.0: soporte parcial para resultados de herramientas MCP; las
+  herramientas de shell conservan su salida.
+- OpenCode 1.18.32 y 2.x: el contrato del plugin está preparado en modo
+  best-effort, pero la sustitución visible para el modelo no está verificada;
+  `mem doctor` la presenta como no soportada cuando corresponde.
+
+`mem doctor` muestra el nivel efectivo, el uso del almacén de originales, el
+estado por runtime y los ajustes adaptativos. Con `--strict`, un nivel `max`
+sin almacén escribible produce un código de salida distinto de cero.
