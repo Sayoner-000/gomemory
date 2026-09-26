@@ -31,6 +31,20 @@ type Engine struct {
 	// StoreTimeout sobrescribe domain.StoreTimeout si es positivo (el hook de
 	// salidas de herramientas usa un plazo más corto).
 	StoreTimeout time.Duration
+	// Counter mide los tokens con los que el motor decide (umbral mínimo y
+	// ganancia frente a la compresión estructural). Tiene que ser el mismo
+	// ports.TokenCounter que usa BuildContextPack: si no, una ganancia medida
+	// con una regla podría desaparecer con la otra (C-002 de acr_0814de3a).
+	// nil usa la heurística interna (~4 caracteres por token).
+	Counter ports.TokenCounter
+}
+
+// count mide s con el contador inyectado o, sin él, con la heurística interna.
+func (e *Engine) count(s string) int {
+	if e.Counter != nil {
+		return e.Counter.Count(s)
+	}
+	return approxTokens(s)
 }
 
 // NewEngine construye el motor. store es obligatorio para comprimir con
@@ -123,7 +137,16 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 		e.record(res)
 	}()
 
-	structural, _ := compression.StructuralCompressor{}.Compress(input, ports.CompressionOptions{Level: ports.CompressionStructural})
+	rawTokens := e.count(input)
+	structural, serr := compression.StructuralCompressor{}.Compress(input, ports.CompressionOptions{Level: ports.CompressionStructural})
+	if serr != nil {
+		// Sin salida estructural no hay con qué comparar ni a qué degradar: se
+		// entrega el contenido intacto (C-001 de acr_0814de3a).
+		return ports.CompressionResult{Content: input, RawTokens: rawTokens, Tokens: rawTokens, StructuralTokens: rawTokens, Compressor: "none", FallbackReason: "error"}, nil
+	}
+	// Todas las cifras del motor salen del mismo contador (ver Engine.Counter).
+	structural.RawTokens = rawTokens
+	structural.Tokens = e.count(structural.Content)
 	fallback := func(reason string) ports.CompressionResult {
 		r := structural
 		r.Compressor = "structural"
@@ -132,7 +155,6 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 		return r
 	}
 
-	rawTokens := approxTokens(input)
 	minTokens := e.MinTokens
 	if minTokens <= 0 {
 		minTokens = domain.CompressionMinTokens
@@ -182,7 +204,7 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 	}
 
 	result := out.String()
-	tokens := approxTokens(result)
+	tokens := e.count(result)
 	if len(pending) == 0 || tokens >= structural.Tokens {
 		if guardFailed {
 			return fallback("literal_guard"), nil
@@ -221,7 +243,7 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 	return ports.CompressionResult{
 		Content:          result,
 		RawTokens:        rawTokens,
-		Tokens:           approxTokens(result),
+		Tokens:           e.count(result),
 		Compressed:       true,
 		Compressor:       name,
 		ContentType:      typ,

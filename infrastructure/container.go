@@ -167,7 +167,11 @@ func NewContainer(root, channel string) (*Container, error) {
 	// ports.ContextBuilder solo expone Build()/WriteFile(), así que el
 	// registro vive en el propio Builder concreto, no en un método nuevo del
 	// puerto.
-	contextBuilder.Counter = tokens.ApproximateTokenCounter{}
+	// Un solo contador de tokens para todo el proceso: el contexto, el motor de
+	// compresión y BuildContextPack miden con la misma regla (C-002 de
+	// acr_0814de3a).
+	tokenCounter := tokens.ApproximateTokenCounter{}
+	contextBuilder.Counter = tokenCounter
 	contextBuilder.Recorder = usageRecorder
 
 	// CompactContextBuilder (feature 030, US1): copia de contextBuilder con
@@ -195,6 +199,7 @@ func NewContainer(root, channel string) (*Container, error) {
 	compressionTuning := persistence.NewCompressionTuningRepository(db, clock.SystemClock{})
 	engine := native.NewEngine(originalStore, compressionStats, compressionTuning, project)
 	engine.MinTokens = settings.CompressionMinTokens
+	engine.Counter = tokenCounter
 	// Orden estable → volátil del contexto (feature 033): solo en max, para que
 	// structural siga idéntico a la v2.25.0 (SC-008).
 	contextBuilder.ConciseDirective = settings.ConciseOutputDirective
@@ -232,7 +237,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		CompressionAdaptiveThreshold: float64(settings.CompressionAdaptiveThresholdPct) / 100,
 		CompressionLevel: ports.CompressionLevelFromSetting(
 			domain.ParseCompressionLevel(settings.ContextCompressionLevel, settings.ContextCompressionDisabled)),
-		TokenCounter:  tokens.ApproximateTokenCounter{},
+		TokenCounter:  tokenCounter,
 		SpecKitReader: speckit.Reader{},
 		UsageRepo:     usageRepo,
 		OctopusRepo:   octopusRepo,

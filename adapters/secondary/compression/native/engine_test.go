@@ -151,3 +151,31 @@ func TestReplaceBlockRefPreservesCollidingBlocks(t *testing.T) {
 		t.Fatalf("marcador escalar JSON equivocado: got %q want %q", got, quotedWant)
 	}
 }
+
+// contadorFijo devuelve siempre n tokens, sea cual sea el texto.
+type contadorFijo int
+
+func (c contadorFijo) Count(string) int { return int(c) }
+
+// C-002 (acr_0814de3a) — el motor decide con el contador inyectado, el mismo
+// de BuildContextPack, y no con su heurística interna.
+func TestEngineDecidesWithInjectedCounter(t *testing.T) {
+	in := readCorpus(t, "gotest-fail.log")
+	if r, _ := NewEngine(newMemStore(), nil, nil, "p").Compress(in, maxOpts); !r.Compressed || r.FallbackReason != "" {
+		t.Fatalf("control: con la heurística interna el corpus se comprime: %+v", r.FallbackReason)
+	}
+
+	// Para este contador la salida no gana tokens: el motor tiene que degradar.
+	e := NewEngine(newMemStore(), nil, nil, "p")
+	e.Counter = contadorFijo(1000)
+	r, _ := e.Compress(in, maxOpts)
+	if r.FallbackReason != "no_gain" || r.RawTokens != 1000 || r.StructuralTokens != 1000 {
+		t.Errorf("la ganancia debe medirse con el contador inyectado: %+v", r)
+	}
+
+	// Por debajo del umbral según el contador inyectado, sale intacto (FR-004).
+	e.Counter = contadorFijo(1)
+	if r, _ := e.Compress(in, maxOpts); r.Content != in || r.Compressor != "none" {
+		t.Errorf("el umbral mínimo debe medirse con el contador inyectado: %q", r.Compressor)
+	}
+}
