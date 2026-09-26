@@ -140,6 +140,60 @@ func GlobalProjectDir(key string) (string, error) {
 	return filepath.Join(home, "projects", key), nil
 }
 
+// HardenGlobalStore impone 0700 en cada directorio de proyecto del store
+// global y 0600 en sus mem.db* (incluidos -wal y -shm, que también guardan
+// datos). EnsureDir y Open solo endurecen el proyecto que abren: un store
+// creado antes del hardening dejaría expuestos para siempre los proyectos que
+// no se vuelven a abrir (C-001 de acr_ad72cce1). Devuelve cuántas entradas
+// corrigió; un store inexistente no es error.
+func HardenGlobalStore() (int, error) {
+	home, err := DataHome()
+	if err != nil {
+		return 0, err
+	}
+	projects := filepath.Join(home, "projects")
+	entries, err := os.ReadDir(projects)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	fixed := 0
+	harden := func(path string, perm os.FileMode) error {
+		info, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			return nil // SQLite borra -wal/-shm al cerrar: pudo irse tras ReadDir
+		}
+		if err != nil || info.Mode().Perm() == perm {
+			return err
+		}
+		fixed++
+		return os.Chmod(path, perm)
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		dir := filepath.Join(projects, e.Name())
+		if err := harden(dir, 0o700); err != nil {
+			return fixed, err
+		}
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			return fixed, err
+		}
+		for _, f := range files {
+			if f.Type().IsRegular() && strings.HasPrefix(f.Name(), DbName) {
+				if err := harden(filepath.Join(dir, f.Name()), 0o600); err != nil {
+					return fixed, err
+				}
+			}
+		}
+	}
+	return fixed, nil
+}
+
 // GlobalDbPath devuelve la ruta del mem.db en el store global para el
 // proyecto identificado por key.
 func GlobalDbPath(key string) (string, error) {

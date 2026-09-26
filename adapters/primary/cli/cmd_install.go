@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"mem/adapters/primary/setup"
+	"mem/adapters/secondary/persistence"
 	"mem/domain"
 )
 
@@ -204,6 +205,15 @@ func CmdInstall(deps *Deps, args []string) {
 	// conserva su nivel (ausente = structural, el comportamiento anterior).
 	if err := applyInstallCompressionDefault(deps, target, nuevaInstalacion); err != nil {
 		fmt.Printf("  ⚠️  Nivel de compresión: %v\n", err)
+	}
+
+	// Permisos privados en todo el store global, no solo en el proyecto que
+	// se abre: `mem update` ejecuta install, así que cada actualización cierra
+	// también los proyectos que no se vuelven a abrir (C-001 de acr_ad72cce1).
+	if n, err := persistence.HardenGlobalStore(); err != nil {
+		fmt.Printf("  ⚠️  Permisos del store global: %v\n", err)
+	} else if n > 0 {
+		fmt.Printf("  🔒 Permisos privados restaurados en %d entradas del store global\n", n)
 	}
 
 	// 7. Apply autoApprove settings if configured

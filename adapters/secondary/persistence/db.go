@@ -42,14 +42,18 @@ func EnsureDir(root string) error {
 	// 0700: solo el usuario propietario debe poder leer/escribir el store
 	// global (specs/009-mitigacion-riesgos, Historia de Usuario 2 — hardening
 	// de permisos, segunda mitigación junto a RedactSecrets).
+	//
+	// MkdirAll no corrige un directorio existente: los creados antes del
+	// hardening siguen en 0755 (C-001 de acr_ad72cce1), y un hook que creó
+	// .memory antes que este Init lo deja igual, con context.md (0644)
+	// legible por otros usuarios. El Chmod impone el 0700 en cada arranque.
 	if err := os.MkdirAll(globalDir, 0o700); err != nil {
 		return err
 	}
+	if err := os.Chmod(globalDir, 0o700); err != nil {
+		return err
+	}
 
-	// MkdirAll no corrige un directorio existente: instalaciones previas al
-	// hardening, o un hook que creó .memory antes que este Init, lo dejan en
-	// 0755 y context.md (0644) quedaría legible por otros usuarios. El Chmod
-	// impone el 0700 en cada arranque.
 	memDir := filepath.Join(root, MemDir)
 	if err := os.MkdirAll(memDir, 0o700); err != nil {
 		return err
