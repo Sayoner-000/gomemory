@@ -25,7 +25,7 @@ func (s storeDoctor) Usage(context.Context) (int64, int, error) { return s.bytes
 // T072 — sección Compresión de mem doctor.
 func TestDoctorCompression(t *testing.T) {
 	root := t.TempDir()
-	deps := &Deps{SettingsRepo: &memSettingsRepo{s: ports.SettingsData{ContextCompressionLevel: "max", CompressionOriginalsMaxMB: 1}}, OriginalStore: storeDoctor{bytes: 1 << 19}}
+	deps := &Deps{SettingsRepo: &memSettingsRepo{s: ports.SettingsData{ContextCompressionLevel: "max", CompressionOriginalsMaxMB: 10}}, OriginalStore: storeDoctor{bytes: 1 << 19}}
 	c := buildDoctorCompression(deps, root)
 	if c.Level != "max" || c.Origin != "ajuste" || !c.StoreWritable || len(c.Problems) != 0 || c.OriginalsRefs != 3 {
 		t.Errorf("estado sano inesperado: %+v", c)
@@ -34,7 +34,7 @@ func TestDoctorCompression(t *testing.T) {
 	if c := buildDoctorCompression(deps, root); c.StoreWritable || len(c.Problems) != 1 {
 		t.Errorf("max con almacén no escribible debe contar como problema (--strict): %+v", c)
 	}
-	deps.OriginalStore = storeDoctor{bytes: 950 << 10}
+	deps.OriginalStore = storeDoctor{bytes: 9500 << 10} // 92,8 % de 10 MB
 	if c := buildDoctorCompression(deps, root); !c.NearLimit || len(c.Problems) != 1 {
 		t.Errorf("al 90 %% debe avisar: %+v", c)
 	}

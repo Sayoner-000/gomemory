@@ -67,6 +67,17 @@ type CompressionResult struct {
 	LatencyMicros  int64
 	// Omissions cuenta los elementos, líneas o frases omitidos (con marcador).
 	Omissions int
+	// BlockOmissions desglosa Omissions por el compresor y el tipo de cada
+	// bloque omitido: es la clave con la que se guarda su original y con la que
+	// se cuentan sus recuperaciones, así la tasa de FR-027 compara lo mismo.
+	BlockOmissions []BlockOmission
+}
+
+// BlockOmission son las omisiones de un bloque con su compresor y su tipo.
+type BlockOmission struct {
+	Compressor  string
+	ContentType string
+	Omissions   int
 }
 
 // Compressor acorta contenido de forma reversible: nunca sobreescribe el

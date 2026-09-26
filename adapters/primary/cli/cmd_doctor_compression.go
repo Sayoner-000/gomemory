@@ -66,10 +66,7 @@ func buildDoctorCompression(deps *Deps, root string) doctorCompressionJSON {
 	default:
 		out.Origin = "por defecto"
 	}
-	out.OriginalsMax = int64(domain.CompressionOriginalsMaxBytes)
-	if st.CompressionOriginalsMaxMB > 0 {
-		out.OriginalsMax = int64(st.CompressionOriginalsMaxMB) << 20
-	}
+	out.OriginalsMax = domain.EffectiveOriginalsMaxBytes(st.CompressionOriginalsMaxMB)
 	ctx, cancel := context.WithTimeout(context.Background(), 4*domain.StoreTimeout)
 	defer cancel()
 	if deps.OriginalStore != nil {

@@ -72,7 +72,8 @@ func CodexGomemoryHooks() []CodexHook { return codexGomemoryHooks }
 
 // CodexToolOutputHook es el hook opt-in de salidas de herramientas (feature
 // 033). No va en codexGomemoryHooks a propósito: esa tabla es el ciclo mínimo
-// que `mem doctor` exige, y este hook solo existe con el ajuste activo. Codex
+// que `mem doctor` exige, y este hook solo se registra cuando algún proyecto
+// activa el ajuste (después ya no se retira: ver syncCodexToolOutput). Codex
 // 0.157.0 solo admite reescribir herramientas MCP (updatedMCPToolOutput); el
 // subcomando ignora el resto.
 var CodexToolOutputHook = CodexHook{Event: "PostToolUse", Sub: "tool-output codex"}

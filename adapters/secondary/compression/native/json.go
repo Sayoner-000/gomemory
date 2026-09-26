@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strconv"
 	"strings"
 
 	"mem/domain"
@@ -24,9 +23,9 @@ import (
 func jsonMarker(summary, ref string, campos map[string]string) string {
 	var b strings.Builder
 	b.WriteString(`{"` + domain.MarkerTag + `": `)
-	b.WriteString(strconv.Quote(summary))
+	b.WriteString(jsonQuote(summary))
 	if ref != "" {
-		b.WriteString(`, "ref": ` + strconv.Quote(ref))
+		b.WriteString(`, "ref": ` + jsonQuote(ref))
 	}
 	if len(campos) > 0 {
 		keys := make([]string, 0, len(campos))
@@ -39,7 +38,7 @@ func jsonMarker(summary, ref string, campos map[string]string) string {
 			if i > 0 {
 				b.WriteString(", ")
 			}
-			b.WriteString(strconv.Quote(k) + ": " + strconv.Quote(campos[k]))
+			b.WriteString(jsonQuote(k) + ": " + jsonQuote(campos[k]))
 		}
 		b.WriteString("}")
 	}
@@ -47,10 +46,21 @@ func jsonMarker(summary, ref string, campos map[string]string) string {
 	return b.String()
 }
 
+// jsonQuote entrecomilla s con los escapes de JSON. strconv.Quote no sirve:
+// usa escapes de Go (\a, \x01) que JSON no admite, y los valores resumidos
+// salen del contenido del usuario (C-005 de acr_961a1676).
+func jsonQuote(s string) string {
+	var b strings.Builder
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(s)
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
 // jsonStringMarker es la forma de omisión dentro de un array de escalares: un
 // string más, para que el array siga siendo homogéneo y JSON válido.
 func jsonStringMarker(summary, ref string) string {
-	return strconv.Quote(domain.RenderTextMarker(domain.Omission{Ref: ref, Summary: summary}))
+	return jsonQuote(domain.RenderTextMarker(domain.Omission{Ref: ref, Summary: summary}))
 }
 
 // compressJSON comprime un documento JSON válido o un bloque de JSON Lines.

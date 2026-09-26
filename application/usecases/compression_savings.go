@@ -59,7 +59,12 @@ func (r SavingsReport) Format() string {
 		w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(w, "compresor\ttipo\tusos\ttokens antes → después\tahorro\trecuperación\tdegradaciones\tlatencia media")
 		for _, s := range r.Rows {
-			ahorro, recup, lat := "—", "—", "—"
+			// Una fila sin usos solo acumula omisiones o recuperaciones de los
+			// bloques de un documento mixto: no tiene tokens propios que mostrar.
+			tokens, ahorro, recup, lat := "—", "—", "—", "—"
+			if s.Uses > 0 {
+				tokens = fmt.Sprintf("%d → %d", s.RawTokens, s.FinalTokens)
+			}
 			if s.RawTokens > 0 {
 				ahorro = fmt.Sprintf("%.1f%%", 100*(1-float64(s.FinalTokens)/float64(s.RawTokens)))
 			}
@@ -69,7 +74,7 @@ func (r SavingsReport) Format() string {
 			if s.Uses > 0 {
 				lat = fmt.Sprintf("%.1f ms", float64(s.LatencyMicrosTotal)/float64(s.Uses)/1000)
 			}
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%d → %d\t%s\t%s\t%d\t%s\n", s.Compressor, s.ContentType, s.Uses, s.RawTokens, s.FinalTokens, ahorro, recup, s.Fallbacks, lat)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%d\t%s\n", s.Compressor, s.ContentType, s.Uses, tokens, ahorro, recup, s.Fallbacks, lat)
 		}
 		_ = w.Flush()
 	}

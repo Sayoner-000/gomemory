@@ -91,6 +91,7 @@ func (d SessionDelta) ApplyContext(ctx context.Context, doc string) string {
 
 	var out strings.Builder
 	next := 0
+	replaced := false
 	for k := 0; k < len(units); {
 		if !seen[hashes[k]] {
 			k++
@@ -107,14 +108,18 @@ func (d SessionDelta) ApplyContext(ctx context.Context, doc string) string {
 			if m := entryTitle.FindStringSubmatch(lines[units[k].start]); m != nil {
 				title = "**" + m[1] + "**"
 			}
-			fmt.Fprintf(&out, "- %s %s\n", title, domain.MarkerOpen+"ya entregado"+domain.MarkerClose)
+			fmt.Fprintf(&out, "- %s %s\n", title, domain.DeliveredTag)
 		} else {
-			fmt.Fprintf(&out, "- %s %d entradas ya entregadas en esta sesión, sin cambios · get_memory(id) o search_memories para reconsultar\n", domain.MarkerTag, run-k)
+			fmt.Fprintf(&out, "- %s %d entradas ya entregadas en esta sesión, sin cambios\n", domain.MarkerTag, run-k)
 		}
+		replaced = true
 		next = units[run-1].end
 		k = run
 	}
 	out.WriteString(strings.Join(lines[next:], ""))
+	if replaced {
+		out.WriteString(DeliveredRecoveryHint)
+	}
 
 	var fresh []string
 	for _, h := range hashes {
@@ -161,7 +166,7 @@ func (d SessionDelta) ApplySearch(ctx context.Context, doc string) string {
 			continue
 		}
 		head := strings.SplitN(b, "\n", 2)[0]
-		out.WriteString(head + " " + domain.MarkerOpen + "ya entregado" + domain.MarkerClose + "\n\n")
+		out.WriteString(head + " " + domain.DeliveredTag + "\n\n")
 	}
 	_ = d.Blocks.Mark(ctx, fresh)
 	return out.String()
@@ -198,7 +203,17 @@ func (d SessionDelta) ApplyWhole(ctx context.Context, doc, notice string) string
 	return doc
 }
 
+// DeliveredRecoveryHint acompaña a todo documento en el que el delta sustituyó
+// entradas. "Entregado" significa enviado a la sesión de gomemory, no que esté
+// en el contexto de quien llama: un subagente comparte la sesión sin compartir
+// el contexto, y el host puede truncar una salida larga. Por eso cada marcador
+// tiene que llevar a una vía que devuelva el contenido de verdad.
+const DeliveredRecoveryHint = "\n> ⟦ya entregado⟧ = enviado antes en esta sesión. Si no lo tienes (eres un subagente, " +
+	"la salida se truncó o hubo compactación), pídelo completo: get_context(full=true) o " +
+	"get_plan_context(full=true) (CLI: mem context --full, mem plan-context --full).\n"
+
 // MethodAlreadyDelivered es el aviso que sustituye al método de planificación
 // ya entregado en la sesión.
 const MethodAlreadyDelivered = "> El método de descomposición atómica ya se entregó en esta sesión y no ha cambiado: aplícalo igual.\n" +
-	"> Si ya no lo tienes (por ejemplo, tras una compactación), gomemory lo reenvía completo en la siguiente llamada."
+	"> Si no lo tienes (eres un subagente, la salida se truncó o hubo compactación), pídelo completo con " +
+	"get_plan_context(full=true) (CLI: mem plan-context --full)."

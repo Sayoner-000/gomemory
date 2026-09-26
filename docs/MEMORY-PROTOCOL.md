@@ -270,3 +270,7 @@ La salida que contiene marcas termina con esta instrucción:
 temporales: caducan según la política del proyecto y pueden desaparecer al
 aplicar el límite del almacén. El contenido privado o con credenciales
 detectadas no se almacena y, por tanto, nunca genera referencias.
+
+## Recuperar contexto ya entregado
+
+Los marcadores `⟦ya entregado⟧` indican que gomemory envió ese contenido durante la sesión; no garantizan que siga disponible en el contexto del agente que consulta. Los subagentes, las salidas truncadas y las compactaciones pueden dejar al agente sin ese material. En esos casos, solicita la respuesta completa con `get_context(full=true)` o `get_plan_context(full=true)`. En CLI, usa `mem context --full` o `mem plan-context --full`.

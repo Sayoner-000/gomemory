@@ -56,6 +56,19 @@ func deliverContextDoc(deps *Deps, raw string) string {
 	return compressDeliveredContext(deps, applyContextDelta(deps, raw))
 }
 
+// deliverContextDocFull es deliverContextDoc con la salida de recuperación
+// (full=true): entrega el documento entero, sin delta, y NO lo anota. La usa
+// quien no tiene el contexto —un subagente, sobre todo—, y el registro es de
+// toda la sesión: anotarlo haría que el agente principal recibiera marcadores
+// de lo que nunca leyó (A-R2-01 de acr_df09a036). Mismo criterio que
+// get_plan_context(full=true).
+func deliverContextDocFull(deps *Deps, raw string, full bool) string {
+	if !full {
+		return deliverContextDoc(deps, raw)
+	}
+	return compressDeliveredContext(deps, raw)
+}
+
 // applyContextDelta aplica solo el delta de sesión (sin compresión).
 func applyContextDelta(deps *Deps, raw string) string {
 	if !deltaActivo(deps) {

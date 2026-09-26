@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"mem/application/ports"
+	"mem/domain"
 )
 
 func TestNoopCompressor_Passthrough(t *testing.T) {
@@ -101,5 +102,16 @@ func TestStructuralCompressor_Deterministic(t *testing.T) {
 	}
 	if first.Content != second.Content {
 		t.Fatalf("StructuralCompressor no es determinista:\n1: %q\n2: %q", first.Content, second.Content)
+	}
+}
+
+// C-002 (acr_6793454b) — la limpieza estructural no fusiona marcas de entrega
+// idénticas: cada una ocupa el lugar de una entrada distinta.
+func TestStructuralCompressor_KeepsIdenticalDeliveredMarkers(t *testing.T) {
+	marca := "- **Decisión repetida** " + domain.DeliveredTag
+	in := marca + "\n\notro párrafo\n\n" + marca + "\n"
+	out := compressStructural(in)
+	if strings.Count(out, marca) != 2 {
+		t.Errorf("las dos marcas de entrega deben conservarse:\n%s", out)
 	}
 }

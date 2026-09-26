@@ -47,9 +47,15 @@ func compressProse(content, ref string, th domain.Thresholds) (string, int) {
 	seen := map[string]bool{}
 	var out []string
 	omitted := 0
+	// dupRun cuenta las líneas duplicadas seguidas que comparten una marca.
+	dupRun := 0
 	for _, line := range lines {
 		t := strings.TrimSpace(line)
-		if t == "" {
+		// Las líneas en blanco y las marcas de gomemory (de omisión o de
+		// entrega) se conservan tal cual: una marca ocupa el lugar de un
+		// contenido concreto y nunca es un duplicado (C-002 de acr_6793454b).
+		if t == "" || domain.IsMarkerLine(t) {
+			dupRun = 0
 			out = append(out, line)
 			continue
 		}
@@ -58,13 +64,23 @@ func compressProse(content, ref string, th domain.Thresholds) (string, int) {
 			strings.HasPrefix(t, "|") || strings.HasPrefix(t, ">") || (len(t) > 1 && t[0] >= '0' && t[0] <= '9' && strings.Contains(t[:min(4, len(t))], "."))
 		if structural || len(t) < 40 {
 			if len(t) >= 40 && seen[key] {
+				// Toda omisión deja su marca (FR-012); las seguidas comparten una.
 				omitted++
+				dupRun++
+				marker := domain.RenderTextMarker(domain.Omission{Ref: ref, Summary: fmt.Sprintf("%d líneas duplicadas omitidas", dupRun)})
+				if dupRun > 1 {
+					out[len(out)-1] = marker
+				} else {
+					out = append(out, marker)
+				}
 				continue
 			}
+			dupRun = 0
 			seen[key] = true
 			out = append(out, line)
 			continue
 		}
+		dupRun = 0
 
 		sentences := splitSentences(line)
 		var kept []string

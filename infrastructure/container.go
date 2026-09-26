@@ -190,7 +190,7 @@ func NewContainer(root, channel string) (*Container, error) {
 	// estructural como ports.Compressor: con los niveles none y structural
 	// delega en ella (salida idéntica a la v2.25.0) y solo con max aplica el
 	// motor completo, con estadísticas por compresor y ajuste adaptativo.
-	originalStore := persistence.NewOriginalStoreRepository(db, clock.SystemClock{}, settings.CompressionOriginalsTTLDays, settings.CompressionOriginalsMaxMB)
+	originalStore := persistence.NewOriginalStoreRepository(db, clock.SystemClock{}, settings.CompressionOriginalsTTLDays, domain.EffectiveOriginalsMaxMB(settings.CompressionOriginalsMaxMB))
 	compressionStats := persistence.NewCompressionStatsRepository(db, clock.SystemClock{})
 	compressionTuning := persistence.NewCompressionTuningRepository(db, clock.SystemClock{})
 	engine := native.NewEngine(originalStore, compressionStats, compressionTuning, project)

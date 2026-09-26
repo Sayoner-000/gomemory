@@ -40,6 +40,9 @@ const (
 	// MarkerTag es la etiqueta completa con la que empieza todo marcador y la
 	// clave del objeto marcador en JSON.
 	MarkerTag = MarkerOpen + "mem" + MarkerClose
+	// DeliveredTag marca una entrada que el delta de sesión sustituyó porque ya
+	// se envió en la sesión (feature 033, FR-018).
+	DeliveredTag = MarkerOpen + "ya entregado" + MarkerClose
 )
 
 // Omission describe un fragmento que un compresor omitió: la referencia con la
@@ -73,10 +76,12 @@ func RenderJSONMarker(o Omission, extra map[string]string) map[string]any {
 	return m
 }
 
-// IsMarkerLine dice si una línea es (o contiene) un marcador de omisión. La
-// guarda de literalidad la usa para saltar las líneas que el compresor añade.
+// IsMarkerLine dice si una línea es (o contiene) una marca de gomemory: de
+// omisión (MarkerTag) o de entrega de sesión (DeliveredTag). Una marca ocupa el
+// lugar de un contenido concreto, así que ningún compresor la deduplica aunque
+// su texto coincida con el de otra (C-002 de acr_6793454b).
 func IsMarkerLine(line string) bool {
-	return strings.Contains(line, MarkerTag)
+	return strings.Contains(line, MarkerTag) || strings.Contains(line, DeliveredTag)
 }
 
 // Longitudes de la referencia: 12 hex por defecto (48 bits, barato en tokens) y

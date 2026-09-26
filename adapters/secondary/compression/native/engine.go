@@ -94,7 +94,7 @@ func compressorFor(typ domain.ContentType) typeCompressor {
 // guardar antes de entregar la salida.
 type pendingOriginal struct {
 	ref, content, typ, compressor string
-	start, end                    int
+	start, end, omissions         int
 	storedRef                     string
 }
 
@@ -169,14 +169,14 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 			out.WriteString(b.close)
 			if n > 0 {
 				omissions += n
-				pending = append(pending, pendingOriginal{ref: refOf(b.content), content: b.content, typ: string(b.typ), compressor: name, start: start, end: end})
+				pending = append(pending, pendingOriginal{ref: refOf(b.content), content: b.content, typ: string(b.typ), compressor: name, start: start, end: end, omissions: n})
 			}
 		} else {
 			start := out.Len()
 			out.WriteString(content)
 			if n > 0 {
 				omissions += n
-				pending = append(pending, pendingOriginal{ref: refOf(b.content), content: b.content, typ: string(b.typ), compressor: name, start: start, end: out.Len()})
+				pending = append(pending, pendingOriginal{ref: refOf(b.content), content: b.content, typ: string(b.typ), compressor: name, start: start, end: out.Len(), omissions: n})
 			}
 		}
 	}
@@ -195,6 +195,7 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 	ctx, cancel := e.ctx()
 	defer cancel()
 	var refs []string
+	var blocks []ports.BlockOmission
 	for i := range pending {
 		p := &pending[i]
 		ref, perr := e.store.Put(ctx, e.project, p.content, p.typ, p.compressor)
@@ -203,6 +204,7 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 		}
 		p.storedRef = ref
 		refs = append(refs, ref)
+		blocks = append(blocks, ports.BlockOmission{Compressor: p.compressor, ContentType: p.typ, Omissions: p.omissions})
 	}
 	// Reescribir de atrás hacia delante conserva las posiciones de los bloques
 	// que faltan por tratar. Dentro de cada bloque se cambian todas sus marcas:
@@ -226,6 +228,7 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 		StructuralTokens: structural.Tokens,
 		Refs:             refs,
 		Omissions:        omissions,
+		BlockOmissions:   blocks,
 	}, nil
 }
 

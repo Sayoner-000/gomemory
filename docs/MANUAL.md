@@ -1195,6 +1195,13 @@ La TUI expone las mismas opciones en la pantalla **Configuración**. Después de
 cambiar `--tool-output-compression`, ejecuta `mem install` para registrar o
 retirar el hook del runtime.
 
+`get_context` y `get_plan_context` aceptan `full=true` para volver a recibir
+todo el contenido aunque ya se haya enviado durante la sesión. Úsalo cuando
+seas un subagente, la salida anterior se haya truncado o hayas perdido el
+contexto tras una compactación. En CLI: `mem context --full` y
+`mem plan-context --full`. Los marcadores `⟦ya entregado⟧` incluyen esta vía
+de recuperación.
+
 ### Comprimir y recuperar contenido
 
 ```bash
@@ -1206,7 +1213,9 @@ mem pack retrieve <ref>
 
 `mem pack retrieve` escribe el original exacto en `stdout`. Una referencia
 desconocida o caducada produce el código de salida 2. Los originales caducan
-por inactividad y están sujetos al límite de almacenamiento configurado.
+por inactividad y están sujetos al límite de almacenamiento configurado. El
+valor efectivo de `compression_originals_max_mb` tiene un mínimo de 8 MB, para
+que el límite no expulse los originales de una misma llamada.
 
 Las herramientas MCP equivalentes son `pack_compress`, `pack_retrieve` y
 `pack_savings`. Cuando una salida incluye una marca, la línea de recuperación
@@ -1223,8 +1232,10 @@ mem pack purge
 ```
 
 `savings` informa de usos, tokens antes y después, recuperaciones,
-degradaciones y latencia. Si una categoría acumula al menos 20 omisiones y su
-tasa de recuperación supera el umbral configurado, GoMemory reduce su
+degradaciones y latencia. En documentos mixtos, las omisiones se atribuyen al
+tipo de contenido de cada bloque. Las filas sin usos propios muestran `—` en
+las métricas que no aplican. Si una categoría acumula al menos 20 omisiones y
+su tasa de recuperación supera el umbral configurado, GoMemory reduce su
 agresividad. El ajuste nunca aumenta automáticamente; `tune --reset` lo
 restablece.
 

@@ -24,8 +24,9 @@ func HashDeContenido(s string) string {
 // Suprimir material sin decirlo dejaría al agente sin saber si el proyecto no
 // tiene historial o si simplemente no se le reenvió (FR-007).
 const avisoDeSupresion = "> El historial del proyecto ya está disponible en esta sesión: se entregó\n" +
-	"> al cargar el contexto y no se repite aquí. Si lo perdiste —por ejemplo tras\n" +
-	"> una compactación— vuelve a pedir el contexto del proyecto para recuperarlo."
+	"> al cargar el contexto y no se repite aquí. Si no lo tienes (eres un subagente,\n" +
+	"> la salida se truncó o hubo compactación), pídelo completo con\n" +
+	"> get_plan_context(full=true) o get_context(full=true) (CLI: --full)."
 
 // PlanContext compone el documento que el agente recibe al entrar en modo plan
 // (feature 013): el método de descomposición atómica seguido del contexto

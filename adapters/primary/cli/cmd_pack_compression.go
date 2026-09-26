@@ -175,7 +175,7 @@ func savingsReport(deps *Deps, ctx context.Context) (usecases.SavingsReport, err
 	ttl := 0
 	if deps.SettingsRepo != nil {
 		st := deps.SettingsRepo.Read(deps.Root)
-		maxBytes = int64(st.CompressionOriginalsMaxMB) << 20
+		maxBytes = domain.EffectiveOriginalsMaxBytes(st.CompressionOriginalsMaxMB)
 		ttl = st.CompressionOriginalsTTLDays
 	}
 	return usecases.BuildSavingsReport(ctx, deps.CompressionStats, deps.CompressionTuning, deps.OriginalStore, deps.Project, maxBytes, ttl)

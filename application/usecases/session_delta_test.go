@@ -38,6 +38,9 @@ func TestSessionDeltaContext(t *testing.T) {
 	if !strings.Contains(second, "3 entradas ya entregadas") || !strings.Contains(second, "- **D** ⟦ya entregado⟧") {
 		t.Errorf("segunda entrega sin delta:\n%s", second)
 	}
+	if !strings.Contains(second, DeliveredRecoveryHint) || strings.Contains(second, "get_memory(id)") {
+		t.Errorf("los marcadores deben llevar a una vía de recuperación real (full=true):\n%s", second)
+	}
 	if !strings.Contains(second, "1. regla fija") {
 		t.Error("las reglas fijadas nunca se sustituyen")
 	}

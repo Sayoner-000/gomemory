@@ -5,6 +5,34 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.26.1] - 2026-09-25
+
+### Added
+
+- `get_context` y `get_plan_context` aceptan `full=true` (CLI: `mem context
+  --full`) para recibir también lo ya enviado en la sesión. Los subagentes
+  reciben la indicación de usarlo.
+
+### Fixed
+
+- El contexto de arranque que el host no inyecta entero (más de 10 000
+  caracteres) ya no se da por entregado. Antes, `get_context` y `get_plan_context`
+  devolvían marcadores «ya entregado» de entradas que el agente nunca leyó; lo
+  mismo les ocurría a los subagentes. Los marcadores indican ahora cómo
+  recuperar el contenido.
+- La compresión de prosa deja una marca recuperable también al omitir líneas
+  de lista, título o tabla duplicadas. Ningún compresor trata ya como
+  duplicadas las marcas idénticas de omisión o de «ya entregado».
+- El ajuste adaptativo cuenta las omisiones con el tipo de cada bloque, de
+  modo que funciona también en documentos mixtos; `mem pack savings` muestra
+  «—» en las filas sin usos propios.
+- Las marcas dentro de JSON usan escapes JSON: un valor con caracteres de
+  control ya no invalida la salida.
+- `compression_originals_max_mb` no puede bajar de 8 MB, para que una llamada
+  no expulse los originales que acaba de guardar.
+- Instalar en un proyecto con la compresión de salidas apagada ya no retira el
+  hook global de Codex que usan otros proyectos.
+
 ## [v2.26.0] - 2026-09-25
 
 ### Added

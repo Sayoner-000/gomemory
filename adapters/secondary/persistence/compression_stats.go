@@ -33,7 +33,20 @@ func (r *CompressionStatsRepository) Record(ctx context.Context, project string,
 	if res.FallbackReason != "" {
 		fallback = 1
 	}
-	_, err := r.db.ExecContext(ctx, `
+	// Con desglose por bloque, las omisiones se suman en la fila del compresor
+	// y el tipo de cada bloque, que es la clave de su original y de sus
+	// recuperaciones (FR-027). La fila del documento cuenta uso y tokens.
+	omissions := res.Omissions
+	if len(res.BlockOmissions) > 0 {
+		omissions = 0
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("registrar estadística de compresión: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	now := formatTS(r.clock.Now())
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO compression_stats (project, compressor, content_type, uses, raw_tokens, structural_tokens, final_tokens, omissions, retrievals, fallbacks, latency_us_total, updated_at)
 		VALUES (?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?)
 		ON CONFLICT(project, compressor, content_type) DO UPDATE SET
@@ -46,8 +59,22 @@ func (r *CompressionStatsRepository) Record(ctx context.Context, project string,
 			latency_us_total = latency_us_total + excluded.latency_us_total,
 			updated_at = excluded.updated_at`,
 		project, orUnknown(res.Compressor), orUnknown(res.ContentType), res.RawTokens, res.StructuralTokens, res.Tokens,
-		res.Omissions, fallback, res.LatencyMicros, formatTS(r.clock.Now()))
+		omissions, fallback, res.LatencyMicros, now)
 	if err != nil {
+		return fmt.Errorf("registrar estadística de compresión: %w", err)
+	}
+	for _, b := range res.BlockOmissions {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO compression_stats (project, compressor, content_type, omissions, updated_at)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(project, compressor, content_type) DO UPDATE SET
+				omissions = omissions + excluded.omissions, updated_at = excluded.updated_at`,
+			project, orUnknown(b.Compressor), orUnknown(b.ContentType), b.Omissions, now)
+		if err != nil {
+			return fmt.Errorf("registrar omisiones por bloque: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("registrar estadística de compresión: %w", err)
 	}
 	return nil

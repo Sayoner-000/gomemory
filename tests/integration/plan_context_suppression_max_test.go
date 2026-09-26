@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"mem/domain"
 )
 
 const avisoSupresion = "El historial del proyecto ya está disponible en esta sesión"
@@ -27,6 +30,7 @@ func TestPlanContextSuppression_Max(t *testing.T) {
 				dir := proyectoCompresion(t, `{"context_compression_level": "`+nivel+`", "budget": -1}`)
 				correrMem(t, bin, dir, env, "", "session", "start")
 				correrMem(t, bin, dir, env, "", "save", "-t", "log grande", "-y", "bugfix", string(log))
+				truncada := false
 				switch via {
 				case "cli":
 					out := correrMem(t, bin, dir, env, "", "context").stdout
@@ -39,9 +43,18 @@ func TestPlanContextSuppression_Max(t *testing.T) {
 						t.Fatalf("get_context: %s", r[0].Text)
 					}
 				case "hook":
-					correrMem(t, bin, dir, env, "{}", "hook", "session-start")
+					out := correrMem(t, bin, dir, env, "{}", "hook", "session-start").stdout
+					// C-002 (acr_961a1676): una salida del hook mayor que lo que el
+					// host inyecta entero llega truncada y no cuenta como entregada.
+					truncada = utf8.RuneCountInString(out) > domain.HookInlineContextMaxChars
 				}
 				plan := correrMem(t, bin, dir, env, "", "plan-context").stdout
+				if truncada {
+					if strings.Contains(plan, avisoSupresion) {
+						t.Errorf("con %s el hook excede lo que el host inyecta: get_plan_context debe entregar el historial", nivel)
+					}
+					return
+				}
 				if !strings.Contains(plan, avisoSupresion) {
 					t.Errorf("get_plan_context debería suprimir el historial ya entregado por %s con %s", via, nivel)
 				}

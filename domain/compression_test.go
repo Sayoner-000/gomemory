@@ -36,6 +36,10 @@ func TestIsMarkerLine(t *testing.T) {
 	if IsMarkerLine("[mem] no es un marcador") {
 		t.Error("no debe confundir corchetes normales")
 	}
+	// C-002 (acr_6793454b): la marca de entrega de sesión también es una marca.
+	if !IsMarkerLine("- **Título** " + DeliveredTag) {
+		t.Error("debe reconocer la marca de entrega")
+	}
 }
 
 func TestRefFromHash(t *testing.T) {

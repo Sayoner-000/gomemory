@@ -7,6 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
+[![Version](https://img.shields.io/badge/version-2.26.1-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.26.1)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-28_core_tools-blueviolet)](https://modelcontextprotocol.io/)
@@ -222,8 +223,8 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 | `search_memories` | Search relevant memories |
 | `list_memories` | List recent memories |
 | `get_memory` | Retrieve a complete memory |
-| `get_context` | Retrieve project context |
-| `get_plan_context` | Retrieve planning context |
+| `get_context` | Retrieve project context (`full=true` also returns what this session already received) |
+| `get_plan_context` | Retrieve planning context (`full=true` also returns what this session already received) |
 | `start_session` | Start a working session |
 | `end_session` | Close a working session |
 | `save_session_summary` | Persist a compacted summary without closing the active session |

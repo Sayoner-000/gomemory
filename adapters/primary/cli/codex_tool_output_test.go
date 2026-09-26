@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -39,5 +41,35 @@ command = "otro-hook"
 	}
 	if _, changed, _ := syncCodexToolOutputHook(base, "mem", false); changed {
 		t.Error("desactivar sin hook no debe escribir")
+	}
+}
+
+// C-006 (acr_961a1676) — el hook vive en la configuración GLOBAL de Codex y
+// comprueba el ajuste de cada proyecto al ejecutarse. Instalar en un proyecto
+// con el ajuste apagado no puede retirárselo a los que lo tienen activo.
+func TestSyncCodexToolOutputNoRetiraElHookGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	cfgDir := filepath.Join(home, ".codex")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	on, _, err := syncCodexToolOutputHook([]byte("[mcp_servers.gomemory]\ncommand = \"mem\"\n"), "mem", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(cfgDir, "config.toml")
+	if err := os.WriteFile(cfg, on, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	syncCodexToolOutput(t.TempDir(), "mem") // proyecto sin el ajuste activo
+
+	got, err := os.ReadFile(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "hook tool-output codex") {
+		t.Errorf("el hook global no debe retirarse por el ajuste de un proyecto:\n%s", got)
 	}
 }

@@ -13,6 +13,7 @@ func CmdContext(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("context", flag.ContinueOnError)
 	write := fs.Bool("w", false, "Escribir a .memory/context.md")
 	fs.BoolVar(write, "write", false, "Escribir a .memory/context.md")
+	full := fs.Bool("full", false, "Entregar todo aunque ya se haya enviado en esta sesión")
 	if err := fs.Parse(args); err != nil {
 		return
 	}
@@ -31,12 +32,13 @@ func CmdContext(deps *Deps, args []string) {
 		output, err := deps.ContextBuilder.Build()
 		// Se anota lo entregado para que la operación de contexto para
 		// planificar no lo reenvíe en esta misma sesión (feature 023, FR-006).
-		if err == nil && deps.DeliveryLog != nil {
+		// --full no anota: es la vía de recuperación (ver deliverContextDocFull).
+		if err == nil && deps.DeliveryLog != nil && !*full {
 			_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
 		}
 		if err != nil {
 			fail("generar contexto: %v", err)
 		}
-		_, _ = os.Stdout.WriteString(deliverContextDoc(deps, output))
+		_, _ = os.Stdout.WriteString(deliverContextDocFull(deps, output, *full))
 	}
 }

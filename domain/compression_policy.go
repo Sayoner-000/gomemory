@@ -25,6 +25,16 @@ const (
 	ToolOutputMinTokens = 400
 	// CompressionMaxInputBytes: por encima, solo compresión estructural (R14).
 	CompressionMaxInputBytes = 2 << 20
+	// CompressionOriginalsMinMB: tope mínimo efectivo del almacén. Con un tope
+	// menor que los originales de una llamada, el LRU expulsaría uno recién
+	// guardado y su ref quedaría sin original (INV-C4). Cuatro entradas máximas
+	// dejan margen a dos procesos que comprimen a la vez.
+	CompressionOriginalsMinMB = 4 * CompressionMaxInputBytes >> 20
+	// HookInlineContextMaxChars: tope documentado del canal de hooks de Claude
+	// Code, en caracteres (specs/019, research.md). Por encima, la salida no se
+	// inyecta entera: se guarda en un archivo y el agente solo ve una vista
+	// previa, así que no puede darse por entregada.
+	HookInlineContextMaxChars = 10000
 	// HookBudget: presupuesto total del hook de salidas de herramientas.
 	HookBudget = 150 * time.Millisecond
 	// StoreTimeout: plazo del puente entre puertos sin ctx y los puertos nuevos
@@ -32,6 +42,24 @@ const (
 	// repositorio nuevo con context.Background() sin plazo.
 	StoreTimeout = 500 * time.Millisecond
 )
+
+// EffectiveOriginalsMaxMB resuelve el ajuste compression_originals_max_mb:
+// 0 (o negativo) deja el tope de fábrica, y un valor menor que
+// CompressionOriginalsMinMB se eleva a ese mínimo (C-001 de acr_961a1676).
+func EffectiveOriginalsMaxMB(mb int) int {
+	if mb <= 0 {
+		return 0
+	}
+	return max(mb, CompressionOriginalsMinMB)
+}
+
+// EffectiveOriginalsMaxBytes es el tope en bytes que aplica el almacén.
+func EffectiveOriginalsMaxBytes(mb int) int64 {
+	if mb = EffectiveOriginalsMaxMB(mb); mb == 0 {
+		return CompressionOriginalsMaxBytes
+	}
+	return int64(mb) << 20
+}
 
 // Niveles de compresión tal como se guardan en los ajustes (FR-030).
 const (

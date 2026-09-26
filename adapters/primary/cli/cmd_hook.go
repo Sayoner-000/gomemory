@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
@@ -145,14 +146,23 @@ func entregaContextoDeArranque(deps *Deps) string {
 		return ""
 	}
 	resetDeliveries(deps)
+	out := compressDeliveredContext(deps, ctx)
+	// Una salida mayor que la que el host inyecta entera llega truncada: el
+	// agente solo ve una vista previa. Darla por entregada haría que get_context
+	// y get_plan_context le devolvieran marcadores de lo que nunca leyó, así que
+	// solo se anota lo que cabe (C-002 de acr_961a1676). El tope se mide en
+	// caracteres, no en bytes (C-001 de acr_6793454b).
+	if utf8.RuneCountInString(out) > domain.HookInlineContextMaxChars {
+		return out
+	}
 	if deps.DeliveryLog != nil {
 		_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(ctx))
 	}
 	// Arranque: el agente recibe el contexto completo, así que el registro de
 	// la sesión se vacía y se anota todo como entregado (FR-019). El hash del
-	// canal se registró arriba sobre el documento crudo (I1).
+	// canal se registra sobre el documento crudo (I1).
 	markContextDelivered(deps, ctx)
-	return compressDeliveredContext(deps, ctx)
+	return out
 }
 
 // hookSessionEnd cierra la sesión activa como red de seguridad. El resumen
@@ -653,7 +663,7 @@ func hookSubagentStart(deps *Deps) {
 	out := map[string]any{
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "SubagentStart",
-			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder,
+			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder + "\n\n" + subagentContextNotice,
 		},
 	}
 	data, _ := json.Marshal(out)
@@ -1345,6 +1355,14 @@ func hookOctopusDelegationPolicy(deps *Deps, args []string) {
 	}
 	fmt.Print(octopusDelegationPolicy(deps.SettingsRepo.Read(root).OctopusEnabled, routeTool))
 }
+
+// subagentContextNotice avisa al subagente de que comparte la sesión de
+// gomemory con el agente principal pero no su contexto: lo que el registro de
+// la sesión da por entregado no está en su ventana, así que debe pedirlo
+// completo (C-002 de acr_961a1676).
+const subagentContextNotice = `Eres un subagente: no tienes el contexto que recibió el agente principal. ` +
+	`Si llamas a get_context o a get_plan_context, pásales full=true; si no, recibirás ` +
+	`marcadores ⟦ya entregado⟧ en lugar de memorias que nunca viste.`
 
 var memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
 	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +

@@ -844,10 +844,17 @@ func setupCodex(root string) bool {
 	return ok
 }
 
-// syncCodexToolOutput alinea el hook opt-in de salidas de herramientas con el
-// ajuste del proyecto que instala (feature 033). Best-effort: un fallo aquí no
+// syncCodexToolOutput registra el hook opt-in de salidas de herramientas
+// cuando el proyecto que instala tiene el ajuste activo (feature 033). Nunca lo
+// retira: vive en la configuración GLOBAL de Codex y comprueba el ajuste de
+// cada proyecto al ejecutarse, así que el ajuste apagado de un proyecto no
+// puede quitárselo a los demás (C-006 de acr_961a1676). Misma política que
+// `mem uninstall` con ~/.codex/config.toml. Best-effort: un fallo aquí no
 // invalida el resto de la instalación.
 func syncCodexToolOutput(root, memCommand string) {
+	if !setup.CodexToolOutputEnabled(root) {
+		return
+	}
 	codexConfigMu.Lock()
 	defer codexConfigMu.Unlock()
 	home, err := os.UserHomeDir()
@@ -859,8 +866,7 @@ func syncCodexToolOutput(root, memCommand string) {
 	if err != nil && !os.IsNotExist(err) {
 		return
 	}
-	enabled := setup.CodexToolOutputEnabled(root)
-	out, changed, err := syncCodexToolOutputHook(data, memCommand, enabled)
+	out, changed, err := syncCodexToolOutputHook(data, memCommand, true)
 	if err != nil || !changed {
 		return
 	}
@@ -869,11 +875,7 @@ func syncCodexToolOutput(root, memCommand string) {
 		mode = info.Mode().Perm()
 	}
 	if err := os.WriteFile(cfgPath, out, mode); err == nil {
-		if enabled {
-			fmt.Println("  ✅ codex: hook de salidas de herramientas registrado (global; solo actúa en proyectos con el ajuste activo)")
-		} else {
-			fmt.Println("  ✅ codex: hook de salidas de herramientas retirado")
-		}
+		fmt.Println("  ✅ codex: hook de salidas de herramientas registrado (global; solo actúa en proyectos con el ajuste activo)")
 	}
 }
 

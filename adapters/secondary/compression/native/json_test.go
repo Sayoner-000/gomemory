@@ -80,3 +80,25 @@ func TestCompressJSONCorpusSaving(t *testing.T) {
 		}
 	}
 }
+
+// C-005 (acr_961a1676) — un valor con caracteres de control en los campos
+// resumidos no puede sacar la salida de JSON válido: las marcas se escriben
+// con escapes JSON, no con los de Go (\a, \x01).
+func TestCompressJSONMarkerWithControlCharsStaysValid(t *testing.T) {
+	var sb strings.Builder
+	sb.WriteString("[")
+	for i := 0; i < 40; i++ {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		fmt.Fprintf(&sb, `{"id":%d,"k":"a\u0007b\u007f<c>"}`, i)
+	}
+	sb.WriteString("]")
+	out, n := compressJSON(sb.String(), "json", "abcdefabcdef", maxTh)
+	if n == 0 {
+		t.Fatal("se esperaba compresión")
+	}
+	if !json.Valid([]byte(out)) {
+		t.Fatalf("la salida comprimida debe seguir siendo JSON válido:\n%s", out)
+	}
+}

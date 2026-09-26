@@ -402,8 +402,11 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		Name: "get_context",
 		Description: "Obtiene el contexto completo del proyecto como markdown: arquitectura, decisiones, " +
 			"bugs, aprendizajes, sesiones previas. Llámala SIEMPRE al inicio de una sesión de trabajo, " +
-			"antes de cualquier otra acción — la respuesta incluye el protocolo de memoria activo.",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+			"antes de cualquier otra acción — la respuesta incluye el protocolo de memoria activo. " +
+			"Con full=true entrega también lo ya enviado en esta sesión (úsalo si eres un subagente o no lo tienes).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Full bool `json:"full,omitempty" jsonschema:"Entregar todo aunque ya se haya enviado en esta sesión (subagente, salida truncada, compactación)"`
+	}) (*mcp.CallToolResult, any, error) {
 		output, err := deps.ContextBuilder.Build()
 		if err != nil {
 			return nil, nil, fmt.Errorf("generar contexto: %w", err)
@@ -411,12 +414,13 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		// Se anota lo entregado para que get_plan_context no reenvíe el mismo
 		// historial en esta sesión (feature 023, FR-006). Es la ruta por la que
 		// el agente lo pide de verdad, así que sin esto la supresión no se
-		// aplicaría nunca en uso real.
-		if deps.DeliveryLog != nil {
+		// aplicaría nunca en uso real. Con full=true no se anota: es la vía de
+		// recuperación de quien no tiene el contexto (ver deliverContextDocFull).
+		if deps.DeliveryLog != nil && !in.Full {
 			_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
 		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + deliverContextDoc(deps, output)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + deliverContextDocFull(deps, output, in.Full)}},
 		}, nil, nil
 	})
 
@@ -432,13 +436,16 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			"cuando entres en un modo de planificación, cuando la persona invoque un comando de " +
 			"planificación, o cuando la solicitud pida un plan, un enfoque o una estrategia antes de " +
 			"tocar código. Aplica el método que devuelve al redactar el plan, y en modo plan entrega " +
-			"el árbol de tareas y detente sin ejecutar.",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+			"el árbol de tareas y detente sin ejecutar. Con full=true entrega también lo ya enviado " +
+			"en esta sesión (úsalo si eres un subagente o no lo tienes).",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
+		Full bool `json:"full,omitempty" jsonschema:"Entregar todo aunque ya se haya enviado en esta sesión (subagente, salida truncada, compactación)"`
+	}) (*mcp.CallToolResult, any, error) {
 		// Nunca propaga error: un modo plan no puede quedar interrumpido porque
 		// la memoria no esté disponible (FR-034). Un output vacío significa que
 		// la funcionalidad está apagada por configuración (FR-032) y se respeta
 		// tal cual — no se repone el método, o el interruptor no serviría.
-		output, err := buildPlanContextDoc(deps)
+		output, err := buildPlanContextDocFull(deps, in.Full)
 		if err != nil {
 			output = planMethod
 		}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"mem/application/ports"
+	"mem/domain"
 )
 
 // charsPerToken es la misma heurística de orden de magnitud que
@@ -89,7 +90,9 @@ func compressStructural(input string) string {
 			continue
 		}
 		collapsed := repeatedInlineSpace.ReplaceAllString(trimmed, " ")
-		if _, dup := seen[collapsed]; dup {
+		// Una marca nunca es un duplicado: cada una ocupa el lugar de una
+		// omisión o de una entrada distinta (FR-012), aunque el texto coincida.
+		if _, dup := seen[collapsed]; dup && !domain.IsMarkerLine(collapsed) {
 			continue
 		}
 		seen[collapsed] = struct{}{}
