@@ -59,12 +59,6 @@ func CmdPlanContext(deps *Deps, args []string) {
 	_, _ = os.Stdout.WriteString(out + "\n")
 }
 
-// buildPlanContextDoc arma el documento aplicando el gate de configuración.
-// Compartida por el comando y por la tool MCP para que ambos no puedan divergir.
-func buildPlanContextDoc(deps *Deps) (string, error) {
-	return buildPlanContextDocFull(deps, false)
-}
-
 // buildPlanContextDocFull arma el documento aplicando el gate de configuración.
 // Con full=true se ignora el registro de entregas y se devuelve todo.
 func buildPlanContextDocFull(deps *Deps, full bool) (string, error) {

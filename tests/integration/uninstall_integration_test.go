@@ -35,8 +35,14 @@ func buildFakeInstall(t *testing.T, target string) {
 	}
 	_ = db.Close()
 
-	if err := os.WriteFile(filepath.Join(target, "mem"), []byte("fake binary"), 0755); err != nil {
-		t.Fatalf("write fake mem binary: %v", err)
+	// Un binario de gomemory real: desde la feature 034 (FR-003) uninstall
+	// solo retira un `mem` que se identifica como gomemory; un archivo
+	// cualquiera con ese nombre es de la persona y no se toca.
+	if err := copyFileForTest(buildMemBinary(t), filepath.Join(target, "mem")); err != nil {
+		t.Fatalf("copiar binario mem: %v", err)
+	}
+	if err := os.Chmod(filepath.Join(target, "mem"), 0755); err != nil {
+		t.Fatalf("chmod mem: %v", err)
 	}
 
 	mcpContent := `{"mcpServers":{"gomemory":{"command":"./mem","args":["mcp"]}}}`

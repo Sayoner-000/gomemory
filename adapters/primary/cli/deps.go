@@ -47,6 +47,11 @@ type Deps struct {
 	Compressor    ports.Compressor
 	TokenCounter  ports.TokenCounter
 	SpecKitReader ports.SpecKitReader
+	// ReleasePort y UpdateCheckRepo (feature 034): releases publicadas y caché
+	// del aviso de versión. Los cablea el composition root; pueden ser nil en
+	// pruebas que construyen un Deps mínimo (se usa el adaptador por defecto).
+	ReleasePort     ports.ReleasePort
+	UpdateCheckRepo ports.UpdateCheckRepository
 	// CompressionLevel es el nivel efectivo del proyecto (feature 033), ya
 	// resuelto en el composition root a partir de context_compression_level y
 	// del heredado context_compression_disabled.

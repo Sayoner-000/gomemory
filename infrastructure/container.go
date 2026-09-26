@@ -263,6 +263,8 @@ func (c *Container) Close() error {
 
 func (c *Container) ToDeps() *cli.Deps {
 	return &cli.Deps{
+		ReleasePort:                  cli.NewReleasePort(),
+		UpdateCheckRepo:              persistence.UpdateCheckRepository{},
 		Root:                         c.Root,
 		Project:                      c.Project,
 		MemoryRepo:                   c.MemoryRepo,

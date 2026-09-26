@@ -47,12 +47,15 @@ var atomicPlanWrappers = []atomicPlanWrapper{
 // Un método vacío (p. ej. si la plantilla embebida no pudo cargarse) es un
 // no-op silencioso: es preferible no dejar envoltorio a dejar uno vacío que el
 // agente tomaría por válido.
-func InstallAtomicPlanWrappers(root, method string) error {
+func InstallAtomicPlanWrappers(root, method string, agents ...string) error {
 	if strings.TrimSpace(method) == "" {
 		return nil
 	}
 
 	for _, w := range atomicPlanWrappers {
+		if !wrapperForAgents(w.path, agents) {
+			continue
+		}
 		dest := filepath.Join(append([]string{root}, w.path...)...)
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err
@@ -87,4 +90,20 @@ func GeneratedWrapperPaths() [][]string {
 		out = append(out, w.path)
 	}
 	return out
+}
+
+// wrapperForAgents filtra un envoltorio por la selección de `mem install`
+// (feature 034, FR-021). Sin selección se escriben todos, como antes. El
+// agente se deduce del directorio raíz del envoltorio.
+func wrapperForAgents(path []string, agents []string) bool {
+	if len(agents) == 0 || len(path) == 0 {
+		return true
+	}
+	owner := map[string]string{".claude": "claude", ".opencode": "opencode"}[path[0]]
+	for _, a := range agents {
+		if a == owner {
+			return true
+		}
+	}
+	return false
 }

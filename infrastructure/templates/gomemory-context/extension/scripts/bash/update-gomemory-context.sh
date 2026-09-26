@@ -15,14 +15,14 @@ set -uo pipefail  # sin -e: cada paso maneja su propio fallo sin abortar el hook
 PROJECT_ROOT="$(pwd)"
 SETTINGS_FILE="$PROJECT_ROOT/.memory/settings.json"
 
-# 1. Localizar el binario mem: ./mem (raíz del proyecto, lo deja `mem install`)
-#    primero, luego `mem` en PATH. Sin ninguno de los dos, no hay nada que
-#    hacer (proyecto sin gomemory disponible localmente).
+# 1. Localizar el binario mem: el del PATH primero (instalación global, la que
+#    actualiza `mem update`) y ./mem solo como alternativa sin global (feature
+#    034, FR-005). Sin ninguno de los dos, no hay nada que hacer.
 MEM_BIN=""
-if [[ -x "$PROJECT_ROOT/mem" ]]; then
-  MEM_BIN="$PROJECT_ROOT/mem"
-elif command -v mem >/dev/null 2>&1; then
+if command -v mem >/dev/null 2>&1; then
   MEM_BIN="mem"
+elif [[ -x "$PROJECT_ROOT/mem" ]]; then
+  MEM_BIN="$PROJECT_ROOT/mem"
 fi
 
 if [[ -z "$MEM_BIN" ]]; then

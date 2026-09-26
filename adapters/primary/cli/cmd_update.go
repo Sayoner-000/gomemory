@@ -4,6 +4,9 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -15,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"mem/adapters/primary/console"
+	"mem/application/ports"
 	"mem/version"
 )
 
@@ -41,6 +46,8 @@ func CmdUpdate(deps *Deps, args []string) {
 	fs := flag.NewFlagSet("update", flag.ContinueOnError)
 	versionFlag := fs.String("version", "", "Versión específica a instalar (ej. v1.8.0), default: latest")
 	checkOnly := fs.Bool("check", false, "Solo mostrar versión actual vs. disponible, sin instalar")
+	yes := fs.Bool("yes", false, "No pedir confirmación (también -y)")
+	fs.BoolVar(yes, "y", false, "No pedir confirmación")
 	if err := fs.Parse(args); err != nil {
 		return
 	}
@@ -66,6 +73,10 @@ func CmdUpdate(deps *Deps, args []string) {
 		if current == target {
 			fmt.Println("Ya estás en la última versión.")
 		}
+		// --check también renueva la caché del aviso de versión (FR-028).
+		if !updateCheckDisabled("") {
+			refreshUpdateCache(context.Background(), releasePortOf(deps), updateCheckRepoOf(deps), time.Now())
+		}
 		return
 	}
 
@@ -78,10 +89,57 @@ func CmdUpdate(deps *Deps, args []string) {
 	if err != nil {
 		fail("obtener ruta del binario actual: %v", err)
 	}
+	root, rootErr := deps.ProjectRepo.FindRoot()
 
-	tmpDir, err := os.MkdirTemp("", "gomemory-update-*")
+	// El destino es el global cuando se ejecuta desde otra copia (FR-006): si
+	// no, `./mem update` dejaba el global viejo, que es el que usan hooks y MCP.
+	dest := self
+	if rootErr == nil {
+		dest, _ = resolveUpdateTarget(self, root)
+	}
+	if dest != self {
+		fmt.Printf("  🎯 Se actualiza el binario global %s\n", dest)
+	}
+	// FR-025: con terminal interactiva se confirma antes de sustituir nada.
+	mode := console.DetectMode(console.DetectEnv(), *yes)
+	ui := console.New(mode)
+	if ok, err := confirmUpdate(ui, current, target, dest); err != nil || !ok {
+		fmt.Println("Actualización cancelada. No se modificó nada.")
+		return
+	}
+
+	// FR-024: cada paso deja su ✓/⚠/✗ y la actualización termina siempre con
+	// el resumen, también cuando un paso la aborta.
+	var steps []console.StepResult
+	var tmpDir string
+	step := func(name, detail string, status console.StepStatus, manual string) {
+		steps = append(steps, console.StepResult{Name: name, Detail: detail, Status: status, Manual: manual})
+	}
+	summary := func() {
+		fmt.Println("\nResumen:")
+		reporter := console.NewReporter(os.Stdout, mode == console.ModeRich)
+		for _, s := range steps {
+			reporter.Done(s)
+		}
+	}
+	abort := func(name, detail, manual string) {
+		step(name, detail, console.StepFail, manual)
+		summary()
+		if tmpDir != "" {
+			_ = os.RemoveAll(tmpDir)
+		}
+		os.Exit(1)
+	}
+
+	if err := checkReplaceable(dest); err != nil {
+		fmt.Printf("  ⚠️  No se puede escribir en %s: %v\n", filepath.Dir(dest), err)
+		fmt.Println("      Actualiza con permisos: sudo mem update (o reinstala con scripts/install.sh)")
+		abort("Binario", "no se puede escribir en "+filepath.Dir(dest), "sudo mem update")
+	}
+
+	tmpDir, err = os.MkdirTemp("", "gomemory-update-*")
 	if err != nil {
-		fail("crear directorio temporal: %v", err)
+		abort("Descarga", fmt.Sprintf("crear directorio temporal: %v", err), "")
 	}
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
@@ -91,34 +149,121 @@ func CmdUpdate(deps *Deps, args []string) {
 
 	fmt.Printf("  ⬇️  Descargando %s\n", url)
 	if err := downloadFile(client, url, archivePath); err != nil {
-		fail("descargar release: %v", err)
+		abort("Descarga", err.Error(), "")
 	}
+	step("Descarga", asset+" "+target, console.StepOK, "")
+
+	// FR-032: sin checksum verificado no se toca el binario instalado.
+	fmt.Println("  🔐 Verificando checksum...")
+	if err := verifyReleaseChecksum(context.Background(), releasePortOf(deps), target, asset, archivePath); err != nil {
+		fmt.Printf("  ✗ checksum: %v\n", err)
+		fmt.Println("      No se modificó el binario instalado.")
+		abort("Checksum", err.Error()+"; no se modificó el binario instalado", "")
+	}
+	fmt.Println("  ✅ Checksum verificado")
+	step("Checksum", "verificado", console.StepOK, "")
 
 	fmt.Println("  📦 Extrayendo binario...")
 	newBin, err := extractBinary(archivePath, tmpDir)
 	if err != nil {
-		fail("extraer binario: %v", err)
+		abort("Binario", fmt.Sprintf("extraer: %v", err), "")
 	}
 
 	fmt.Println("  🔄 Reemplazando binario actual...")
-	if err := replaceSelf(self, newBin); err != nil {
-		fail("reemplazar binario: %v", err)
+	if err := replaceSelf(dest, newBin); err != nil {
+		abort("Binario", fmt.Sprintf("reemplazar %s: %v", dest, err), "")
 	}
 	fmt.Printf("  ✅ Binario actualizado a %s\n", target)
+	step("Binario", dest+" ("+current+" → "+target+")", console.StepOK, "")
 
-	root, err := deps.ProjectRepo.FindRoot()
-	if err != nil {
+	if rootErr != nil {
 		fmt.Println("  ℹ️  No se detectó un proyecto con .memory/ en el cwd; solo se actualizó el binario.")
+		summary()
 		return
 	}
 
+	// Con el global al día, una copia local del proyecto sobra (FR-003).
+	if dest != self {
+		if c, retired, err := retireLocalCopy(root, dest); retired {
+			fmt.Printf("  ✅ %s\n", retiredNotice(c, dest))
+			step("Copia local", retiredNotice(c, dest), console.StepOK, "")
+		} else if err != nil {
+			fmt.Printf("  ⚠️  No se pudo retirar %s: %v → bórralo a mano\n", c.Path, err)
+			step("Copia local", fmt.Sprintf("no se pudo retirar %s: %v", c.Path, err), console.StepWarn, "rm "+c.Path)
+		}
+	}
+
+	// El refresco lo ejecuta el binario recién instalado: `self` puede ser la
+	// copia que se acaba de retirar.
 	fmt.Println("  🔌 Refrescando integración del proyecto (hooks, MCP, permisos)...")
-	if err := runIn(root, self, "install", root); err != nil {
+	if err := runIn(root, dest, "install", root); err != nil {
 		fmt.Printf("  ⚠️  No se pudo refrescar la integración automáticamente: %v\n", err)
-		fmt.Printf("      Ejecuta manualmente: %s install %s\n", self, root)
+		fmt.Printf("      Ejecuta manualmente: %s install %s\n", dest, root)
+		step("Integración del proyecto", err.Error(), console.StepWarn, dest+" install "+root)
+		summary()
 		return
 	}
 	fmt.Println("  ✅ Integración del proyecto refrescada")
+	step("Integración del proyecto", "refrescada", console.StepOK, "")
+	summary()
+}
+
+// confirmUpdate pide confirmación con la consola; sin ella (--yes, sin TTY)
+// continúa.
+func confirmUpdate(ui console.UI, current, target, dest string) (bool, error) {
+	if ui == nil {
+		return true, nil
+	}
+	return ui.Confirm(fmt.Sprintf("Actualizar %s: %s → %s. ¿Continuar?", dest, current, target), true)
+}
+
+// verifyReleaseChecksum compara el SHA-256 del archivo descargado con el que
+// publica la release en checksums.txt.
+func verifyReleaseChecksum(ctx context.Context, rel ports.ReleasePort, tag, asset, path string) error {
+	want, err := rel.Checksum(ctx, tag, asset)
+	if err != nil {
+		return err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return err
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); got != want {
+		return fmt.Errorf("no coincide (esperado %s, descargado %s)", want, got)
+	}
+	return nil
+}
+
+// resolveUpdateTarget devuelve el binario que debe sustituir `mem update` y si
+// se redirigió al global porque el ejecutable en curso es otra copia (R6).
+func resolveUpdateTarget(self, root string) (string, bool) {
+	global, ok := resolveGlobalBinary(root)
+	if !ok {
+		return self, false
+	}
+	if si, err := os.Stat(self); err == nil {
+		if gi, err := os.Stat(global); err == nil && os.SameFile(si, gi) {
+			return self, false
+		}
+	}
+	return global, true
+}
+
+// checkReplaceable comprueba antes de descargar que se puede escribir junto al
+// binario destino (replaceSelf crea el respaldo y el nuevo ahí mismo).
+func checkReplaceable(path string) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".mem-update-*")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	_ = f.Close()
+	return os.Remove(name)
 }
 
 func assetName() string {

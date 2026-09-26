@@ -7,7 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dustin/go-humanize"
+
+	"mem/adapters/primary/console"
 	"mem/adapters/primary/setup"
+	"mem/adapters/secondary/persistence"
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -61,61 +66,258 @@ func buildUninstallMCPConfigs() []uninstallMCPConfig {
 	return out
 }
 
-// CmdUninstall acepta --yes en cualquier posición (antes o después del
-// directorio) — flag.FlagSet de stdlib deja de parsear flags en el primer
-// argumento posicional, lo cual no sirve para `mem uninstall [dir] [--yes]`.
-func CmdUninstall(deps *Deps, args []string) {
-	yes := false
-	var rest []string
-	for _, a := range args {
-		if a == "--yes" {
-			yes = true
-			continue
-		}
-		rest = append(rest, a)
-	}
+// Códigos de salida de `mem uninstall` (contracts/cli.md).
+const (
+	uninstallExitOK       = 0
+	uninstallExitRefused  = 1
+	uninstallExitUsage    = 2
+	uninstallExitWarnings = 3
+)
 
-	target := "."
-	if len(rest) > 0 {
-		target = rest[0]
-	}
-
-	target, err := filepath.Abs(target)
+// CmdUninstall desinstala gomemory de un proyecto o de todo el sistema
+// (feature 034, US2) y devuelve el código de salida. Acepta los flags en
+// cualquier posición: flag.FlagSet deja de parsear en el primer argumento
+// posicional, y eso no sirve para `mem uninstall [dir] [--yes]`.
+func CmdUninstall(deps *Deps, args []string) int {
+	o, err := parseUninstallArgs(args)
 	if err != nil {
-		fail("ruta inválida: %v", err)
+		fmt.Fprintln(os.Stderr, "✗", err)
+		return uninstallExitUsage
 	}
-	stat, err := os.Stat(target)
-	if err != nil {
-		fail("no existe: %v", err)
+	if o.target, err = filepath.Abs(o.target); err != nil {
+		fmt.Fprintln(os.Stderr, "✗ ruta inválida:", err)
+		return uninstallExitUsage
 	}
-	if !stat.IsDir() {
-		fail("%s no es un directorio", target)
+	if st, err := os.Stat(o.target); err != nil || !st.IsDir() {
+		fmt.Fprintf(os.Stderr, "✗ %s no es un directorio\n", o.target)
+		return uninstallExitUsage
 	}
 
-	if !yes {
-		prompt := fmt.Sprintf(
-			"Esto eliminará el binario, hooks, configuración MCP, entradas en AGENTS.md/CLAUDE.md y TODA la memoria guardada en %s. ¿Continuar?",
-			target,
-		)
-		if !ConfirmAction(os.Stdin, prompt) {
+	mode := console.DetectMode(console.DetectEnv(), o.yes)
+	ui := console.New(mode)
+	if ui != nil && !o.dryRun && !o.scopeSet {
+		scope, err := ui.Select("¿Qué quieres desinstalar?", []console.Option{
+			{Value: string(domain.UninstallProject), Label: "Solo este proyecto", Hint: o.target, Recommended: true},
+			{Value: string(domain.UninstallSystem), Label: "Todo gomemory del sistema", Hint: "sin dejar rastros"},
+		})
+		if err != nil {
 			fmt.Println("Desinstalación cancelada. No se eliminó nada.")
-			return
+			return uninstallExitOK
+		}
+		o.scope = domain.UninstallScope(scope)
+	}
+
+	home, _ := os.UserHomeDir()
+	data, err := persistence.DataHome()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "✗ no se pudo resolver el almacén global:", err)
+		return uninstallExitRefused
+	}
+	if o.scanRoot == "" {
+		o.scanRoot = home
+	}
+	self, _ := os.Executable()
+	pl := &uninstallPlanner{o: o, home: home, data: data, self: self}
+
+	if ui != nil && !o.dryRun && !o.memorySet {
+		choice, err := ui.Select("¿Qué hacemos con la memoria?", []console.Option{
+			{Value: string(domain.MemoryExport), Label: "Exportarla antes de borrar", Hint: "se puede reimportar con mem import", Recommended: true},
+			{Value: string(domain.MemoryDelete), Label: "Borrarla sin exportar"},
+			{Value: string(domain.MemoryKeep), Label: "Conservarla"},
+		})
+		if err != nil {
+			fmt.Println("Desinstalación cancelada. No se eliminó nada.")
+			return uninstallExitOK
+		}
+		pl.o.memory = domain.MemoryChoice(choice)
+	}
+	if pl.o.memory == domain.MemoryExport && pl.o.exportDir == "" {
+		pl.o.exportDir = exportDirDefault(home)
+	}
+	if pl.o.exportDir != "" {
+		if pl.o.exportDir, err = filepath.Abs(pl.o.exportDir); err != nil {
+			fmt.Fprintln(os.Stderr, "✗ ruta de exportación inválida:", err)
+			return uninstallExitUsage
 		}
 	}
 
-	fmt.Printf("🗑️  Desinstalando gomemory de %s\n\n", target)
+	if err := pl.plan(); err != nil {
+		fmt.Fprintln(os.Stderr, "✗ no se pudo preparar el inventario:", err)
+		return uninstallExitRefused
+	}
+	printUninstallInventory(pl)
 
-	removeIntegrationBlocks(target)
-	removeMCPEntries(target)
-	removeClaudePlugin(target)
-	removeClaudePermissions(target)
-	removeOpenCodeArtifacts(target)
-	removeNativeWrappers(target)
-	removeMemoryDir(target, deps.ProjectRepo.MemDir())
-	removeBinary(target)
+	if o.dryRun {
+		fmt.Println("\n(simulación: no se modificó nada)")
+		return uninstallExitOK
+	}
+	if len(pl.steps) == 0 {
+		fmt.Println("\nNo hay nada de gomemory que desinstalar.")
+		return uninstallExitOK
+	}
+	if ui == nil && !o.yes {
+		fmt.Println("\n✗ se requiere --yes para desinstalar sin terminal interactiva. No se eliminó nada.")
+		return uninstallExitRefused
+	}
+	if ui != nil {
+		ok, err := confirmUninstall(ui, pl)
+		if err != nil || !ok {
+			fmt.Println("Desinstalación cancelada. No se eliminó nada.")
+			return uninstallExitOK
+		}
+	}
+	return runUninstall(pl, mode == console.ModeRich)
+}
+
+// confirmUninstall pide la confirmación. El texto enumera exactamente las
+// categorías que se borrarán (FR-019); el alcance de sistema exige escribir
+// la palabra (FR-016).
+func confirmUninstall(ui console.UI, pl *uninstallPlanner) (bool, error) {
+	msg := "Se retirará: " + strings.Join(uninstallCategories(pl), ", ") + "."
+	if pl.o.scope == domain.UninstallSystem {
+		return ui.TypedConfirm(msg+" Esta acción no se puede deshacer.", "gomemory")
+	}
+	return ui.Confirm(msg+" ¿Continuar?", false)
+}
+
+func uninstallCategories(pl *uninstallPlanner) []string {
+	names := map[domain.ItemCategory]string{
+		domain.CategoryProjectFiles: "la integración de los proyectos",
+		domain.CategoryAgentConfig:  "la configuración de gomemory en tus agentes",
+		domain.CategoryMemory:       "la memoria",
+		domain.CategoryBinary:       "el binario",
+	}
+	seen := map[domain.ItemCategory]bool{}
+	var out []string
+	for _, s := range pl.steps {
+		if c := s.item.Category; !seen[c] {
+			seen[c] = true
+			out = append(out, names[c])
+		}
+	}
+	return out
+}
+
+func printUninstallInventory(pl *uninstallPlanner) {
+	scope := "este proyecto"
+	if pl.o.scope == domain.UninstallSystem {
+		scope = "todo el sistema"
+	}
+	fmt.Printf("🗑️  Desinstalar gomemory de %s\n", scope)
+	if pl.o.scope == domain.UninstallSystem && !pl.o.noScan {
+		fmt.Printf("  ℹ️  Proyectos buscados en %s (hasta %d niveles). Para buscar en otra ruta: --scan <dir>\n",
+			pl.o.scanRoot, domain.UninstallScanMaxDepth)
+	}
+	headers := []struct {
+		c     domain.ItemCategory
+		title string
+	}{
+		{domain.CategoryProjectFiles, "Proyectos"},
+		{domain.CategoryAgentConfig, "Configuración de agentes"},
+		{domain.CategoryMemory, "Memoria"},
+		{domain.CategoryBinary, "Binario"},
+	}
+	for _, h := range headers {
+		var lines []string
+		for _, s := range pl.steps {
+			if s.item.Category != h.c {
+				continue
+			}
+			label := s.item.Label
+			if label == "" {
+				label = s.item.Path
+			}
+			if s.item.Bytes > 0 {
+				label += " — " + humanize.Bytes(uint64(s.item.Bytes))
+			}
+			lines = append(lines, "    • "+label)
+		}
+		if len(lines) > 0 {
+			fmt.Printf("  %s:\n%s\n", h.title, strings.Join(lines, "\n"))
+		}
+	}
+	switch pl.o.memory {
+	case domain.MemoryExport:
+		fmt.Printf("  La memoria se exportará antes a %s\n", pl.o.exportDir)
+	case domain.MemoryKeep:
+		if dir, err := persistence.DataHome(); err == nil {
+			fmt.Printf("  La memoria se conserva en %s\n", dir)
+		}
+	}
+	for _, s := range pl.skipped {
+		fmt.Printf("  ⚠️  No se pudo leer %s durante la búsqueda de proyectos\n", s)
+	}
+}
+
+// runUninstall exporta (si procede) y ejecuta el plan en el orden de FR-014.
+func runUninstall(pl *uninstallPlanner, styled bool) int {
+	plan := domain.UninstallPlan{Scope: pl.o.scope, Memory: pl.o.memory, ExportDir: pl.o.exportDir}
+	for _, s := range pl.steps {
+		plan.Items = append(plan.Items, s.item)
+	}
+	apply := map[string]func() error{}
+	for _, s := range pl.steps {
+		apply[string(s.item.Category)+"|"+s.item.Path] = s.apply
+	}
+	plan.Sort()
 
 	fmt.Println()
-	fmt.Println("✅ Desinstalación completa.")
+	if pl.o.memory == domain.MemoryExport {
+		index, failed := usecases.ExportProjects(pl.o.exportDir, pl.exportTargets(), openStoreByKey)
+		if len(failed) == 0 {
+			fmt.Printf("  ✓ Memoria exportada a %s (%d proyecto(s))\n", pl.o.exportDir, len(index))
+		}
+		// FR-009: la memoria cuya exportación falló no se borra.
+		for i := range plan.Items {
+			it := &plan.Items[i]
+			if it.Category != domain.CategoryMemory {
+				continue
+			}
+			for key, err := range failed {
+				if it.Key == "" || it.Key == key {
+					it.Result = domain.ResultWarn
+					it.Detail = "no se borró: la exportación falló (" + err.Error() + ")"
+					it.Manual = "revisa el destino y vuelve a ejecutar mem uninstall"
+				}
+			}
+		}
+	}
+
+	rep := console.NewReporter(os.Stdout, styled)
+	plan.Execute(func(it *domain.UninstallItem) error {
+		err := apply[string(it.Category)+"|"+it.Path]()
+		if err != nil {
+			it.Manual = manualRemoval(it)
+		}
+		return err
+	})
+	fmt.Println("\nResumen:")
+	for _, it := range plan.Items {
+		label := it.Label
+		if label == "" {
+			label = it.Path
+		}
+		st := console.StepOK
+		if it.Result == domain.ResultWarn {
+			st = console.StepWarn
+		}
+		rep.Done(console.StepResult{Name: label, Status: st, Detail: it.Detail, Manual: it.Manual})
+	}
+	if plan.Warnings() > 0 {
+		return uninstallExitWarnings
+	}
+	return uninstallExitOK
+}
+
+func manualRemoval(it *domain.UninstallItem) string {
+	switch it.Kind {
+	case domain.KindEntry:
+		return "quita a mano las entradas de gomemory de " + it.Path
+	case domain.KindDir:
+		return "borra a mano " + it.Path
+	default:
+		return "borra a mano " + it.Path
+	}
 }
 
 func removeIntegrationBlocks(target string) {
@@ -207,8 +409,6 @@ func removeMCPEntries(target string) {
 		}
 		fmt.Printf("  ✅ %s: entrada gomemory removida\n", rel)
 	}
-
-	fmt.Println("  ℹ️  ~/.codex/config.toml conserva [mcp_servers.gomemory] y los hooks del ciclo de gomemory — son configuración global compartida por todos los proyectos.")
 }
 
 func removeClaudePlugin(target string) {
@@ -350,30 +550,4 @@ func removeNativeWrappers(target string) {
 	} else {
 		fmt.Println("  ℹ️  envoltorios nativos: no encontrados")
 	}
-}
-
-func removeMemoryDir(target, memDir string) {
-	path := filepath.Join(target, memDir)
-	if _, err := os.Stat(path); err != nil {
-		fmt.Printf("  ℹ️  %s: no encontrado\n", memDir)
-		return
-	}
-	if err := os.RemoveAll(path); err != nil {
-		fmt.Printf("  ⚠️  %s: error al eliminar: %v\n", memDir, err)
-		return
-	}
-	fmt.Printf("  ✅ %s: eliminado (datos incluidos)\n", memDir)
-}
-
-func removeBinary(target string) {
-	destBin := filepath.Join(target, "mem")
-	if _, err := os.Stat(destBin); err != nil {
-		fmt.Println("  ℹ️  binario mem: no encontrado")
-		return
-	}
-	if err := os.Remove(destBin); err != nil {
-		fmt.Printf("  ⚠️  binario mem: no se pudo eliminar (%v). Si es el binario en ejecución (común en Windows), bórralo manualmente al cerrar este proceso.\n", err)
-		return
-	}
-	fmt.Printf("  ✅ binario %s eliminado\n", destBin)
 }

@@ -43,10 +43,7 @@ type BinRef struct {
 //     Para MCP se mantiene "mem" porque otros agentes no expanden esa variable;
 //     lo correcto es instalar `mem` en el PATH.
 func binRefFor(target string) BinRef {
-	binName := "mem"
-	if runtime.GOOS == "windows" {
-		binName = "mem.exe"
-	}
+	binName := memBinaryName()
 
 	base := BinRef{
 		MCPCommand: "mem",
@@ -67,4 +64,33 @@ func binRefFor(target string) BinRef {
 
 	base.HookCommand = "mem"
 	return base
+}
+
+func memBinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "mem.exe"
+	}
+	return "mem"
+}
+
+// resolveGlobalBinary es la única regla para decidir si hay un binario global
+// (R1 de la feature 034): `mem` se resuelve por el PATH y no es el mismo
+// archivo que la copia del proyecto. Install, update, la retirada de copias y
+// doctor la comparten para no discrepar sobre qué binario manda.
+func resolveGlobalBinary(projectRoot string) (string, bool) {
+	path, err := exec.LookPath(memBinaryName())
+	if err != nil {
+		return "", false
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	global, err := os.Stat(path)
+	if err != nil {
+		return "", false
+	}
+	if local, err := os.Stat(filepath.Join(projectRoot, memBinaryName())); err == nil && os.SameFile(global, local) {
+		return "", false
+	}
+	return path, true
 }

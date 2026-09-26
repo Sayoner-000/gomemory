@@ -27,8 +27,11 @@ const (
 	ActivityInstall       ActivityName = "install"
 	ActivityInstallGlobal ActivityName = "install_global"
 	ActivityUninstall     ActivityName = "uninstall"
-	ActivityCleanup       ActivityName = "cleanup"
-	ActivityInspect       ActivityName = "inspect"
+	// ActivityUninstallGlobal es la desinstalación de sistema (feature 034):
+	// el reverso de ActivityInstallGlobal, sobre el ámbito de usuario.
+	ActivityUninstallGlobal ActivityName = "uninstall_global"
+	ActivityCleanup         ActivityName = "cleanup"
+	ActivityInspect         ActivityName = "inspect"
 )
 
 // LifecycleActivity declara el alcance de una actividad. El alcance no es
@@ -49,6 +52,7 @@ var LifecycleActivities = []LifecycleActivity{
 	{Name: ActivityInstall, Scope: ScopeProject},
 	{Name: ActivityInstallGlobal, Scope: ScopeUser},
 	{Name: ActivityUninstall, Scope: ScopeProject},
+	{Name: ActivityUninstallGlobal, Scope: ScopeUser},
 	{Name: ActivityCleanup, Scope: ScopeProject},
 	{Name: ActivityInspect, ReadOnly: true},
 }
@@ -143,6 +147,11 @@ var ChannelMatrix = []MatrixCell{
 		Path: []string{".claude", "CLAUDE.md"}, Managed: true},
 	{Agent: "claude", Kind: KindNativeWrapper, Scope: ScopeUser,
 		Path: []string{".claude", "skills"}, Managed: true},
+	// `mem setup-mcp --scope global` registra el servidor en ~/.claude.json
+	// (claudeUserConfigPath). Faltaba en la matriz, y por eso ninguna
+	// desinstalación lo retiraba (feature 034, FR-011).
+	{Agent: "claude", Kind: KindServerConfig, Scope: ScopeUser,
+		Path: []string{".claude.json"}, ConfigKey: "mcpServers", Managed: true},
 
 	// ── opencode · proyecto ──────────────────────────────────────────────
 	{Agent: "opencode", Kind: KindServerConfig, Scope: ScopeProject,
@@ -272,7 +281,7 @@ func CellsForActivity(name ActivityName) []MatrixCell {
 			if !c.Managed || c.Legacy {
 				continue
 			}
-		case ActivityUninstall:
+		case ActivityUninstall, ActivityUninstallGlobal:
 			if !c.Managed && !c.Legacy {
 				continue
 			}

@@ -83,7 +83,25 @@ func Open(root string) (*sql.DB, error) {
 		return nil, fmt.Errorf("preparar directorio del proyecto: %w", err)
 	}
 
-	path := DbPath(root)
+	return openDBFile(DbPath(root))
+}
+
+// OpenByKey abre la base de un proyecto del almacén global solo con su clave,
+// sin conocer su ruta en disco: la desinstalación exporta así los proyectos
+// anteriores al registro de rutas (feature 034, R12). Una base inexistente es
+// ausencia esperada: nil, nil.
+func OpenByKey(key string) (*sql.DB, error) {
+	path, err := GlobalDbPath(key)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, nil
+	}
+	return openDBFile(path)
+}
+
+func openDBFile(path string) (*sql.DB, error) {
 	// _txlock=immediate: todas las transacciones del paquete escriben, y varias
 	// leen antes (el dedup de insertMemory). Con BEGIN diferido, en WAL SQLite no
 	// invoca el busy handler al promover la lectura a escritura y el perdedor de

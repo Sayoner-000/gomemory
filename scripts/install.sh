@@ -123,6 +123,26 @@ main() {
   ok "Listo. Próximos pasos:"
   printf '  mem --help                 # Ver comandos\n'
   printf '  cd tu-proyecto && mem install .   # Cablear memoria + agentes (Claude, OpenCode, etc.)\n'
+
+  offer_guided_install "$bin_dir/$BIN_NAME"
+}
+
+# offer_guided_install ofrece, al terminar, la instalación guiada en el
+# directorio actual (feature 034, FR-026). Solo con terminal interactiva y si
+# el directorio es un repositorio git. La respuesta se lee de /dev/tty: con
+# `curl | sh` la entrada estándar es la propia tubería del script.
+offer_guided_install() {
+  bin="$1"
+  [ -t 1 ] || return 0
+  { : </dev/tty; } 2>/dev/null || return 0
+  command -v git >/dev/null 2>&1 || return 0
+  git rev-parse --show-toplevel >/dev/null 2>&1 || return 0
+  printf '\n¿Configurar gomemory en %s ahora? [S/n] ' "$(pwd)"
+  read -r answer </dev/tty || return 0
+  case "$answer" in
+    n|N|no|No) info "Puedes hacerlo luego con: mem install ." ;;
+    *) "$bin" install . </dev/tty ;;
+  esac
 }
 
 main "$@"

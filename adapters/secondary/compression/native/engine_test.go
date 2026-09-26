@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -121,7 +122,7 @@ func TestEngineStatsBestEffort(t *testing.T) {
 		t.Errorf("se esperaba un Record con omisiones: %+v", stats.records)
 	}
 	// La ref recupera el original exacto.
-	if got, _, ok, _ := store.Get(nil, r.Refs[0]); !ok || got != in {
+	if got, _, ok, _ := store.Get(context.Background(), r.Refs[0]); !ok || got != in {
 		t.Error("la ref debe recuperar el original byte a byte")
 	}
 	if r.Tokens > r.StructuralTokens {

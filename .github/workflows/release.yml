@@ -9,7 +9,19 @@ permissions:
   contents: write
 
 jobs:
+  govulncheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Verificar vulnerabilidades alcanzables
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: "1.27.1"
+          go-package: ./...
+
   goreleaser:
+    needs: govulncheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

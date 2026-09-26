@@ -13,6 +13,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		fmt.Println("gomemory " + version.Version)
 	case "update":
 		CmdUpdate(deps, args)
+	case "update-check":
+		CmdUpdateCheck(deps, args)
 	case "index":
 		CmdIndex(deps, args)
 	case "init":
@@ -90,7 +92,9 @@ func Run(cmd string, args []string, deps *Deps) {
 	case "import":
 		CmdImport(deps, args)
 	case "uninstall":
-		CmdUninstall(deps, args)
+		if code := CmdUninstall(deps, args); code != 0 {
+			os.Exit(code)
+		}
 	case "tui":
 		LaunchTUI(deps)
 	case "help", "-h", "--help":

@@ -153,20 +153,22 @@ func CmdMCPSetup(deps *Deps, args []string) {
 // runGlobalScopeSetup registra gomemory una sola vez a nivel de usuario, para
 // los agentes que lo soportan. cwd es irrelevante aquí: no hay "target",
 // porque el registro global aplica a todos los proyectos por igual.
-func runGlobalScopeSetup(agentList []string) {
+func runGlobalScopeSetup(agentList []string) map[string]bool {
 	fmt.Println("🔌 Registrando gomemory en scope global (una vez, para todos los proyectos)")
 	fmt.Println()
 
 	ref := binRefFor(".")
 	generated := 0
 	solicitados := map[string]bool{}
+	registered := map[string]bool{}
 
 	for _, agent := range agentList {
 		agent = strings.TrimSpace(agent)
 		if agent == "all" {
 			for a := range globalScopeAgents {
 				solicitados[a] = true
-				if runGlobalScopeAgent(a, ref) {
+				registered[a] = runGlobalScopeAgent(a, ref)
+				if registered[a] {
 					generated++
 				}
 			}
@@ -177,7 +179,8 @@ func runGlobalScopeSetup(agentList []string) {
 			continue
 		}
 		solicitados[agent] = true
-		if runGlobalScopeAgent(agent, ref) {
+		registered[agent] = runGlobalScopeAgent(agent, ref)
+		if registered[agent] {
 			generated++
 		}
 	}
@@ -275,6 +278,7 @@ func runGlobalScopeSetup(agentList []string) {
 	} else {
 		fmt.Println("ℹ️  No se completó ningún registro global nuevo.")
 	}
+	return registered
 }
 
 func runGlobalScopeAgent(agent string, ref BinRef) bool {

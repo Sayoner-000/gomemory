@@ -41,6 +41,9 @@ type doctorReportJSON struct {
 	OpenCode     *doctorOpenCodeJSON `json:"opencode,omitempty"`
 	// Compression (feature 033, FR-029): estado del motor nativo.
 	Compression doctorCompressionJSON `json:"compression"`
+	// Binary (feature 034, FR-033): binario global, copias locales y aviso de
+	// versión. La clave "version" ya es la versión de gomemory.
+	Binary doctorBinaryJSON `json:"binary"`
 }
 
 // CmdDoctor implementa `mem doctor [--json] [--strict]`: el reporte de
@@ -67,6 +70,7 @@ func CmdDoctor(deps *Deps, args []string) {
 	problems := report.Problems()
 	compressionState := buildDoctorCompression(deps, root)
 	problems += len(compressionState.Problems)
+	binaryState := buildDoctorBinary(deps, root)
 
 	if *asJSON {
 		out := doctorReportJSON{
@@ -75,6 +79,7 @@ func CmdDoctor(deps *Deps, args []string) {
 			Degradations: report.Degradations,
 			OpenCode:     openCodeJSON(openCode),
 			Compression:  compressionState,
+			Binary:       binaryState,
 		}
 		if out.Degradations == nil {
 			out.Degradations = []string{}
@@ -101,6 +106,7 @@ func CmdDoctor(deps *Deps, args []string) {
 		printDoctorHuman(report, deps)
 		printDoctorOpenCode(openCode)
 		printDoctorCompression(compressionState)
+		printDoctorBinary(binaryState)
 	}
 
 	if *strict && problems > 0 {

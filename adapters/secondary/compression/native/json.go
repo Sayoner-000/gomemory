@@ -119,7 +119,6 @@ func (c *jsonCrusher) object(out *strings.Builder, i int) int {
 			return next + 1
 		}
 		// ','
-		i = vEnd
 		j = next + 1
 		out.WriteString(c.src[vEnd:j])
 		i = j

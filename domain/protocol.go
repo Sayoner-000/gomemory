@@ -8,7 +8,7 @@ import "regexp"
 // como el inspector de cobertura (adapters/primary/setup/activation_inspect.go,
 // feature 019) lo consultan desde aquí, para que nunca puedan divergir sobre
 // cuál es "la versión vigente".
-const ProtocolVersionMarker = "<!-- gomemory-protocol-v7 -->"
+const ProtocolVersionMarker = "<!-- gomemory-protocol-v8 -->"
 
 // UniversalInstructionsVersionMarker identifica el baseline portable que se
 // instala una sola vez en las instrucciones de usuario. Es independiente del

@@ -85,9 +85,10 @@ func braceDepths(lines []string) ([]int, bool) {
 				continue
 			}
 			if quote != 0 {
-				if ch == '\\' {
+				switch ch {
+				case '\\':
 					j++
-				} else if ch == quote {
+				case quote:
 					quote = 0
 				}
 				continue

@@ -232,6 +232,9 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 		CompressionOriginalsTTLDays:     s.CompressionOriginalsTTLDays,
 		CompressionOriginalsMaxMB:       s.CompressionOriginalsMaxMB,
 		CompressionAdaptiveThresholdPct: s.CompressionAdaptiveThresholdPct,
+		UpdateCheckDisabled:             s.UpdateCheckDisabled,
+		Agents:                          s.Agents,
+		AgentScope:                      s.AgentScope,
 	}
 }
 
@@ -277,6 +280,9 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 		CompressionOriginalsTTLDays:     s.CompressionOriginalsTTLDays,
 		CompressionOriginalsMaxMB:       s.CompressionOriginalsMaxMB,
 		CompressionAdaptiveThresholdPct: s.CompressionAdaptiveThresholdPct,
+		UpdateCheckDisabled:             s.UpdateCheckDisabled,
+		Agents:                          s.Agents,
+		AgentScope:                      s.AgentScope,
 	})
 }
 

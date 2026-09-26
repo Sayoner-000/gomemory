@@ -45,7 +45,7 @@ práctica nadie hace de forma sistemática.
 Hay dos vías independientes:
 
 1. **Desde gomemory** (recomendado si solo quieres apagar el resumen sin
-   tocar spec-kit): abre la TUI de gomemory (`./mem`) → pantalla de
+   tocar spec-kit): abre la TUI de gomemory (`mem`) → pantalla de
    configuración → alterna "Brazo extensor spec-kit", o usa
    `mem settings --speckit-context=false`. El script del hook lee este
    interruptor directo de `.memory/settings.json` antes de hacer nada — si
@@ -79,9 +79,9 @@ recombinarla ni reformatearla.
 
 ## Requisitos
 
-El script del hook necesita el binario `mem` de gomemory: busca `./mem` en
-la raíz del proyecto (el que deja `mem install`) y, si no lo encuentra,
-`mem` en `PATH`. Si ninguno está disponible, el hook no produce salida y el
+El script del hook necesita el binario `mem` de gomemory: usa `mem` del
+`PATH` (la instalación global, la que actualiza `mem update`) y, solo si no
+lo hay, `./mem` en la raíz del proyecto. Si ninguno está disponible, el hook no produce salida y el
 flujo de `/speckit-specify` continúa exactamente igual que sin esta
 extensión — no hace falta desinstalar nada para que la ausencia de
 gomemory sea inofensiva.

@@ -198,9 +198,9 @@ func TestCmdUninstallAcceptsYesFlagInAnyPosition(t *testing.T) {
 		{"TARGETDIR", "--yes"},
 	} {
 		target := t.TempDir()
-		if err := os.WriteFile(filepath.Join(target, "mem"), []byte("fake"), 0755); err != nil {
-			t.Fatalf("write fake mem: %v", err)
-		}
+		// Binario de gomemory real: uninstall solo retira un `mem` que se
+		// identifica como gomemory (feature 034, FR-003).
+		copyExecutable(t, buildLifecycleBinary(t), filepath.Join(target, "mem"))
 
 		resolved := make([]string, len(args))
 		for i, a := range args {

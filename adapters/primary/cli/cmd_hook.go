@@ -16,6 +16,7 @@ import (
 	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
+	"mem/version"
 )
 
 // backupKeepEnvOverride permite ajustar cuántos snapshots automáticos de
@@ -42,7 +43,7 @@ func CmdHook(deps *Deps, args []string) {
 
 	switch args[0] {
 	case "session-start":
-		hookSessionStart(deps)
+		hookSessionStart(deps, args[1:])
 	case "session-end":
 		hookSessionEnd(deps)
 	case "pre-compact":
@@ -106,15 +107,16 @@ func planEnteredMarkerPath(deps *Deps, root string) string {
 
 // hookSessionStart inicia (si no existe) la sesión activa e inyecta el
 // contexto de sesiones previas como additionalContext del agente.
-func hookSessionStart(deps *Deps) {
+func hookSessionStart(deps *Deps, args []string) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
 		os.Exit(0) // No se pudo resolver el directorio de trabajo: nada que hacer.
 	}
 	project := deps.ProjectRepo.Key(root)
 
-	if active, _ := deps.SessionRepo.Active(project); active == nil {
-		_, _ = deps.SessionRepo.Start(project)
+	active, _ := deps.SessionRepo.Active(project)
+	if active == nil {
+		active, _ = deps.SessionRepo.Start(project)
 	}
 
 	// Nueva sesión: el recordatorio del protocolo debe volver a inyectarse en
@@ -122,10 +124,83 @@ func hookSessionStart(deps *Deps) {
 	_ = os.Remove(sessionMarkerPath(deps, root))
 	_ = os.Remove(planEnteredMarkerPath(deps, root))
 
-	if ctx := entregaContextoDeArranque(deps); ctx != "" {
-		fmt.Print(ctx)
+	// Una copia local de gomemory se retira en cuanto hay un global (FR-003):
+	// es lo que deja a todos los proyectos en la misma versión. Best-effort:
+	// si falla, el hook sigue igual y no se anuncia nada (FR-004).
+	var avisos []string
+	if global, ok := resolveGlobalBinary(root); ok {
+		if c, retired, _ := retireLocalCopy(root, global); retired {
+			avisos = append(avisos, retiredNotice(c, global))
+		}
+	}
+
+	sessionID := ""
+	if active != nil {
+		sessionID = active.ID
+	}
+	mark := updateNoticeForSession(deps, root, sessionID)
+	if mark != nil {
+		avisos = append(avisos, mark.notice)
+	}
+
+	if out := renderSessionStart(sessionStartDialect(args, os.Getenv), entregaContextoDeArranque(deps), avisos); out != "" {
+		fmt.Print(out)
+	}
+	if mark != nil {
+		_ = writeUpdateNotice(root, mark.UpdateNotice)
 	}
 	os.Exit(0)
+}
+
+type pendingUpdateNotice struct {
+	domain.UpdateNotice
+	notice string
+}
+
+// updateNoticeForSession decide el aviso de versión nueva de esta sesión
+// (FR-028…FR-031) y, si la caché venció, lanza la consulta en segundo plano:
+// session-start nunca espera a la red (SC-006). Desactivado, ni consulta ni
+// avisa (SC-008).
+func updateNoticeForSession(deps *Deps, root, sessionID string) *pendingUpdateNotice {
+	if updateCheckDisabled(root) {
+		return nil
+	}
+	ctx := context.Background()
+	cache, ok := updateCheckRepoOf(deps).Read(ctx)
+	d := usecases.DecideUpdateNotice(usecases.UpdateNoticeInput{
+		Current:    version.Version,
+		Cache:      cache,
+		CacheOK:    ok,
+		Now:        time.Now(),
+		LastNotice: readUpdateNotice(root),
+		SessionID:  sessionID,
+	})
+	if d.RefreshNeeded {
+		spawnUpdateCheck(root)
+	}
+	if d.Notice == "" || d.Mark == nil {
+		return nil
+	}
+	return &pendingUpdateNotice{UpdateNotice: *d.Mark, notice: d.Notice}
+}
+
+func readUpdateNotice(root string) domain.UpdateNotice {
+	var n domain.UpdateNotice
+	if data, err := os.ReadFile(updateNoticePath(root)); err == nil {
+		_ = json.Unmarshal(data, &n)
+	}
+	return n
+}
+
+func writeUpdateNotice(root string, n domain.UpdateNotice) error {
+	data, err := json.Marshal(n)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(updateNoticePath(root)), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(updateNoticePath(root), data, 0o600)
 }
 
 // entregaContextoDeArranque construye el contexto de la sesión y deja constancia

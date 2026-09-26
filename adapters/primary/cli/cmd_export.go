@@ -28,11 +28,14 @@ func CmdExport(deps *Deps, args []string) {
 		path = fmt.Sprintf("gomemory-export-%s-%s.json", deps.Project, time.Now().Format("20060102"))
 	}
 
-	f, err := os.Create(path)
+	// 0600: la exportación es toda la memoria del proyecto, tan privada como
+	// el almacén (feature 034, R12). os.Create la dejaba legible por otros.
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
 	if err != nil {
 		fail("crear %s: %v", path, err)
 	}
 	defer func() { _ = f.Close() }()
+	_ = f.Chmod(0o600) // un archivo previo conserva su modo al truncarse
 
 	if err := usecases.EncodeBundle(f, bundle); err != nil {
 		fail("escribir bundle: %v", err)

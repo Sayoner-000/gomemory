@@ -60,10 +60,46 @@ el proyecto que los use:
 mem setup-mcp --scope project --agents cursor,windsurf,cline --target .
 ```
 
-`mem install .` sigue disponible como flujo autocontenido por proyecto. Copia el
-binario, configura MCP, instala los plugins y hooks compatibles, inicializa las
-reglas de trabajo y la constitución en memoria, y distribuye las extensiones
-opcionales. No crea archivos `AGENTS.md` ni `CLAUDE.md`. Si encuentra artefactos
+**Instalación guiada.** Con una terminal interactiva, `mem install .` pregunta,
+en este orden: qué agentes conectar (los que tienes instalados salen ya
+marcados), dónde instalar el binario (solo si no hay `mem` global: global,
+recomendado, o una copia en el proyecto), el alcance de la configuración (este
+proyecto o global para tu usuario), y muestra un resumen para confirmar antes de
+escribir nada. Solo se configuran los agentes elegidos. La selección se guarda
+en `.memory/settings.json` (`agents`, `agent_scope`) y la reutilizan las
+reinstalaciones, incluida la que hace `mem update`, sin volver a preguntar. En
+scripts y CI: `mem install . --yes` (agentes detectados; si no se detecta
+ninguno, los que se configuraban siempre), `--agents claude,codex` y
+`--scope project|global`. Sin terminal interactiva nunca pregunta. Los
+instaladores de consola (`install.sh`, `install.ps1`) ofrecen esta instalación
+guiada al terminar si estás dentro de un repositorio git. `mem update` también
+pide confirmación con terminal interactiva (`--yes` para omitirla).
+
+`mem install .` sigue disponible como flujo autocontenido por proyecto. Usa el
+binario global (`mem` en el `PATH`), configura MCP, instala los plugins y hooks
+compatibles, inicializa las reglas de trabajo y la constitución en memoria, y
+distribuye las extensiones opcionales.
+
+**Un solo binario.** Con `mem` en el `PATH`, `install` ya no copia el binario al
+proyecto, y una copia `./mem` que dejaran versiones anteriores se retira sola
+(al instalar o al abrir una sesión del agente), con un aviso de una línea. Así
+todos los proyectos usan la misma versión y `mem update` los actualiza todos de
+una vez; ejecutado desde una copia local, `mem update` actualiza el global. Solo
+si no hay `mem` en el `PATH` el proyecto conserva su propia copia.
+
+**Aviso de versión nueva.** Como mucho una vez cada 24 horas, al iniciar una
+sesión del agente gomemory consulta en segundo plano la última release (nunca
+retrasa el arranque) y guarda el resultado en `update-check.json` del almacén
+global. Si hay una versión más nueva ves, una vez por versión y sesión:
+`gomemory vX disponible (tienes vY) → mem update`. No se actualiza solo.
+Desactívalo en todo tu usuario con `GOMEMORY_NO_UPDATE_CHECK=1` (útil en CI) o en
+un proyecto con `"update_check_disabled": true` en `.memory/settings.json`;
+desactivado no hace ninguna llamada de red. `mem doctor` muestra el binario
+global, las copias locales que queden y el estado de la última consulta.
+
+**Integridad.** `mem update` verifica el SHA-256 del archivo descargado con el
+`checksums.txt` de la release antes de sustituir el binario; si no coincide o no
+existe, aborta sin tocar nada. No crea archivos `AGENTS.md` ni `CLAUDE.md`. Si encuentra artefactos
 gestionados por instalaciones antiguas, los respalda y retira.
 
 Las reglas llegan al agente **íntegras** en cada `get_context()`; la constitución
@@ -104,7 +140,7 @@ del usuario.
 ### Instalación
 
 ```bash
-./mem setup opencode
+mem setup opencode
 ```
 
 Esto:
@@ -179,7 +215,7 @@ paralelo a los hooks de Claude Code (misma lógica, resuelta en Go):
 ### Instalación
 
 ```bash
-./mem setup claude-code
+mem setup claude-code
 ```
 
 Esto:
@@ -242,17 +278,17 @@ acceden al mismo almacén local.
 
 ```bash
 # 1. Crear/gestionar sesión por CLI
-./mem session start
+mem session start
 
 # 2. Guardar y buscar una memoria
-./mem save -t "Prueba" -y learning "Verificación manual del manual"
-./mem search "Prueba"
+mem save -t "Prueba" -y learning "Verificación manual del manual"
+mem search "Prueba"
 
 # 3. Obtener el contexto del proyecto (markdown)
-./mem context
+mem context
 
 # 4. Cerrar sesión con resumen
-./mem session end -s "Prueba manual completada"
+mem session end -s "Prueba manual completada"
 ```
 
 ### Tests Automatizados
@@ -299,7 +335,7 @@ ls ~/.config/opencode/plugins/gomemory.ts
 opencode debug config
 
 # Reinstalar si es necesario
-./mem setup opencode
+mem setup opencode
 ```
 
 ### El Plugin Claude Code No se Activa
@@ -312,7 +348,7 @@ ls .claude/plugins/gomemory/
 cat .mcp.json
 
 # Reinstalar
-./mem setup claude-code
+mem setup claude-code
 ```
 
 ### Otros problemas comunes
@@ -606,10 +642,10 @@ destructivas que exigen confirmación humana explícita.
 ### Purgar memorias
 
 ```bash
-./mem purge                                  # Purga el proyecto actual (pide confirmación)
-./mem purge --type bugfix                    # Solo memorias de un tipo
-./mem purge --older-than-days 90             # Solo memorias más viejas que N días
-./mem purge --all --yes                      # TODOS los proyectos, sin prompt (scripts)
+mem purge                                  # Purga el proyecto actual (pide confirmación)
+mem purge --type bugfix                    # Solo memorias de un tipo
+mem purge --older-than-days 90             # Solo memorias más viejas que N días
+mem purge --all --yes                      # TODOS los proyectos, sin prompt (scripts)
 ```
 
 Por defecto el alcance es el proyecto actual (FR-003); `--all` requiere pasarse
@@ -619,7 +655,7 @@ memoria también se limpian las relaciones (`mem compare`) que la referencian.
 ### Compactar el almacenamiento
 
 ```bash
-./mem compact
+mem compact
 ```
 
 Ejecuta `VACUUM` para recuperar el espacio en disco liberado por borrados
@@ -628,8 +664,8 @@ previos. Nunca elimina memorias — reporta el tamaño antes/después.
 ### Garbage collection a demanda
 
 ```bash
-./mem gc                                     # 90 días de retención por defecto
-./mem gc --older-than-days 180 --all --yes
+mem gc                                     # 90 días de retención por defecto
+mem gc --older-than-days 180 --all --yes
 ```
 
 Limpieza por antigüedad, reutilizando la misma lógica de `purge`. Solo se
@@ -638,14 +674,42 @@ ejecuta cuando el usuario lo pide explícitamente — nunca en segundo plano.
 ### Desinstalación completa
 
 ```bash
-./mem uninstall                              # reverso exacto de `mem install`
-./mem uninstall ~/proyectos/mi-app --yes
+mem uninstall                                   # consola guiada: alcance, memoria, confirmación
+mem uninstall ~/proyectos/mi-app --yes          # solo ese proyecto, sin preguntas
+mem uninstall --all --yes --export ~/respaldo   # todo el sistema, exportando antes la memoria
+mem uninstall --all --dry-run                   # muestra el inventario sin tocar nada
 ```
 
-Remueve los datos y auxiliares del proyecto, el binario local, los hooks y las
-configuraciones MCP creadas por el flujo de proyecto. También retira artefactos
-gestionados por versiones antiguas. La configuración global compartida por
-otros proyectos se conserva y se informa por separado.
+Con una terminal interactiva, `mem uninstall` pregunta el **alcance** (solo este
+proyecto o todo gomemory del sistema), muestra un **inventario** de lo que existe
+realmente (binario, memoria con su tamaño, configuración de agentes y archivos de
+proyectos), pregunta qué hacer con la **memoria** (exportar antes de borrar,
+recomendado; borrar sin exportar; o conservar) y pide confirmación. En el alcance
+de sistema hay que escribir `gomemory`. Al terminar, un resumen marca cada
+elemento con ✓ o ⚠; un ⚠ indica la ruta y cómo completarlo a mano, y no detiene
+los demás pasos.
+
+- **Solo el proyecto**: retira la integración (bloques de protocolo, entradas MCP,
+  hooks, permisos, envoltorios), `.memory/`, una copia local `mem` de gomemory y
+  **la memoria de ese proyecto en el almacén global**. La configuración global
+  compartida por otros proyectos (por ejemplo `~/.codex/config.toml`) se conserva.
+- **Todo el sistema** (`--all`): además retira la configuración de gomemory en tus
+  agentes (`~/.claude.json`, `~/.claude/settings.json`, `~/.config/opencode/`,
+  `~/.codex/config.toml` y sus respaldos, habilidades y comandos), el almacén
+  global completo y el binario. En los archivos que comparten otras herramientas
+  solo se quitan las entradas de gomemory. Encuentra los proyectos por el
+  registro que guarda `mem install` y, para instalaciones anteriores, buscando en
+  tu directorio personal hasta 6 niveles (`--scan <dir>` cambia la raíz,
+  `--no-scan` usa solo los registrados).
+
+La **exportación** va por defecto a `~/gomemory-export-AAAAMMDD-HHMMSS/`: un
+archivo por proyecto, con el formato de `mem export`, más `index.json`, todo con
+permisos privados (0700/0600). Cada archivo se reimporta con `mem import`. Si la
+exportación falla, la memoria de ese proyecto no se borra.
+
+Sin terminal interactiva hace falta `--yes`; sin él no se borra nada y el comando
+termina con código 1. Códigos de salida: 0 (todo ✓), 1 (rechazado), 2 (uso
+inválido, por ejemplo `--keep-memory` con `--export`), 3 (terminó con algún ⚠).
 
 Ver también [contracts/cli-tui-contracts.md](../specs/003-memory-maintenance/contracts/cli-tui-contracts.md)
 para el detalle completo de flags y comportamiento.
@@ -653,9 +717,9 @@ para el detalle completo de flags y comportamiento.
 ## 9. Grafo de Código (`mem index`)
 
 ```bash
-./mem index                 # Indexa el código Go propio (símbolos: archivos, paquetes, funciones, métodos, tipos, llamadas)
-./mem index --force          # Reindexado completo, ignora el cache incremental
-./mem index --skip-graph     # Solo el grafo propio — no dispara el reindexado del proveedor externo
+mem index                 # Indexa el código Go propio (símbolos: archivos, paquetes, funciones, métodos, tipos, llamadas)
+mem index --force          # Reindexado completo, ignora el cache incremental
+mem index --skip-graph     # Solo el grafo propio — no dispara el reindexado del proveedor externo
 ```
 
 `mem index` construye el grafo de símbolos **propio** de gomemory (Go puro, vía
@@ -696,15 +760,15 @@ X, en no más de N tokens?".
 
 ```bash
 # Armar un paquete de contexto para una tarea, con presupuesto de 4000 tokens
-./mem pack build --task "arreglar el bug de login" --max-tokens 4000
+mem pack build --task "arreglar el bug de login" --max-tokens 4000
 
 # Guardarlo como JSON para reusarlo (pack show/stats lo leen de ahí)
-./mem pack build --task "arreglar el bug de login" --max-tokens 4000 --json > paquete.json
-./mem pack show  < paquete.json     # re-renderiza el paquete en Markdown
-./mem pack stats < paquete.json     # solo el resumen de reducción (tokens antes/después)
+mem pack build --task "arreglar el bug de login" --max-tokens 4000 --json > paquete.json
+mem pack show  < paquete.json     # re-renderiza el paquete en Markdown
+mem pack stats < paquete.json     # solo el resumen de reducción (tokens antes/después)
 
 # Comprimir un texto suelto (sin buscar memorias ni aplicar presupuesto)
-./mem pack compress < notas.txt
+mem pack compress < notas.txt
 ```
 
 Qué hace `mem pack build`: busca memorias relevantes a la tarea, descarta las
@@ -755,34 +819,34 @@ el comportamiento es exactamente el de antes de esta señal.
 
 ```bash
 # Instalación
-./mem setup opencode              # Plugin para OpenCode
-./mem setup claude-code           # Plugin para Claude Code
+mem setup opencode              # Plugin para OpenCode
+mem setup claude-code           # Plugin para Claude Code
 
 # Configuración
-./mem settings --show                       # Ver settings (auto-approve, grafo externo, ADR, etc.)
-./mem settings --code-graph=false           # Apagar el grafo de código externo
-./mem settings --code-graph-providers=a,b   # Proveedores candidatos, en orden de prioridad
-./mem settings --code-impact-annotation=false  # Apagar la anotación de impacto al guardar
-./mem settings --adr-sync=true              # Activar la sincronización bidireccional de ADR
-./mem adr-sync status                       # Ver el estado de la sincronización de ADR
+mem settings --show                       # Ver settings (auto-approve, grafo externo, ADR, etc.)
+mem settings --code-graph=false           # Apagar el grafo de código externo
+mem settings --code-graph-providers=a,b   # Proveedores candidatos, en orden de prioridad
+mem settings --code-impact-annotation=false  # Apagar la anotación de impacto al guardar
+mem settings --adr-sync=true              # Activar la sincronización bidireccional de ADR
+mem adr-sync status                       # Ver el estado de la sincronización de ADR
 
 # Portabilidad de memorias
-./mem export                          # Volcar memorias + relaciones a un JSON portable
-./mem import backup.json              # Importarlas en otro proyecto/máquina (dedup)
+mem export                          # Volcar memorias + relaciones a un JSON portable
+mem import backup.json              # Importarlas en otro proyecto/máquina (dedup)
 
 # Optimización de contexto
-./mem pack build --task "..." --max-tokens 4000   # Paquete de contexto acotado a una tarea
-./mem pack compress < texto.txt                   # Comprimir un texto suelto
+mem pack build --task "..." --max-tokens 4000   # Paquete de contexto acotado a una tarea
+mem pack compress < texto.txt                   # Comprimir un texto suelto
 
 # Mantenimiento de memoria
-./mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
-./mem compact                     # Recuperar espacio en disco
-./mem gc                          # Garbage collection a demanda (90 días default)
-./mem uninstall --yes             # Desinstalación completa (reverso de install)
+mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
+mem compact                     # Recuperar espacio en disco
+mem gc                          # Garbage collection a demanda (90 días default)
+mem uninstall --yes             # Desinstala este proyecto (--all: todo el sistema)
 
 # Verificación
-./mem --help                      # Listar comandos
-./mem context                     # Contexto del proyecto (markdown)
+mem --help                      # Listar comandos
+mem context                     # Contexto del proyecto (markdown)
 go test ./...                     # Tests
 ```
 
@@ -956,11 +1020,11 @@ proyecto a otro** (o entre máquinas con distinto S.O.), usa el bundle JSON:
 
 ```bash
 # En el proyecto origen: vuelca memorias + relaciones a un JSON autocontenido
-./mem export                                   # gomemory-export-<proyecto>-<YYYYMMDD>.json
-./mem export --out backup.json                 # ruta explícita
+mem export                                   # gomemory-export-<proyecto>-<YYYYMMDD>.json
+mem export --out backup.json                 # ruta explícita
 
 # En el proyecto destino: impórtalo (append con dedup, no duplica)
-./mem import backup.json
+mem import backup.json
 ```
 
 - **Contenido:** todas las memorias **+ sus relaciones** (sinapsis y veredictos

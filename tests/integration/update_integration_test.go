@@ -4,13 +4,18 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +32,20 @@ func copyFileForTest(src, dst string) error {
 	defer func() { _ = out.Close() }()
 	_, err = io.Copy(out, in)
 	return err
+}
+
+// updateTestEnv es el entorno de `mem update` en estas pruebas, con el PATH
+// reducido al sistema. Desde la feature 034 (FR-006), update sustituye el `mem`
+// global del PATH cuando existe: con el PATH real de quien ejecuta la suite,
+// estas pruebas reemplazarían su binario instalado por el binario falso.
+func updateTestEnv(extra ...string) []string {
+	env := make([]string, 0, len(os.Environ())+len(extra))
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "PATH=") {
+			env = append(env, kv)
+		}
+	}
+	return append(append(env, "PATH=/usr/bin:/bin"), extra...)
 }
 
 // buildFakeTarGz produce el tar.gz que sirve el release fake, con el mismo
@@ -59,8 +78,15 @@ func TestUpdateIntegration(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
+	// Desde la feature 034 (FR-032) update verifica el SHA-256 del asset con el
+	// checksums.txt de la release, como publica goreleaser.
+	sum := sha256.Sum256(asset)
 	downloadMux := http.NewServeMux()
 	downloadMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/checksums.txt") {
+			_, _ = fmt.Fprintf(w, "%s  mem_%s_%s.tar.gz\n", hex.EncodeToString(sum[:]), runtime.GOOS, runtime.GOARCH)
+			return
+		}
 		_, _ = w.Write(asset)
 	})
 	downloadSrv := httptest.NewServer(downloadMux)
@@ -80,7 +106,7 @@ func TestUpdateIntegration(t *testing.T) {
 
 	cmd := exec.Command(dummyBin, "update", "--version", "v9.9.9")
 	cmd.Dir = target
-	cmd.Env = append(os.Environ(),
+	cmd.Env = updateTestEnv(
 		"GOMEMORY_RELEASE_API_BASE="+srv.URL,
 		"GOMEMORY_RELEASE_DOWNLOAD_BASE="+downloadSrv.URL,
 	)
@@ -129,7 +155,7 @@ func TestUpdateCheckDoesNotMutate(t *testing.T) {
 
 	cmd := exec.Command(dummyBin, "update", "--check")
 	cmd.Dir = target
-	cmd.Env = append(os.Environ(), "GOMEMORY_RELEASE_API_BASE="+srv.URL)
+	cmd.Env = updateTestEnv("GOMEMORY_RELEASE_API_BASE=" + srv.URL)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("mem update --check: %v\n%s", err, out)

@@ -264,6 +264,55 @@ func renderTurnEnd(d hookDialect, texto string, paraElHumano bool) string {
 	}
 }
 
+// sessionStartDialect elige el dialecto de session-start (R3 de la feature
+// 034). El payload de SessionStart no trae tool_name, así que detectDialect no
+// reconoce a Claude Code aquí; la señal es CLAUDE_PROJECT_DIR, que Claude Code
+// exporta a sus hooks (binRefFor ya depende de ella). --emit manda sobre todo.
+func sessionStartDialect(args []string, getenv func(string) string) hookDialect {
+	if forced := emitFlagValue(args); isKnownDialect(forced) {
+		return hookDialect(forced)
+	}
+	if getenv("CLAUDE_PROJECT_DIR") != "" {
+		return dialectClaude
+	}
+	return dialectNeutral
+}
+
+// renderSessionStart emite el contexto de arranque y, si los hay, los avisos
+// para la persona (retirada de la copia local, versión nueva). Sin avisos la
+// salida es el contexto tal cual, idéntica en todos los dialectos a la de
+// v2.26.4 (contracts/hook-session-start.md).
+func renderSessionStart(d hookDialect, ctx string, avisos []string) string {
+	if len(avisos) == 0 {
+		return ctx
+	}
+	texto := strings.Join(avisos, "\n")
+	switch d {
+	case dialectClaude, dialectJSON:
+		// systemMessage lo ve la persona y el modelo no; el contexto viaja
+		// aparte en additionalContext.
+		out := map[string]any{"systemMessage": texto}
+		if ctx != "" {
+			out["hookSpecificOutput"] = map[string]any{
+				"hookEventName":     "SessionStart",
+				"additionalContext": ctx,
+			}
+		}
+		b, _ := json.Marshal(out)
+		return string(b)
+	default:
+		// Un solo canal: se pide al agente que transmita el aviso.
+		var b strings.Builder
+		for _, a := range avisos {
+			b.WriteString("Informa a la persona: " + a + "\n")
+		}
+		if ctx != "" {
+			b.WriteString("\n" + ctx)
+		}
+		return b.String()
+	}
+}
+
 // renderTurnEndAgentPrepare traduce el aviso combinado de US4 (feature 030):
 // el aviso a la persona (humanMsg, el recordatorio de compactar vigente) y el
 // aviso al agente (agentMsg, AgentPrepareNotice) para el mismo cruce de

@@ -57,6 +57,16 @@ type Settings struct {
 	// el script del hook (sin pasar por mem settings), así el gate no depende
 	// de que la CLI/TUI ya lo expongan.
 	SpeckitContextDisabled bool `json:"speckit_context_disabled,omitempty"`
+	// UpdateCheckDisabled apaga en este proyecto la consulta de versión nueva y
+	// su aviso (feature 034, FR-031). GOMEMORY_NO_UPDATE_CHECK=1 lo apaga en
+	// todo el usuario y tiene prioridad.
+	UpdateCheckDisabled bool `json:"update_check_disabled,omitempty"`
+	// Agents y AgentScope son la selección de `mem install` (feature 034,
+	// FR-023): qué agentes se configuran y en qué alcance ("project" o
+	// "global"). Ausente = los detectados. Las reinstalaciones, incluida la
+	// de `mem update`, la reutilizan sin preguntar.
+	Agents     []string `json:"agents,omitempty"`
+	AgentScope string   `json:"agent_scope,omitempty"`
 	// ReviewMaxFixRounds: presupuesto de rondas de corrección de la revisión
 	// adversarial (feature 027, INV-009). Ausente/0 → default. A diferencia de
 	// los tunables de huella, un valor negativo NO significa «sin límite»:

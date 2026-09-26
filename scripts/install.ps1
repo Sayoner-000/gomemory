@@ -70,6 +70,22 @@ try {
   Write-Ok "Listo. Próximos pasos:"
   Write-Host "  mem --help"
   Write-Host "  cd tu-proyecto; mem install ."
+
+  # Feature 034 (FR-026): con sesión interactiva y dentro de un repositorio
+  # git, ofrece la instalación guiada en el directorio actual.
+  $isRepo = $false
+  if (Get-Command git -ErrorAction SilentlyContinue) {
+    git rev-parse --show-toplevel 2>$null | Out-Null
+    $isRepo = ($LASTEXITCODE -eq 0)
+  }
+  if ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected -and $isRepo) {
+    $answer = Read-Host "¿Configurar gomemory en $((Get-Location).Path) ahora? [S/n]"
+    if ($answer -notmatch '^(n|no)$') {
+      & (Join-Path $InstallDir $BinName) install .
+    } else {
+      Write-Info "Puedes hacerlo luego con: mem install ."
+    }
+  }
 }
 finally {
   Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue

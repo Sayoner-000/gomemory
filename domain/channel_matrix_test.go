@@ -129,3 +129,20 @@ func TestChannelMatrix_LegacyNoSeEscribe(t *testing.T) {
 		}
 	}
 }
+
+// Feature 034 (FR-011): lo que la instalación global escribe en el ámbito de
+// usuario es exactamente lo que la desinstalación de sistema retira.
+func TestChannelMatrix_SimetriaInstalarDesinstalarGlobal(t *testing.T) {
+	retiradas := map[string]bool{}
+	for _, c := range CellsForActivity(ActivityUninstallGlobal) {
+		if c.Scope != ScopeUser {
+			t.Errorf("%s: la desinstalación global solo alcanza el ámbito de usuario", c)
+		}
+		retiradas[c.Key()] = true
+	}
+	for _, c := range CellsForActivity(ActivityInstallGlobal) {
+		if !retiradas[c.Key()] {
+			t.Errorf("%s: la instalación global la escribe y la desinstalación de sistema no la retira", c)
+		}
+	}
+}

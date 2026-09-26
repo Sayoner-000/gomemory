@@ -78,8 +78,11 @@ que las reglas de trabajo prohíben.
 // Capa OPCIONAL, igual que InstallAtomicPlanWrappers: la funcionalidad opera sin
 // ellos —siempre queda `mem constitution`— y aportan la ergonomía del atajo
 // nativo. Idempotente: solo reescribe un archivo si su contenido difiere.
-func InstallConstitutionWrappers(root string) error {
+func InstallConstitutionWrappers(root string, agents ...string) error {
 	for _, w := range constitutionWrappers {
+		if !wrapperForAgents(w.path, agents) {
+			continue
+		}
 		dest := filepath.Join(append([]string{root}, w.path...)...)
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err

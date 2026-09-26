@@ -50,16 +50,17 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 	}
 }
 
-// TestProtocolVersionMarker_SubioAV7 verifica el mecanismo de actualización: al
+// TestProtocolVersionMarker_SubioAV8 verifica el mecanismo de actualización: al
 // subir el número de versión, composeAgentFile reemplaza el bloque anterior
 // completo sin dejar restos (FR-030) y sin necesidad de escribir migración.
 // Subió a v7 al añadir la guía del grafo de código externo a
 // buildIntegrationBlock(): cambiar el contenido sin subir el marcador dejaría a
 // los proyectos ya instalados en v6 (este mismo repo, entre otros) sin forma de
-// detectar que hay una versión nueva al reinstalar.
-func TestProtocolVersionMarker_SubioAV7(t *testing.T) {
-	if integrationVersionMarker != "<!-- gomemory-protocol-v7 -->" {
-		t.Errorf("integrationVersionMarker = %q, se esperaba la v7", integrationVersionMarker)
+// detectar que hay una versión nueva al reinstalar. Subió a v8 cuando el
+// protocolo pasó de `./mem …` a `mem …` (feature 034, FR-005).
+func TestProtocolVersionMarker_SubioAV8(t *testing.T) {
+	if integrationVersionMarker != "<!-- gomemory-protocol-v8 -->" {
+		t.Errorf("integrationVersionMarker = %q, se esperaba la v8", integrationVersionMarker)
 	}
 }
 
@@ -83,8 +84,8 @@ func TestComposeAgentFile_ReemplazaV5SinDejarRestos(t *testing.T) {
 	if strings.Contains(out, "contenido viejo del protocolo") {
 		t.Error("quedó contenido de la versión anterior")
 	}
-	if strings.Count(out, "gomemory-protocol-v7") != 1 {
-		t.Errorf("se esperaba exactamente un marcador v7, hay %d", strings.Count(out, "gomemory-protocol-v7"))
+	if strings.Count(out, integrationVersionMarker) != 1 {
+		t.Errorf("se esperaba exactamente un marcador vigente, hay %d", strings.Count(out, integrationVersionMarker))
 	}
 	if !strings.Contains(out, "Texto propio del proyecto.") {
 		t.Error("se perdió el contenido propio del proyecto")

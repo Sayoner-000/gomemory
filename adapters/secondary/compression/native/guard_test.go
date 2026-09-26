@@ -43,7 +43,7 @@ func TestLiteralGuard(t *testing.T) {
 	}
 }
 
-var protectedRe = regexp.MustCompile("(/[\\w.-]+)+\\.\\w+|https?://\\S+|\\bv\\d+\\.\\d+\\.\\d+\\b|ERROR[^\\n]*")
+var protectedRe = regexp.MustCompile(`(/[\w.-]+)+\.\w+|https?://\S+|\bv\d+\.\d+\.\d+\b|ERROR[^\n]*`)
 
 // SC-006 — todo elemento protegido que aparece en la salida aparece literal, y
 // las líneas de ERROR nunca se omiten.

@@ -1,6 +1,13 @@
 package ports
 
 type SettingsData struct {
+	// UpdateCheckDisabled, Agents y AgentScope (feature 034): aviso de versión
+	// y selección de `mem install`. Deben viajar aquí: Write reconstruye el
+	// Settings completo desde esta struct y perdería lo que no esté.
+	UpdateCheckDisabled bool     `json:"update_check_disabled,omitempty"`
+	Agents              []string `json:"agents,omitempty"`
+	AgentScope          string   `json:"agent_scope,omitempty"`
+
 	AutoApprove      bool     `json:"auto_approve"`
 	AutoApproveTools []string `json:"auto_approve_tools"`
 	// CodeGraphDisabled apaga el proveedor de grafo de código externo

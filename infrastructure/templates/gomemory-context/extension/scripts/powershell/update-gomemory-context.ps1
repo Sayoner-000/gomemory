@@ -18,19 +18,20 @@ $ErrorActionPreference = 'Continue'
 $ProjectRoot = (Get-Location).Path
 $SettingsFile = Join-Path $ProjectRoot '.memory/settings.json'
 
-# 1. Localizar el binario mem: ./mem(.exe) primero, luego mem en PATH.
+# 1. Localizar el binario mem: el del PATH primero (instalación global) y
+#    ./mem(.exe) solo como alternativa sin global (feature 034, FR-005).
 $MemBin = $null
-foreach ($candidate in @('mem.exe', 'mem')) {
-    $local = Join-Path $ProjectRoot $candidate
-    if (Test-Path -Path $local -PathType Leaf) {
-        $MemBin = $local
-        break
-    }
+$onPath = Get-Command 'mem' -ErrorAction SilentlyContinue
+if ($onPath) {
+    $MemBin = $onPath.Source
 }
 if (-not $MemBin) {
-    $onPath = Get-Command 'mem' -ErrorAction SilentlyContinue
-    if ($onPath) {
-        $MemBin = $onPath.Source
+    foreach ($candidate in @('mem.exe', 'mem')) {
+        $local = Join-Path $ProjectRoot $candidate
+        if (Test-Path -Path $local -PathType Leaf) {
+            $MemBin = $local
+            break
+        }
     }
 }
 

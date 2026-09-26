@@ -726,9 +726,16 @@ para Claude Code, Codex y OpenCode. `mem install` sigue disponible cuando se
 prefiere un paquete autocontenido dentro del proyecto.
 
 ```
-mem install /ruta/a/proyecto
+mem install /ruta/a/proyecto [--yes] [--agents a,b] [--scope project|global]
   │
-  ├─ 1. Copiar binario → /ruta/a/proyecto/mem
+  ├─ 0. Selección (feature 034): flags → selección guardada (incluso vacía) →
+  │    agentes detectados solo si todavía no hay selección. Con TTY y sin
+  │    --yes, consola guiada (adapters/primary/console): agentes, binario,
+  │    alcance y confirmación, antes de escribir nada. Global rechaza agentes
+  │    sin soporte de configuración de usuario antes de empezar
+  │
+  ├─ 1. Binario: con `mem` global en el PATH no se copia y se retira una copia
+  │    ./mem de gomemory que hubiera; sin global, copia en el proyecto
   │
   ├─ 2. Inicializar o verificar el almacén del proyecto
   │    └─ Los datos persistentes viven en el almacén global
@@ -737,13 +744,38 @@ mem install /ruta/a/proyecto
   ├─ 4. Actualizar .gitignore con .memory/ y /mem
   ├─ 5. Respaldar y retirar artefactos gestionados por versiones antiguas
   ├─ 6. Distribuir extensiones y comandos opcionales de Spec Kit
-  ├─ 7. Instalar integraciones
-  │    ├─ OpenCode → plugin global + MCP del proyecto
-  │    ├─ Claude Code → plugin, hooks + .mcp.json del proyecto
-  │    ├─ Cursor → .cursor/mcp.json
-  │    └─ Codex → registro MCP en ~/.codex/config.toml
-  └─ 8. Aplicar auto-approve si está habilitado
+  ├─ 7. Instalar integraciones, SOLO de los agentes elegidos y en el alcance
+  │    elegido: global → setup-mcp en el usuario, sin MCP ni hooks de proyecto;
+  │    project → Claude Code: plugin, hooks y .mcp.json del proyecto;
+  │    OpenCode: plugin y MCP globales; Cursor: .cursor/mcp.json;
+  │    Codex: registro MCP en ~/.codex/config.toml
+  ├─ 8. Registrar la ruta del proyecto en el almacén (projects/<key>/root) y
+  │    guardar la selección (agents, agent_scope) en .memory/settings.json
+  ├─ 9. Aplicar auto-approve si está habilitado
+  └─ 10. Resumen final con ✓/⚠ y acción manual en cada fallo
 ```
+
+## Ciclo de vida: actualización, aviso de versión y desinstalación (feature 034)
+
+- **Un solo binario.** `resolveGlobalBinary` (`cli/binref.go`) es la regla
+  única: hay global si `mem` se resuelve por el PATH y no es la copia del
+  proyecto. `session-start` e `install` retiran `<proyecto>/mem` solo si
+  `version` responde `gomemory <semver>` (`cli/local_copy.go`) y lo comunican
+  con un aviso visible. `mem update` desde una copia sustituye el global.
+- **Aviso de versión.** `session-start` lee la caché `<DataHome>/update-check.json`
+  (`persistence.UpdateCheckRepository`); si venció (24 h) lanza
+  `mem update-check` desacoplado (setsid), que consulta la API con ETag a través
+  de `ports.ReleasePort` (`adapters/secondary/release`). La decisión es pura
+  (`usecases.DecideUpdateNotice`). El aviso sale en `systemMessage` en Claude
+  Code: el dialecto de `session-start` se reconoce por `CLAUDE_PROJECT_DIR`,
+  porque su payload no trae `tool_name`. Sin avisos, la salida es texto plano
+  como antes. `mem update` verifica el SHA-256 con `checksums.txt`.
+- **Desinstalación.** `cli/uninstall_plan.go` construye un
+  `domain.UninstallPlan` (orden FR-014, continuidad ante ⚠) con lo que existe:
+  proyectos (registro + escaneo acotado de `~`), configuración de usuario
+  derivada de la matriz de canales (`ActivityUninstallGlobal`), almacén y
+  binario. La exportación previa es `usecases.ExportProjects` (0700/0600).
+  `uninstall` y `update-check` se despachan sin contenedor.
 
 La limpieza es conservadora: respalda los archivos de instrucciones gestionados
 por instalaciones anteriores antes de retirarlos. El protocolo y la constitución
@@ -1151,10 +1183,12 @@ Zero dependencias en runtime para el usuario final. El binario compilado es auto
 
 No requiere variables de entorno para operación normal — la identidad del
 proyecto se deriva del git root (o el cwd si no hay `.git`) y el store de
-datos se resuelve solo. Una variable opcional:
+datos se resuelve solo. Variables opcionales (documentadas en `.env.example`):
 
 | Variable | Uso |
 |---|---|
+| `GOMEMORY_NO_UPDATE_CHECK` | `1` desactiva la consulta de versión nueva y su aviso en todo el usuario, sin llamadas de red (feature 034). Las suites de `tests/` la fijan para no consultar la API real |
+| `GOMEMORY_RELEASE_API_BASE`, `GOMEMORY_RELEASE_DOWNLOAD_BASE` | Bases de la API y de las descargas de releases (espejos, pruebas) |
 | `GOMEMORY_DATA_HOME` | Override explícito del directorio de datos de gomemory (por defecto `$XDG_DATA_HOME/gomemory` o `~/.local/share/gomemory` en Linux/macOS, `%LOCALAPPDATA%\gomemory` en Windows). Pensado para usuarios avanzados y para sandboxear tests sin tocar el `$HOME` real — ver `TestMain` en `adapters/secondary/persistence`, `application/usecases`, `tests/contract` y `tests/integration` |
 
 ## Decisiones Técnicas

@@ -21,8 +21,10 @@ import (
 // conexión a base de datos abierta.
 func bootstrapDeps() *cli.Deps {
 	return &cli.Deps{
-		SettingsRepo: persistence.NewSettingsRepository(),
-		ProjectRepo:  persistence.NewProjectRepository(),
+		SettingsRepo:    persistence.NewSettingsRepository(),
+		ProjectRepo:     persistence.NewProjectRepository(),
+		ReleasePort:     cli.NewReleasePort(),
+		UpdateCheckRepo: persistence.UpdateCheckRepository{},
 	}
 }
 
@@ -71,6 +73,12 @@ var rootIndependentCommands = map[string]bool{
 	"-h":        true,
 	"--help":    true,
 	"update":    true,
+	// update-check: proceso de fondo que lanza session-start; no necesita la
+	// base del proyecto (feature 034).
+	"update-check": true,
+	// uninstall borra el almacén global: no debe abrir antes la base del
+	// proyecto actual (feature 034).
+	"uninstall": true,
 	"version":   true,
 	"--version": true,
 	"-v":        true,
