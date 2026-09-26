@@ -5,6 +5,22 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.26.3] - 2026-09-26
+
+### Security
+
+- El directorio `.memory` del proyecto recupera sus permisos privados (0700)
+  en cada arranque. Hasta ahora solo nacía con 0700 cuando no existía: las
+  instalaciones anteriores y los hooks que lo creaban primero lo dejaban en
+  0755, y `context.md` quedaba legible por otros usuarios. Las instalaciones
+  existentes se corrigen solas al actualizar, sin pasos manuales.
+
+### Fixed
+
+- El snapshot del grafo de código se escribe de forma atómica. Varios
+  refrescos en segundo plano podían coincidir, y una lectura simultánea veía
+  un archivo a medias y daba el grafo por no disponible.
+
 ## [v2.26.2] - 2026-09-25
 
 ### Fixed
