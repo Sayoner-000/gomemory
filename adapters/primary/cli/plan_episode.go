@@ -36,7 +36,7 @@ func planEpisodeDenied(root string) bool {
 // CmdHook, cmd_hook.go).
 func planEpisodeMarkDenied(root string) {
 	path := planEpisodeStatePath(root)
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	_ = os.MkdirAll(filepath.Dir(path), 0o700)
 	_ = os.WriteFile(path, []byte("1"), 0o644)
 }
 
@@ -44,6 +44,6 @@ func planEpisodeMarkDenied(root string) {
 // (plan-entered) o aprobar el plan (plan-approved) reinician el contador.
 func planEpisodeReset(root string) {
 	path := planEpisodeStatePath(root)
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+	_ = os.MkdirAll(filepath.Dir(path), 0o700)
 	_ = os.WriteFile(path, []byte("0"), 0o644)
 }

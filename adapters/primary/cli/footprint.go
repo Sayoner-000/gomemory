@@ -47,7 +47,7 @@ func footprintAdd(root string, n int) {
 	}
 	total := footprintRead(root) + n
 	p := footprintPath(root)
-	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	_ = os.MkdirAll(filepath.Dir(p), 0o700)
 	_ = os.WriteFile(p, []byte(strconv.Itoa(total)), 0o644)
 }
 
@@ -106,7 +106,7 @@ func computeCompactNudge(root string, threshold int) (string, bool) {
 			}
 		}
 	}
-	_ = os.MkdirAll(filepath.Dir(compactNudgeStatePath(root)), 0o755)
+	_ = os.MkdirAll(filepath.Dir(compactNudgeStatePath(root)), 0o700)
 	_ = os.WriteFile(compactNudgeStatePath(root), []byte(strconv.FormatInt(now, 10)), 0o644)
 	return compactNudgeMessage, true
 }
@@ -123,7 +123,7 @@ func pendingAgentNoticePath(root string) string {
 // Best-effort: un fallo aquí no debe impedir el cierre del turno.
 func writePendingAgentNotice(root string) {
 	p := pendingAgentNoticePath(root)
-	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	_ = os.MkdirAll(filepath.Dir(p), 0o700)
 	_ = os.WriteFile(p, []byte(domain.AgentPrepareNotice), 0o644)
 }
 
@@ -194,7 +194,7 @@ func computePreferenceReinforcement(deps *Deps, root, project string, threshold 
 		return "", false
 	}
 
-	_ = os.MkdirAll(filepath.Dir(preferenceNudgeStatePath(root)), 0o755)
+	_ = os.MkdirAll(filepath.Dir(preferenceNudgeStatePath(root)), 0o700)
 	_ = os.WriteFile(preferenceNudgeStatePath(root), []byte(strconv.FormatInt(now, 10)), 0o644)
 
 	var b strings.Builder

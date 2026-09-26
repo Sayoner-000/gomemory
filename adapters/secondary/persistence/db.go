@@ -46,7 +46,15 @@ func EnsureDir(root string) error {
 		return err
 	}
 
-	return os.MkdirAll(filepath.Join(root, MemDir), 0o700)
+	// MkdirAll no corrige un directorio existente: instalaciones previas al
+	// hardening, o un hook que creó .memory antes que este Init, lo dejan en
+	// 0755 y context.md (0644) quedaría legible por otros usuarios. El Chmod
+	// impone el 0700 en cada arranque.
+	memDir := filepath.Join(root, MemDir)
+	if err := os.MkdirAll(memDir, 0o700); err != nil {
+		return err
+	}
+	return os.Chmod(memDir, 0o700)
 }
 
 // DbPath devuelve la ruta del mem.db de un proyecto en el store global. Solo
