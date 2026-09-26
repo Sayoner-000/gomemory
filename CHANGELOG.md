@@ -5,6 +5,80 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.27.0] - 2026-09-26
+
+### Changed
+
+- **Un solo binario para todos los proyectos** (feature 034, US1). Con `mem` en
+  el `PATH`, `mem install` ya no copia el binario al proyecto, y las copias
+  `./mem` que dejaron versiones anteriores se retiran solas (al instalar o al
+  abrir una sesión del agente), con un aviso visible de una línea. Así todos
+  los proyectos usan la misma versión. Solo se retiran binarios de gomemory
+  verificados: cualquier otro archivo llamado `mem` no se toca. Sin `mem`
+  global en el `PATH`, el proyecto conserva su copia como hasta ahora.
+- `mem update` ejecutado desde una copia local actualiza el binario **global**
+  (antes solo actualizaba la copia y el global, el que usan hooks y MCP, se
+  quedaba viejo). Si el global no admite escritura, no descarga nada e indica
+  el comando exacto.
+- `mem update` termina con un resumen de ✓/⚠/✗ por paso (descarga, checksum,
+  binario, copia local, integración), también cuando un paso aborta. En
+  `mem install`, el paso "Binario" del resumen indica la copia retirada o, si no
+  se pudo retirar, la marca con ⚠ y el comando para hacerlo a mano.
+- `mem uninstall --all` ya no dice que `~/.codex/config.toml` "conserva" la
+  entrada de gomemory, cuando justo después la retira.
+- El protocolo de memoria (v8) y el brazo extensor de spec-kit usan `mem …` del
+  `PATH`; `./mem` queda solo como alternativa sin instalación global.
+
+### Security
+
+- `mem uninstall` borra también la memoria del proyecto en el almacén global.
+  Hasta ahora anunciaba que borraba "TODA la memoria", pero solo retiraba
+  `<proyecto>/.memory`: la base real (que vive en el almacén global desde la spec 005) se
+  quedaba en el disco. El mensaje de confirmación enumera ahora exactamente lo
+  que se borra.
+- `mem export` crea el archivo con permisos `0600`. Antes quedaba legible por
+  otros usuarios de la máquina, como el almacén antes de la v2.26.3.
+- El workflow de release ejecuta `govulncheck` antes de GoReleaser; una
+  vulnerabilidad alcanzable detiene la publicación.
+
+### Added
+
+- **Desinstalación sin rastros** (feature 034, US2). `mem uninstall` ofrece dos
+  alcances: solo el proyecto, o todo gomemory del sistema (`--all`). Muestra un
+  inventario de lo que existe realmente, permite exportar la memoria antes de
+  borrarla (`~/gomemory-export-AAAAMMDD-HHMMSS/`, un archivo reimportable por
+  proyecto más `index.json`, con permisos privados), conservarla
+  (`--keep-memory`) o borrarla, y termina con un resumen ✓/⚠. El alcance de
+  sistema retira la configuración de gomemory en Claude Code, OpenCode y Codex
+  (solo sus entradas en los archivos compartidos), las habilidades y comandos
+  globales, el almacén global y el binario; encuentra los proyectos por un
+  registro que guarda `mem install` y, para instalaciones anteriores, buscando
+  en el directorio personal (`--scan`, `--no-scan`). `--dry-run` muestra el
+  inventario sin tocar nada. Sin terminal interactiva exige `--yes`.
+- **Instalación guiada al estilo skills.sh** (feature 034, US3). Con terminal
+  interactiva, `mem install` ofrece los agentes detectados ya marcados, la
+  ubicación del binario (solo sin `mem` global), el alcance y un resumen con
+  confirmación; solo configura los agentes elegidos (antes configuraba siempre
+  OpenCode, Claude Code, Cursor y Codex). Flags equivalentes: `--yes`,
+  `--agents`, `--scope`. La selección se guarda y `mem update` la reutiliza sin
+  preguntar. `mem update` pide confirmación con terminal (`--yes` para
+  omitirla). Los instaladores de consola ofrecen la instalación guiada al
+  terminar dentro de un repositorio git.
+- **Aviso de versión nueva** (feature 034, US4), al estilo de Codex: como mucho
+  una vez cada 24 horas, `session-start` consulta en segundo plano la última
+  release (sin retrasar el arranque; caché `update-check.json` con ETag) y
+  muestra a la persona `gomemory vX disponible (tienes vY) → mem update`, una
+  vez por versión y sesión. Solo avisa: nunca se actualiza sola. Se desactiva
+  con `GOMEMORY_NO_UPDATE_CHECK=1` o `update_check_disabled` en el proyecto, y
+  entonces no hay llamadas de red. `mem doctor` gana la sección
+  "Versión y binario" (`binary` en `--json`).
+- `mem update` verifica el SHA-256 de la descarga con el `checksums.txt` de la
+  release y aborta sin tocar el binario si no coincide o no existe.
+- `.env.example` documenta las variables de entorno de gomemory
+  (`GOMEMORY_DATA_HOME`, `GOMEMORY_RELEASE_API_BASE`,
+  `GOMEMORY_RELEASE_DOWNLOAD_BASE`, `GOMEMORY_NO_UPDATE_CHECK`,
+  `GOMEMORY_BIN_DIR`).
+
 ## [v2.26.4] - 2026-09-26
 
 ### Security

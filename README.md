@@ -7,7 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.26.4-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.26.4)
+[![Version](https://img.shields.io/badge/version-2.27.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.27.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)
@@ -79,6 +79,21 @@ mem --help
 ```
 
 ### 2. Connect your coding agent
+
+**Guided setup (recommended):**
+```bash
+cd /path/to/your/project
+mem install .
+```
+
+In an interactive terminal, `mem install` detects the agents you have installed
+(Claude Code, Codex, OpenCode, Cursor; Windsurf and Cline optional) and offers
+them pre-selected, asks where the binary lives and the configuration scope,
+shows a summary and asks for confirmation before writing anything. The
+selection is saved and reused by later reinstalls and `mem update`. In scripts
+and CI use `mem install . --yes` (detected agents) or
+`mem install . --agents claude,codex --scope project`. The console installer
+offers this guided setup at the end when run inside a git repository.
 
 **For agents with global MCP configuration:**
 ```bash
@@ -310,13 +325,13 @@ mem
 │   └── show <id>     Full lineage: target, reviewers, consensus, fixes, verdict
 ├── octopus           Route, inspect and report optional delegation decisions
 ├── adr-sync          Inspect or run opt-in ADR synchronization
-├── install           Install gomemory into a project (no instruction files are generated)
+├── install           Guided install into a project (--yes, --agents, --scope); no binary copy when `mem` is on PATH
 ├── setup <agent>     Install the hooks/plugin for opencode | claude-code
 ├── setup-mcp         Register MCP tools for all 6 supported agents
-├── uninstall         Fully remove gomemory from a project
+├── uninstall         Remove gomemory from a project, or from the whole system with --all (--dry-run, --export, --keep-memory)
 ├── settings          View/change auto-approve and other toggles
-├── doctor            Coverage report of atomic plan mode channels (--json, --strict)
-├── update            Update the binary
+├── doctor            Channel coverage plus "Version and binary": global binary, local copies, update cache (--json, --strict)
+├── update            Update the global binary (SHA-256 verified against checksums.txt; --check, --yes)
 ├── mcp               Run the MCP server over stdio
 ├── hook <event>      Agent hook entrypoint (internal lifecycle integration)
 ├── wrap <cmd>        Run a command, then prompt to save a memory about it
@@ -366,6 +381,7 @@ Main settings (via `mem settings` or the interactive TUI):
 | `adr_sync_enabled` | `false` | Opt-in bidirectional sync of architecture memories with the external provider's ADR document |
 | `review_max_fix_rounds` | `2` | Round budget for `mem review` fix/re-judgment cycles |
 | `review_auto_fix_severities` | `["CRITICAL","HIGH"]` | Severities eligible for automatic correction without explicit authorization |
+| `update_check_disabled` | `false` | Turn off the new-version notice and its background check (no network calls). `GOMEMORY_NO_UPDATE_CHECK=1` does the same for every project |
 | `octopus_enabled` | `false` | Opt-in **Octopus AAR** adaptive agent router — decides inline vs. delegate. Off means zero footprint: no MCP tools, no protocol text, no telemetry |
 
 The table above lists every user-facing setting; `mem settings --show` prints the live values for your project.
@@ -424,6 +440,14 @@ Run tests:
 go test ./...
 ```
 
+Measure global coverage, including commands exercised through the installed
+binary in contract tests:
+```bash
+bash scripts/coverage.sh
+```
+The command fails below 80% and prints the path to the combined Go coverage
+profile. A plain `go test ./... -cover` omits the subprocess coverage.
+
 ## Supported Agents
 
 | Agent | MCP | Automatic hooks |
@@ -451,7 +475,9 @@ By default:
 - No network service is opened
 - Sensitive credential patterns are redacted
 - Database and project `.memory/` permissions are restricted to the owner
-- Memory can be exported or deleted by the user
+- Memory can be exported (private `0600` files) or deleted by the user
+- `mem uninstall --all` removes gomemory from the whole system without leaving
+  traces, and only removes gomemory's own entries from shared agent configs
 
 For security details and limitations, see [`docs/MANUAL.md`](docs/MANUAL.md).
 
