@@ -425,11 +425,22 @@ func (p *Provider) writeSnapshot(snap domain.CodeProviderSnapshot) {
 	if err != nil {
 		return
 	}
-	// 0700, igual que persistence.Init: si este proceso crea .memory primero,
-	// Init ya no corrige los permisos de un directorio existente (C-004 de
-	// acr_0814de3a).
+	// 0700, igual que persistence.EnsureDir (C-004 de acr_0814de3a).
 	_ = os.MkdirAll(p.memDir, 0o700)
-	_ = os.WriteFile(p.snapshotPath(), data, 0o644)
+	// Escritura atómica (temporal + rename): varios `mem code-refresh`
+	// detached pueden coincidir —el debounce es por proceso— y un Snapshot()
+	// concurrente no debe leer un JSON a medias, que tomaría por "no
+	// disponible" (C-001 de acr_65a3773c).
+	tmp, err := os.CreateTemp(p.memDir, ".code_provider_snapshot-*.tmp")
+	if err != nil {
+		return
+	}
+	tmpPath := tmp.Name()
+	_, werr := tmp.Write(data)
+	cerr := tmp.Close()
+	if werr != nil || cerr != nil || os.Rename(tmpPath, p.snapshotPath()) != nil {
+		_ = os.Remove(tmpPath)
+	}
 }
 
 // parseProjectName casa el proyecto de codebase-memory-mcp cuyo root_path

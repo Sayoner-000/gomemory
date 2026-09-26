@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -369,8 +371,8 @@ func TestIndexRepository_SinBinario(t *testing.T) {
 }
 
 // C-004 (acr_0814de3a) — si el refresco del grafo crea .memory antes que
-// persistence.Init, el directorio nace con los mismos permisos privados: Init
-// no corrige los de un directorio ya existente.
+// persistence.EnsureDir, el directorio nace ya con los mismos permisos
+// privados.
 func TestWriteSnapshotCreatesPrivateMemDir(t *testing.T) {
 	memDir := filepath.Join(t.TempDir(), ".memory")
 	New(t.TempDir(), memDir, "").writeSnapshot(domain.CodeProviderSnapshot{Provider: ProviderName})
@@ -380,5 +382,49 @@ func TestWriteSnapshotCreatesPrivateMemDir(t *testing.T) {
 	}
 	if perm := info.Mode().Perm(); perm != 0o700 {
 		t.Errorf(".memory debe crearse con 0700, tiene %o", perm)
+	}
+}
+
+// C-001 (acr_65a3773c) — varios `mem code-refresh` detached pueden escribir el
+// snapshot a la vez (el debounce es por proceso). Un lector concurrente nunca
+// debe ver un JSON a medias, que Snapshot() tomaría por "no disponible".
+func TestWriteSnapshotIsAtomicForConcurrentReaders(t *testing.T) {
+	memDir := filepath.Join(t.TempDir(), ".memory")
+	p := New(t.TempDir(), memDir, "")
+	arch := &domain.CodeArchitecture{}
+	for i := 0; i < 2000; i++ {
+		arch.Languages = append(arch.Languages, domain.CodeLangStat{Language: strings.Repeat("x", 40), FileCount: i})
+	}
+	snap := domain.CodeProviderSnapshot{Provider: ProviderName, Available: true, CheckedAt: time.Now(), Architecture: arch}
+	p.writeSnapshot(snap)
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	for w := 0; w < 4; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					p.writeSnapshot(snap)
+				}
+			}
+		}()
+	}
+	for i := 0; i < 500; i++ {
+		if !p.Snapshot().Available {
+			close(done)
+			wg.Wait()
+			t.Fatalf("lectura %d vio un snapshot a medias", i)
+		}
+	}
+	close(done)
+	wg.Wait()
+
+	if left, _ := filepath.Glob(filepath.Join(memDir, "*.tmp")); len(left) != 0 {
+		t.Errorf("quedaron temporales: %v", left)
 	}
 }
