@@ -425,7 +425,10 @@ func (p *Provider) writeSnapshot(snap domain.CodeProviderSnapshot) {
 	if err != nil {
 		return
 	}
-	_ = os.MkdirAll(p.memDir, 0o755)
+	// 0700, igual que persistence.Init: si este proceso crea .memory primero,
+	// Init ya no corrige los permisos de un directorio existente (C-004 de
+	// acr_0814de3a).
+	_ = os.MkdirAll(p.memDir, 0o700)
 	_ = os.WriteFile(p.snapshotPath(), data, 0o644)
 }
 

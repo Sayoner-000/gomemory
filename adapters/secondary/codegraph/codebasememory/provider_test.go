@@ -367,3 +367,18 @@ func TestIndexRepository_SinBinario(t *testing.T) {
 		t.Fatalf("esperaba ports.ErrIndexerNotInstalled, obtuve %v", err)
 	}
 }
+
+// C-004 (acr_0814de3a) — si el refresco del grafo crea .memory antes que
+// persistence.Init, el directorio nace con los mismos permisos privados: Init
+// no corrige los de un directorio ya existente.
+func TestWriteSnapshotCreatesPrivateMemDir(t *testing.T) {
+	memDir := filepath.Join(t.TempDir(), ".memory")
+	New(t.TempDir(), memDir, "").writeSnapshot(domain.CodeProviderSnapshot{Provider: ProviderName})
+	info, err := os.Stat(memDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := info.Mode().Perm(); perm != 0o700 {
+		t.Errorf(".memory debe crearse con 0700, tiene %o", perm)
+	}
+}
