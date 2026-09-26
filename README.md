@@ -10,7 +10,7 @@
 [![Version](https://img.shields.io/badge/version-2.26.2-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.26.2)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-28_core_tools-blueviolet)](https://modelcontextprotocol.io/)
+[![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)
 [![TUI](https://img.shields.io/badge/TUI-bubbletea_v2-FF6B9D?logo=charmbracelet&logoColor=white)](https://github.com/charmbracelet/bubbletea)
 
 gomemory gives AI coding agents persistent memory across sessions.
@@ -30,7 +30,7 @@ Works with Claude Code, Cursor, OpenCode, Windsurf, Cline and Codex through the 
 ┌─────────────────────────────────────────────────────────┐
 │                        gomemory                         │
 │                                                         │
-│  28 core tools (+4 Octopus) · sessions · checkpoints    │
+│  30 core tools (+4 Octopus) · sessions · checkpoints    │
 │  context · decisions · learnings · safe compaction      │
 │  code graph · context packs · consensus reviews         │
 └──────────────────────────┬──────────────────────────────┘
@@ -213,7 +213,7 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 ## MCP Tools
 
-28 core tools across four groups (`domain/mcp_tools.go` is the single source of truth). Enabling Octopus AAR adds four optional tools for a total of 32.
+30 core tools across four groups (`domain/mcp_tools.go` is the single source of truth). Enabling Octopus AAR adds four optional tools for a total of 34.
 
 **Memory (11)**
 
@@ -241,7 +241,7 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 | `get_symbol` | Get a symbol's definition plus its direct callers/callees |
 | `list_dependencies` | Walk a symbol's dependency graph (calls or imports) up to a given depth |
 
-**Context Optimization Engine (4)** — `mem pack`, builds a token-budgeted `ContextPack`
+**Context Optimization Engine (6)** — `mem pack`, builds a token-budgeted `ContextPack` and recovers compressed originals
 
 | Tool | Description |
 | :--- | :--- |
@@ -249,6 +249,8 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 | `pack_show` | Re-render an already-built `ContextPack` as readable Markdown |
 | `pack_stats` | Return only the reduction-stats block of an already-built `ContextPack` |
 | `pack_compress` | Deterministically compress arbitrary text (no retrieval/budget), report token cost |
+| `pack_retrieve` | Return, byte for byte, the original content behind a `⟦mem⟧ … ref=X` omission marker |
+| `pack_savings` | Report compression savings per compressor, retrieval rate, fallbacks, adaptive tuning and originals storage |
 
 **Adversarial Review (8)** — `mem review`, two independent reviewers, consensus-gated fixes, bounded rounds
 

@@ -308,7 +308,7 @@ Herramientas MCP disponibles:
 | `pack_build` / `pack_show` / `pack_compress` / `pack_stats` | Optimización de contexto (ContextPack) |
 | `review_*` | Revisión adversarial por consenso, correcciones y veredicto final |
 
-El servidor publica 28 herramientas base. Si Octopus AAR está habilitado,
+El servidor publica 30 herramientas base. Si Octopus AAR está habilitado,
 añade cuatro herramientas opcionales de enrutamiento y telemetría.
 
 Configuración multi-agente automática:

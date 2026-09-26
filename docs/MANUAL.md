@@ -850,7 +850,7 @@ la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
 
 Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
 en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
-28 tools base y cuatro adicionales cuando Octopus AAR está activado.
+30 tools base y cuatro adicionales cuando Octopus AAR está activado.
 
 > Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
 > con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado

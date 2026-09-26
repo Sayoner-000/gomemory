@@ -63,7 +63,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
 | `install` | `adapters/primary/cli/cmd_install.go` | Instala el binario y la integración por proyecto; inicializa reglas y constitución en memoria y retira artefactos antiguos |
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 28 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 30 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable del ciclo de sesión, compactación, turnos, subagentes y modo plan |
@@ -482,7 +482,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `get_symbol` | name | Obtiene definicion con callers y callees directos |
 | `list_dependencies` | name, direction, kind, depth | Recorre dependencias por profundidad |
 
-**Herramientas de optimización de contexto (4, feature 015 — ver sección 16 más abajo):**
+**Herramientas de optimización de contexto (6, features 015 y 033 — ver sección 16 más abajo):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -490,10 +490,12 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `pack_show` | pack | Re-renderiza en Markdown un ContextPack ya construido |
 | `pack_stats` | pack | Devuelve solo el bloque de estadísticas de reducción |
 | `pack_compress` | text | Comprime un texto suelto y reporta tokens antes/después |
+| `pack_retrieve` | ref | Devuelve íntegro, byte a byte, el original de una marca `⟦mem⟧ … ref=X` |
+| `pack_savings` | — | Informe de ahorro por compresor, recuperación, degradaciones, ajustes adaptativos y almacén de originales |
 
 El servidor registra además ocho tools de revisión adversarial. Cuando
 `octopus_enabled` está activo, agrega cuatro tools de enrutamiento y telemetría
-local. La superficie es de 28 tools base o 32 con Octopus AAR; las listas se
+local. La superficie es de 30 tools base o 34 con Octopus AAR; las listas se
 derivan de `domain/mcp_tools.go`.
 
 **Recursos:**
@@ -689,7 +691,7 @@ mem pack compress < texto.txt       # comprime un texto suelto, sin retrieval ni
 
 Salida: Markdown con los items del paquete y un bloque de estadísticas (tokens antes/después, % de reducción, cuántos items quedaron en cada categoría). `--json` emite el `ContextPack` completo, el mismo formato que `pack show`/`pack stats` esperan como entrada.
 
-**Tools MCP (4, incluidas en las 28 tools base):**
+**Tools MCP (6, incluidas en las 30 tools base):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -697,6 +699,8 @@ Salida: Markdown con los items del paquete y un bloque de estadísticas (tokens 
 | `pack_show` | pack | Re-renderiza en Markdown un ContextPack ya construido |
 | `pack_stats` | pack | Devuelve solo el bloque de estadísticas |
 | `pack_compress` | text | Comprime un texto suelto y reporta tokens antes/después |
+| `pack_retrieve` | ref | Devuelve íntegro, byte a byte, el original de una marca `⟦mem⟧ … ref=X` |
+| `pack_savings` | — | Informe de ahorro por compresor, recuperación, degradaciones, ajustes adaptativos y almacén de originales |
 
 **Nota honesta sobre settings:** `.memory/settings.json` ya tiene 5 claves reservadas para esta feature (`context_default_budget`, `context_min_relevance`, `context_max_items`, `context_compression_disabled`, `context_dedup_disabled`, con defaults `4000` / `0.65` / `20` / `false` / `false`). Hoy **no** se leen desde `cmd_pack.go` ni desde el handler MCP — verificado en el código, no en el spec: `--max-tokens` y `--min-relevance` son siempre explícitos por invocación, y el tope de 20 candidatos sin `--max-items` viene de una constante separada (`defaultCandidateLimit`) que solo *coincide* en valor con `context_max_items`, no está enlazada a él. Quedan como el contrato para una CLI/TUI de configuración futura (`mem settings --context-*`), todavía sin construir.
 
