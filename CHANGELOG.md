@@ -5,6 +5,24 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.26.4] - 2026-09-26
+
+### Security
+
+- Todo el store global recupera sus permisos privados, no solo el proyecto
+  que se abre. Los directorios de proyecto creados antes del hardening
+  seguían en 0755, y los proyectos que no se volvían a abrir conservaban
+  `mem.db`, `-wal` y `-shm` en 0644, legibles por otros usuarios. Ahora cada
+  proyecto se corrige al abrirse, y `mem install` (que `mem update` ejecuta)
+  recorre el store y fija 0700 en cada directorio de proyecto y 0600 en sus
+  archivos `mem.db*`. Basta con actualizar.
+
+### Changed
+
+- Desde v2.26.3, `.memory/code_provider_snapshot.json` se crea con 0600 en
+  vez de 0644, por la escritura atómica. Es una caché que solo lee el propio
+  usuario.
+
 ## [v2.26.3] - 2026-09-26
 
 ### Security
