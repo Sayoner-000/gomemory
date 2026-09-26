@@ -5,6 +5,18 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.26.2] - 2026-09-25
+
+### Fixed
+
+- El motor de compresión mide los tokens con el mismo contador que el
+  contexto y `BuildContextPack`: el umbral mínimo y la decisión de ganancia ya
+  no dependen de una heurística propia que podría divergir del contador real.
+- El directorio `.memory` se crea siempre con permisos privados (0700),
+  también cuando el refresco del grafo de código es quien lo crea primero.
+- Las pruebas de contrato del hook `plan-entered` ya no fallan de forma
+  intermitente al limpiar su directorio temporal.
+
 ## [v2.26.1] - 2026-09-25
 
 ### Added
