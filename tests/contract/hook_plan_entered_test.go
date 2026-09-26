@@ -51,13 +51,32 @@ func extractAdditionalContext(t *testing.T, stdout string) string {
 
 // gitInitProject crea un directorio temporal con `.git`, para que FindRoot lo
 // reconozca como proyecto propio en vez de resolver a un ancestro compartido.
+//
+// El grafo de código externo va apagado: con él, cada hook lanza un
+// `mem code-refresh` en segundo plano que escribe en .memory después de que el
+// hook termine, y t.TempDir fallaba al borrar el directorio ("directory not
+// empty"; memoria 140, C-003 de acr_0814de3a). Ninguno de estos tests depende
+// del grafo, cuya disponibilidad además depende del PATH de la máquina.
 func gitInitProject(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0755); err != nil {
 		t.Fatalf("mkdir .git: %v", err)
 	}
+	writeProjectSettings(t, dir, `{"code_graph_disabled":true}`)
 	return dir
+}
+
+// writeProjectSettings escribe .memory/settings.json del proyecto de prueba.
+func writeProjectSettings(t *testing.T, dir, settings string) {
+	t.Helper()
+	memDir := filepath.Join(dir, ".memory")
+	if err := os.MkdirAll(memDir, 0755); err != nil {
+		t.Fatalf("mkdir .memory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(memDir, "settings.json"), []byte(settings), 0644); err != nil {
+		t.Fatalf("write settings.json: %v", err)
+	}
 }
 
 // TestHookPlanEntered_SalidaClaudeNoExcedeElTope cubre el presupuesto por
@@ -150,14 +169,7 @@ func TestHookPlanEntered_AtomicPlanDisabledProduceSilencio(t *testing.T) {
 	bin := buildPlanGuardBinary(t)
 	dir := gitInitProject(t)
 
-	memDir := filepath.Join(dir, ".memory")
-	if err := os.MkdirAll(memDir, 0755); err != nil {
-		t.Fatalf("mkdir .memory: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(memDir, "settings.json"),
-		[]byte(`{"atomic_plan_disabled":true}`), 0644); err != nil {
-		t.Fatalf("write settings.json: %v", err)
-	}
+	writeProjectSettings(t, dir, `{"atomic_plan_disabled":true,"code_graph_disabled":true}`)
 
 	res := runPlanEntered(t, bin, dir, "--emit=claude")
 	if res.exitCode != 0 {
