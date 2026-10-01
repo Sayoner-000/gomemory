@@ -62,7 +62,6 @@ func TestHookToolOutput(t *testing.T) {
 		{"claude-bash.json", "claude", "updatedToolOutput"},
 		{"claude-grep.json", "claude", "updatedToolOutput"},
 		{"claude-mcp.json", "claude", "updatedToolOutput"},
-		{"codex-mcp.json", "codex", "updatedMCPToolOutput"},
 	} {
 		in := fixture(c.fixture)
 		out, took := run(on, c.runtime, in)
@@ -97,6 +96,8 @@ func TestHookToolOutput(t *testing.T) {
 	for _, c := range []struct{ dir, fixture, runtime, why string }{
 		{on, "claude-read.json", "claude", "Read excluida (H3)"},
 		{on, "codex-shell.json", "codex", "Codex no reescribe shell"},
+		// Codex rechaza siempre updatedMCPToolOutput y marca el hook como fallido.
+		{on, "codex-mcp.json", "codex", "Codex no admite updatedMCPToolOutput"},
 		{off, "claude-bash.json", "claude", "ajuste apagado"},
 	} {
 		if out, _ := run(c.dir, c.runtime, fixture(c.fixture)); len(out) != 0 {

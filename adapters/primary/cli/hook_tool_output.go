@@ -17,8 +17,10 @@ import (
 // Comprime la salida de una herramienta del agente antes de que la vea el
 // modelo, en los runtimes cuyo sistema de ganchos lo permite (verificado contra
 // los binarios: Claude Code 2.1.282 con updatedToolOutput para todas las
-// herramientas; Codex 0.157.0 solo con updatedMCPToolOutput; OpenCode con
-// output.output mutable en tool.execute.after).
+// herramientas; OpenCode con output.output mutable en tool.execute.after).
+// Codex NO lo permite: su parser de hooks rechaza siempre updatedMCPToolOutput
+// («PostToolUse hook returned unsupported updatedMCPToolOutput»,
+// codex-rs/hooks/src/engine/output_parser.rs), así que con Codex no se emite nada.
 //
 // Invariantes:
 //   - H1: ante cualquier duda, salida vacía y código 0 (el runtime usa la
@@ -126,7 +128,7 @@ func rewriteToolOutput(runtime string, payload []byte, compress compressFunc) []
 		}
 		out, _ := json.Marshal(map[string]string{"output": c})
 		return out
-	case "claude", "codex":
+	case "claude":
 		var ev struct {
 			ToolName     string `json:"tool_name"`
 			ToolResponse any    `json:"tool_response"`
@@ -134,28 +136,17 @@ func rewriteToolOutput(runtime string, payload []byte, compress compressFunc) []
 		if json.Unmarshal(payload, &ev) != nil || ev.ToolResponse == nil || toolOutputIsExcluded(ev.ToolName) {
 			return nil
 		}
-		field := "updatedToolOutput"
-		if runtime == "codex" {
-			// Codex solo admite reescribir herramientas MCP (verificado en
-			// 0.157.0): se reconocen por su resultado con bloques de contenido.
-			m, ok := ev.ToolResponse.(map[string]any)
-			if !ok {
-				return nil
-			}
-			if _, ok := m["content"].([]any); !ok {
-				return nil
-			}
-			field = "updatedMCPToolOutput"
-		}
 		nv, changed := rewriteToolResponse(ev.ToolResponse, compress)
 		if !changed {
 			return nil
 		}
 		out, _ := json.Marshal(map[string]any{
-			"hookSpecificOutput": map[string]any{"hookEventName": "PostToolUse", field: nv},
+			"hookSpecificOutput": map[string]any{"hookEventName": "PostToolUse", "updatedToolOutput": nv},
 		})
 		return out
 	}
+	// "codex" (y cualquier otro): Codex rechaza updatedMCPToolOutput y marca el
+	// hook como fallido en cada herramienta MCP, así que no se emite nada (H1).
 	return nil
 }
 

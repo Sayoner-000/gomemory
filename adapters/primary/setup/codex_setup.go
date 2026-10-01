@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
-
-	"mem/adapters/secondary/persistence"
 )
 
 // codexHook declara un enganche del ciclo de vida de gomemory en Codex: el
@@ -70,20 +68,11 @@ var codexGomemoryHooks = []CodexHook{
 // esta feature cierra.
 func CodexGomemoryHooks() []CodexHook { return codexGomemoryHooks }
 
-// CodexToolOutputHook es el hook opt-in de salidas de herramientas (feature
-// 033). No va en codexGomemoryHooks a propósito: esa tabla es el ciclo mínimo
-// que `mem doctor` exige, y este hook solo se registra cuando algún proyecto
-// activa el ajuste (después ya no se retira: ver syncCodexToolOutput). Codex
-// 0.157.0 solo admite reescribir herramientas MCP (updatedMCPToolOutput); el
-// subcomando ignora el resto.
+// CodexToolOutputHook es el hook de salidas de herramientas que la feature 033
+// llegó a registrar. Codex rechaza siempre updatedMCPToolOutput («PostToolUse
+// hook returned unsupported updatedMCPToolOutput»), así que ya no se instala:
+// la declaración solo se conserva para que la instalación lo retire.
 var CodexToolOutputHook = CodexHook{Event: "PostToolUse", Sub: "tool-output codex"}
-
-// CodexToolOutputEnabled lee el ajuste del proyecto. La configuración de Codex
-// es GLOBAL: el hook queda para todos los proyectos, y en los que no lo tienen
-// activo el subcomando sale sin hacer nada.
-func CodexToolOutputEnabled(root string) bool {
-	return persistence.ReadSettings(root).ToolOutputCompression
-}
 
 // CodexConfigPath resuelve ~/.codex/config.toml.
 func CodexConfigPath() (string, error) {

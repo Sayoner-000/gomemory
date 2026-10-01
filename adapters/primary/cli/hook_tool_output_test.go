@@ -47,14 +47,14 @@ func TestRewriteToolOutputExclusionsAndCodex(t *testing.T) {
 			t.Errorf("H3: %s no debe reescribirse", name)
 		}
 	}
+	// Codex rechaza siempre updatedMCPToolOutput («PostToolUse hook returned
+	// unsupported updatedMCPToolOutput»): no se emite nada, ni en shell ni en MCP.
 	shell := `{"tool_name":"shell","tool_response":{"output":"` + big + `"}}`
-	if out := rewriteToolOutput("codex", []byte(shell), fakeCompress); out != nil {
-		t.Error("Codex solo admite reescribir herramientas MCP")
-	}
 	mcp := `{"tool_name":"mcp__otro__x","tool_response":{"content":[{"type":"text","text":"` + big + `"}],"isError":false}}`
-	out := rewriteToolOutput("codex", []byte(mcp), fakeCompress)
-	if !strings.Contains(string(out), `"updatedMCPToolOutput"`) || !strings.Contains(string(out), "COMPRIMIDO") {
-		t.Errorf("Codex MCP: %s", out)
+	for _, in := range []string{shell, mcp} {
+		if out := rewriteToolOutput("codex", []byte(in), fakeCompress); out != nil {
+			t.Errorf("Codex no admite reescribir salidas: %s", out)
+		}
 	}
 	if out := rewriteToolOutput("claude", []byte(`no es json`), fakeCompress); out != nil {
 		t.Error("H1: una entrada inválida no produce salida")

@@ -463,6 +463,17 @@ func setupCodexGlobal(ref BinRef) bool {
 		hooksAdded = añadidos
 	}
 
+	// Retira el hook de salidas de herramientas que registraba la feature 033.
+	// Codex rechaza siempre updatedMCPToolOutput («PostToolUse hook returned
+	// unsupported updatedMCPToolOutput», codex-rs/hooks/src/engine/
+	// output_parser.rs): nunca comprimió nada y solo mostraba «Hook failed» en
+	// cada herramienta MCP. Vive en la configuración global, así que se retira
+	// sin mirar el ajuste de ningún proyecto.
+	if sinHook, retirado, err := syncCodexToolOutputHook([]byte(migrated), ref.MCPCommand, false); err == nil && retirado {
+		migrated = string(sinHook)
+		fmt.Println("  ✅ codex: retirado el hook de salidas de herramientas (Codex no admite reescribirlas)")
+	}
+
 	if migrated == string(originalData) && !hooksConsolidated {
 		fmt.Println("  ✅ codex: ~/.codex/config.toml ya tiene el registro global de gomemory")
 		return true
@@ -843,44 +854,7 @@ func setupCline(root string) bool {
 
 func setupCodex(root string) bool {
 	fmt.Println("  ℹ️  codex: el registro MCP es global; se reutiliza para todos los proyectos")
-	ok := setupCodexGlobal(binRefFor(root))
-	syncCodexToolOutput(root, binRefFor(root).MCPCommand)
-	return ok
-}
-
-// syncCodexToolOutput registra el hook opt-in de salidas de herramientas
-// cuando el proyecto que instala tiene el ajuste activo (feature 033). Nunca lo
-// retira: vive en la configuración GLOBAL de Codex y comprueba el ajuste de
-// cada proyecto al ejecutarse, así que el ajuste apagado de un proyecto no
-// puede quitárselo a los demás (C-006 de acr_961a1676). Misma política que
-// `mem uninstall` con ~/.codex/config.toml. Best-effort: un fallo aquí no
-// invalida el resto de la instalación.
-func syncCodexToolOutput(root, memCommand string) {
-	if !setup.CodexToolOutputEnabled(root) {
-		return
-	}
-	codexConfigMu.Lock()
-	defer codexConfigMu.Unlock()
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return
-	}
-	cfgPath := filepath.Join(home, ".codex", "config.toml")
-	data, err := os.ReadFile(cfgPath)
-	if err != nil && !os.IsNotExist(err) {
-		return
-	}
-	out, changed, err := syncCodexToolOutputHook(data, memCommand, true)
-	if err != nil || !changed {
-		return
-	}
-	mode := os.FileMode(0o644)
-	if info, statErr := os.Stat(cfgPath); statErr == nil {
-		mode = info.Mode().Perm()
-	}
-	if err := os.WriteFile(cfgPath, out, mode); err == nil {
-		fmt.Println("  ✅ codex: hook de salidas de herramientas registrado (global; solo actúa en proyectos con el ajuste activo)")
-	}
+	return setupCodexGlobal(binRefFor(root))
 }
 
 // RunGlobalScopeSetupForTest expone el registro de ámbito global a los

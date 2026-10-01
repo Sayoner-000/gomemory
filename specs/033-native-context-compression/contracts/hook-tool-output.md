@@ -34,15 +34,16 @@ forma → H1. Si la forma no coincide, Claude Code descarta
 `updatedToolOutput` por sí mismo ("does not match … output shape"); H2 evita
 llegar a ese caso.
 
-## Codex (verificado en 0.157.0: solo MCP)
-Registro: `PostToolUse` en la tabla de hooks de Codex, solo si el ajuste está
-activo.
-Solo actúa si `tool_name` es de una herramienta MCP. Salida:
-```json
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","updatedMCPToolOutput": <resultado MCP con content[].text comprimido>}}
-```
-Las herramientas de shell: H1 (sin salida). `mem doctor` informa de
-«parcial (solo MCP)».
+## Codex: no soportado
+Codex rechaza **siempre** `hookSpecificOutput.updatedMCPToolOutput`: su parser
+(`codex-rs/hooks/src/engine/output_parser.rs`,
+`unsupported_post_tool_use_hook_specific_output`) marca el hook como fallido con
+«PostToolUse hook returned unsupported updatedMCPToolOutput» y deja pasar la
+salida original (comprobado en codex-cli 0.159.0). La premisa de que 0.157.0 lo
+admitía era falsa: el campo se deserializa, pero se rechaza.
+Por eso `mem hook tool-output codex` no emite nada (H1), la instalación ya no
+registra el hook y retira el que dejaron versiones anteriores. `mem doctor`
+informa «no soportado».
 
 ## OpenCode (plugin `infrastructure/plugin/opencode/gomemory.ts`)
 - **v1 (1.18.x)**: dentro del `tool.execute.after` que ya existe, y además
@@ -60,7 +61,7 @@ Las herramientas de shell: H1 (sin salida). `mem doctor` informa de
 
 ## Pruebas de contrato (`tests/contract/`)
 - Fixtures reales de `tool_response` capturados de cada runtime: Bash, Grep,
-  WebFetch y MCP en Claude; MCP en Codex; y la salida de `bash` en OpenCode.
+  WebFetch y MCP en Claude; MCP en Codex (salida vacía esperada); y la salida de `bash` en OpenCode.
 - Para cada fixture: la forma de salida es igual a la de entrada (mismas
   claves y tipos) y el texto tiene menos tokens.
 - Para cada exclusión: salida vacía.

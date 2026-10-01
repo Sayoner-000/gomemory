@@ -258,7 +258,7 @@ Verificado con `strings` sobre los binarios instalados:
 | Runtime (versión instalada) | Mecanismo | Alcance | Estado |
 |---|---|---|---|
 | Claude Code 2.1.282 | PostToolUse → `hookSpecificOutput.updatedToolOutput` | Todas las herramientas | **Soportado.** Si la forma no coincide con la de `tool_response`, se descarta ("does not match … output shape; using original output") |
-| Codex 0.157.0 | PostToolUse → `hookSpecificOutput.updatedMCPToolOutput` | Solo herramientas MCP | **Parcial**: las salidas de shell no se pueden reescribir |
+| Codex 0.157.0–0.159.0 | PostToolUse → `hookSpecificOutput.updatedMCPToolOutput` | Ninguna | **No soportado**: el parser lo rechaza siempre («unsupported updatedMCPToolOutput»); corregido el 2026-10-01 |
 | OpenCode 1.18.x (plugin 1.18.20) | `tool.execute.after(input, output)` con `output.output` mutable | Todas | **Probable**: se valida en quickstart Q7 contra el binario 1.18.32 |
 | OpenCode 2.x (rama v2 del plugin) | `ctx.tool.hook("execute.after", ev)` | ? | **Sin verificar**: se valida en Q7. Si `ev.result` no es mutable, se marca como no soportado |
 
