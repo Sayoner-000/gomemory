@@ -5,6 +5,22 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.27.1] - 2026-10-01
+
+### Fixed
+
+- **Codex ya no muestra «Hook failed — PostToolUse hook returned unsupported
+  updatedMCPToolOutput»** en cada herramienta MCP con salida grande. Codex
+  rechaza siempre el campo `updatedMCPToolOutput` (comprobado en el código de
+  Codex y en codex-cli 0.159.0), así que la compresión de salidas de
+  herramientas nunca funcionó en Codex: solo producía ese aviso. Ahora
+  `mem hook tool-output codex` no emite nada, `mem install` deja de registrar el
+  hook en `~/.codex/config.toml` y retira el que dejaron versiones anteriores
+  (en cualquier ámbito y desde cualquier directorio), sin tocar los demás hooks
+  ni el registro MCP. Claude Code y OpenCode no cambian.
+- `mem doctor` informa de la compresión de salidas en Codex como «no soportado»
+  y, si el hook antiguo sigue registrado, indica `mem install` para retirarlo.
+
 ## [v2.27.0] - 2026-09-26
 
 ### Changed

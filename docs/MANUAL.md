@@ -1257,7 +1257,7 @@ mem settings --show
 
 La TUI expone las mismas opciones en la pantalla **Configuración**. Después de
 cambiar `--tool-output-compression`, ejecuta `mem install` para registrar o
-retirar el hook del runtime.
+retirar el hook del runtime (Claude Code y OpenCode; Codex no lo admite).
 
 `get_context` y `get_plan_context` aceptan `full=true` para volver a recibir
 todo el contenido aunque ya se haya enviado durante la sesión. Úsalo cuando
@@ -1314,8 +1314,10 @@ referencias recuperables.
 Compatibilidad verificada:
 
 - Claude Code 2.1.282: salida sustituida mediante `PostToolUse`.
-- Codex 0.157.0: soporte parcial para resultados de herramientas MCP; las
-  herramientas de shell conservan su salida.
+- Codex: no soportado. Codex rechaza la sustitución de salidas
+  (`updatedMCPToolOutput`) y marca el hook como fallido, así que gomemory no
+  registra este hook en Codex y `mem install` retira el de versiones anteriores
+  a la 2.27.1.
 - OpenCode 1.18.32 y 2.x: el contrato del plugin está preparado en modo
   best-effort, pero la sustitución visible para el modelo no está verificada;
   `mem doctor` la presenta como no soportada cuando corresponde.
