@@ -135,6 +135,7 @@ type model struct {
 	settingsRepo    ports.SettingsRepository
 	maintenanceRepo ports.MaintenanceRepository
 	codeProvider    ports.CodeGraphProvider
+	codeProviders   []ports.CodeGraphProvider
 	root            string
 	project         string
 
@@ -246,6 +247,7 @@ type model struct {
 // opcionales en su totalidad: con el valor cero, la pantalla degrada
 // mostrando lo que puede (nil-safe, mismo criterio que el resto del modelo).
 type UsageDeps struct {
+	CodeProviders []ports.CodeGraphProvider
 	SessionRepo   ports.SessionRepository
 	UsageRepo     ports.UsageRepository
 	TokenCounter  ports.TokenCounter
@@ -337,6 +339,7 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		settingsRepo:     settingsRepo,
 		maintenanceRepo:  maintenanceRepo,
 		codeProvider:     codeProvider,
+		codeProviders:    usageDeps.CodeProviders,
 		root:             root,
 		project:          project,
 		screen:           screenList,
@@ -386,6 +389,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case externalReindexDoneMsg:
 		m.reindexInProgress = false
 		switch {
+		case len(msg.results) > 1:
+			parts := make([]string, 0, len(msg.results))
+			for _, result := range msg.results {
+				if result.err != nil {
+					parts = append(parts, fmt.Sprintf("%s: %v", result.name, result.err))
+				} else {
+					parts = append(parts, fmt.Sprintf("%s: %d nodos, %d aristas", result.name, result.nodes, result.edges))
+				}
+			}
+			m.statusMsg = "Grafos externos:\n  " + strings.Join(parts, "\n  ")
+		case len(msg.results) == 1 && errors.Is(msg.err, ports.ErrIndexerNotInstalled):
+			m.statusMsg = msg.results[0].name + " no disponible"
 		case msg.err == nil:
 			m.statusMsg = fmt.Sprintf("Grafo externo reindexado: %d nodos, %d aristas", msg.nodes, msg.edges)
 		case errors.Is(msg.err, ports.ErrIndexerNotInstalled):
@@ -979,6 +994,32 @@ func nextCompressionLevel(current string) string {
 type externalReindexDoneMsg struct {
 	nodes, edges int
 	err          error
+	results      []externalReindexResult
+}
+
+type externalReindexResult struct {
+	name         string
+	nodes, edges int
+	err          error
+}
+
+func (m model) externalProviders() []ports.CodeGraphProvider {
+	if len(m.codeProviders) > 0 {
+		return m.codeProviders
+	}
+	if m.codeProvider != nil {
+		return []ports.CodeGraphProvider{m.codeProvider}
+	}
+	return nil
+}
+
+func (m model) hasExternalIndexer() bool {
+	for _, provider := range m.externalProviders() {
+		if _, ok := provider.(ports.CodeGraphIndexer); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // reindexExternalGraphCmd dispara el reindexado bloqueante del proveedor
@@ -987,12 +1028,24 @@ type externalReindexDoneMsg struct {
 // "no instalado" — misma semántica que el CLI (indexExternalGraph).
 func (m model) reindexExternalGraphCmd() tea.Cmd {
 	return func() tea.Msg {
-		indexer, ok := m.codeProvider.(ports.CodeGraphIndexer)
-		if !ok {
-			return externalReindexDoneMsg{err: ports.ErrIndexerNotInstalled}
+		done := externalReindexDoneMsg{}
+		for _, provider := range m.externalProviders() {
+			indexer, ok := provider.(ports.CodeGraphIndexer)
+			if !ok {
+				continue
+			}
+			nodes, edges, err := indexer.IndexRepository(context.Background(), "full")
+			done.results = append(done.results, externalReindexResult{name: provider.Name(), nodes: nodes, edges: edges, err: err})
+			done.nodes += nodes
+			done.edges += edges
+			if done.err == nil {
+				done.err = err
+			}
 		}
-		nodes, edges, err := indexer.IndexRepository(context.Background(), "full")
-		return externalReindexDoneMsg{nodes: nodes, edges: edges, err: err}
+		if len(done.results) == 0 {
+			done.err = ports.ErrIndexerNotInstalled
+		}
+		return done
 	}
 }
 
@@ -1220,8 +1273,8 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusTimer = 40
 
 		case configRowReindexGraph: // Reindexar grafo externo (feature 016, US2)
-			if _, ok := m.codeProvider.(ports.CodeGraphIndexer); !ok {
-				m.statusMsg = "codebase-memory-mcp no disponible"
+			if !m.hasExternalIndexer() {
+				m.statusMsg = "No hay proveedor de grafo externo disponible"
 				m.statusTimer = 40
 			} else if m.reindexInProgress {
 				m.statusMsg = "Ya hay un reindexado del grafo externo en curso"
@@ -2182,27 +2235,26 @@ func (m model) configView() string {
 	// Estado del grafo de código externo (solo lectura, desde el snapshot).
 	b.WriteString(sectionHeaderStyle.Render("  Grafo de código externo"))
 	b.WriteString("\n")
-	var snap domain.CodeProviderSnapshot
-	if m.codeProvider != nil {
-		snap = m.codeProvider.Snapshot()
+	providers := m.externalProviders()
+	if len(providers) == 0 {
+		b.WriteString("    Proveedor: " + lipgloss.NewStyle().Foreground(faint).Render("no disponible") + "\n")
 	}
-	provState := lipgloss.NewStyle().Foreground(faint).Render("no disponible")
-	if snap.Available {
-		det := ""
-		if snap.Architecture != nil {
-			det = fmt.Sprintf(" · %d nodos, %d relaciones", snap.Architecture.TotalNodes, snap.Architecture.TotalEdges)
+	for _, provider := range providers {
+		snap := provider.Snapshot()
+		provState := lipgloss.NewStyle().Foreground(faint).Render("no disponible")
+		if snap.Available {
+			det := ""
+			if snap.Architecture != nil {
+				det = fmt.Sprintf(" · %d nodos, %d relaciones", snap.Architecture.TotalNodes, snap.Architecture.TotalEdges)
+			}
+			provState = lipgloss.NewStyle().Foreground(green).Render("disponible" + det)
 		}
-		provState = lipgloss.NewStyle().Foreground(green).Render("disponible" + det)
+		b.WriteString("    " + provider.Name() + ": " + provState + "\n")
+		if !snap.CheckedAt.IsZero() {
+			b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("      Última actualización: "+snap.CheckedAt.Format("2006-01-02 15:04:05")) + "\n")
+		}
 	}
-	b.WriteString("    Proveedor: " + provState + "\n")
-	if !snap.CheckedAt.IsZero() {
-		b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Última actualización: "+snap.CheckedAt.Format("2006-01-02 15:04:05")) + "\n")
-	}
-	bin := s.CodeGraphCommand
-	if bin == "" {
-		bin = "codebase-memory-mcp (PATH)"
-	}
-	b.WriteString(lipgloss.NewStyle().Foreground(faint).Render("    Binario: "+bin) + "\n\n")
+	b.WriteString("\n")
 
 	// Huella de contexto (feature 008): resumen de solo lectura; editable
 	// desde el menú de abajo (feature 016, US3), sin salir de la TUI.
@@ -2230,8 +2282,13 @@ func (m model) configView() string {
 	// instalado, eso se resuelve en runtime vía ErrIndexerNotInstalled, misma
 	// UX que el CLI (indexExternalGraph).
 	reindexLabel := "Reindexar grafo externo: no disponible"
-	if _, ok := m.codeProvider.(ports.CodeGraphIndexer); ok {
+	if m.hasExternalIndexer() {
 		reindexLabel = "Reindexar grafo externo (codebase-memory-mcp)"
+		if len(providers) > 1 {
+			reindexLabel = fmt.Sprintf("Reindexar grafos externos (%d proveedores)", len(providers))
+		} else if len(providers) == 1 {
+			reindexLabel = "Reindexar grafo externo (" + providers[0].Name() + ")"
+		}
 	}
 	if m.reindexInProgress {
 		reindexLabel += " (en curso...)"

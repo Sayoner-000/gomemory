@@ -36,6 +36,9 @@ type Deps struct {
 	// SIEMPRE (independiente del toggle) para poder mostrar el estado del grafo
 	// aunque esté desactivado; Snapshot() solo lee el cache y nunca bloquea.
 	TUIProvider ports.CodeGraphProvider
+	// TUIProviders incluye todos los candidatos configurados incluso cuando el
+	// grafo está desactivado, para mostrar su estado en Configuración.
+	TUIProviders []ports.CodeGraphProvider
 	// ADRSyncProvider/ADRSyncRepo (feature 010, Historia 2): nil si
 	// adr_sync_enabled=false o no hay proveedor disponible — el hook de
 	// refresco y `mem adr-sync status` deben chequear nil antes de usarlos.

@@ -18,6 +18,7 @@ func LaunchTUI(deps *Deps) {
 	project := deps.ProjectRepo.Key(root)
 
 	if err := tui.Run(deps.MemoryRepo, deps.RelationRepo, deps.SettingsRepo, deps.MaintenanceRepo, deps.TUIProvider, root, project, tui.UsageDeps{
+		CodeProviders: deps.TUIProviders,
 		SessionRepo:   deps.SessionRepo,
 		UsageRepo:     deps.UsageRepo,
 		TokenCounter:  deps.TokenCounter,

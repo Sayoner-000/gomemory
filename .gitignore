@@ -1,6 +1,8 @@
 /mem
 /.env
 .memory/
+.codegraph/
+.codegraph-wsl/
 .mcp.json
 .opencode.json
 opencode.json

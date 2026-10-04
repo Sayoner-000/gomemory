@@ -120,8 +120,12 @@ func TestBuild_ConflictoConMemoriaFueraDeLaVentana(t *testing.T) {
 	if strings.Contains(out, fmt.Sprintf(`[%d] ""`, idA)) {
 		t.Errorf("el conflicto muestra un título vacío para la memoria %d fuera de la ventana:\n%s", idA, out)
 	}
-	if !strings.Contains(out, fmt.Sprintf(`[%d] (memoria previa)`, idA)) || !strings.Contains(out, `"decisión reciente"`) {
-		t.Errorf("esperaba el marcador de memoria previa y el título reciente en el conflicto:\n%s", out)
+	// Feature 035 (autorizado por la persona el 2026-10-04): el título sale de
+	// todas las memorias del proyecto, no solo de la ventana de las 100 más
+	// recientes. «(memoria previa)» no le servía al agente para resolver el
+	// conflicto con judge_memories.
+	if !strings.Contains(out, fmt.Sprintf(`[%d] "decisión antigua"`, idA)) || !strings.Contains(out, `"decisión reciente"`) {
+		t.Errorf("esperaba los dos títulos en el conflicto, también el de la memoria fuera de la ventana:\n%s", out)
 	}
 }
 

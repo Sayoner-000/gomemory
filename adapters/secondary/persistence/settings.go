@@ -19,9 +19,10 @@ type Settings struct {
 	// por compatibilidad, pero ReadSettings lo normaliza a CodeGraphProviders
 	// cuando esta lista viene vacía (feature 010).
 	CodeGraphCommand string `json:"code_graph_command,omitempty"`
-	// CodeGraphProviders es la lista ordenada (prioridad) de proveedores de
-	// grafo de código candidatos. Vacía ⇒ se usa CodeGraphCommand (si lo hay)
-	// como lista de 1 elemento; si tampoco hay, autodetección en PATH.
+	// CodeGraphProviders es la lista ordenada de proveedores externos. La
+	// entrada "codegraph" usa su adaptador CLI; las demás conservan el
+	// adaptador de codebase-memory-mcp (incluidas rutas personalizadas).
+	// Vacía ⇒ se usa CodeGraphCommand legado o la autodetección histórica.
 	CodeGraphProviders []string `json:"code_graph_providers,omitempty"`
 	// AdrSyncEnabled activa la sincronización bidireccional de ADR (feature
 	// 010, Historia 2). Default false: opt-in explícito.

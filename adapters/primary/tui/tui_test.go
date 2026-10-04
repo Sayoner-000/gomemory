@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -813,14 +814,21 @@ func TestConfigScreen_TogglePlanGuardPersiste(t *testing.T) {
 // fakeCodeIndexer implementa ports.CodeGraphProvider + ports.CodeGraphIndexer
 // (proveedor que SÍ soporta el reindexado explícito).
 type fakeCodeIndexer struct {
+	name         string
+	snapshot     domain.CodeProviderSnapshot
 	nodes, edges int
 	indexErr     error
 	indexCalls   int
 }
 
-func (f *fakeCodeIndexer) Name() string { return "fake-indexer" }
+func (f *fakeCodeIndexer) Name() string {
+	if f.name != "" {
+		return f.name
+	}
+	return "fake-indexer"
+}
 func (f *fakeCodeIndexer) Snapshot() domain.CodeProviderSnapshot {
-	return domain.CodeProviderSnapshot{}
+	return f.snapshot
 }
 func (f *fakeCodeIndexer) MaybeRefresh() {}
 func (f *fakeCodeIndexer) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
@@ -861,7 +869,7 @@ func TestConfigView_ReindexLabel_SegunSoporteDeInterfaz(t *testing.T) {
 	data := &ports.SettingsData{}
 
 	withSupport := newConfigTestModel(&fakeCodeIndexer{}, data)
-	if view := withSupport.configView(); !strings.Contains(view, "Reindexar grafo externo (codebase-memory-mcp)") {
+	if view := withSupport.configView(); !strings.Contains(view, "Reindexar grafo externo (fake-indexer)") {
 		t.Errorf("esperaba label con soporte de interfaz; vista:\n%s", view)
 	}
 
@@ -881,7 +889,7 @@ func TestUpdateConfig_ReindexRow_SinSoporte_NoDisparaCmd(t *testing.T) {
 		t.Fatal("sin soporte de interfaz no debería disparar ningún tea.Cmd")
 	}
 	m2 := updated.(model)
-	if m2.statusMsg != "codebase-memory-mcp no disponible" {
+	if m2.statusMsg != "No hay proveedor de grafo externo disponible" {
 		t.Fatalf("statusMsg = %q", m2.statusMsg)
 	}
 }
@@ -931,6 +939,37 @@ func TestReindexExternalGraphCmd_PropagaResultado(t *testing.T) {
 	}
 	if indexer.indexCalls != 1 {
 		t.Fatalf("esperaba exactamente 1 llamada a IndexRepository, hubo %d", indexer.indexCalls)
+	}
+}
+
+func TestConfigView_MuestraAmbosGrafos(t *testing.T) {
+	first := &fakeCodeIndexer{name: "codebase-memory-mcp", snapshot: domain.CodeProviderSnapshot{Available: true}}
+	second := &fakeCodeIndexer{name: "codegraph", snapshot: domain.CodeProviderSnapshot{Available: true}}
+	m := newConfigTestModel(first, &ports.SettingsData{})
+	m.codeProviders = []ports.CodeGraphProvider{first, second}
+
+	view := m.configView()
+	for _, want := range []string{"codebase-memory-mcp: ", "codegraph: ", "Reindexar grafos externos (2 proveedores)"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("falta %q en la vista:\n%s", want, view)
+		}
+	}
+}
+
+func TestReindexExternalGraphCmd_IndexaAmbosAunqueUnoFalle(t *testing.T) {
+	first := &fakeCodeIndexer{name: "codebase-memory-mcp", indexErr: errors.New("sin índice")}
+	second := &fakeCodeIndexer{name: "codegraph", nodes: 42, edges: 84}
+	m := newConfigTestModel(first, &ports.SettingsData{})
+	m.codeProviders = []ports.CodeGraphProvider{first, second}
+
+	done, ok := m.reindexExternalGraphCmd()().(externalReindexDoneMsg)
+	if !ok || len(done.results) != 2 || first.indexCalls != 1 || second.indexCalls != 1 {
+		t.Fatalf("ambos proveedores deben ejecutarse: resultado=%+v, llamadas=%d/%d", done, first.indexCalls, second.indexCalls)
+	}
+	updated, _ := m.Update(done)
+	status := updated.(model).statusMsg
+	if !strings.Contains(status, "codebase-memory-mcp: sin índice") || !strings.Contains(status, "codegraph: 42 nodos, 84 aristas") {
+		t.Fatalf("estado no refleja ambos resultados: %q", status)
 	}
 }
 

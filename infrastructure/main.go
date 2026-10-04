@@ -11,7 +11,7 @@ import (
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/setup"
 	"mem/adapters/primary/tui"
-	"mem/adapters/secondary/codegraph/codebasememory"
+	"mem/adapters/secondary/codegraph"
 	"mem/adapters/secondary/persistence"
 	"mem/domain"
 )
@@ -103,9 +103,7 @@ func main() {
 					cmds = []string{""}
 				}
 				ctx := context.Background()
-				for _, cmd := range cmds {
-					codebasememory.New(root, memDir, cmd).Refresh(ctx)
-				}
+				codegraph.RefreshAll(ctx, memDir, codegraph.NewProviders(root, memDir, cmds))
 			}
 		}
 		os.Exit(0)

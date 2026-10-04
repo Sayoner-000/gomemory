@@ -41,7 +41,11 @@ func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 	a := snap.Architecture
 	fmt.Fprintf(&sb, "## Grafo de código externo (%s)\n\n", snap.Provider)
 	if snap.Project != "" {
-		fmt.Fprintf(&sb, "Proyecto indexado: `%s` — pásalo tal cual en el parámetro `project` de sus tools.\n\n", snap.Project)
+		arg := snap.ProjectArg
+		if arg == "" {
+			arg = "project"
+		}
+		fmt.Fprintf(&sb, "Proyecto indexado: `%s` — pásalo tal cual en el parámetro `%s` de sus tools.\n\n", snap.Project, arg)
 	}
 	fmt.Fprintf(&sb, "Grafo estructural indexado: %d nodos, %d relaciones.", a.TotalNodes, a.TotalEdges)
 	if len(a.Languages) > 0 {
@@ -50,6 +54,8 @@ func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 			parts = append(parts, fmt.Sprintf("%s (%d)", l.Language, l.FileCount))
 		}
 		sb.WriteString(" Lenguajes: " + strings.Join(parts, ", ") + ".")
+	} else if len(a.LanguageNames) > 0 {
+		sb.WriteString(" Lenguajes: " + strings.Join(a.LanguageNames, ", ") + ".")
 	}
 	sb.WriteString("\n\n")
 
@@ -71,10 +77,13 @@ func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 		}
 		sb.WriteString("Hotspots (más referenciados): " + strings.Join(names, ", ") + ".\n\n")
 	}
+	hint := snap.ToolsHint
+	if hint == "" {
+		hint = "search_graph, trace_path, query_graph, get_architecture, detect_changes"
+	}
 	sb.WriteString("> Para consultas estructurales profundas (quién llama a qué, trazas de " +
-		"llamadas, impacto de un diff) usa las tools del proveedor externo: search_graph, " +
-		"trace_path, query_graph, get_architecture, detect_changes. gomemory guarda el PORQUÉ " +
-		"(decisiones, sinapsis); el grafo externo responde el QUÉ/CÓMO del código.\n\n")
+		"llamadas, impacto de un diff) usa las tools del proveedor externo: " + hint +
+		". gomemory guarda el PORQUÉ (decisiones, sinapsis); el grafo externo responde el QUÉ/CÓMO del código.\n\n")
 	return sb.String()
 }
 
@@ -361,9 +370,14 @@ func (b *Builder) Build() (string, error) {
 	}
 
 	byType := make(map[domain.MemoryType][]domain.Memory)
-	titleByID := make(map[int64]string, len(mems))
 	for _, m := range mems {
 		byType[m.Type] = append(byType[m.Type], m)
+	}
+	// Los títulos de conflictos y sinapsis salen de TODAS las memorias, no de la
+	// ventana de las 100 más recientes: fuera de ella el agente solo veía
+	// «(memoria previa)» y no podía resolver el conflicto (feature 035).
+	titleByID := make(map[int64]string, len(allMems))
+	for _, m := range allMems {
 		titleByID[m.ID] = displayTitle(m)
 	}
 

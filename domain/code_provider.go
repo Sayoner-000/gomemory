@@ -17,6 +17,10 @@ type CodeProviderSnapshot struct {
 	// "Users-x-repo"), el valor que sus tools exigen en `project`. Sin él los
 	// agentes adivinan el nombre corto del repo y la llamada falla.
 	Project string `json:"project,omitempty"`
+	// ProjectArg y ToolsHint permiten orientar a cada proveedor sin asumir que
+	// todos usan el parámetro `project` o las tools de codebase-memory-mcp.
+	ProjectArg string `json:"project_arg,omitempty"`
+	ToolsHint  string `json:"tools_hint,omitempty"`
 }
 
 // Stale indica si el snapshot superó el TTL y conviene disparar un refresco en
@@ -33,8 +37,11 @@ type CodeArchitecture struct {
 	TotalNodes int            `json:"total_nodes"`
 	TotalEdges int            `json:"total_edges"`
 	Languages  []CodeLangStat `json:"languages,omitempty"`
-	Clusters   []CodeCluster  `json:"clusters,omitempty"`
-	Hotspots   []CodeHotspot  `json:"hotspots,omitempty"`
+	// LanguageNames se usa cuando el proveedor informa lenguajes sin conteo
+	// por archivo (CodeGraph status --json).
+	LanguageNames []string      `json:"language_names,omitempty"`
+	Clusters      []CodeCluster `json:"clusters,omitempty"`
+	Hotspots      []CodeHotspot `json:"hotspots,omitempty"`
 }
 
 // CodeLangStat es un lenguaje detectado y cuántos archivos aporta.
