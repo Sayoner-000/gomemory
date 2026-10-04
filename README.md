@@ -7,7 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.27.1-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.27.1)
+[![Version](https://img.shields.io/badge/version-2.28.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.28.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)
@@ -207,7 +207,7 @@ mem review show <review-id>    # target → reviewers → consensus → fixes �
 See [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/) for the full protocol.
 
 **Code graph integration**
-Optional integration with an external code graph (via [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)) enriches memory with modules, symbols, dependencies, hotspots and callers. Non-blocking and agnostic to the agent. Controlled via `mem settings --code-graph=true|false`.
+Optional integrations with external code graphs (`codebase-memory-mcp` and [`CodeGraph`](https://github.com/colbymchenry/codegraph)) enrich memory with project structure and code context. Configure both in `code_graph_providers`; `mem index` refreshes each configured graph. Non-blocking and agnostic to the agent. Controlled via `mem settings --code-graph=true|false`.
 
 **ADR synchronization**
 Architecture and decision memories can optionally synchronize with external ADR documents. Controlled via `mem settings --adr-sync=true|false`.

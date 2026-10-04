@@ -5,6 +5,56 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.28.0] - 2026-10-04
+
+### Fixed
+
+- **Claude Code ya no pierde las instrucciones de gomemory** (feature 035). El
+  arranque de sesión (17 777 caracteres) y el primer prompt en modo plan
+  (12 944) superaban el tope de 10 000 del canal de hooks, y el modelo solo
+  veía una vista previa de 2 KB: perdía el protocolo y las tools. Ahora toda
+  salida se ajusta por prioridad y declara lo recortado.
+- **Los hooks duplicados dejan de procesar dos veces el mismo evento.** Con los
+  hooks en `~/.claude/settings.json` y en el proyecto, cada evento corría dos
+  veces. `mem install` registra en el proyecto solo lo que el global no cubre,
+  `mem update` retira los duplicados (también ya actualizado) y una segunda
+  invocación paralela sale en silencio.
+- **La compresión de salidas ya no destruye** código, resultados ni
+  diagnósticos: un `sed` sobre Go llegaba sin indentación y con sentencias
+  cambiadas por marcas, y una búsqueda de 30 resultados llegaba con 2.
+- **El aviso de compactación ya no salta de una conversación a otra** (el
+  «checkpoint pegado» de Codex): el estado por turno pertenece a la
+  conversación, y las sesiones con más de 4 h inactivas se cierran solas.
+- La huella de contexto ya no se corrompe con escrituras concurrentes.
+- Dos procesos que abrían a la vez un almacén nuevo ya no fallan con
+  `SQLITE_BUSY`.
+- Los conflictos y sinapsis del contexto muestran el título de memorias
+  antiguas en lugar de «(memoria previa)», y el orden ya no depende de la
+  resolución de segundo de `created_at`.
+- Las copias tardías del mismo `prompt_id` se descartan durante la ventana del
+  recibo, incluso si la primera invocación del hook ya terminó.
+- Los refrescos de CodeGraph del mismo proyecto se serializan con un lock del
+  sistema operativo, aunque los inicien procesos distintos.
+
+### Added
+
+- Compresor de listados (`grep`, `rg`, `find`): −92,7 % en un `grep` real de
+  400 líneas, con el original recuperable.
+- `mem doctor`: hooks duplicados y «protecciones (7 días)».
+- `mem pack savings`: columna «sin ganancia» separada de «degradaciones».
+- Integración opcional del CLI de CodeGraph junto con codebase-memory-mcp, con
+  snapshots independientes y ambos estados visibles en `mem context` y la TUI.
+- `mem index` y la TUI reindexan todos los proveedores configurados y continúan
+  si uno falla.
+
+### Changed
+
+- En Claude Code, el recordatorio de modo plan y la regla de Octopus ya no se
+  repiten en cada turno.
+- Los proveedores externos conservan el orden de `code_graph_providers`; la
+  sincronización ADR y las anotaciones de hotspots eligen el proveedor por
+  capacidad.
+
 ## [v2.27.1] - 2026-10-01
 
 ### Fixed

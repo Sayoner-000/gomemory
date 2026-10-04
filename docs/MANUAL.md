@@ -248,6 +248,40 @@ Esto:
 > código 0. Los hooks son lo que hace que la memoria "tome todo bien": sin ellos,
 > las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto solo.
 
+### Integridad de los hooks (desde la feature 035)
+
+- **Tope del canal.** Ninguna salida inyectada supera los 10 000 caracteres que
+  Claude Code inyecta enteros. Por encima, el host guarda la salida en un
+  archivo y el modelo solo ve una vista previa de unos 2 KB. Lo que no cabe se
+  recorta por prioridad (carga de tools > protocolo > Octopus > documento de
+  plan > memoria) y la salida termina con «… contexto recortado: llama
+  get_context() para el resto».
+- **Un registro por subcomando.** Los hooks globales (`~/.claude/settings.json`)
+  sirven a todos los proyectos. `mem install` registra en el proyecto solo los
+  subcomandos que el global no cubre (por ejemplo `tool-output`), y
+  `mem update` —incluso ya actualizado— retira del proyecto los duplicados.
+  Mientras persista una duplicación, el arranque de sesión te lo avisa a ti (no
+  al modelo) y `mem doctor` lo marca con ⚠.
+- **Ejecución única.** Si un evento sigue registrado dos veces, la segunda
+  invocación paralela sale en silencio. En `UserPromptSubmit`, Claude Code
+  también permite descartar una copia que llegue después de terminar la
+  primera si ambas traen el mismo `prompt_id`; otro `prompt_id` se procesa
+  aunque el texto sea idéntico. Sin ese identificador, la guarda solo cubre
+  ejecuciones solapadas.
+- **Estado por conversación.** El estado de cada turno (huella, recordatorios,
+  aviso pendiente) pertenece a la conversación del host (`session_id`; en
+  OpenCode, el id de su sesión). Una conversación nueva empieza limpia; una
+  reanudación conserva su estado. Un aviso diferido solo se entrega a la
+  conversación que lo generó. Al empezar una conversación, una sesión de memoria
+  con más de 4 h sin actividad se cierra con su respaldo.
+- **Recordatorios por turno.** En Claude Code, el recordatorio de modo plan sale
+  al inicio, tras compactar y al entrar en plan, y la regla de Octopus al inicio,
+  tras compactar o al cambiar su activación. En Codex el recordatorio de plan
+  sigue en cada turno (no tiene señal de entrada a plan). En OpenCode ambos van
+  en cada turno porque `system.transform` no se acumula en el historial.
+- **Rastro.** `mem doctor` muestra «protecciones (7 días)»: duplicados
+  descartados, salidas recortadas y salidas excluidas de la compresión.
+
 ### Verificación
 
 ```bash
@@ -725,16 +759,18 @@ mem index --skip-graph     # Solo el grafo propio — no dispara el reindexado d
 `mem index` construye el grafo de símbolos **propio** de gomemory (Go puro, vía
 `go/parser`, sin dependencias externas), que alimentan las tools MCP
 `search_code`/`get_symbol`/`list_dependencies`/`graph_status`. Tras el indexado
-nativo, si hay un proveedor **externo** de grafo de código configurado
-(`codebase-memory-mcp` u otro, multi-lenguaje — ver abajo), también dispara su
-reindexado, salvo que se pase `--skip-graph`. Nunca hace fallar el comando si
-el proveedor externo no está instalado o el reindexado externo falla: solo
-informa o advierte, y el exit code permanece `0` (el indexado nativo, que sí
+nativo, reindexa cada proveedor **externo** de grafo de código configurado
+(`codebase-memory-mcp`, `codegraph` u otro, multi-lenguaje — ver abajo), en el
+orden de `code_graph_providers`, salvo que se pase `--skip-graph`. Si uno no está
+instalado o falla, informa el resultado y continúa con el siguiente; el exit
+code permanece `0` (el indexado nativo, que sí
 importa para el resto de gomemory, ya tuvo éxito).
 
-Misma acción disponible en la TUI: pantalla de Configuración → "Reindexar
-grafo externo" — corre en segundo plano (no bloquea la interfaz) y tiene una
-guardia contra disparos concurrentes.
+En la TUI, Configuración muestra por separado el estado de cada proveedor
+externo configurado. La acción "Reindexar grafos externos" procesa los dos
+cuando están configurados `codebase-memory-mcp` y `codegraph`, informa el
+resultado de cada uno y continúa con el segundo si el primero falla. Corre en
+segundo plano y evita disparos concurrentes.
 
 **Proveedor externo (opcional, "brazo extensor"):** si hay un binario CLI de
 grafo de código externo instalado, gomemory lo usa para enriquecer `mem
@@ -746,9 +782,33 @@ Ajustes relevantes (`mem settings` o `.memory/settings.json`):
 | Ajuste | Default | Qué hace |
 | :--- | :--- | :--- |
 | `code_graph_disabled` | `false` | Desactiva el proveedor externo por completo |
-| `code_graph_providers` | *(ninguno)* | Lista ordenada de comandos de proveedor (fallback por prioridad) |
+| `code_graph_providers` | *(ninguno)* | Lista ordenada de comandos de proveedor; acepta `codebase-memory-mcp` y `codegraph` |
 | `code_impact_annotation_disabled` | `false` | Desactiva la anotación de impacto (`[impacto: X es hotspot...]`) al guardar una memoria con `--filepath` |
 | `adr_sync_enabled` | `false` | Sincronización bidireccional (opt-in) de memorias de arquitectura con el documento ADR del proveedor — ver `mem adr-sync status` |
+
+Para usar **CodeGraph junto con codebase-memory-mcp**, instala ambos CLI y
+configura `.memory/settings.json` así:
+
+```json
+{
+  "code_graph_providers": ["codebase-memory-mcp", "codegraph"]
+}
+```
+
+En cada proyecto, ejecuta `codegraph init` una vez y comprueba el índice con
+`codegraph status`. `codegraph install` conecta su servidor MCP a los agentes;
+`init` crea el índice local. Gomemory consulta `codegraph status --json` durante
+su refresco desacoplado y, si hay archivos pendientes, ejecuta `codegraph sync`
+fuera del camino de los hooks. Muestra ambos proveedores disponibles en
+`mem context`.
+CodeGraph aporta totales de nodos y relaciones, acceso a `codegraph_explore`
+y el comando `codegraph affected` para buscar pruebas relacionadas con cambios;
+la anotación de hotspots y la sincronización ADR siguen usando
+codebase-memory-mcp cuando está disponible. `mem index` reindexa ambos
+proveedores; CodeGraph también mantiene su índice actualizado mediante su
+servidor MCP cuando está activo y gomemory sincroniza los cambios pendientes
+al refrescar su snapshot. El directorio local `.codegraph/` se ignora en este
+repositorio.
 
 ## 10. Optimización de Contexto (mem pack)
 
@@ -1311,13 +1371,31 @@ Excluye operaciones de lectura y edición, y todas las herramientas de
 GoMemory. Los textos privados o que parecen contener credenciales no generan
 referencias recuperables.
 
+Desde la feature 035 la compresión de salidas **nunca altera lo que el agente
+pidió**:
+
+- No actúa por debajo de unos 2 000 tokens.
+- Excluye las lecturas exactas y los diagnósticos: `get_code_snippet` y los
+  comandos que empiezan por `sed`, `cat`, `head`, `tail`, `git diff`,
+  `git show` o `mem doctor`.
+- La prosa sale intacta, los arrays de hasta 50 elementos (resultados de
+  búsqueda) llegan completos y nunca se colapsan espacios. El código Go se
+  reconoce aunque sea un fragmento sin `package`.
+- Los listados (`grep -rn`, `rg`, `find`) se resumen: 15 primeras y 5 últimas
+  líneas literales, todas las líneas con error/FAIL/panic, y una marca con la
+  ref del original y un conteo por archivo.
+- La nota «Marcas ⟦mem⟧…» aparece una vez por conversación.
+- `mem pack savings` separa «sin ganancia» (no hubo nada que ganar) de
+  «degradaciones» (el motor tuvo que renunciar).
+
 Compatibilidad verificada:
 
 - Claude Code 2.1.282: salida sustituida mediante `PostToolUse`.
-- Codex: no soportado. Codex rechaza la sustitución de salidas
+- Codex: solo en origen. Codex rechaza la sustitución de salidas
   (`updatedMCPToolOutput`) y marca el hook como fallido, así que gomemory no
   registra este hook en Codex y `mem install` retira el de versiones anteriores
-  a la 2.27.1.
+  a la 2.27.1. Ahí comprime lo que gomemory entrega él mismo: para explorar
+  código, usa `search_code`/`get_symbol` de gomemory.
 - OpenCode 1.18.32 y 2.x: el contrato del plugin está preparado en modo
   best-effort, pero la sustitución visible para el modelo no está verificada;
   `mem doctor` la presenta como no soportada cuando corresponde.
