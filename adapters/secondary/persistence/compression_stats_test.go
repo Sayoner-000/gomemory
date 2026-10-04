@@ -33,7 +33,9 @@ func TestCompressionStats(t *testing.T) {
 		}
 	}
 	if logRow.Uses != 2 || logRow.RawTokens != 2000 || logRow.FinalTokens != 200 || logRow.Omissions != 100 ||
-		logRow.Retrievals != 1 || logRow.Fallbacks != 1 || logRow.LatencyMicrosTotal != 600 || logRow.StructuralTokens != 1800 {
+		// Feature 035 (autorizado por la persona el 2026-10-04): no_gain cuenta en
+		// NoGains, no en Fallbacks.
+		logRow.Retrievals != 1 || logRow.Fallbacks != 0 || logRow.NoGains != 1 || logRow.LatencyMicrosTotal != 600 || logRow.StructuralTokens != 1800 {
 		t.Errorf("acumulado inesperado: %+v", logRow)
 	}
 	// Solo cifras: ninguna columna de texto libre.

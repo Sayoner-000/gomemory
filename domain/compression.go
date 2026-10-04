@@ -10,13 +10,16 @@ import (
 type ContentType string
 
 const (
-	ContentJSON    ContentType = "json"
-	ContentCode    ContentType = "code"
-	ContentLog     ContentType = "log"
-	ContentDiff    ContentType = "diff"
-	ContentTable   ContentType = "table"
-	ContentProse   ContentType = "prose"
-	ContentMixed   ContentType = "mixed"
+	ContentJSON  ContentType = "json"
+	ContentCode  ContentType = "code"
+	ContentLog   ContentType = "log"
+	ContentDiff  ContentType = "diff"
+	ContentTable ContentType = "table"
+	ContentProse ContentType = "prose"
+	ContentMixed ContentType = "mixed"
+	// ContentListing: salida orientada a líneas con rutas o ruta:línea (grep,
+	// rg, find, ls). Feature 035.
+	ContentListing ContentType = "listing"
 	ContentUnknown ContentType = "unknown"
 )
 

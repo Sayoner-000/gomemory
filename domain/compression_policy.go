@@ -21,8 +21,22 @@ const (
 	// CompressionAdaptiveWindowDays: ventana de la tasa de recuperación.
 	CompressionAdaptiveWindowDays = 7
 	// ToolOutputMinTokens: por debajo, el hook de salidas de herramientas no
-	// actúa (no compensa su coste).
-	ToolOutputMinTokens = 400
+	// actúa. Era 400: con ese umbral se comprimían lecturas de un archivo o un
+	// diagnóstico corto, y el ahorro no compensaba el riesgo de alterar lo que
+	// el agente acababa de pedir (feature 035, FR-014).
+	ToolOutputMinTokens = 2000
+	// ToolOutputJSONMinItems: en una salida de herramienta, los arrays con menos
+	// elementos se conservan completos. Una búsqueda de 30 resultados llegaba
+	// como «omitidos 23 de 30» y el agente tenía que buscar otra vez (FR-012).
+	ToolOutputJSONMinItems = 51
+	// Listados (feature 035, FR-023): un bloque es listado con al menos
+	// ListingMinLines líneas, de las que ListingMinPercent % tienen forma
+	// ruta:línea o ruta sola. Se conservan las ListingKeepHead primeras y las
+	// ListingKeepTail últimas literales.
+	ListingMinLines   = 30
+	ListingMinPercent = 70
+	ListingKeepHead   = 15
+	ListingKeepTail   = 5
 	// CompressionMaxInputBytes: por encima, solo compresión estructural (R14).
 	CompressionMaxInputBytes = 2 << 20
 	// CompressionOriginalsMinMB: tope mínimo efectivo del almacén. Con un tope

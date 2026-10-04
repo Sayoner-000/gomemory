@@ -36,6 +36,11 @@ func cmdSessionStart(deps *Deps, args []string) {
 
 	project := deps.ProjectRepo.Key(root)
 
+	// OpenCode llama a `mem session start --conversation=<id>` en
+	// session.created: es su inicio de conversación (feature 035, FR-017), haya
+	// o no una sesión de memoria activa.
+	beginConversation(deps, root, conversationFlag(args))
+
 	active, _ := deps.SessionRepo.Active(project)
 	if active != nil {
 		fmt.Printf("⚠  Ya hay una sesión activa desde %s\n", active.CreatedAt)
@@ -70,6 +75,7 @@ func cmdSessionEnd(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 	if sess == nil {
+		endConversation(root) // cierre explícito también limpia un registro huérfano
 		fail("no hay sesión activa para cerrar")
 	}
 
@@ -84,6 +90,7 @@ func cmdSessionEnd(deps *Deps, args []string) {
 	if err := deps.SessionRepo.End(sess.ID, finalSummary); err != nil {
 		fail("%v", err)
 	}
+	endConversation(root)
 
 	fmt.Printf("✓ Sesión %s finalizada\n", sess.ID[:8])
 	if finalSummary != "" {
@@ -129,4 +136,15 @@ func cmdSessionList(deps *Deps, args []string) {
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ID[:8], s.CreatedAt, endStr, summary)
 	}
 	_ = w.Flush()
+}
+
+// conversationFlag extrae --conversation=<id> de args ("" si no está).
+func conversationFlag(args []string) string {
+	const prefix = "--conversation="
+	for _, a := range args {
+		if strings.HasPrefix(a, prefix) {
+			return strings.TrimPrefix(a, prefix)
+		}
+	}
+	return ""
 }

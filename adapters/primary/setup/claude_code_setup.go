@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
 	"mem/adapters/secondary/persistence"
@@ -152,10 +154,17 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 	}
 	fmt.Printf("  ✅ claude-code: MCP configurado en %s\n", filepath.Join(root, ".mcp.json"))
 
-	if err := writeClaudeHooks(root, ref); err != nil {
+	// Los hooks globales sirven a todos los proyectos: el proyecto solo añade
+	// los subcomandos que el global no cubre. Registrar los dos hacía que Claude
+	// Code ejecutara cada evento dos veces (feature 035, FR-001).
+	skip := globalClaudeHookSubs(root)
+	if err := writeClaudeHooksSkipping(root, ref, skip); err != nil {
 		return err
 	}
 	fmt.Printf("  ✅ claude-code: hooks portables configurados en %s\n", filepath.Join(root, ".claude", "settings.json"))
+	if len(skip) > 0 {
+		fmt.Println("  ℹ️  claude-code: hooks globales activos; el proyecto solo añade los que el global no cubre")
+	}
 
 	if err := writeClaudePermissions(root); err != nil {
 		return err
@@ -381,6 +390,12 @@ func WriteClaudeHooksGlobal(home string, ref AgentRef) error {
 // Antes de añadir, elimina cualquier entrada previa de gomemory (incluidas las
 // rutas absolutas rotas de instalaciones anteriores entre máquinas).
 func writeClaudeHooks(root string, ref AgentRef) error {
+	return writeClaudeHooksSkipping(root, ref, nil)
+}
+
+// writeClaudeHooksSkipping es writeClaudeHooks sin registrar los subcomandos de
+// skip (los que ya cubre el ámbito global, feature 035).
+func writeClaudeHooksSkipping(root string, ref AgentRef, skip map[string]bool) error {
 	settingsDir := filepath.Join(root, ".claude")
 	if err := os.MkdirAll(settingsDir, 0755); err != nil {
 		return fmt.Errorf("create .claude dir: %w", err)
@@ -401,6 +416,9 @@ func writeClaudeHooks(root string, ref AgentRef) error {
 	for event, regs := range claudeHookEventsFor(persistence.ReadSettings(root).ToolOutputCompression) {
 		kept := filterOutGomemoryHooks(hooks[event])
 		for _, r := range regs {
+			if skip[hookSubName(r.sub)] {
+				continue
+			}
 			command := ref.HookCommand + " hook " + r.sub
 			kept = append(kept, map[string]interface{}{
 				"matcher": r.matcher,
@@ -408,6 +426,10 @@ func writeClaudeHooks(root string, ref AgentRef) error {
 					map[string]interface{}{"type": "command", "command": command},
 				},
 			})
+		}
+		if len(kept) == 0 {
+			delete(hooks, event)
+			continue
 		}
 		hooks[event] = kept
 	}
@@ -489,4 +511,178 @@ func hookCommandIsGomemory(cmd string) bool {
 		strings.Contains(cmd, "hook tool-output") ||
 		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
 		strings.Contains(cmd, "plugins/gomemory")
+}
+
+// hookSubName devuelve el subcomando de `mem hook` de un registro
+// ("tool-output claude" → "tool-output").
+func hookSubName(sub string) string {
+	if i := strings.IndexByte(sub, ' '); i >= 0 {
+		return sub[:i]
+	}
+	return sub
+}
+
+var gomemoryHookSubRe = regexp.MustCompile(`hook ([a-z-]+)`)
+
+// GomemoryHookSubs devuelve los subcomandos de gomemory registrados en un
+// settings.json de Claude Code (vacío si no existe o no se puede leer).
+func GomemoryHookSubs(settingsPath string) map[string]bool {
+	subs := map[string]bool{}
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return subs
+	}
+	var settings map[string]interface{}
+	if json.Unmarshal(data, &settings) != nil {
+		return subs
+	}
+	hooks, _ := settings["hooks"].(map[string]interface{})
+	for _, raw := range hooks {
+		entries, _ := raw.([]interface{})
+		for _, e := range entries {
+			if !IsGomemoryHookEntry(e) {
+				continue
+			}
+			for _, cmd := range hookEntryCommands(e) {
+				if m := gomemoryHookSubRe.FindStringSubmatch(cmd); m != nil {
+					subs[m[1]] = true
+				}
+			}
+		}
+	}
+	return subs
+}
+
+func hookEntryCommands(e interface{}) []string {
+	switch v := e.(type) {
+	case string:
+		return []string{v}
+	case map[string]interface{}:
+		var out []string
+		inner, _ := v["hooks"].([]interface{})
+		for _, h := range inner {
+			hm, _ := h.(map[string]interface{})
+			if cmd, _ := hm["command"].(string); cmd != "" {
+				out = append(out, cmd)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+// globalClaudeHookSubs devuelve los subcomandos que ya registra el
+// settings.json del usuario, salvo que root sea el propio HOME (entonces no
+// hay un ámbito superior con el que duplicar).
+func globalClaudeHookSubs(root string) map[string]bool {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || sameDir(home, root) {
+		return nil
+	}
+	return GomemoryHookSubs(filepath.Join(home, ".claude", "settings.json"))
+}
+
+func sameDir(a, b string) bool {
+	ca, errA := filepath.Abs(a)
+	cb, errB := filepath.Abs(b)
+	return errA == nil && errB == nil && filepath.Clean(ca) == filepath.Clean(cb)
+}
+
+// DuplicateClaudeHookSubs devuelve, ordenados, los subcomandos de gomemory
+// registrados a la vez en el settings.json global y en el del proyecto: cada
+// uno se ejecuta dos veces por evento. Solo lee.
+func DuplicateClaudeHookSubs(home, root string) []string {
+	if home == "" || sameDir(home, root) {
+		return nil
+	}
+	global := GomemoryHookSubs(filepath.Join(home, ".claude", "settings.json"))
+	var dups []string
+	for sub := range GomemoryHookSubs(filepath.Join(root, ".claude", "settings.json")) {
+		if global[sub] {
+			dups = append(dups, sub)
+		}
+	}
+	sort.Strings(dups)
+	return dups
+}
+
+// DedupClaudeProjectHooks retira del settings.json del proyecto las entradas
+// de gomemory cuyo subcomando ya registra el global. Nunca toca el global ni
+// las entradas ajenas. Idempotente: sin duplicados no escribe nada.
+func DedupClaudeProjectHooks(home, root string) ([]string, error) {
+	dups := DuplicateClaudeHookSubs(home, root)
+	if len(dups) == 0 {
+		return nil, nil
+	}
+	drop := map[string]bool{}
+	for _, d := range dups {
+		drop[d] = true
+	}
+	settingsPath := filepath.Join(root, ".claude", "settings.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return nil, err
+	}
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return nil, fmt.Errorf("decode claude settings: %w", err)
+	}
+	hooks, _ := settings["hooks"].(map[string]interface{})
+	for event, raw := range hooks {
+		entries, _ := raw.([]interface{})
+		kept := make([]interface{}, 0, len(entries))
+		for _, e := range entries {
+			if e = withoutDuplicateCommands(e, drop); e != nil {
+				kept = append(kept, e)
+			}
+		}
+		if len(kept) == 0 {
+			delete(hooks, event)
+		} else {
+			hooks[event] = kept
+		}
+	}
+	settings["hooks"] = hooks
+	out, _ := json.MarshalIndent(settings, "", "  ")
+	if err := os.WriteFile(settingsPath, out, 0644); err != nil {
+		return nil, fmt.Errorf("write .claude/settings.json: %w", err)
+	}
+	return dups, nil
+}
+
+// withoutDuplicateCommands quita de una entrada solo los comandos de gomemory
+// duplicados; una entrada que agrupa varios conserva los demás (S-001 de
+// acr_715249c3). Devuelve nil si la entrada queda vacía.
+func withoutDuplicateCommands(e interface{}, drop map[string]bool) interface{} {
+	isDup := func(cmd string) bool {
+		m := gomemoryHookSubRe.FindStringSubmatch(cmd)
+		return m != nil && drop[m[1]] && hookCommandIsGomemory(cmd)
+	}
+	switch v := e.(type) {
+	case string:
+		if isDup(v) {
+			return nil
+		}
+		return v
+	case map[string]interface{}:
+		inner, _ := v["hooks"].([]interface{})
+		keptInner := make([]interface{}, 0, len(inner))
+		for _, h := range inner {
+			hm, _ := h.(map[string]interface{})
+			if cmd, _ := hm["command"].(string); isDup(cmd) {
+				continue
+			}
+			keptInner = append(keptInner, h)
+		}
+		if len(keptInner) == 0 {
+			return nil
+		}
+		out := make(map[string]interface{}, len(v))
+		for k, val := range v {
+			out[k] = val
+		}
+		out["hooks"] = keptInner
+		return out
+	}
+	return e
 }

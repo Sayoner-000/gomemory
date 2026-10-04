@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,6 +35,10 @@ func footprintRead(root string) int {
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(string(raw)))
 	if err != nil || n < 0 {
+		// Un valor corrupto (escrituras entrelazadas de varios procesos, o un
+		// desbordamiento) dejaba la huella en 0 para siempre y el aviso de
+		// compactar no volvía a salir: se reinicia (feature 035, FR-022).
+		_ = os.Remove(footprintPath(root))
 		return 0
 	}
 	return n
@@ -48,7 +53,9 @@ func footprintAdd(root string, n int) {
 	total := footprintRead(root) + n
 	p := footprintPath(root)
 	_ = os.MkdirAll(filepath.Dir(p), 0o700)
-	_ = os.WriteFile(p, []byte(strconv.Itoa(total)), 0o644)
+	// Rename atómico: varios MCP (uno por agente) suman a la vez. Puede perderse
+	// alguna suma en una carrera —la huella es un proxy—, pero nunca se corrompe.
+	_ = writeFileAtomic(p, []byte(strconv.Itoa(total)), 0o644)
 }
 
 // footprintReset pone el acumulado en cero (al iniciar sesión y tras compactar,
@@ -107,7 +114,7 @@ func computeCompactNudge(root string, threshold int) (string, bool) {
 		}
 	}
 	_ = os.MkdirAll(filepath.Dir(compactNudgeStatePath(root)), 0o700)
-	_ = os.WriteFile(compactNudgeStatePath(root), []byte(strconv.FormatInt(now, 10)), 0o644)
+	_ = writeFileAtomic(compactNudgeStatePath(root), []byte(strconv.FormatInt(now, 10)), 0o644)
 	return compactNudgeMessage, true
 }
 
@@ -124,18 +131,41 @@ func pendingAgentNoticePath(root string) string {
 func writePendingAgentNotice(root string) {
 	p := pendingAgentNoticePath(root)
 	_ = os.MkdirAll(filepath.Dir(p), 0o700)
-	_ = os.WriteFile(p, []byte(domain.AgentPrepareNotice), 0o644)
+	data, _ := json.Marshal(pendingAgentNotice{ConvID: currentConversationID(root), Text: domain.AgentPrepareNotice})
+	_ = writeFileAtomic(p, data, 0o644)
+}
+
+// pendingAgentNotice es el aviso diferido junto con la conversación que lo
+// generó (feature 035, FR-018): antes era texto suelto y lo recibía la
+// conversación siguiente.
+type pendingAgentNotice struct {
+	ConvID string `json:"conv_id"`
+	Text   string `json:"text"`
 }
 
 // consumePendingAgentNotice lee y BORRA el aviso pendiente, para que se
-// entregue una sola vez. ("", false) si no hay ninguno.
+// entregue una sola vez y solo a la conversación que lo generó; el de otra
+// conversación se descarta. Un aviso en texto plano (formato anterior) solo se
+// entrega si no hay conversación registrada. ("", false) si no hay nada que
+// entregar.
 func consumePendingAgentNotice(root string) (string, bool) {
 	data, err := os.ReadFile(pendingAgentNoticePath(root))
 	if err != nil {
 		return "", false
 	}
 	_ = os.Remove(pendingAgentNoticePath(root))
-	return string(data), true
+	current := currentConversationID(root)
+	var n pendingAgentNotice
+	if json.Unmarshal(data, &n) != nil || n.Text == "" {
+		if current != "" {
+			return "", false
+		}
+		return string(data), true
+	}
+	if n.ConvID != current {
+		return "", false
+	}
+	return n.Text, true
 }
 
 // Refuerzo periódico de preferencias: el protocolo/preferencias solo se
@@ -195,7 +225,7 @@ func computePreferenceReinforcement(deps *Deps, root, project string, threshold 
 	}
 
 	_ = os.MkdirAll(filepath.Dir(preferenceNudgeStatePath(root)), 0o700)
-	_ = os.WriteFile(preferenceNudgeStatePath(root), []byte(strconv.FormatInt(now, 10)), 0o644)
+	_ = writeFileAtomic(preferenceNudgeStatePath(root), []byte(strconv.FormatInt(now, 10)), 0o644)
 
 	var b strings.Builder
 	b.WriteString("REFUERZO DE PREFERENCIAS (sesión larga sin compactar): estas reglas del usuario siguen activas, no las pierdas de vista:\n\n")

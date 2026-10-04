@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"mem/adapters/primary/setup"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
 	"mem/application/usecases"
@@ -39,6 +40,13 @@ func CmdHook(deps *Deps, args []string) {
 	if len(args) == 0 {
 		// Sin evento: no romper nada.
 		os.Exit(0)
+	}
+
+	if reentryGuardedEvents[args[0]] {
+		dropDuplicateHook(deps, args[0], args[1:])
+		// Los handlers protegidos retornan a CmdHook: publicamos el recibo solo
+		// tras completarlos y liberamos el lock al salir.
+		defer releaseHookLockForEvent(deps, args[0])
 	}
 
 	switch args[0] {
@@ -86,6 +94,9 @@ func CmdHook(deps *Deps, args []string) {
 		// Evento desconocido: salida vacía, sin error.
 		os.Exit(0)
 	}
+	if reentryGuardedEvents[args[0]] {
+		markHookCompletedForEvent(deps, args[0])
+	}
 }
 
 // sessionMarkerPath es el archivo que marca que el recordatorio de protocolo
@@ -110,9 +121,25 @@ func planEnteredMarkerPath(deps *Deps, root string) string {
 func hookSessionStart(deps *Deps, args []string) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		os.Exit(0) // No se pudo resolver el directorio de trabajo: nada que hacer.
+		return // No se pudo resolver el directorio de trabajo: nada que hacer.
 	}
 	project := deps.ProjectRepo.Key(root)
+
+	// Conversación nueva (session_id distinto) → estado por turno desde cero y
+	// rotación de la sesión inactiva; una reanudación no reinicia nada (feature
+	// 035, FR-016/FR-017). Los matchers del host ya separan la compactación,
+	// que va a post-compact.
+	payload := readHookStdin()
+	convID, _ := payload["session_id"].(string)
+	if convID == "" {
+		// SessionStart es un borde explícito del host. Sin id no podemos
+		// compararlo con el anterior; abrir uno local evita heredar avisos y
+		// relojes. Una reanudación señalada como tal conserva la conversación.
+		if source, _ := payload["source"].(string); source != "resume" {
+			_ = os.Remove(conversationPath(root))
+		}
+	}
+	beginConversation(deps, root, convID)
 
 	active, _ := deps.SessionRepo.Active(project)
 	if active == nil {
@@ -142,14 +169,36 @@ func hookSessionStart(deps *Deps, args []string) {
 	if mark != nil {
 		avisos = append(avisos, mark.notice)
 	}
+	// Hooks de gomemory en el ámbito de usuario y en el de proyecto: cada evento
+	// corre dos veces (feature 035, FR-001a). Solo se avisa a la persona; la
+	// configuración del host nunca se reescribe durante el arranque.
+	if home, err := os.UserHomeDir(); err == nil {
+		if dups := setup.DuplicateClaudeHookSubs(home, root); len(dups) > 0 {
+			avisos = append(avisos, duplicateHooksNotice(dups))
+		}
+	}
 
-	if out := renderSessionStart(sessionStartDialect(args, os.Getenv), entregaContextoDeArranque(deps), avisos); out != "" {
+	// El contexto se ajusta al tope del canal (FR-004): por encima, Claude Code
+	// solo le mostraba al modelo una vista previa de 2 KB. entregaContextoDeArranque
+	// ya no lo anota como entregado cuando no cabe (C-002 de acr_961a1676).
+	dialect := sessionStartDialect(args, os.Getenv)
+	ctx, _ := fitHookSections(deps, agentOfDialect(dialect), []domain.HookSection{
+		{Name: "memory", Priority: domain.HookPriorityMemory, Text: entregaContextoDeArranque(deps), Trimmable: true},
+	})
+	if out := renderSessionStart(dialect, ctx, avisos); out != "" {
 		fmt.Print(out)
 	}
 	if mark != nil {
 		_ = writeUpdateNotice(root, mark.UpdateNotice)
 	}
-	os.Exit(0)
+	return
+}
+
+// duplicateHooksNotice es el aviso a la persona cuando los hooks de gomemory
+// están registrados en ambos ámbitos de Claude Code.
+func duplicateHooksNotice(subs []string) string {
+	return "gomemory: hooks duplicados en usuario y proyecto (cada evento corre dos veces: " +
+		strings.Join(subs, ", ") + "). Corrígelo con: mem update"
 }
 
 type pendingUpdateNotice struct {
@@ -254,6 +303,7 @@ func hookSessionEnd(deps *Deps) {
 	// intermedio, para que el próximo primer prompt vuelva a inyectar el
 	// recordatorio del protocolo.
 	_ = os.Remove(sessionMarkerPath(deps, root))
+	endConversation(root)
 
 	active, err := deps.SessionRepo.Active(project)
 	if err != nil || active == nil {
@@ -316,6 +366,8 @@ func hookPostCompact(deps *Deps) {
 		footprintReset(root)                          // tras compactar, la huella cuenta desde cero
 		_ = os.Remove(preferenceNudgeStatePath(root)) // el refuerzo también arranca de cero
 		_ = os.Remove(pendingAgentNoticePath(root))   // el aviso de US4 también arranca de cero
+		_ = os.Remove(planReminderMarkerPath(root))   // tras compactar, el recordatorio de plan vuelve a valer (FR-008)
+		_ = os.Remove(octopusEmittedPath(root))       // y la regla de Octopus se vuelve a comunicar (FR-008a)
 		ensureActiveSession(deps, root)               // R4: sin esto, toda memoria guardada tras
 		// compactar quedaba sin sesión asociada (ver dominio de RecoverySteps).
 	}
@@ -434,10 +486,9 @@ func compactionContextBudget(arranqueBudget int) int {
 // (nunca se recorta), sesión después (lo más específico y accionable),
 // proyecto al final (lo más genérico).
 func printRecoveryAndContext(deps *Deps) {
-	fmt.Print(domain.RecoverySteps)
-
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
+		fmt.Print(domain.RecoverySteps)
 		return
 	}
 	project := deps.ProjectRepo.Key(root)
@@ -447,11 +498,14 @@ func printRecoveryAndContext(deps *Deps) {
 		budget = deps.SettingsRepo.Read(root).Budget
 	}
 
+	// Mismo tope que el arranque (feature 035, FR-004): esta salida también es
+	// contexto inyectado por SessionStart. La recuperación nunca se recorta.
+	sections := []domain.HookSection{{Name: "recovery", Priority: domain.HookPriorityProtocol, Text: domain.RecoverySteps}}
 	if deps.SessionRepo != nil && deps.SessionMemories != nil {
 		compactCtx, err := usecases.BuildCompactionContext(deps.SessionRepo, deps.SessionMemories, project, compactionContextBudget(budget))
 		if err == nil && compactCtx != "" {
-			fmt.Print("\n\n")
-			fmt.Print(compressDeliveredContext(deps, compactCtx))
+			sections = append(sections, domain.HookSection{Name: "session", Priority: domain.HookPriorityPlan,
+				Text: compressDeliveredContext(deps, compactCtx), Trimmable: true})
 		}
 	}
 
@@ -461,10 +515,12 @@ func printRecoveryAndContext(deps *Deps) {
 	}
 	if builder != nil {
 		if ctx, err := builder.Build(); err == nil && ctx != "" {
-			fmt.Print("\n\nContexto de la sesión previa:\n")
-			fmt.Print(compressDeliveredContext(deps, ctx))
+			sections = append(sections, domain.HookSection{Name: "memory", Priority: domain.HookPriorityMemory,
+				Text: "Contexto de la sesión previa:\n" + compressDeliveredContext(deps, ctx), Trimmable: true})
 		}
 	}
+	out, _ := fitHookSections(deps, agentOfDialect(sessionStartDialect(nil, os.Getenv)), sections)
+	fmt.Print(out)
 }
 
 // hookUserPromptSubmit corre en cada prompt del usuario. En el primer prompt
@@ -485,8 +541,8 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		emitHookOutput(renderPromptContext(dialect, ""))
-		os.Exit(0)
+		writeHookOutput(renderPromptContext(dialect, ""))
+		return
 	}
 	project := deps.ProjectRepo.Key(root)
 
@@ -515,38 +571,43 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 		// dirigido al agente ("llama a save_memory ahora") — con systemMessage
 		// el agente jamás lo veía, así que el recordatorio de guardado nunca
 		// llegaba a aplicarse, solo se mostraba en la UI del usuario.
-		var parts []string
+		var sections []domain.HookSection
 		// Aviso de preparación pendiente (feature 030, US4): lo dejó turn-end
 		// en un dialecto sin canal doble en el mismo fin de turno. Va primero
 		// —es lo más urgente si el turno anterior cruzó el umbral— y se
 		// consume una sola vez.
 		if msg, ok := consumePendingAgentNotice(root); ok {
-			parts = append(parts, msg)
+			sections = append(sections, domain.HookSection{Name: "notice", Priority: domain.HookPriorityOctopus + 5, Text: msg})
 		}
 		if planEntered {
-			parts = append(parts, planDoc)
+			sections = append(sections, domain.HookSection{Name: "plan", Priority: domain.HookPriorityPlan, Text: planDoc, Trimmable: true})
 		}
 		if msg, ok := computeSaveNudge(deps, root, project); ok {
-			parts = append(parts, msg)
+			sections = append(sections, domain.HookSection{Name: "nudge", Priority: domain.HookPriorityMemory, Text: msg})
 		}
-		// Recordatorio de modo plan (feature 019, Historia 2): en CADA turno,
-		// sin debounce — es el camino que cubre a los agentes sin señal de
-		// entrada observable, y refuerza a los que sí la tienen. Sobra en el
-		// turno que ya entregó el documento completo.
+		// Recordatorio de modo plan (feature 019, Historia 2). Sin señal de
+		// entrada observable (Codex, dialecto json), va en CADA turno. Claude
+		// Code sí la tiene —permission_mode, EnterPlanMode—, y como
+		// additionalContext se acumula en el historial, repetirlo era ruido:
+		// ahí sale al inicio, tras compactar y al entrar en plan (feature 035,
+		// FR-008). Sobra en el turno que ya entregó el documento completo.
 		if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok && !planEntered {
-			parts = append(parts, msg)
+			if dialect != dialectClaude || claimPlanReminder(root, payload) {
+				sections = append(sections, domain.HookSection{Name: "plan_reminder", Priority: domain.HookPriorityPlan, Text: msg})
+			}
+		} else if planEntered {
+			_ = writeHookMarker(planReminderMarkerPath(root))
 		}
-		// Regla de delegación de Octopus, leída fresca en CADA turno — no solo
-		// el primero. El bootstrap completo (más abajo) solo se emite una vez
-		// por sesión, protegido por este mismo marker: sin esto, activar
-		// Octopus a mitad de sesión no le llegaba nunca al agente raíz hasta
-		// reiniciar o borrar el marcador (ACR 029, hallazgo C-002).
-		if msg, ok := octopusDelegationReminder(deps.SettingsRepo.Read(root).OctopusEnabled, "mcp__gomemory__octopus_route_task"); ok {
-			parts = append(parts, msg)
+		// Regla de delegación de Octopus (ACR 029, C-002: activarla a mitad de
+		// sesión debe llegar al agente raíz). user-prompt-submit se acumula en
+		// el historial, así que se emite cuando cambia la activación, no en cada
+		// turno (feature 035, FR-008a).
+		if msg, ok := octopusDelegationReminderOnChange(root, deps.SettingsRepo.Read(root).OctopusEnabled); ok {
+			sections = append(sections, domain.HookSection{Name: "octopus", Priority: domain.HookPriorityOctopus, Text: msg})
 		}
 
-		emitHookOutput(renderPromptContext(dialect, strings.Join(parts, "\n\n")))
-		os.Exit(0)
+		writeHookOutput(renderPromptContext(dialect, fitPromptSections(deps, dialect, sections)))
+		return
 	}
 
 	// Primer prompt de la sesión: forzar la carga de las tools MCP diferidas y
@@ -569,10 +630,29 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	_ = writeHookMarker(marker)
 	settings := deps.SettingsRepo.Read(root)
 	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
-	additional := bootstrap + "\n\n" + memoryProtocolReminder
-	if planEntered {
-		additional += "\n\n" + planDoc
+	// El bootstrap ya lleva la regla de Octopus si está activa: se anota para
+	// no repetirla en los turnos siguientes salvo que cambie (FR-008a).
+	recordOctopusEmitted(root, settings.OctopusEnabled)
+	sections := []domain.HookSection{
+		{Name: "bootstrap", Priority: domain.HookPriorityBootstrap, Text: bootstrap},
+		{Name: "protocol", Priority: domain.HookPriorityProtocol, Text: memoryProtocolReminder},
 	}
+	// Un aviso pendiente de ESTA conversación también se entrega en el primer
+	// prompt tras el arranque: antes solo lo consumían los prompts siguientes,
+	// y por eso el de una conversación cerrada aparecía en la siguiente
+	// (feature 035, FR-019). Es corto y urgente: no se recorta.
+	if msg, ok := consumePendingAgentNotice(root); ok {
+		sections = append(sections, domain.HookSection{Name: "notice", Priority: domain.HookPriorityOctopus + 5, Text: msg})
+	}
+	if planEntered {
+		sections = append(sections, domain.HookSection{Name: "plan", Priority: domain.HookPriorityPlan, Text: planDoc, Trimmable: true})
+		_ = writeHookMarker(planReminderMarkerPath(root))
+	} else if msg, ok := computePlanModeReminder(settings.AtomicPlanDisabled); ok {
+		sections = append(sections, domain.HookSection{Name: "plan", Priority: domain.HookPriorityPlan, Text: msg, Trimmable: true})
+	}
+	// Ajustado al tope del canal (FR-004): medido en vivo, este primer prompt
+	// llegaba a 12 944 caracteres en modo plan y el modelo solo veía 2 KB.
+	additional, _ := fitHookSections(deps, agentOfDialect(dialect), sections)
 	out := map[string]any{
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "UserPromptSubmit",
@@ -581,7 +661,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	}
 	data, _ := json.Marshal(out)
 	fmt.Print(string(data))
-	os.Exit(0)
+	return
 }
 
 // hookNudge imprime, en texto plano, los recordatorios de turno que
@@ -647,9 +727,8 @@ func hookTurnEnd(deps *Deps, args []string) {
 	// get_context. MaybeRefresh es fire-and-forget (proceso detached, respeta el
 	// TTL de 60s + debounce): nunca bloquea el cierre del turno. Cubre Claude
 	// Code (Stop) y OpenCode (session.idle), que enrutan ambos a turn-end.
-	// DEBE ir ANTES de recordActivityCheckpoint: ese helper termina con
-	// os.Exit(0), así que nada después de él se ejecuta. El hijo detached
-	// sobrevive al os.Exit del padre (setsid).
+	// DEBE ir ANTES de recordActivityCheckpoint: la actualización detached
+	// puede continuar después de que termine este handler.
 	for _, cp := range deps.CodeProviders {
 		if cp != nil {
 			cp.MaybeRefresh()
@@ -669,7 +748,7 @@ func hookTurnEnd(deps *Deps, args []string) {
 	// Recordatorio de compactación (feature 008): si la huella emitida por
 	// gomemory en la sesión superó el umbral, sugiere compactar de forma NEUTRAL
 	// (sin nombrar comandos de cliente) y no bloqueante. Va ANTES de
-	// recordActivityCheckpoint (que consume stdin y hace os.Exit); computeCompactNudge
+	// recordActivityCheckpoint (que consume stdin); computeCompactNudge
 	// NO consume stdin, así el checkpoint sigue viendo el payload intacto.
 	emitted := false
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
@@ -731,7 +810,7 @@ func hookSubagentStart(deps *Deps) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
 		fmt.Print("{}")
-		os.Exit(0)
+		return
 	}
 	settings := deps.SettingsRepo.Read(root)
 	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
@@ -743,7 +822,7 @@ func hookSubagentStart(deps *Deps) {
 	}
 	data, _ := json.Marshal(out)
 	fmt.Print(string(data))
-	os.Exit(0)
+	return
 }
 
 // hookSubagentStop corre cuando un subagente (tool Task) termina en Claude Code.
@@ -948,12 +1027,12 @@ func recordActivityCheckpoint(deps *Deps, title string) {
 func recordActivityCheckpointWithPayload(deps *Deps, title string, payload map[string]any) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		os.Exit(0)
+		return
 	}
 	project := deps.ProjectRepo.Key(root)
 
 	if payload == nil {
-		os.Exit(0)
+		return
 	}
 
 	var activity turnActivity
@@ -967,7 +1046,7 @@ func recordActivityCheckpointWithPayload(deps *Deps, title string, payload map[s
 	}
 
 	if activity.empty() {
-		os.Exit(0)
+		return
 	}
 
 	sessionID := ""
@@ -991,7 +1070,6 @@ func recordActivityCheckpointWithPayload(deps *Deps, title string, payload map[s
 	_, _ = deps.MemoryRepo.Insert(&mem)
 
 	reindexTouchedGoFiles(deps, root, project, activity.Files)
-	os.Exit(0)
 }
 
 // reindexTouchedGoFiles mantiene el grafo de código fresco automáticamente:
@@ -1080,12 +1158,8 @@ func formatCheckpoint(a turnActivity) string {
 // readHookStdin lee el payload JSON que el agente pasa por stdin. Devuelve nil
 // si no hay datos en pipe (ejecución manual en terminal) o si el parseo falla.
 func readHookStdin() map[string]any {
-	stat, err := os.Stdin.Stat()
-	if err != nil || (stat.Mode()&os.ModeCharDevice) != 0 {
-		return nil // No es un pipe: no bloquear leyendo la terminal.
-	}
-	data, err := io.ReadAll(os.Stdin)
-	if err != nil || len(data) == 0 {
+	data := readHookStdinRaw()
+	if len(data) == 0 {
 		return nil
 	}
 	var payload map[string]any
@@ -1101,15 +1175,73 @@ func readHookStdin() map[string]any {
 // «Entrada»). Devuelve nil si no hay datos en pipe (ejecución manual en
 // terminal), igual que readHookStdin.
 func readHookStdinRaw() []byte {
+	if hookStdinRead {
+		return hookStdin
+	}
+	hookStdinRead = true
 	stat, err := os.Stdin.Stat()
 	if err != nil || (stat.Mode()&os.ModeCharDevice) != 0 {
-		return nil
+		return nil // No es un pipe: no bloquear leyendo la terminal.
 	}
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return nil
 	}
+	hookStdin = data
 	return data
+}
+
+// stdin solo puede leerse una vez por proceso: la guarda de reentrada lo lee
+// antes del handler para calcular su huella, y el handler recibe la misma copia.
+var (
+	hookStdin     []byte
+	hookStdinRead bool
+)
+
+// reentryGuardedEvents son los eventos que inyectan contexto o escriben estado
+// y que Claude Code duplica cuando los hooks están en ambos ámbitos.
+var reentryGuardedEvents = map[string]bool{
+	"session-start":      true,
+	"user-prompt-submit": true,
+	"turn-end":           true,
+	"subagent-start":     true,
+	"subagent-stop":      true,
+}
+
+// dropDuplicateHook termina en silencio la invocación que duplica a otra del
+// mismo evento todavía en curso (feature 035, FR-002), con la salida neutra de
+// su dialecto: Codex exige JSON incluso para callar.
+func dropDuplicateHook(deps *Deps, event string, args []string) {
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		return
+	}
+	// Solo hay duplicados si el evento está registrado en ambos ámbitos de
+	// Claude Code; sin eso, la guarda no cuesta nada.
+	if !hookRegisteredTwice(root, event) {
+		return
+	}
+	if !acquireHookLock(root, event, readHookStdinRaw()) {
+		// El lock permanece durante el handler; una ejecución rápida espera lo
+		// mínimo para que alcance a llegar su gemela paralela.
+		holdHookLock()
+		return
+	}
+	dialect := dialectClaude
+	if v := emitFlagValue(args); isKnownDialect(v) {
+		dialect = hookDialect(v)
+	}
+	if event == "session-start" {
+		dialect = sessionStartDialect(args, os.Getenv)
+	}
+	recordGuard(deps, agentOfDialect(dialect), domain.GuardDuplicateDropped, event)
+	switch {
+	case event == "user-prompt-submit":
+		emitHookOutput(renderPromptContext(dialect, ""))
+	case event == "subagent-start", dialect == dialectJSON:
+		fmt.Print("{}")
+	}
+	os.Exit(0)
 }
 
 // emitHookOutput escribe la salida ya traducida a un dialecto (hook_dialect.go)
@@ -1117,13 +1249,17 @@ func readHookStdinRaw() []byte {
 // plan-guard y plan-entered, para que ningún camino olvide escribir a la
 // corriente correcta.
 func emitHookOutput(out hookRenderedOutput) {
+	writeHookOutput(out)
+	os.Exit(out.exitCode)
+}
+
+func writeHookOutput(out hookRenderedOutput) {
 	if out.stdout != "" {
 		fmt.Print(out.stdout)
 	}
 	if out.stderr != "" {
 		fmt.Fprint(os.Stderr, out.stderr)
 	}
-	os.Exit(out.exitCode)
 }
 
 // planGuardDenialReason redacta el motivo de una devolución de plan-guard:
@@ -1270,8 +1406,26 @@ func planEntryDocument(deps *Deps, budget int) string {
 	context, err := deps.ContextBuilder.Build()
 	if err != nil {
 		context = "> Historial del proyecto no disponible (" + err.Error() + "): llama a get_plan_context() para reintentarlo."
+	} else if contextAlreadyDelivered(deps, context) {
+		// El arranque de esta sesión ya entregó este mismo historial: repetirlo
+		// en el documento de plan duplicaba miles de caracteres en el mismo
+		// contexto (feature 035, FR-007).
+		context = planDocMemoryDelivered
 	}
 	return domain.AdjustPlanDocumentToBudget(planMethod, context, budget)
+}
+
+const planDocMemoryDelivered = "> La memoria del proyecto ya se entregó al iniciar esta sesión; " +
+	"si la necesitas de nuevo, llama a get_plan_context(full=true)."
+
+// contextAlreadyDelivered dice si el registro de entregas de la sesión anota
+// exactamente este documento de contexto como ya entregado.
+func contextAlreadyDelivered(deps *Deps, ctx string) bool {
+	if deps == nil || deps.DeliveryLog == nil {
+		return false
+	}
+	hash, ok := deps.DeliveryLog.Last(ports.DeliveryContext)
+	return ok && hash == usecases.HashDeContenido(ctx)
 }
 
 func hookPlanEntered(deps *Deps, args []string) {

@@ -57,7 +57,7 @@ func (r SavingsReport) Format() string {
 		b.WriteString("Sin compresiones registradas todavía. Activa el nivel max con `mem settings --compression-level=max`.\n")
 	} else {
 		w := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(w, "compresor\ttipo\tusos\ttokens antes → después\tahorro\trecuperación\tdegradaciones\tlatencia media")
+		_, _ = fmt.Fprintln(w, "compresor\ttipo\tusos\ttokens antes → después\tahorro\trecuperación\tsin ganancia\tdegradaciones\tlatencia media")
 		for _, s := range r.Rows {
 			// Una fila sin usos solo acumula omisiones o recuperaciones de los
 			// bloques de un documento mixto: no tiene tokens propios que mostrar.
@@ -74,7 +74,7 @@ func (r SavingsReport) Format() string {
 			if s.Uses > 0 {
 				lat = fmt.Sprintf("%.1f ms", float64(s.LatencyMicrosTotal)/float64(s.Uses)/1000)
 			}
-			_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%d\t%s\n", s.Compressor, s.ContentType, s.Uses, tokens, ahorro, recup, s.Fallbacks, lat)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%d\t%d\t%s\n", s.Compressor, s.ContentType, s.Uses, tokens, ahorro, recup, s.NoGains, s.Fallbacks, lat)
 		}
 		_ = w.Flush()
 	}

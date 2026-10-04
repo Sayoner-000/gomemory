@@ -91,6 +91,11 @@ func compressorFor(typ domain.ContentType) typeCompressor {
 			out, n := compressDiff(c, ref, th)
 			return out, n, true
 		}
+	case domain.ContentListing:
+		return func(c, _, ref string, th domain.Thresholds) (string, int, bool) {
+			out, n := compressListing(c, ref, th)
+			return out, n, true
+		}
 	case domain.ContentTable:
 		return func(c, _, ref string, th domain.Thresholds) (string, int, bool) {
 			out, n := compressTable(c, ref, th)
@@ -152,6 +157,12 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 		r.Compressor = "structural"
 		r.StructuralTokens = structural.Tokens
 		r.FallbackReason = reason
+		if opts.ToolOutput {
+			// Una salida de herramienta sin ganancia sale tal cual: la limpieza
+			// estructural colapsa espacios, y el agente puede editar a partir
+			// de ese texto (feature 035, FR-010).
+			r.Content, r.Tokens = input, rawTokens
+		}
 		return r
 	}
 
@@ -178,7 +189,7 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 	types := map[domain.ContentType]bool{}
 	guardFailed := false
 	for _, b := range segment(input) {
-		content, n, name, gerr := e.compressBlock(b)
+		content, n, name, gerr := e.compressBlockOpts(b, opts.ToolOutput)
 		if gerr != nil {
 			guardFailed = true
 		}
@@ -319,7 +330,17 @@ func replaceMarkerRefs(block, shortRef, longRef string) string {
 // pasa la guarda de literalidad. Ante cualquier fallo devuelve el bloque
 // literal (sin omisiones) y el error.
 func (e *Engine) compressBlock(b block) (out string, omitted int, name string, err error) {
+	return e.compressBlockOpts(b, false)
+}
+
+// compressBlockOpts es compressBlock con el modo salida de herramienta
+// (feature 035): ahí la prosa no se resume, los arrays de hasta 50 elementos
+// quedan completos y no hay limpieza estructural.
+func (e *Engine) compressBlockOpts(b block, toolOutput bool) (out string, omitted int, name string, err error) {
 	name = string(b.typ)
+	if toolOutput && b.typ == domain.ContentProse {
+		return b.content, 0, name, nil
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			out, omitted, err = b.content, 0, fmt.Errorf("compresor %s: pánico: %v", name, r)
@@ -328,6 +349,9 @@ func (e *Engine) compressBlock(b block) (out string, omitted int, name string, e
 	th := domain.ThresholdsFor(e.aggressiveness(b.typ))
 	if !th.Enabled {
 		return b.content, 0, name, nil
+	}
+	if toolOutput {
+		th.JSONMinItems = max(th.JSONMinItems, domain.ToolOutputJSONMinItems)
 	}
 	ref := refOf(b.content)
 	c, n, ok := compressorFor(b.typ)(b.content, b.lang, ref, th)
@@ -342,7 +366,11 @@ func (e *Engine) compressBlock(b block) (out string, omitted int, name string, e
 	}
 	// La prosa y las tablas admiten además la limpieza estructural (espacios y
 	// párrafos repetidos); el código y los logs no, porque el espacio importa.
-	if (b.typ == domain.ContentProse || b.typ == domain.ContentTable) && !b.fenced {
+	//
+	// Nunca sobre texto con sangría significativa (feature 035): esa limpieza
+	// colapsa los espacios iniciales, y en la salida de un `sed` sobre Go dejó
+	// el código sin indentación.
+	if (b.typ == domain.ContentProse || b.typ == domain.ContentTable) && !b.fenced && !toolOutput && !hasSignificantIndent(b.content) {
 		if s, serr := (compression.StructuralCompressor{}).Compress(c, ports.CompressionOptions{Level: ports.CompressionStructural}); serr == nil {
 			c = s.Content
 		}
@@ -409,4 +437,24 @@ func approxTokens(s string) int {
 		return 0
 	}
 	return (n + charsPerToken - 1) / charsPerToken
+}
+
+// hasSignificantIndent dice si la sangría del bloque probablemente importa:
+// alguna línea empieza con tabulador o al menos el 30 % con espacios.
+func hasSignificantIndent(content string) bool {
+	lines := strings.Split(content, "\n")
+	spaced, total := 0, 0
+	for _, l := range lines {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		total++
+		if strings.HasPrefix(l, "\t") {
+			return true
+		}
+		if strings.HasPrefix(l, "  ") {
+			spaced++
+		}
+	}
+	return total > 0 && spaced*10 >= total*3
 }

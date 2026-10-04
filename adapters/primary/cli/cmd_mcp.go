@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"mem/application/ports"
-	"os"
 	"strings"
 
 	"mem/application/usecases"
@@ -28,10 +27,16 @@ func CmdMCP(deps *Deps, args []string) {
 	server := newMCPServer(deps, root, project)
 
 	// Auto-start session on MCP server start (best-effort, no debe romper el server)
+	// Sin conversación registrada (cliente sin hook de arranque), el MCP abre
+	// una local; con una ya registrada no la toca: el MCP arranca también a
+	// mitad de una conversación (feature 035, FR-017). Sustituye a los
+	// reinicios sueltos de huella y refuerzo, que casi nunca corrían porque
+	// session-start ya había abierto la sesión.
+	if _, ok := readConversation(root); !ok {
+		beginConversation(deps, root, "")
+	}
 	if active, _ := deps.SessionRepo.Active(project); active == nil {
 		if sess, err := deps.SessionRepo.Start(project); err == nil {
-			footprintReset(root)                          // sesión nueva ⇒ huella desde cero
-			_ = os.Remove(preferenceNudgeStatePath(root)) // idem para el refuerzo de preferencias
 			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
 		}
 	}

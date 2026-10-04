@@ -35,6 +35,11 @@ type CompressionOptions struct {
 	PreserveURLs   bool
 	PreservePaths  bool
 	PreserveErrors bool
+	// ToolOutput marca la salida de una herramienta del agente (feature 035):
+	// la prosa sale intacta, los arrays de hasta 50 elementos se conservan
+	// completos y nunca se colapsan espacios. El agente puede editar o decidir
+	// a partir de esa salida, así que solo se resume volumen redundante.
+	ToolOutput bool
 }
 
 // CompressionResult es la salida de Compress: el contenido final (igual al

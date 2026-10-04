@@ -107,6 +107,7 @@ func CmdDoctor(deps *Deps, args []string) {
 		printDoctorOpenCode(openCode)
 		printDoctorCompression(compressionState)
 		printDoctorBinary(binaryState)
+		printDoctorHookGuard(doctorHookGuardState(deps, root))
 	}
 
 	if *strict && problems > 0 {

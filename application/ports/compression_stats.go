@@ -10,15 +10,17 @@ import (
 // CompressorStats es el acumulado de un compresor para un tipo de contenido en
 // un proyecto (FR-026). Solo cifras: nunca contenido.
 type CompressorStats struct {
-	Compressor         string
-	ContentType        string
-	Uses               int
-	RawTokens          int
-	StructuralTokens   int
-	FinalTokens        int
-	Omissions          int
-	Retrievals         int
-	Fallbacks          int
+	Compressor       string
+	ContentType      string
+	Uses             int
+	RawTokens        int
+	StructuralTokens int
+	FinalTokens      int
+	Omissions        int
+	Retrievals       int
+	Fallbacks        int
+	// NoGains cuenta las salidas que no ganaban nada (no son degradaciones).
+	NoGains            int
 	LatencyMicrosTotal int64
 }
 

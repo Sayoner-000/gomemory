@@ -74,7 +74,7 @@ func ListRelations(db *sql.DB, project string, limit int) ([]domain.Relation, er
 	}
 	rows, err := db.Query(
 		`SELECT id, project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at
-		 FROM memory_relations WHERE project = ? ORDER BY created_at DESC LIMIT ?`,
+		 FROM memory_relations WHERE project = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
 		project, limit,
 	)
 	if err != nil {

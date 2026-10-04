@@ -102,6 +102,13 @@ func (r *SessionRepository) SetLastPrompt(project, prompt string) error {
 	return SetSessionLastPrompt(r.db, project, prompt)
 }
 
+// LastActivity implementa ports.SessionActivityReader (feature 035).
+func (r *SessionRepository) LastActivity(sessionID string) (string, bool, error) {
+	return LastSessionActivity(r.db, sessionID)
+}
+
+var _ ports.SessionActivityReader = (*SessionRepository)(nil)
+
 // UpdateSummary implementa ports.SessionSummaryUpdater (feature 030, US2):
 // persiste el resumen compactado sin cerrar la sesión. Vive en el mismo tipo
 // concreto que SessionRepository —no en una interfaz ampliada— para no tocar

@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"mem/application/ports"
+	"mem/domain"
 )
 
 // El registro de actividad responde a una pregunta que el informe de estado no
@@ -145,3 +148,67 @@ func (r *ChannelActivityRepository) Last(agent, scope, kind string) (time.Time, 
 func (r *ChannelActivityRepository) SessionsSince(since time.Time) int {
 	return SessionsSince(r.db, r.project, since)
 }
+
+// RecordGuardEvent suma un evento de las protecciones de hooks (feature 035)
+// en el agregado del día (UTC-5). Sin contenido: detail es una cifra o el
+// nombre de una herramienta.
+func RecordGuardEvent(db *sql.DB, project, agent, kind, detail string) error {
+	if project == "" || agent == "" || kind == "" {
+		return nil
+	}
+	_, err := db.Exec(
+		`INSERT INTO hook_guard_events (project, agent, kind, day, count, last_detail, updated_at)
+		 VALUES (?, ?, ?, date(`+Now+`), 1, ?, `+Now+`)
+		 ON CONFLICT(project, agent, kind, day) DO UPDATE SET
+		   count = count + 1,
+		   last_detail = excluded.last_detail,
+		   updated_at = excluded.updated_at`,
+		project, agent, kind, detail)
+	if err != nil {
+		return fmt.Errorf("registrar evento de guarda: %w", err)
+	}
+	return nil
+}
+
+// GuardEventsSince agrega por agente y tipo los eventos de los últimos days
+// días, hoy incluido.
+func GuardEventsSince(db *sql.DB, project string, days int) ([]domain.GuardCount, error) {
+	if days <= 0 {
+		days = 7
+	}
+	rows, err := db.Query(
+		`SELECT agent, kind, SUM(count),
+		        (SELECT g2.last_detail FROM hook_guard_events g2
+		          WHERE g2.project = g.project AND g2.agent = g.agent AND g2.kind = g.kind
+		          ORDER BY g2.updated_at DESC LIMIT 1)
+		   FROM hook_guard_events g
+		  WHERE project = ? AND day >= date(`+Now+`, ?)
+		  GROUP BY agent, kind
+		  ORDER BY agent, kind`,
+		project, fmt.Sprintf("-%d days", days-1))
+	if err != nil {
+		return nil, fmt.Errorf("leer eventos de guarda: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []domain.GuardCount
+	for rows.Next() {
+		var g domain.GuardCount
+		if err := rows.Scan(&g.Agent, &g.Kind, &g.Count, &g.LastDetail); err != nil {
+			return nil, fmt.Errorf("leer evento de guarda: %w", err)
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// RecordGuard implementa ports.HookGuardRecorder.
+func (r *ChannelActivityRepository) RecordGuard(agent, kind, detail string) error {
+	return RecordGuardEvent(r.db, r.project, agent, kind, detail)
+}
+
+// GuardSince implementa ports.HookGuardRecorder.
+func (r *ChannelActivityRepository) GuardSince(days int) ([]domain.GuardCount, error) {
+	return GuardEventsSince(r.db, r.project, days)
+}
+
+var _ ports.HookGuardRecorder = (*ChannelActivityRepository)(nil)

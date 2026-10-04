@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"mem/adapters/primary/console"
+	"mem/adapters/primary/setup"
 	"mem/application/ports"
 	"mem/version"
 )
@@ -82,6 +83,11 @@ func CmdUpdate(deps *Deps, args []string) {
 
 	if current == target {
 		fmt.Println("Ya estás actualizado, nada que hacer.")
+		// El aviso de hooks duplicados recomienda `mem update`: también al día
+		// tiene que corregirlos (feature 035, FR-001).
+		if root, err := deps.ProjectRepo.FindRoot(); err == nil {
+			dedupProjectHooksReport(root)
+		}
 		return
 	}
 
@@ -468,4 +474,20 @@ func replaceSelf(currentPath, newPath string) error {
 	}
 	_ = os.Remove(backup)
 	return nil
+}
+
+// dedupProjectHooksReport retira del proyecto los hooks de Claude Code que ya
+// cubre el ámbito global e informa el resultado. Best-effort.
+func dedupProjectHooksReport(root string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	removed, err := setup.DedupClaudeProjectHooks(home, root)
+	switch {
+	case err != nil:
+		fmt.Printf("  ⚠️  No se pudieron retirar los hooks duplicados: %v\n", err)
+	case len(removed) > 0:
+		fmt.Printf("  ✅ Hooks duplicados retirados del proyecto (ya los cubre el global): %s\n", strings.Join(removed, ", "))
+	}
 }

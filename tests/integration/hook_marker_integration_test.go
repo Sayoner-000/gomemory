@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"mem/adapters/secondary/persistence"
 )
@@ -254,6 +256,13 @@ func TestHookUserPromptSubmit_NudgeDeGuardadoVaEnAdditionalContext(t *testing.T)
 	}
 	_ = db.Close()
 	_ = os.Remove(filepath.Join(target, ".memory", ".last-nudge"))
+	// Desde la feature 035 el reloj del recordatorio es la conversación, no la
+	// sesión de BD: también se atrasa su inicio (autorizado por la persona el
+	// 2026-10-04).
+	conv := fmt.Sprintf(`{"id":"nudge-test","started_at":%d}`, time.Now().Unix()-1000)
+	if err := os.WriteFile(filepath.Join(target, ".memory", ".conversation"), []byte(conv), 0o600); err != nil {
+		t.Fatalf("backdate conversation: %v", err)
+	}
 
 	out := runHook(t, bin, target, "user-prompt-submit") // segundo prompt: rama del nudge
 
@@ -345,13 +354,15 @@ func TestHookOctopusEncendido_InyectaLaPoliticaAlAgenteRaizYSubagente(t *testing
 	}
 }
 
-// TestHookOctopusEncendido_SiguePresenteEnTurnosPosteriores es la regresión
+// TestHookOctopus_ActivarAMitadDeSesionLlegaEnElTurnoSiguiente es la regresión
 // de ACR 029, hallazgo C-002: el bootstrap completo de user-prompt-submit solo
-// se emite una vez por sesión (protegido por el marker), así que si la regla
-// de Octopus viviera solo ahí, activar el módulo a mitad de sesión no le
-// llegaría nunca al agente raíz hasta reiniciar o borrar el marcador. El
-// segundo turno (marker ya escrito por el primero) debe seguir incluyéndola.
-func TestHookOctopusEncendido_SiguePresenteEnTurnosPosteriores(t *testing.T) {
+// se emite una vez por sesión (protegido por el marker), así que activar el
+// módulo a mitad de sesión debe llegarle al agente raíz en el turno siguiente.
+//
+// Reescrito con autorización de la persona (feature 035, FR-008a): la regla se
+// emite al inicio, tras compactar o cuando cambia la activación — ya no en cada
+// turno sin cambio de estado, que solo añadía ruido.
+func TestHookOctopus_ActivarAMitadDeSesionLlegaEnElTurnoSiguiente(t *testing.T) {
 	bin := buildMemBinary(t)
 	target := dirDeProyecto(t)
 
@@ -359,26 +370,40 @@ func TestHookOctopusEncendido_SiguePresenteEnTurnosPosteriores(t *testing.T) {
 		t.Fatalf("ensure dir: %v", err)
 	}
 	settings := filepath.Join(target, ".memory", "settings.json")
+	if err := os.WriteFile(settings, []byte(`{"octopus_enabled":false}`), 0o600); err != nil {
+		t.Fatalf("escribir settings: %v", err)
+	}
+
+	contexto := func(out string) string {
+		t.Helper()
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(out), &payload); err != nil {
+			t.Fatalf("user-prompt-submit debe devolver JSON: %v\n%s", err, out)
+		}
+		hso, _ := payload["hookSpecificOutput"].(map[string]any)
+		ctx, _ := hso["additionalContext"].(string)
+		return ctx
+	}
+	const regla = "OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN"
+
+	runHook(t, bin, target, "user-prompt-submit") // primer turno: escribe el marker, Octopus apagado
+
 	if err := os.WriteFile(settings, []byte(`{"octopus_enabled":true}`), 0o600); err != nil {
 		t.Fatalf("activar Octopus: %v", err)
 	}
 
-	runHook(t, bin, target, "user-prompt-submit") // primer turno: escribe el marker
-
-	out := runHook(t, bin, target, "user-prompt-submit") // segundo turno
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(out), &payload); err != nil {
-		t.Fatalf("user-prompt-submit debe devolver JSON: %v\n%s", err, out)
-	}
-	hso, _ := payload["hookSpecificOutput"].(map[string]any)
-	ctx, _ := hso["additionalContext"].(string)
-	if !strings.Contains(ctx, "OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN") {
-		t.Errorf("el segundo turno también debe incluir la regla de Octopus: %q", ctx)
+	ctx := contexto(runHook(t, bin, target, "user-prompt-submit")) // segundo turno: cambió la activación
+	if !strings.Contains(ctx, regla) {
+		t.Errorf("activar Octopus a mitad de sesión debe llegar en el turno siguiente: %q", ctx)
 	}
 	// ACR 029, hallazgo C-001: sin vía de hook hacia un subagente de Codex, la
 	// única forma de que la reciba es que el agente raíz la copie a mano.
 	if !strings.Contains(ctx, "codex exec") {
 		t.Errorf("debe instruir la propagación manual para subagentes sin hooks propios: %q", ctx)
+	}
+
+	if ctx := contexto(runHook(t, bin, target, "user-prompt-submit")); strings.Contains(ctx, regla) { // tercer turno: sin cambio
+		t.Errorf("sin cambio de activación la regla no debe repetirse en cada turno (FR-008a): %q", ctx)
 	}
 }
 

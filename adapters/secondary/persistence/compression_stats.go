@@ -29,8 +29,14 @@ func orUnknown(s string) string {
 }
 
 func (r *CompressionStatsRepository) Record(ctx context.Context, project string, res ports.CompressionResult) error {
-	fallback := 0
-	if res.FallbackReason != "" {
+	// no_gain no es una degradación: el motor funcionó y no había nada que
+	// ganar (feature 035, FR-024).
+	fallback, noGain := 0, 0
+	switch res.FallbackReason {
+	case "":
+	case "no_gain":
+		noGain = 1
+	default:
 		fallback = 1
 	}
 	// Con desglose por bloque, las omisiones se suman en la fila del compresor
@@ -47,8 +53,8 @@ func (r *CompressionStatsRepository) Record(ctx context.Context, project string,
 	defer func() { _ = tx.Rollback() }()
 	now := formatTS(r.clock.Now())
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO compression_stats (project, compressor, content_type, uses, raw_tokens, structural_tokens, final_tokens, omissions, retrievals, fallbacks, latency_us_total, updated_at)
-		VALUES (?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?)
+		INSERT INTO compression_stats (project, compressor, content_type, uses, raw_tokens, structural_tokens, final_tokens, omissions, retrievals, fallbacks, no_gains, latency_us_total, updated_at)
+		VALUES (?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?, ?)
 		ON CONFLICT(project, compressor, content_type) DO UPDATE SET
 			uses = uses + 1,
 			raw_tokens = raw_tokens + excluded.raw_tokens,
@@ -56,10 +62,11 @@ func (r *CompressionStatsRepository) Record(ctx context.Context, project string,
 			final_tokens = final_tokens + excluded.final_tokens,
 			omissions = omissions + excluded.omissions,
 			fallbacks = fallbacks + excluded.fallbacks,
+			no_gains = no_gains + excluded.no_gains,
 			latency_us_total = latency_us_total + excluded.latency_us_total,
 			updated_at = excluded.updated_at`,
 		project, orUnknown(res.Compressor), orUnknown(res.ContentType), res.RawTokens, res.StructuralTokens, res.Tokens,
-		omissions, fallback, res.LatencyMicros, now)
+		omissions, fallback, noGain, res.LatencyMicros, now)
 	if err != nil {
 		return fmt.Errorf("registrar estadística de compresión: %w", err)
 	}
@@ -95,7 +102,7 @@ func (r *CompressionStatsRepository) RecordRetrieval(ctx context.Context, projec
 
 func (r *CompressionStatsRepository) Summary(ctx context.Context, project string) ([]ports.CompressorStats, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT compressor, content_type, uses, raw_tokens, structural_tokens, final_tokens, omissions, retrievals, fallbacks, latency_us_total
+		SELECT compressor, content_type, uses, raw_tokens, structural_tokens, final_tokens, omissions, retrievals, fallbacks, no_gains, latency_us_total
 		FROM compression_stats WHERE project = ? ORDER BY compressor, content_type`, project)
 	if err != nil {
 		return nil, fmt.Errorf("leer estadísticas de compresión: %w", err)
@@ -105,7 +112,7 @@ func (r *CompressionStatsRepository) Summary(ctx context.Context, project string
 	for rows.Next() {
 		var s ports.CompressorStats
 		if err := rows.Scan(&s.Compressor, &s.ContentType, &s.Uses, &s.RawTokens, &s.StructuralTokens, &s.FinalTokens,
-			&s.Omissions, &s.Retrievals, &s.Fallbacks, &s.LatencyMicrosTotal); err != nil {
+			&s.Omissions, &s.Retrievals, &s.Fallbacks, &s.NoGains, &s.LatencyMicrosTotal); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"mem/adapters/secondary/persistence"
 )
 
 // Umbrales del recordatorio de guardado (nudge). Alineados con el
@@ -66,24 +68,26 @@ func computeSaveNudge(deps *Deps, root, project string) (string, bool) {
 		return "", false
 	}
 	sessionAge, ok := ageSeconds(active.CreatedAt)
-	if !ok || sessionAge < nudgeMinSessionAgeSecs {
+	if !ok {
 		return "", false
 	}
 
+	// El reloj es la conversación, no la sesión de memoria: Codex no cierra
+	// sesiones y una conversación nueva heredaba una sesión de horas, así que el
+	// recordatorio saltaba enseguida (feature 035, FR-020).
+	age := sessionAge
+	if convAge, ok := conversationAge(root); ok {
+		age = convAge
+	}
 	secs, exists, err := deps.MemoryRepo.SecondsSinceLastSave(project)
 	if err != nil {
 		return "", false
 	}
-	var overdue bool
+	since := int64(-1)
 	if exists {
-		overdue = secs > nudgeThresholdSecs
-	} else {
-		// Sin ningún guardado real todavía: el reloj es la propia sesión, así
-		// se recuerda justamente cuando el agente lleva rato trabajando sin
-		// registrar nada.
-		overdue = sessionAge > nudgeThresholdSecs
+		since = secs
 	}
-	if !overdue {
+	if !saveNudgeDue(age, since) {
 		return "", false
 	}
 
@@ -97,7 +101,7 @@ func computeSaveNudge(deps *Deps, root, project string) (string, bool) {
 			}
 		}
 	}
-	_ = os.WriteFile(state, []byte(strconv.FormatInt(now, 10)), 0644)
+	_ = writeFileAtomic(state, []byte(strconv.FormatInt(now, 10)), 0644)
 	return saveNudgeMessage, true
 }
 
@@ -116,4 +120,65 @@ func ageSeconds(ts string) (int64, bool) {
 		return 0, true // relojes con desfase leve: tratar como recién creada
 	}
 	return int64(d.Seconds()), true
+}
+
+// planReminderMarkerPath marca que el recordatorio de modo plan ya acompañó la
+// entrada a plan en esta conversación (feature 035, FR-008). Se borra al
+// compactar y al empezar una conversación nueva.
+func planReminderMarkerPath(root string) string {
+	return filepath.Join(root, persistence.MemDir, ".plan-reminder-emitted")
+}
+
+// claimPlanReminder decide, para Claude Code, si este turno lleva el
+// recordatorio de modo plan: solo la primera vez que llega permission_mode=plan
+// en la conversación.
+func claimPlanReminder(root string, payload map[string]any) bool {
+	if mode, _ := payload["permission_mode"].(string); mode != "plan" {
+		return false
+	}
+	if _, err := os.Stat(planReminderMarkerPath(root)); err == nil {
+		return false
+	}
+	_ = writeHookMarker(planReminderMarkerPath(root))
+	return true
+}
+
+// octopusEmittedPath guarda la última activación de Octopus que se le comunicó
+// al agente por el canal acumulativo (user-prompt-submit).
+func octopusEmittedPath(root string) string {
+	return filepath.Join(root, persistence.MemDir, ".octopus-emitted")
+}
+
+func recordOctopusEmitted(root string, enabled bool) {
+	_ = os.MkdirAll(filepath.Dir(octopusEmittedPath(root)), 0o700)
+	_ = writeFileAtomic(octopusEmittedPath(root), []byte(strconv.FormatBool(enabled)), 0o600)
+}
+
+// octopusDelegationReminderOnChange emite la regla de delegación solo cuando la
+// activación cambió respecto a lo último comunicado (FR-008a). Apagar Octopus
+// no emite nada, pero se anota para que volver a encenderlo sí se comunique.
+func octopusDelegationReminderOnChange(root string, enabled bool) (string, bool) {
+	last := ""
+	if raw, err := os.ReadFile(octopusEmittedPath(root)); err == nil {
+		last = strings.TrimSpace(string(raw))
+	}
+	if last == strconv.FormatBool(enabled) {
+		return "", false
+	}
+	recordOctopusEmitted(root, enabled)
+	return octopusDelegationReminder(enabled, "mcp__gomemory__octopus_route_task")
+}
+
+// saveNudgeDue decide si toca recordar que guarde. age es la antigüedad de la
+// conversación (o de la sesión, si no hay conversación registrada); since, los
+// segundos desde el último guardado real (-1 si no hay ninguno). Un guardado
+// anterior al inicio de la conversación no cuenta: el reloj es la conversación.
+func saveNudgeDue(age, since int64) bool {
+	if age < nudgeMinSessionAgeSecs {
+		return false
+	}
+	if since < 0 || since > age {
+		since = age
+	}
+	return since > nudgeThresholdSecs
 }

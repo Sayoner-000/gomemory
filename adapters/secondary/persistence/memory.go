@@ -487,7 +487,7 @@ func activeSessionLastPrompt(db *sql.DB, project string) string {
 	err := db.QueryRow(
 		`SELECT last_prompt FROM sessions
 		 WHERE project = ? AND ended_at IS NULL
-		 ORDER BY created_at DESC LIMIT 1`,
+		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
 		project,
 	).Scan(&p)
 	if err != nil || !p.Valid {
@@ -592,7 +592,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
 		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''),
 		        created_at, updated_at
-		 FROM memories WHERE project = ? ORDER BY created_at DESC LIMIT ?`,
+		 FROM memories WHERE project = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
 		project, limit,
 	)
 	if err != nil {

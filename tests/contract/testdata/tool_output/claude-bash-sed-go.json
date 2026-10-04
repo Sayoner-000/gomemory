@@ -1,0 +1,22 @@
+{
+ "session_id": "00000000-0000-0000-0000-000000000000",
+ "transcript_path": "/home/user/.claude/projects/x/t.jsonl",
+ "cwd": "/work",
+ "prompt_id": "p",
+ "permission_mode": "default",
+ "hook_event_name": "PostToolUse",
+ "tool_use_id": "toolu_fixture",
+ "duration_ms": 40,
+ "tool_name": "Bash",
+ "tool_input": {
+  "command": "sed -n 1,80p adapters/secondary/persistence/compression_stats.go",
+  "description": "fixture"
+ },
+ "tool_response": {
+  "stdout": "package persistence\n\nimport (\n\t\"context\"\n\t\"database/sql\"\n\t\"errors\"\n\t\"fmt\"\n\n\t\"mem/application/ports\"\n\t\"mem/domain\"\n)\n\n// CompressionStatsRepository implementa ports.CompressionStatsRepository sobre\n// compression_stats (feature 033, FR-026). Solo cifras: nunca contenido.\ntype CompressionStatsRepository struct {\n\tdb    *sql.DB\n\tclock ports.ClockPort\n}\n\nfunc NewCompressionStatsRepository(db *sql.DB, clock ports.ClockPort) *CompressionStatsRepository {\n\treturn &CompressionStatsRepository{db: db, clock: clock}\n}\n\nfunc orUnknown(s string) string {\n\tif s == \"\" {\n\t\treturn string(domain.ContentUnknown)\n\t}\n\treturn s\n}\n\nfunc (r *CompressionStatsRepository) Record(ctx context.Context, project string, res ports.CompressionResult) error {\n\tfallback := 0\n\tif res.FallbackReason != \"\" {\n\t\tfallback = 1\n\t}\n\t// Con desglose por bloque, las omisiones se suman en la fila del compresor\n\t// y el tipo de cada bloque, que es la clave de su original y de sus\n\t// recuperaciones (FR-027). La fila del documento cuenta uso y tokens.\n\tomissions := res.Omissions\n\tif len(res.BlockOmissions) > 0 {\n\t\tomissions = 0\n\t}\n\ttx, err := r.db.BeginTx(ctx, nil)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"registrar estadística de compresión: %w\", err)\n\t}\n\tdefer func() { _ = tx.Rollback() }()\n\tnow := formatTS(r.clock.Now())\n\t_, err = tx.ExecContext(ctx, `\n\t\tINSERT INTO compression_stats (project, compressor, content_type, uses, raw_tokens, structural_tokens, final_tokens, omissions, retrievals, fallbacks, latency_us_total, updated_at)\n\t\tVALUES (?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?)\n\t\tON CONFLICT(project, compressor, content_type) DO UPDATE SET\n\t\t\tuses = uses + 1,\n\t\t\traw_tokens = raw_tokens + excluded.raw_tokens,\n\t\t\tstructural_tokens = structural_tokens + excluded.structural_tokens,\n\t\t\tfinal_tokens = final_tokens + excluded.final_tokens,\n\t\t\tomissions = omissions + excluded.omissions,\n\t\t\tfallbacks = fallbacks + excluded.fallbacks,\n\t\t\tlatency_us_total = latency_us_total + excluded.latency_us_total,\n\t\t\tupdated_at = excluded.updated_at`,\n\t\tproject, orUnknown(res.Compressor), orUnknown(res.ContentType), res.RawTokens, res.StructuralTokens, res.Tokens,\n\t\tomissions, fallback, res.LatencyMicros, now)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"registrar estadística de compresión: %w\", err)\n\t}\n\tfor _, b := range res.BlockOmissions {\n\t\t_, err = tx.ExecContext(ctx, `\n\t\t\tINSERT INTO compression_stats (project, compressor, content_type, omissions, updated_at)\n\t\t\tVALUES (?, ?, ?, ?, ?)\n\t\t\tON CONFLICT(project, compressor, content_type) DO UPDATE SET\n\t\t\t\tomissions = omissions + excluded.omissions, updated_at = excluded.updated_at`,\n\t\t\tproject, orUnknown(b.Compressor), orUnknown(b.ContentType), b.Omissions, now)\n\t\tif err != nil {\n\t\t\treturn fmt.Errorf(\"registrar omisiones por bloque: %w\", err)\n\t\t}\n\t}\n\tif err := tx.Commit(); err != nil {\n\t\treturn fmt.Errorf(\"registrar estadística de compresión: %w\", err)\n\t}\n\treturn nil\n",
+  "stderr": "",
+  "interrupted": false,
+  "isImage": false,
+  "noOutputExpected": false
+ }
+}

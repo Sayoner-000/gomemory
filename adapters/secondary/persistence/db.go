@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -106,11 +108,16 @@ func openDBFile(path string) (*sql.DB, error) {
 	// leen antes (el dedup de insertMemory). Con BEGIN diferido, en WAL SQLite no
 	// invoca el busy handler al promover la lectura a escritura y el perdedor de
 	// una carrera recibe SQLITE_BUSY pese al busy_timeout (acr_c1622428, C-002).
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate")
+	//
+	// busy_timeout va ANTES que journal_mode: los pragmas se aplican en orden, y
+	// pasar una base nueva a WAL pide un bloqueo exclusivo. Con el orden inverso,
+	// dos procesos que abrían a la vez un almacén recién creado (hooks duplicados
+	// en el primer arranque) hacían fallar a uno con SQLITE_BUSY (feature 035).
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
-	if err := migrate(db); err != nil {
+	if err := migrateWithRetry(db); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -120,6 +127,28 @@ func openDBFile(path string) (*sql.DB, error) {
 	// utilizable cuando el filesystem no permite chmod (p. ej. read-only).
 	_ = os.Chmod(path, 0o600)
 	return db, nil
+}
+
+// migrateWithRetry reintenta la migración ante SQLITE_BUSY. En una base recién
+// creada, dos procesos que migran a la vez (hooks duplicados en el primer
+// arranque) escalan el bloqueo al mismo tiempo; SQLite lo trata como posible
+// interbloqueo y no aplica busy_timeout, así que uno fallaba al instante. La
+// migración es idempotente (IF NOT EXISTS, addColumnIfMissing): reintentar es
+// seguro. Tope total ≈ 5 s, el mismo que busy_timeout (feature 035).
+func migrateWithRetry(db *sql.DB) error {
+	var err error
+	for attempt := 0; attempt < 50; attempt++ {
+		if err = migrate(db); err == nil || !isSQLiteBusy(err) {
+			return err
+		}
+		time.Sleep(time.Duration(50+attempt*2) * time.Millisecond)
+	}
+	return err
+}
+
+func isSQLiteBusy(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")
 }
 
 // Init es un alias de Open: se conserva por compatibilidad con callers que
@@ -167,6 +196,18 @@ func migrate(db *sql.DB) error {
 		last_error TEXT NOT NULL DEFAULT '',
 		last_error_at TEXT,
 		PRIMARY KEY (project, agent, scope, kind)
+	);
+	-- Eventos de las protecciones de hooks (feature 035): un agregado por día,
+	-- sin contenido. channel_activity guarda solo el último disparo y no cuenta.
+	CREATE TABLE IF NOT EXISTS hook_guard_events (
+		project TEXT NOT NULL,
+		agent TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		day TEXT NOT NULL,
+		count INTEGER NOT NULL DEFAULT 0,
+		last_detail TEXT NOT NULL DEFAULT '',
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (project, agent, kind, day)
 	);
 	CREATE TABLE IF NOT EXISTS context_deliveries (
 		session_id TEXT NOT NULL,
@@ -452,6 +493,9 @@ func migrate(db *sql.DB) error {
 	// crean solas: se agregan con ALTER idempotente (ignora "duplicate column").
 	addColumnIfMissing(db, "memories", "origin_prompt", "TEXT")
 	addColumnIfMissing(db, "sessions", "last_prompt", "TEXT")
+	// Feature 035: las salidas sin ganancia se cuentan aparte; no son una
+	// degradación y antes inflaban esa columna en mem pack savings.
+	addColumnIfMissing(db, "compression_stats", "no_gains", "INTEGER NOT NULL DEFAULT 0")
 
 	// Feature 028: el ledger de revisión gana el target vigente, la autorización de
 	// corrección, la identidad esperada de cada revisor y la huella de la ronda de

@@ -273,6 +273,10 @@ func CmdInstall(deps *Deps, args []string) {
 			addStep("Integración Claude Code", err, "repite mem install --yes --agents claude")
 		} else {
 			addStep("Integración Claude Code", nil, "")
+			if home != "" && len(setup.GomemoryHookSubs(filepath.Join(home, ".claude", "settings.json"))) > 0 {
+				results = append(results, console.StepResult{Name: "Hooks de Claude Code", Status: console.StepOK,
+					Detail: "globales activos: el proyecto solo añade los que el global no cubre"})
+			}
 		}
 	}
 	if sel.scope == "project" && sel.has("cursor") {
@@ -654,6 +658,10 @@ func buildIntegrationBlock() string {
 			"Para explorar el código usa las herramientas del grafo; para entregar un plan usa el árbol " +
 			"de tareas atómicas. Lo que descubras con el grafo alimenta las hojas del árbol. " +
 			"Si no está conectado, esta guía no aplica — no hay nada que invocar.",
+		"",
+		"Si tu agente no permite que gomemory comprima las salidas de herramientas externas (p. ej. Codex), " +
+			"explora el código con " + bt + "search_code" + bt + "/" + bt + "get_symbol" + bt + " de gomemory, " +
+			"que comprimen en origen.",
 		"",
 		"Si el MCP no está disponible en el agente actual, usa el CLI equivalente (si " + bt + "mem" + bt + " no está en el PATH, usa " + bt + "./mem" + bt + "):",
 		bt + `mem save -t "título" -y tipo "contenido"` + bt + ", " + bt + `mem search "tema"` + bt + ", " + bt + "mem context" + bt + ", " + bt + "mem plan-context" + bt + ", " + bt + "mem session start|end" + bt + ", " + bt + "mem forget <id>" + bt + ", " + bt + "mem judge -r <veredicto> -m \"razón\" <id1> <id2>" + bt + ".",

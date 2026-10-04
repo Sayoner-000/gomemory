@@ -39,7 +39,8 @@ func toolOutputHookStates(root string, enabled bool) map[string]string {
 		states["claude"] = "no registrado (ejecuta mem install)"
 	}
 	// Codex rechaza siempre updatedMCPToolOutput: no hay reescritura posible.
-	states["codex"] = "no soportado (Codex rechaza updatedMCPToolOutput)"
+	// Ahí solo comprime gomemory en lo que entrega él mismo (feature 035).
+	states["codex"] = "solo en origen (Codex no permite reescribir salidas)"
 	if home, err := os.UserHomeDir(); err == nil {
 		if data, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml")); err == nil && strings.Contains(string(data), "hook tool-output codex") {
 			states["codex"] += " · hook antiguo registrado: ejecuta mem install para retirarlo"

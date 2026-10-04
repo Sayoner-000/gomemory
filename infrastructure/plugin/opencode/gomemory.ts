@@ -147,7 +147,11 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // dispara el checkpoint de turno cuando la sesión queda idle.
     event: async ({ event }) => {
       if (event.type === "session.created") {
-        await mem(["session", "start"]);
+        // El id de la sesión de OpenCode identifica la conversación: con él,
+        // gomemory reinicia el estado por turno solo cuando empieza una nueva
+        // (feature 035, FR-017) y un aviso pendiente nunca cruza de una a otra.
+        const conversationID = (event as any).properties?.info?.id ?? "";
+        await mem(["session", "start", `--conversation=${conversationID}`]);
       }
       if (event.type === "session.deleted") {
         const sessionID = event.properties.info.id;
@@ -299,13 +303,19 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       // se consulta una sola vez por proceso: con el ajuste apagado no se
       // lanza ningún proceso por herramienta. read/edit/write y las tools de
       // gomemory quedan excluidas en el propio subcomando.
-      if (input.tool !== "task" && typeof output?.output === "string" && output.output.length > 1600) {
+      // 8000 caracteres ≈ 2000 tokens, el umbral del hook (feature 035): por
+      // debajo no se lanza ningún proceso.
+      if (input.tool !== "task" && typeof output?.output === "string" && output.output.length > 8000) {
         try {
           if (toolOutputEnabled === undefined) {
             toolOutputEnabled = (await mem(["hook", "tool-output", "--enabled"])).trim() === "true";
           }
           if (toolOutputEnabled) {
-            const res = await memWithStdin(["hook", "tool-output", "opencode"], JSON.stringify({ tool: input.tool, output: output.output }));
+            // El comando permite excluir las lecturas exactas (sed, cat…), igual
+            // que en Claude Code (feature 035, FR-013). Mejor esfuerzo: si el
+            // runtime no lo expone, viaja vacío y la salida se trata como antes.
+            const command = (input as any)?.args?.command ?? (output as any)?.metadata?.command ?? "";
+            const res = await memWithStdin(["hook", "tool-output", "opencode"], JSON.stringify({ tool: input.tool, output: output.output, command }));
             if (res) {
               const parsed = JSON.parse(res);
               if (typeof parsed?.output === "string") output.output = parsed.output;

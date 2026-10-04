@@ -44,7 +44,7 @@ func SetSessionLastPrompt(db *sql.DB, project, prompt string) error {
 	_, err := db.Exec(
 		`UPDATE sessions SET last_prompt = ?
 		 WHERE id = (SELECT id FROM sessions WHERE project = ? AND ended_at IS NULL
-		             ORDER BY created_at DESC LIMIT 1)`,
+		             ORDER BY created_at DESC, rowid DESC LIMIT 1)`,
 		prompt, project,
 	)
 	if err != nil {
@@ -98,7 +98,7 @@ func ActiveSession(db *sql.DB, project string) (*domain.Session, error) {
 	var endedAt sql.NullString
 	err := db.QueryRow(
 		`SELECT id, project, COALESCE(summary,''), created_at, ended_at FROM sessions
-		 WHERE project = ? AND ended_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+		 WHERE project = ? AND ended_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1`,
 		project,
 	).Scan(&s.ID, &s.Project, &s.Summary, &s.CreatedAt, &endedAt)
 	if err == sql.ErrNoRows {
@@ -119,7 +119,7 @@ func RecentSessions(db *sql.DB, project string, limit int) ([]domain.Session, er
 	}
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(summary,''), created_at, COALESCE(ended_at,'') FROM sessions
-		 WHERE project = ? ORDER BY created_at DESC LIMIT ?`,
+		 WHERE project = ? ORDER BY created_at DESC, rowid DESC LIMIT ?`,
 		project, limit,
 	)
 	if err != nil {
@@ -144,4 +144,26 @@ func RecentSessions(db *sql.DB, project string, limit int) ([]domain.Session, er
 		sessions = []domain.Session{}
 	}
 	return sessions, rows.Err()
+}
+
+// LastSessionActivity devuelve la última escritura de la sesión id: la mayor
+// fecha de actualización de sus memorias (checkpoints incluidos, a diferencia
+// de SecondsSinceLastSave, que los excluye a propósito) o, sin memorias, la
+// creación de la sesión. ok=false si la sesión no existe (feature 035, R2).
+func LastSessionActivity(db *sql.DB, id string) (string, bool, error) {
+	var ts sql.NullString
+	err := db.QueryRow(
+		`SELECT COALESCE(
+		   (SELECT MAX(COALESCE(updated_at, created_at)) FROM memories WHERE session_id = s.id),
+		   s.created_at)
+		 FROM sessions s WHERE s.id = ?`,
+		id,
+	).Scan(&ts)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("última actividad de sesión: %w", err)
+	}
+	return ts.String, ts.Valid, nil
 }

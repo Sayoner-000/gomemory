@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -39,10 +41,52 @@ var toolOutputExcluded = map[string]bool{
 }
 
 func toolOutputIsExcluded(name string) bool {
-	if toolOutputExcluded[name] {
+	if toolOutputExcluded[name] || name == "mcp__codebase-memory-mcp__get_code_snippet" {
 		return true
 	}
 	return strings.HasPrefix(name, "mcp__gomemory__") || strings.HasPrefix(name, "gomemory_")
+}
+
+// readCommandPrefixes son los comandos de shell cuya salida es una lectura
+// exacta o un diagnóstico (feature 035, FR-013): el agente la pidió literal,
+// y comprimirla le entregó código sin indentación y diagnósticos incompletos.
+var readCommandPrefixes = []string{"sed ", "cat ", "head ", "tail ", "git diff", "git show", "mem doctor"}
+
+func isReadCommand(cmd string) bool {
+	cmd = strings.TrimSpace(cmd)
+	for _, p := range readCommandPrefixes {
+		if strings.HasPrefix(cmd, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// toolOutputExclusion dice si la salida descrita por payload nunca se
+// reescribe, y con qué nombre se registra la exclusión.
+func toolOutputExclusion(runtime string, payload []byte) (string, bool) {
+	var ev struct {
+		ToolName  string `json:"tool_name"`
+		Tool      string `json:"tool"`
+		Command   string `json:"command"`
+		ToolInput struct {
+			Command any `json:"command"`
+		} `json:"tool_input"`
+	}
+	if json.Unmarshal(payload, &ev) != nil {
+		return "", false
+	}
+	name, cmd := ev.ToolName, ev.ToolInput.Command
+	if runtime == "opencode" {
+		name, cmd = ev.Tool, ev.Command
+	}
+	if toolOutputIsExcluded(name) {
+		return name, true
+	}
+	if c, ok := cmd.(string); ok && isReadCommand(c) {
+		return name + ": " + strings.Fields(c)[0], true
+	}
+	return "", false
 }
 
 // textFields son las claves cuyo valor string se puede comprimir.
@@ -113,6 +157,9 @@ func rewriteBlocks(blocks []any, compress compressFunc) (any, bool) {
 // rewriteToolOutput es la parte pura del hook: dado el runtime y el evento,
 // devuelve lo que hay que escribir en stdout (nil = nada, H1).
 func rewriteToolOutput(runtime string, payload []byte, compress compressFunc) []byte {
+	if _, excluded := toolOutputExclusion(runtime, payload); excluded {
+		return nil
+	}
 	switch runtime {
 	case "opencode":
 		var ev struct {
@@ -190,20 +237,44 @@ func hookToolOutput(deps *Deps, args []string) {
 	if err != nil {
 		os.Exit(0)
 	}
+	root, _ := deps.ProjectRepo.FindRoot()
+	if name, excluded := toolOutputExclusion(args[0], payload); excluded {
+		recordGuard(deps, args[0], domain.GuardToolOutputExcluded, name)
+		os.Exit(0)
+	}
 	minTokens := domain.ToolOutputMinTokens
 	compress := func(s string) (string, bool) {
 		if (len([]rune(s))+3)/4 < minTokens {
 			return "", false
 		}
-		res, err := deps.Compressor.Compress(s, ports.CompressionOptions{Level: ports.CompressionMax, PreserveCode: true, PreserveURLs: true, PreservePaths: true, PreserveErrors: true})
+		res, err := deps.Compressor.Compress(s, ports.CompressionOptions{Level: ports.CompressionMax, PreserveCode: true,
+			PreserveURLs: true, PreservePaths: true, PreserveErrors: true, ToolOutput: true})
 		if err != nil || len(res.Refs) == 0 {
 			return "", false
 		}
-		return res.Content + RetrieveHint, true
+		return res.Content + retrieveHintOnce(root), true
 	}
 	out := withBudget(domain.HookBudget, func() []byte { return rewriteToolOutput(args[0], payload, compress) })
 	if len(out) > 0 {
 		_, _ = os.Stdout.Write(out)
 	}
 	os.Exit(0)
+}
+
+func markersNotePath(root string) string {
+	return filepath.Join(root, persistence.MemDir, ".markers-note-emitted")
+}
+
+// retrieveHintOnce devuelve la nota de cómo recuperar lo omitido solo la
+// primera vez en la conversación (feature 035, FR-015): repetirla en cada
+// salida comprimida añadía el mismo párrafo una y otra vez al historial.
+func retrieveHintOnce(root string) string {
+	if root == "" {
+		return RetrieveHint
+	}
+	if _, err := os.Stat(markersNotePath(root)); err == nil {
+		return ""
+	}
+	_ = writeHookMarker(markersNotePath(root))
+	return RetrieveHint
 }

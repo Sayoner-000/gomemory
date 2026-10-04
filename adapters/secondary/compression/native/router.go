@@ -125,11 +125,17 @@ func classify(content string) (domain.ContentType, string) {
 	if diffHeader.MatchString(trimmed) {
 		return domain.ContentDiff, ""
 	}
+	if isListing(lines) {
+		return domain.ContentListing, ""
+	}
 	if isLog(lines) {
 		return domain.ContentLog, ""
 	}
 	if lang := detectCode(trimmed, lines); lang != "" {
 		return domain.ContentCode, lang
+	}
+	if isIndentedCode(lines) {
+		return domain.ContentCode, ""
 	}
 	if isTable(lines) {
 		return domain.ContentTable, ""
@@ -184,6 +190,75 @@ func isLog(lines []string) bool {
 	return hits*10 >= len(lines)*3
 }
 
+// goLine reconoce líneas típicas de Go. Hasta la feature 035, Go solo se
+// detectaba si el bloque empezaba por `package` y compilaba entero: un
+// fragmento leído con sed o awk caía en prosa, y el compresor de prosa le
+// borraba la indentación y cambiaba sentencias por «frases omitidas».
+var goLine = regexp.MustCompile(`^\s*(func\b|package\s+\w+\s*$|import\s+[("]|type\s+\w+\s+(struct|interface|func)\b|var\s+[\w(]|const\s+[\w(]|defer\s|go\s+func|if\s.*\{\s*$|for\s.*\{\s*$|switch\s.*\{\s*$|case\s.*:\s*$|default:\s*$|return\b|\}\s*$|\}\)\s*$|\}\s*else\b|//)|:=`)
+
+// goScore es la proporción de líneas con forma de Go; las marcas propias del
+// lenguaje (`:=`, `func `, `if err != nil`) son las que desempatan frente a
+// TypeScript y Java, que comparten llaves.
+func goScore(trimmed string, lines []string) float64 {
+	if !strings.Contains(trimmed, ":=") && !strings.Contains(trimmed, "func ") && !strings.Contains(trimmed, "if err != nil") {
+		return 0
+	}
+	n := 0
+	for _, l := range lines {
+		if goLine.MatchString(l) {
+			n++
+		}
+	}
+	return float64(n) / float64(len(lines))
+}
+
+var codePunctuation = regexp.MustCompile(`[{};]|:=|=>`)
+
+// isIndentedCode reconoce código sin lenguaje claro por su forma: al menos el
+// 40 % de las líneas sangradas (tabulador o dos espacios) y al menos el 20 %
+// con puntuación de código. Una lista sangrada en prosa no la tiene.
+func isIndentedCode(lines []string) bool {
+	if len(lines) < 4 {
+		return false
+	}
+	indented, punct := 0, 0
+	for _, l := range lines {
+		if strings.HasPrefix(l, "\t") || strings.HasPrefix(l, "  ") {
+			indented++
+		}
+		if codePunctuation.MatchString(l) {
+			punct++
+		}
+	}
+	return indented*10 >= len(lines)*4 && punct*10 >= len(lines)*2
+}
+
+// listingLine reconoce una línea de grep/rg (ruta:línea[:columna]:) o una ruta
+// sola de find/ls (sin espacios, con separador o extensión).
+var (
+	listingLine = regexp.MustCompile(`^[\w./@+-]+:\d+(:\d+)?[:-]`)
+	pathLine    = regexp.MustCompile(`^[\w./@+-]*(/[\w.@+-]+|\.[A-Za-z0-9]{1,8})/?$`)
+)
+
+// isListing: al menos domain.ListingMinLines líneas y domain.ListingMinPercent %
+// con forma de resultado de búsqueda o de ruta (feature 035, FR-023).
+func isListing(lines []string) bool {
+	if len(lines) < domain.ListingMinLines {
+		return false
+	}
+	// Sin recortar la sangría: grep, rg y find escriben desde la columna 0,
+	// mientras que la salida de `go test -v` (x_test.go:10: …) va sangrada y es
+	// un log.
+	hits := 0
+	for _, l := range lines {
+		l = strings.TrimRight(l, " \t\r")
+		if listingLine.MatchString(l) || pathLine.MatchString(l) {
+			hits++
+		}
+	}
+	return hits*100 >= len(lines)*domain.ListingMinPercent
+}
+
 var codePatterns = map[string]*regexp.Regexp{
 	domain.LangPython: regexp.MustCompile(`^\s*(def |class |import |from \S+ import |return\b|elif |except\b|@\w+|if .*:\s*$|for .*:\s*$|with .*:\s*$)`),
 	domain.LangJava:   regexp.MustCompile(`^\s*(public |private |protected |package [\w.]+;|import [\w.*]+;|@\w+|return\b.*;|\}\s*$|.*;\s*$)`),
@@ -202,6 +277,9 @@ func detectCode(trimmed string, lines []string) string {
 	}
 	if len(lines) < 4 {
 		return ""
+	}
+	if goScore(trimmed, lines) >= 0.35 {
+		return domain.LangGo
 	}
 	best, bestScore := "", 0.0
 	for _, lang := range []string{domain.LangPython, domain.LangJava, domain.LangTS, domain.LangSQL} {

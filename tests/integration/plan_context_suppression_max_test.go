@@ -46,7 +46,11 @@ func TestPlanContextSuppression_Max(t *testing.T) {
 					out := correrMem(t, bin, dir, env, "{}", "hook", "session-start").stdout
 					// C-002 (acr_961a1676): una salida del hook mayor que lo que el
 					// host inyecta entero llega truncada y no cuenta como entregada.
-					truncada = utf8.RuneCountInString(out) > domain.HookInlineContextMaxChars
+					// Desde la feature 035 el hook recorta él mismo para caber en
+					// el tope y lo declara con «contexto recortado» (autorizado por
+					// la persona el 2026-10-04).
+					truncada = utf8.RuneCountInString(out) > domain.HookInlineContextMaxChars ||
+						strings.Contains(out, "contexto recortado")
 				}
 				plan := correrMem(t, bin, dir, env, "", "plan-context").stdout
 				if truncada {
