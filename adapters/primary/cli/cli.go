@@ -34,14 +34,15 @@ func Usage() {
 	fmt.Printf("gomemory %s — Memoria colectiva para agentes AI\n", version.Version)
 	fmt.Print(`
 Uso:
-  mem                              Abrir interfaz TUI
-  mem init [--force]               Ya no es obligatorio: el store global se crea solo al primer uso
-  mem migrate [--force]            Migrar .memory/mem.db legado (instalación por proyecto) al store global
+  mem                              Abrir interfaz TUI (sin argumentos abre el menú)
+
+COMMANDS
+
+  Memoria diaria
   mem save [flags] <texto>         Guardar un aprendizaje
     -t, --title    Título descriptivo
     -y, --type     Tipo: learning|decision|architecture|bugfix|pattern|discovery|preference
     -f, --filepath Archivo relacionado
-
   mem capture [flags]              Guardar aprendizaje estructurado (What/Why/Where/Learned)
     -w, --what      ¿Qué se hizo?
     -y, --why       ¿Por qué?
@@ -49,40 +50,54 @@ Uso:
     -l, --learned   ¿Qué se aprendió?
     -t, --type      Tipo (default: learning)
     -i              Modo interactivo
-
+  mem search <query>               Buscar en la memoria
+  mem get <id>                     Obtener el detalle de una memoria por ID (drill-down, feature 020)
+  mem list [-n|--limit N]          Listar memorias recientes
+  mem log [-n|--limit N]           Alias de list
   mem compare [flags] <id1> <id2>  Comparar dos memorias y persistir veredicto
     -r, --relation  related|compatible|scoped|conflicts_with|supersedes|not_conflict
     -c, --confidence  Confianza 0.0-1.0 (default: 1.0)
     -m, --reasoning   Razonamiento del veredicto
   mem compare list [-n N]          Listar relaciones guardadas
   mem judge ...                    Alias de compare
-
   mem forget <id>                  Borrar una memoria por ID (irreversible)
 
-  mem project                      Detectar proyecto actual y mostrar información
-
+  Contexto y ahorro
   mem context [-w|--write]         Mostrar contexto de memoria
-  mem get <id>                     Obtener el detalle de una memoria por ID (drill-down, feature 020)
   mem plan-context                 Método de planificación atómica + contexto (modo plan)
-  mem search <query>               Buscar en la memoria
   mem mass [--task T] [--top N]    Ranking de masa: centralidad sembrada, no importancia ni corrección
-  mem install [dir]                Instalar gomemory en un proyecto
-  mem uninstall [dir] [--yes]      Desinstalar gomemory por completo (reverso de install)
+  mem pack build --task T --max-tokens N
+                                   Armar un paquete de contexto acotado a la tarea y al presupuesto
+  mem pack show|compress|stats|retrieve|savings|tune|purge
+                                   Ver, comprimir, medir y recuperar paquetes (savings = ahorro por
+                                   compresor; usage = ahorro por emisión de contexto)
+  mem usage [--session ID|--all] [--json]
+                                   Cuántos tokens ahorró gomemory al emitir contexto (medido)
+
+  Sesiones
   mem session start                Iniciar nueva sesión
   mem session end [-s|--summary]   Finalizar sesión actual
-  mem list [-n|--limit N]          Listar memorias recientes
-  mem log [-n|--limit N]           Alias de list
   mem wrap <comando> [args...]     Ejecutar comando y preguntar si guardar
-  mem mcp [--root <dir>]           Servidor MCP para agentes AI
-  mem hook <evento>                Entrypoint de hooks de agentes (uso interno, invocado por Claude Code/OpenCode)
+
+  Revisión adversarial
   mem review --diff|--commit|--file  Congelar un target y abrir una revisión adversarial (ACR)
   mem review status [<id>]         Etapa de la revisión abierta, o de <id>
   mem review history [--limit N]   Listar revisiones del proyecto
   mem review show <id>             Detalle completo: target, revisores, consenso, correcciones, veredicto
+
+  Instalación e integración
+  mem init [--force]               Ya no es obligatorio: el store global se crea solo al primer uso
+  mem migrate [--force]            Migrar .memory/mem.db legado (instalación por proyecto) al store global
+  mem install [dir]                Instalar gomemory en un proyecto
+  mem uninstall [dir] [--yes]      Desinstalar gomemory por completo (reverso de install)
+  mem seed                         Sembrar las memorias por defecto del proyecto actual
   mem setup [--port 9735] <agent>  Instalar plugin para opencode|claude-code (flags ANTES del agente)
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]
-                                    Ver o cambiar auto-approve de las tools MCP
+                                   Ver o cambiar auto-approve de las tools MCP
+  mem doctor                       Diagnóstico del estado de la integración
+
+  Documentos y portabilidad
   mem docs [list]                  Documentos fijados del proyecto (reglas de trabajo, constitución)
     show|export <alias> [-o f]      Ver o exportar el contenido vigente (sin -o: stdout limpio)
     export --all -o <dir>           Exportar todo el catálogo a un directorio
@@ -90,12 +105,14 @@ Uso:
     import --topic <clave> <arch>   Importar a cualquier clave, dentro o fuera del catálogo
     reset <alias>                   Restaurar el contenido por defecto
   mem constitution [--sync]        Ver la constitución vigente (atajo de docs show constitution)
-                                    --sync la refleja en .specify/memory/constitution.md si hay spec-kit
+                                   --sync la refleja en .specify/memory/constitution.md si hay spec-kit
   mem rules                        Ver las reglas de trabajo vigentes (atajo de docs show rules)
   mem export [--out <archivo>]     Exportar memorias + relaciones a un JSON portable (cross-OS)
-                                    (default gomemory-export-<proyecto>-<YYYYMMDD>.json)
+                                   (default gomemory-export-<proyecto>-<YYYYMMDD>.json)
   mem import <archivo>             Importar un bundle al proyecto actual (append con dedup por
-                                    contenido, preserva timestamps, remapea proyecto y relaciones)
+                                   contenido, preserva timestamps, remapea proyecto y relaciones)
+
+  Mantenimiento
   mem purge [flags]                Vaciar memorias (proyecto actual por defecto)
     --project <nombre>  Proyecto objetivo (default: actual)
     --all                Purgar TODOS los proyectos del archivo
@@ -108,37 +125,42 @@ Uso:
     --all                Aplicar a todos los proyectos
     --older-than-days N  Umbral de retención (default: 90)
     --yes                Omitir el prompt de confirmación
-  mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)
   mem consolidate [--apply]        Fundir memorias redundantes (topic_key + actividad duplicada)
-                                    Sin --apply solo previsualiza (nada se modifica)
-  mem usage [--session ID|--all] [--json]
-                                    Cuántos tokens ahorró gomemory al emitir contexto (medido)
+                                   Sin --apply solo previsualiza (nada se modifica)
+  mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)
+  mem adr-sync status              Estado de sincronización de ADR (solo lectura)
+
+  Sistema
+  mem project                      Detectar proyecto actual y mostrar información
+  mem mcp [--root <dir>]           Servidor MCP para agentes AI
+  mem hook <evento>                Entrypoint de hooks de agentes (uso interno, invocado por Claude Code/OpenCode)
   mem octopus route <objetivo> [--class C] [--files a,b] [--read-only] [--json]
-                                    Enrutar una unidad de trabajo: inline o delegar
-                                    Módulo opt-in: se activa en TUI → Configuración → "Octopus AAR"
-  mem doctor                       Diagnóstico del estado de la integración
+                                   Enrutar una unidad de trabajo: inline o delegar
+                                   Módulo opt-in: se activa en TUI → Configuración → "Octopus AAR"
   mem tui                          Abrir interfaz TUI explícitamente
   mem update [--check] [--version vX.Y.Z]
-                                    Actualizar el binario y refrescar la integración del proyecto
+                                   Actualizar el binario y refrescar la integración del proyecto
   mem version                      Mostrar la versión instalada
   mem help                         Mostrar esta ayuda
 
-Ejemplos:
-  mem                              # Abrir TUI
-  mem init                         # Primera vez
+EJEMPLOS COMUNES
   mem save -t "usamos SQLite" -y decision "Base de datos SQLite"
-  mem capture -w "implementar auth" -y "seguridad" -f "middleware.go" -l "usar JWT"
-  mem capture -i                   # Modo interactivo
-  mem compare -r supersedes -c 0.9 -m "la nueva decisión reemplaza a la anterior" 1 2
-  mem project
-  mem context --write
-  mem search "autenticación"
-  mem install ~/proyectos/mi-app   # Instalar en otro proyecto
+                                   Guardar una decisión
+  mem search "autenticación"       Buscar en la memoria
+  mem context --write              Volcar el contexto del proyecto a .memory/context.md
+  mem pack build --task "revisar auth" --max-tokens 4000
+                                   Paquete de contexto acotado a la tarea
+  mem pack savings                 Ahorro por compresor (cfr. mem usage: ahorro por emisión)
+  mem usage                        Ahorro por emisión en la sesión activa
+  mem session end -s "módulo de búsqueda"
+                                   Cerrar la sesión con resumen
+  mem install ~/proyectos/mi-app   Instalar en otro proyecto
   mem setup-mcp --agents codex,cursor
-  mem settings --show
-  mem session start
-  mem session end -s "Implementado módulo de búsqueda"
-  mem export                       # Volcar la memoria del proyecto a un JSON portable
-  mem import gomemory-export-app-20260713.json  # Traerla a otro proyecto/máquina
+                                   Configurar MCP en varios agentes
+  mem export                       Volcar la memoria a un JSON portable
+
+OPCIONES
+  --json                           Salida legible por máquina (donde aplique: pack, usage, doctor)
+  --help                           Esta ayuda (mem help)
 `)
 }

@@ -124,3 +124,22 @@ func TestCmdUsage_JSON_MatchesContractGuarantees(t *testing.T) {
 		t.Fatalf("falta counting_method en la salida JSON")
 	}
 }
+
+// Feature 036 (bloques estilo Mole): el reporte en texto se organiza en
+// bloques RESUMEN / POR OPERACIÓN / POR CANAL con cierre de totales.
+func TestCmdUsage_BloquesResumenOperacionCanal(t *testing.T) {
+	deps, closeDB := newUsageTestDeps(t, 0)
+	defer closeDB()
+	_ = deps.UsageRepo.Record(domain.UsageRecord{
+		Project: "proj", SessionID: "sess-1", Operation: domain.OpBuildContext,
+		Channel: "cli", BaselineTokens: 1000, EmittedTokens: 400,
+	})
+
+	out := captureStdout(t, func() { CmdUsage(deps, []string{"--session", "sess-1"}) })
+
+	for _, bloque := range []string{"RESUMEN", "POR OPERACIÓN", "POR CANAL", "Ahorro total:"} {
+		if !strings.Contains(out, bloque) {
+			t.Errorf("el reporte debe traer el bloque %q, got:\n%s", bloque, out)
+		}
+	}
+}

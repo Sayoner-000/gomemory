@@ -32,18 +32,18 @@ func FormatUsageReport(report domain.UsageReport, scope string) string {
 		header += " · todas las sesiones"
 	}
 	b.WriteString(header + "\n")
-	b.WriteString("Conteo aproximado neutral (~4 caracteres por token). Las cifras son comparables\n")
-	b.WriteString("contra sí mismas, no contra la facturación de ningún proveedor.\n\n")
+	b.WriteString("Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas.\n")
 
 	if scope == "empty" || report.Calls == 0 {
 		b.WriteString("Sin actividad registrada todavía.\n")
 		return b.String()
 	}
 
-	fmt.Fprintf(&b, "Llamadas:              %d\n", report.Calls)
-	fmt.Fprintf(&b, "Línea base:        %d tokens\n", report.BaselineTokens)
-	fmt.Fprintf(&b, "Emitido:           %d tokens\n", report.EmittedTokens)
-	fmt.Fprintf(&b, "Ahorro:            %d tokens  (%.2f%%)\n", report.Saved(), report.ReductionRatio()*100)
+	fmt.Fprintf(&b, "RESUMEN\n")
+	fmt.Fprintf(&b, "  Llamadas:    %d\n", report.Calls)
+	fmt.Fprintf(&b, "  Línea base:  %d tokens\n", report.BaselineTokens)
+	fmt.Fprintf(&b, "  Emitido:     %d tokens\n", report.EmittedTokens)
+	fmt.Fprintf(&b, "  Ahorro:      %d tokens  (%.2f%%)\n", report.Saved(), report.ReductionRatio()*100)
 
 	if report.SchemaOperations > 0 {
 		fmt.Fprintf(&b, "\nDescriptores publicados: %d tokens en %d operaciones\n", report.SchemaTokens, report.SchemaOperations)
@@ -54,17 +54,22 @@ func FormatUsageReport(report domain.UsageReport, scope string) string {
 	}
 
 	if len(report.ByOperation) > 0 {
-		b.WriteString("\nPor operación\n")
+		b.WriteString("\nPOR OPERACIÓN\n")
 		for _, bucket := range report.ByOperation {
 			fmt.Fprintf(&b, "  %-18s %d llamada(s)   %d → %d\n", bucket.Key, bucket.Calls, bucket.BaselineTokens, bucket.EmittedTokens)
 		}
 	}
 	if len(report.ByChannel) > 0 {
-		b.WriteString("\nPor canal\n")
+		b.WriteString("\nPOR CANAL\n")
 		for _, bucket := range report.ByChannel {
 			fmt.Fprintf(&b, "  %-18s %d llamada(s)   %d → %d\n", bucket.Key, bucket.Calls, bucket.BaselineTokens, bucket.EmittedTokens)
 		}
 	}
+
+	fmt.Fprintf(&b, "\n======================================================================\n")
+	fmt.Fprintf(&b, "Ahorro total: %d tokens (%.2f%%) en %d llamada(s): %d → %d\n",
+		report.Saved(), report.ReductionRatio()*100, report.Calls, report.BaselineTokens, report.EmittedTokens)
+	fmt.Fprintf(&b, "======================================================================\n")
 
 	return b.String()
 }

@@ -105,24 +105,28 @@ Traducción de lo anterior. Su cabecera **debe** declarar el método de conteo (
 
 ```
 Uso de contexto — proyecto go_memory · sesión a1b2c3d4
-Conteo aproximado neutral (~4 caracteres por token). Las cifras son comparables
-contra sí mismas, no contra la facturación de ningún proveedor.
+Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas.
 
-Llamadas:              4
-Línea base:        8 120 tokens
-Emitido:           5 310 tokens
-Ahorro:            2 810 tokens  (34,60 %)
+RESUMEN
+  Llamadas:    4
+  Línea base:  8 120 tokens
+  Emitido:     5 310 tokens
+  Ahorro:      2 810 tokens  (34,60 %)
 
 Descriptores publicados: 1 842 tokens en 28 operaciones
 
-Por operación
-  build_context      1 llamada    6 000 →  3 500   (-41,67 %)
-  search_memories    2 llamadas   1 800 →  1 500   (-16,67 %)
-  save_memory        1 llamada      320 →    310   ( -3,13 %)
+POR OPERACIÓN
+  build_context      1 llamada(s)   6 000 →  3 500
+  search_memories    2 llamada(s)   1 800 →  1 500
+  save_memory        1 llamada(s)     320 →    310
 
-Por canal
-  mcp                3 llamadas   7 800 →  5 000
-  cli                1 llamada      320 →    310
+POR CANAL
+  mcp                3 llamada(s)   7 800 →  5 000
+  cli                1 llamada(s)     320 →    310
+
+======================================================================
+Ahorro total: 2 810 tokens (34,60 %) en 4 llamada(s): 8 120 → 5 310
+======================================================================
 ```
 
 Con `usage_window_tokens` en `0` —su valor por defecto— **no aparece ninguna línea de porcentaje

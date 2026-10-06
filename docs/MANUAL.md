@@ -846,6 +846,14 @@ excede ese presupuesto por sí solo, el comando falla con un error explícito
 en vez de devolverte un paquete incompleto sin avisar — así nunca crees que
 tienes todo el contexto crítico cuando en realidad falta parte.
 
+Cuánto suele ahorrar (medido el 2026-10-06; repítelo con
+`mem pack build --json --task "…" --max-tokens 4000`): entre ~15% y ~40%
+según la tarea, por descarte de duplicados y ajuste al presupuesto; con grafo
+de código externo activo suma unos +5 puntos (medido 20.8% con grafo frente a
+15.6% sin él). El grueso del ahorro no viene del compresor sino de traer solo
+lo relevante — ver `mem pack savings` (§19) para el ahorro del motor y
+`mem usage` (§16) para el ahorro por emisión.
+
 Flags de `pack build`:
 
 | Flag | Qué hace | Obligatorio |
@@ -1125,6 +1133,12 @@ build/compress`, y cualquier otra operación por cualquier canal) queda registra
 línea base, emitido, ahorro absoluto y porcentaje de reducción, con desglose por operación y por
 canal (`mcp`, `cli`, `tui`).
 
+**Dos ahorros distintos, no los mezcles:** `mem usage` mide el ahorro por
+**emisión** (dedup, presupuesto, modo índice: ~84% en la sesión medida el
+2026-10-06, 432099 → 67495 tokens); `mem pack savings` (§19) mide el ahorro
+por **compresor** (alto en json/table/listing, ~0.3% en structural/prose, que
+degrada intacto por diseño).
+
 **Honestidad de la medición:** la cabecera del reporte declara que el conteo es una aproximación
 neutral (~4 caracteres por token), no el tokenizador de ningún proveedor — las cifras son
 comparables contra sí mismas, no contra la facturación de nadie. Por defecto, todo lo que se
@@ -1395,17 +1409,21 @@ pidió**:
 - `mem pack savings` separa «sin ganancia» (no hubo nada que ganar) de
   «degradaciones» (el motor tuvo que renunciar).
 
-Compatibilidad verificada:
+Compatibilidad verificada (medido el 2026-10-06 con salidas sintéticas grandes
+y repetitivas; el hook solo reescribe con ganancia recuperable):
 
-- Claude Code 2.1.282: salida sustituida mediante `PostToolUse`.
-- Codex: solo en origen. Codex rechaza la sustitución de salidas
-  (`updatedMCPToolOutput`) y marca el hook como fallido, así que gomemory no
-  registra este hook en Codex y `mem install` retira el de versiones anteriores
-  a la 2.27.1. Ahí comprime lo que gomemory entrega él mismo: para explorar
-  código, usa `search_code`/`get_symbol` de gomemory.
-- OpenCode 1.18.32 y 2.x: el contrato del plugin está preparado en modo
-  best-effort, pero la sustitución visible para el modelo no está verificada;
-  `mem doctor` la presenta como no soportada cuando corresponde.
+- Claude Code 2.1.282: salida sustituida mediante `PostToolUse` (JSON de 60
+  elementos: ~20k caracteres → ~1k, resto recuperable por `ref`).
+- OpenCode 1.x y 2.x: el hook **emite** la reescritura (verificado el mismo
+  resultado que en Claude), pero la sustitución final depende del runtime:
+  modo best-effort. `mem doctor` lo presenta como activo (best-effort), no
+  como fallo.
+- Codex: límite del runtime, no un bug pendiente. Codex rechaza la
+  sustitución de salidas (`updatedMCPToolOutput`) y marca el hook como
+  fallido, así que gomemory no registra este hook en Codex y `mem install`
+  retira el de versiones anteriores a la 2.27.1. Sus vías de ahorro son el
+  paquete de contexto (`mem pack build`, §10) y la búsqueda de código que
+  comprime en origen (`search_code`/`get_symbol` de gomemory).
 
 `mem doctor` muestra el nivel efectivo, el uso del almacén de originales, el
 estado por runtime y los ajustes adaptativos. Con `--strict`, un nivel `max`

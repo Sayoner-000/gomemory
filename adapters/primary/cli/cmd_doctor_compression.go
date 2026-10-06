@@ -46,7 +46,7 @@ func toolOutputHookStates(root string, enabled bool) map[string]string {
 			states["codex"] += " · hook antiguo registrado: ejecuta mem install para retirarlo"
 		}
 	}
-	states["opencode"] = "v1: sin verificar en vivo · v2: no soportado"
+	states["opencode"] = "activo (best-effort: emite reescritura, la sustitución depende del runtime)"
 	return states
 }
 

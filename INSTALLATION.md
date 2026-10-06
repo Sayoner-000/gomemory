@@ -347,6 +347,19 @@ Configuración multi-agente automática:
 ./mem usage
 ```
 
+Hay tres vías de ahorro distintas — no las confundas (cifras medidas el
+2026-10-06; repítelas con los comandos indicados):
+
+| Vía | Orden de magnitud | Cómo reproducirlo |
+|---|---|---|
+| Contexto emitido (`mem usage`) | ~84% en la sesión medida (432099 → 67495 tokens) | `mem usage` |
+| Paquete acotado (`mem pack build`) | ~15–40% según la tarea (+5pp con grafo de código) | `mem pack build --json --task "…" --max-tokens 4000` |
+| Motor nativo (`mem pack savings`) | json/listing/table 70–93% en bajo volumen; structural/prose ~0.3% (degrada intacto) | `mem pack savings` |
+| Hook de salidas (opt-in) | Solo sobre ~2000 tokens con ganancia (p. ej. JSON de 60 elementos: 20k → ~1k) | `mem hook tool-output --enabled`, `mem doctor` |
+
+`mem usage` = ahorro por **emisión** (dedup, presupuesto, modo índice);
+`mem pack savings` = ahorro por **compresor**. Detalle en el manual (§10, §16, §19).
+
 ---
 
 ## 8. Actualizar

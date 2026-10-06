@@ -235,6 +235,31 @@ func TestClaudeAutoAllowCubreTodasLasSeguras(t *testing.T) {
 	}
 }
 
+// TestUsage_MencionaPackYFlujos (feature 036, US4): los comandos que
+// materializan la promesa de ahorro (pack) y el resto de subcomandos del
+// despachador quedaban invisibles en `mem help`. La ayuda se organiza por
+// flujos; ningún subcomando aceptado puede faltar en el texto.
+func TestUsage_MencionaPackYFlujos(t *testing.T) {
+	ruta := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "cli.go")
+	data, err := os.ReadFile(ruta)
+	if err != nil {
+		t.Fatalf("leer cli.go: %v", err)
+	}
+	texto := string(data)
+	for _, sub := range []string{
+		"mem pack build", "mem pack show|compress|stats|retrieve|savings|tune|purge",
+		"mem seed", "mem adr-sync status",
+		"COMMANDS", "EJEMPLOS COMUNES", "OPCIONES",
+		"Memoria diaria", "Contexto y ahorro", "Sesiones",
+		"Revisión adversarial", "Instalación e integración",
+		"Documentos y portabilidad", "Mantenimiento", "Sistema",
+	} {
+		if !strings.Contains(texto, sub) {
+			t.Errorf("Usage() no menciona %q: el subcomando o flujo queda invisible en `mem help`", sub)
+		}
+	}
+}
+
 // TestUsage_MencionaReview cubre un hueco real: `mem help` documentaba todos
 // los comandos de la CLI excepto `review`, así que el comando era invisible
 // para quien no supiera ya que existe. Ver docs/lessons.md 2026-08-29.
