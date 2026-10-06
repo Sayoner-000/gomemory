@@ -16,8 +16,45 @@ $Repo = "Sayoner-000/gomemory"
 $BinName = "mem.exe"
 $InstallDir = Join-Path $env:LOCALAPPDATA "Programs\gomemory"
 
-function Write-Info($m) { Write-Host "› $m" -ForegroundColor Blue }
-function Write-Ok($m)   { Write-Host "✓ $m" -ForegroundColor Green }
+# Logo derivado de assets/gomemory-terminal.txt; funciona sin el binario.
+function Write-Brand($Operation) {
+  if ([Console]::IsOutputRedirected -or $env:CI) { return }
+  $displayVersion = if ($Version) { $Version } else { 'latest' }
+  $width = 80
+  try { $width = [Console]::WindowWidth } catch { }
+  if ($env:NO_COLOR -or $env:TERM -eq 'dumb' -or $width -lt 78) {
+    Write-Host "`ngoMemory · $displayVersion · $Operation`n"
+    return
+  }
+  $logo = @'
+             ⣴⣶  ⢀⣀
+        ⢰⣷   ⣿⣿  ⣼⣿⠇
+     ⣀   ⠿⠇  ⣉⡉  ⠿⠟ ⢀⣼⣷⡄
+    ⠘⢿⣦    ⣴⣿⣿⣿⣆    ⠻⡿⠋          ███  ██  █   █ ████ █   █  ██  ███  █  █
+      ⠁  ⢀⣾⣿⣿⣿⣿⣿⣾⣆    ⢠⣴⣿⣧      █    █  █ ██ ██ █    ██ ██ █  █ █  █ █  █
+  ⠈⣐⡦  ⢀⢢⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄  ⠈⠟⠋       █ ██ █  █ █ █ █ ███  █ █ █ █  █ ███   ██
+    ⠁ ⢠⣯⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆   ⣤⣴⣶     █  █ █  █ █   █ █    █   █ █  █ █ █   █
+      ⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆  ⠿⠟⠛      ███  ██  █   █ ████ █   █  ██  █  █  █
+     ⢸⣿⣿⣿⣿⠻⠙⣿⣿⣿⠱⡻⣿⣿⣿⣿⣿⡄ ⣠⣀⣀
+     ⢸⣿⣿⣿⣿⣦⣼⠿⣿⣿⣦⣴⣿⣿⣿⣿⣿⡧⠐⠿⣿⣿
+   ⠈⠆⢸⣿⣿⣿⣿⣿⣿⣿⣯⣿⣿⣿⣿⣿⣿⣿⣿⡇⣀⡀       Memoria persistente
+     ⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠸⣿⣿⡦      para agentes de código
+     ⠈⠛⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣥  ⠙⠁
+        ⠙⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⠙⠃
+'@
+  Write-Host ""
+  $theme = $env:GOMEMORY_THEME
+  if ($theme -notin @('dark', 'light')) {
+    $theme = if (($env:COLORFGBG -split ';')[-1] -in @('7', '15')) { 'light' } else { 'dark' }
+  }
+  $escape = [char]27
+  $brandColor = if ($theme -eq 'light') { '57;38;227' } else { '6;193;238' }
+  Write-Host "$escape[38;2;${brandColor}m$logo$escape[0m"
+  Write-Host "`n  $displayVersion  ›  $Operation`n"
+}
+
+function Write-Info($m) { if ($env:NO_COLOR) { Write-Host "› $m" } else { Write-Host "› $m" -ForegroundColor Blue } }
+function Write-Ok($m)   { if ($env:NO_COLOR) { Write-Host "✓ $m" } else { Write-Host "✓ $m" -ForegroundColor Green } }
 
 function Add-ToUserPath($dir) {
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -38,7 +75,11 @@ function Invoke-Uninstall {
   exit 0
 }
 
-if ($Uninstall) { Invoke-Uninstall }
+if ($Uninstall) {
+  Write-Brand "Desinstalar"
+  Invoke-Uninstall
+}
+Write-Brand "Instalar"
 
 if (-not $Version) { $Version = "latest" }
 

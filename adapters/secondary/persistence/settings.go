@@ -9,6 +9,8 @@ import (
 )
 
 type Settings struct {
+	// Theme selecciona la apariencia TUI: dark, light, matrix o auto.
+	Theme            string   `json:"theme,omitempty"`
 	AutoApprove      bool     `json:"auto_approve"`
 	AutoApproveTools []string `json:"auto_approve_tools"`
 	// CodeGraphDisabled apaga el proveedor de grafo de código EXTERNO

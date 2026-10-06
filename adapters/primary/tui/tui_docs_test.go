@@ -94,8 +94,12 @@ func TestConfigRows_DocumentosVanAlFinal(t *testing.T) {
 		configRowConcise != configRowToolOutput+1 {
 		t.Error("las filas de compresión no forman una secuencia al final del menú")
 	}
-	if configOptions != configRowConcise+1 {
-		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowConcise+1)
+	// El selector de tema se agrega después de todas las filas existentes.
+	if configRowTheme != configRowConcise+1 {
+		t.Errorf("configRowTheme = %d, esperaba %d", configRowTheme, configRowConcise+1)
+	}
+	if configOptions != configRowTheme+1 {
+		t.Errorf("configOptions = %d, esperaba %d", configOptions, configRowTheme+1)
 	}
 	if configRowAtomicPlan != 6 || configRowPlanGuard <= configRowAtomicPlan {
 		t.Error("las filas preexistentes se desplazaron: los tests que las referencian por nombre quedarían inválidos")

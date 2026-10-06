@@ -93,6 +93,7 @@ func CmdUninstall(deps *Deps, args []string) int {
 		return uninstallExitUsage
 	}
 
+	console.PrintBrand("uninstall")
 	mode := console.DetectMode(console.DetectEnv(), o.yes)
 	ui := console.New(mode)
 	if ui != nil && !o.dryRun && !o.scopeSet {

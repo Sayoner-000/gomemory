@@ -63,7 +63,7 @@ var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection", "
 // indicar cómo volver, reemplazando el bloque repetido en detailView y
 // optimizeDetailView.
 func backHint() string {
-	return backHintStyle.Render("  ← esc para volver  ·  ↑/↓ scroll  ·  ctrl+y copiar")
+	return footerBoundary + backHintStyle.Render("  ← esc para volver  ·  ↑/↓ scroll  ·  ctrl+y copiar")
 }
 
 // statusLine devuelve el mensaje de estado con timer activo (statusMsg +
@@ -103,14 +103,9 @@ func listRowLines(m domain.Memory, selected bool, width int) []string {
 	icon := lipgloss.NewStyle().Foreground(typeColor(string(m.Type))).Bold(true).
 		Render(typeIcon(string(m.Type)) + " " + typeLabel(string(m.Type)))
 
-	titleBudget := width - lipgloss.Width(icon) - 4
-	if titleBudget < 15 {
-		titleBudget = 15
-	}
-	contentBudget := width - 4
-	if contentBudget < 15 {
-		contentBudget = 15
-	}
+	// Descontar el padding de la fila, el cursor y la separación del tipo.
+	titleBudget := max(0, width-itemNormal.GetHorizontalFrameSize()-4-lipgloss.Width(icon))
+	contentBudget := max(0, width-itemNormal.GetHorizontalFrameSize()-4)
 
 	title := lipgloss.NewStyle().Bold(true).Render(truncate(memoryDisplayTitle(m), titleBudget))
 	preview := lipgloss.NewStyle().Foreground(faint).Render(truncate(strings.ReplaceAll(m.Content, "\n", " "), contentBudget))
@@ -130,6 +125,7 @@ func listRowLines(m domain.Memory, selected bool, width int) []string {
 // ─── Model ─────────────────────────────────────────────────────────
 
 type model struct {
+	viewScroll      int
 	memRepo         ports.MemoryRepository
 	relRepo         ports.RelationRepository
 	settingsRepo    ports.SettingsRepository
@@ -175,6 +171,7 @@ type model struct {
 	consolidationPreview usecases.ConsolidationReport
 
 	configCursor int
+	theme        string
 	importPath   textinput.Model
 	importErr    string
 
@@ -256,6 +253,7 @@ type UsageDeps struct {
 }
 
 func Run(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, settingsRepo ports.SettingsRepository, maintenanceRepo ports.MaintenanceRepository, codeProvider ports.CodeGraphProvider, root, project string, usageDeps UsageDeps) error {
+	applyTheme()
 	p := tea.NewProgram(initialModel(memRepo, relRepo, settingsRepo, maintenanceRepo, codeProvider, root, project, usageDeps))
 	_, err := p.Run()
 	return err
@@ -327,6 +325,7 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 	ub.SetWidth(20)
 
 	settings := settingsRepo.Read(root)
+	applyTheme(settings.Theme)
 
 	var stats ports.StorageStats
 	if maintenanceRepo != nil {
@@ -347,6 +346,7 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		filtered:         mems,
 		filterInput:      fi,
 		autoApprove:      settings.AutoApprove,
+		theme:            currentPalette.Name,
 		saveTitle:        ti,
 		saveType:         ty,
 		saveContent:      tc,
@@ -379,11 +379,34 @@ func (m model) Init() tea.Cmd {
 // ─── Update ────────────────────────────────────────────────────────
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyMsg); ok && m.ready && (m.width < 36 || m.height < 12) {
+		if key.String() == "q" || key.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && m.screen != screenList && m.screen != screenDetail && m.screen != screenDocs {
+		switch key.String() {
+		case "pgdown":
+			m.viewScroll += max(1, m.height/2)
+			return m, nil
+		case "pgup":
+			m.viewScroll = max(0, m.viewScroll-max(1, m.height/2))
+			return m, nil
+		default:
+			m.viewScroll = 0
+		}
+	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ready = true
+		inputWidth := max(1, min(50, m.width-12))
+		for _, input := range []*textinput.Model{&m.saveTitle, &m.saveType, &m.saveContent, &m.saveFilepath, &m.maintConfirm, &m.importPath, &m.docPath, &m.dupConfirm, &m.editSettingInput, &m.usageTaskInput, &m.usageBudgetInput} {
+			input.SetWidth(inputWidth)
+		}
+		m.filterInput.SetWidth(max(1, min(40, m.width-16)))
 		return m, nil
 
 	case externalReindexDoneMsg:
@@ -973,7 +996,8 @@ var configRowToolOutput = configRowCompressionLevel + 1
 var configRowConcise = configRowToolOutput + 1
 
 // configOptions es el número de filas del menú de configuración.
-var configOptions = configRowConcise + 1
+var configRowTheme = configRowConcise + 1
+var configOptions = configRowTheme + 1
 
 // nextCompressionLevel devuelve el siguiente nivel del ciclo de la TUI.
 func nextCompressionLevel(current string) string {
@@ -1088,8 +1112,32 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.configCursor--
 		}
 
+	case "t":
+		m.configCursor = configRowTheme
+		return m.updateConfig(tea.KeyPressMsg{Code: tea.KeyEnter})
 	case "enter", " ":
 		switch m.configCursor {
+		case configRowTheme:
+			s := m.settingsRepo.Read(m.root)
+			next := "dark"
+			switch m.theme {
+			case "dark":
+				next = "light"
+			case "light":
+				next = "matrix"
+			case "matrix":
+				next = "dark"
+			}
+			s.Theme = next
+			if err := m.settingsRepo.Write(m.root, s); err != nil {
+				m.statusMsg = "No se pudo guardar el tema: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
+			m.theme = next
+			applyTheme(next)
+			m.statusMsg = "Tema guardado: " + themeLabel(next)
+			m.statusTimer = 40
 		case 0: // Toggle grafo de código externo
 			s := m.settingsRepo.Read(m.root)
 			s.CodeGraphDisabled = !s.CodeGraphDisabled
@@ -1710,7 +1758,7 @@ func (m model) optimizeAllConfirmView() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(helpStyle.Render("  enter confirmar  ·  esc cancelar"))
+	b.WriteString(renderFooter("  enter confirmar  ·  esc cancelar"))
 	return appStyle.Render(b.String())
 }
 
@@ -1728,7 +1776,7 @@ func (m model) optimizeView() string {
 		foot.WriteString(status)
 		foot.WriteString("\n")
 	}
-	foot.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter revisar grupo  ·  a compactar todas  ·  esc volver"))
+	foot.WriteString(renderFooter("  ↑↓ navegar  ·  enter revisar grupo  ·  a compactar todas  ·  esc volver"))
 
 	var bodyLines []string
 	if len(m.dupGroups) == 0 {
@@ -1773,7 +1821,7 @@ func (m model) optimizeDetailView() string {
 		foot.WriteString(errorStyle.Render("✕ " + m.dupErr))
 		foot.WriteString("\n")
 	}
-	foot.WriteString(helpStyle.Render("  ↑↓ elegir memoria  ·  enter marcar canónica  ·  space conservar/borrar  ·  c confirmar borrado  ·  esc volver"))
+	foot.WriteString(renderFooter("  ↑↓ elegir memoria  ·  enter marcar canónica  ·  space conservar/borrar  ·  c confirmar borrado  ·  esc volver"))
 
 	// El cuerpo (una caja bordeada por memoria) se arma como líneas
 	// independientes para poder recortarlo a la altura visible, igual que en
@@ -1840,7 +1888,7 @@ func (m model) optimizeConfirmView() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(helpStyle.Render("  enter confirmar  ·  esc cancelar"))
+	b.WriteString(renderFooter("  enter confirmar  ·  esc cancelar"))
 	return appStyle.Render(b.String())
 }
 
@@ -1947,6 +1995,11 @@ func (m model) saveAndReturn() (tea.Model, tea.Cmd) {
 func (m model) View() tea.View {
 	v := tea.NewView(m.renderView())
 	v.AltScreen = true
+	if os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb" {
+		palette := themePalette(m.theme)
+		v.BackgroundColor = lipgloss.Color(palette.Background)
+		v.ForegroundColor = lipgloss.Color(palette.Text)
+	}
 	return v
 }
 
@@ -1955,37 +2008,92 @@ func (m model) renderView() string {
 		return ""
 	}
 
+	if m.width < 36 || m.height < 12 {
+		return truncate("Amplía la terminal a 36×12 · q/ctrl+c salir", max(1, m.width))
+	}
+	var content string
 	switch m.screen {
 	case screenList:
 		return m.listView()
 	case screenDetail:
-		return m.detailView()
+		content = m.detailView()
 	case screenSave:
-		return m.saveView()
+		content = m.saveView()
 	case screenMaintenance:
-		return m.maintenanceView()
+		content = m.maintenanceView()
 	case screenMaintenanceConfirm:
-		return m.maintenanceConfirmView()
+		content = m.maintenanceConfirmView()
 	case screenConfig:
-		return m.configView()
+		content = m.configView()
 	case screenDocs:
-		return m.docsView()
+		content = m.docsView()
 	case screenImport:
-		return m.importView()
+		content = m.importView()
 	case screenOptimize:
-		return m.optimizeView()
+		content = m.optimizeView()
 	case screenOptimizeDetail:
-		return m.optimizeDetailView()
+		content = m.optimizeDetailView()
 	case screenOptimizeConfirm:
-		return m.optimizeConfirmView()
+		content = m.optimizeConfirmView()
 	case screenOptimizeAllConfirm:
-		return m.optimizeAllConfirmView()
+		content = m.optimizeAllConfirmView()
 	case screenEditSetting:
-		return m.editSettingView()
+		content = m.editSettingView()
 	case screenUsage:
-		return m.usageView()
+		content = m.usageView()
 	}
-	return ""
+	return m.fitTerminalView(content)
+}
+
+// Acota las pantallas secundarias y conserva su pie de acciones. Los menús
+// siguen la fila seleccionada; pgup/pgdown permiten leer pantallas largas.
+func (m model) fitTerminalView(content string) string {
+	// El pie se declara al construir la pantalla: no se deduce de su texto
+	// ni de las líneas del borde. La marca nunca llega al renderer.
+	bodyText, footerText, hasFooter := content, "", false
+	if boundary := strings.LastIndex(content, footerBoundary); boundary >= 0 {
+		bodyText, footerText, hasFooter = content[:boundary], content[boundary+len(footerBoundary):], true
+	}
+	// Algunas pantallas incluyen una ayuda de scroll además del pie final.
+	bodyText = strings.ReplaceAll(bodyText, footerBoundary, "")
+	wrap := func(text string) []string {
+		return strings.Split(ansi.Hardwrap(ansi.Wrap(text, max(1, m.width), ""), max(1, m.width), false), "\n")
+	}
+	lines := wrap(bodyText + footerText)
+	if len(lines) <= m.height {
+		return strings.Join(lines, "\n")
+	}
+	footerStart := len(lines)
+	if hasFooter {
+		// El separador está al principio de una línea, después de la sangría.
+		bodyLines := wrap(bodyText)
+		footerStart = max(0, len(bodyLines)-1)
+	}
+	footer := lines[footerStart:]
+	if len(footer) > m.height/2 {
+		footer = footer[len(footer)-m.height/2:]
+	}
+	body := lines[:footerStart]
+	budget := max(1, m.height-len(footer)-1)
+	offset := min(m.viewScroll, max(0, len(body)-budget))
+	if m.viewScroll == 0 {
+		anchor := "▸"
+		if m.screen == screenSave {
+			labels := []string{"Título:", "Tipo:", "Contenido:", "Archivo:"}
+			anchor = labels[min(max(0, m.saveFocus), len(labels)-1)]
+		}
+		for i, line := range body {
+			if strings.Contains(ansi.Strip(line), anchor) {
+				offset = max(0, min(i-budget/2, len(body)-budget))
+				break
+			}
+		}
+	}
+	end := min(len(body), offset+budget)
+	visible := append([]string{}, body[offset:end]...)
+	visible = append(visible, truncate(fmt.Sprintf("  %d–%d/%d · pg↑/pg↓ desplazar", offset+1, end, len(body)), m.width))
+	visible = append(visible, footer...)
+	return strings.Join(visible, "\n")
 }
 
 func (m model) copyableText() string {
@@ -2015,7 +2123,9 @@ func (m model) listView() string {
 	if m.maintenanceRepo != nil {
 		sizeInfo = fmt.Sprintf(" · %s en disco", humanize.Bytes(uint64(m.stats.FileSizeBytes)))
 	}
-	header := titleStyle.Render(fmt.Sprintf("%s · %d memorias%s", m.project, len(m.filtered), sizeInfo))
+	contentWidth := max(1, m.width-appStyle.GetHorizontalFrameSize())
+	summary := fmt.Sprintf(" · %d memorias%s", len(m.filtered), sizeInfo)
+	header := titleStyle.MarginBottom(0).Render(truncate("goMemory · "+truncate(m.project, max(1, contentWidth-11-lipgloss.Width(summary)))+summary, contentWidth))
 
 	// Input de filtro (visible solo cuando se está buscando)
 	filterBar := ""
@@ -2026,23 +2136,28 @@ func (m model) listView() string {
 	}
 
 	// Footer
-	footer := helpStyle.Render("  ↑↓ navegar  ·  / buscar  ·  enter detalle  ·  d eliminar  ·  ctrl+y copiar  ·  s guardar  ·  c config  ·  m mantenimiento  ·  o optimizar  ·  u uso  ·  q salir")
+	help := "↑↓ navegar · / buscar · enter detalle · d eliminar · ctrl+y copiar · s guardar · c config · m mantenimiento · o optimizar · u uso · q salir"
+	if m.height < 18 {
+		help = "↑↓ · / buscar · enter · q salir"
+	}
+	footer := helpStyle.Width(contentWidth).Render(wrapShortcuts(help, contentWidth))
 	if m.deleteConfirm {
-		footer = errorStyle.Render(fmt.Sprintf("  ¿Eliminar \"%s\"? Esta acción es irreversible.", m.deleteTarget.Title)) +
-			"\n" + helpStyle.Render("  s confirmar  ·  n o esc cancelar")
+		footer = errorStyle.Render(truncate(fmt.Sprintf("Eliminar «%s»: irreversible", truncate(m.deleteTarget.Title, max(1, contentWidth-25))), contentWidth)) +
+			"\n" + helpStyle.Width(contentWidth).Render(ansi.Wrap("s confirmar · n/esc cancelar", contentWidth, ""))
 	}
 	if status := m.statusLine(); status != "" {
-		footer = status + "\n" + footer
+		footer = truncate(status, contentWidth) + "\n" + footer
 	}
 
 	// Cuerpo: lista compacta (2 líneas por memoria) enmarcada, o mensaje de
 	// estado vacío si no hay filas que mostrar.
-	head := header + "\n" + filterBar + "\n"
+	head := lipgloss.JoinVertical(lipgloss.Top, header, filterBar, "")
+	budget := max(0, m.height-appStyle.GetVerticalFrameSize()-lipgloss.Height(head)-lipgloss.Height(footer)-listBorder.GetVerticalFrameSize())
 	var inner string
 	switch {
 	case len(m.filtered) > 0:
 		bodyLines, cursorLine := m.listBodyLines()
-		inner = windowLines(bodyLines, cursorLine, m.listBodyBudget(head, footer))
+		inner = windowLines(bodyLines, cursorLine, budget)
 	case strings.TrimSpace(m.filterInput.Value()) != "":
 		inner = itemNormal.Foreground(faint).Render(fmt.Sprintf("Sin resultados para «%s»", m.filterInput.Value()))
 	default:
@@ -2053,16 +2168,32 @@ func (m model) listView() string {
 	return appStyle.Render(lipgloss.JoinVertical(lipgloss.Top, header, filterBar, "", body, footer))
 }
 
+// Mantiene cada tecla junto a su acción al repartir los atajos por filas.
+func wrapShortcuts(help string, width int) string {
+	var rows []string
+	row := ""
+	for _, shortcut := range strings.Split(help, " · ") {
+		candidate := shortcut
+		if row != "" {
+			candidate = row + " · " + shortcut
+		}
+		if lipgloss.Width(candidate) > width && row != "" {
+			rows = append(rows, row)
+			row = shortcut
+		} else {
+			row = candidate
+		}
+	}
+	return strings.Join(append(rows, row), "\n")
+}
+
 // listBodyLines arma el cuerpo de la lista principal como líneas
 // independientes (2 por memoria: tipo+título, y vista previa del contenido),
 // listas para recortarse a la altura visible con windowLines — mismo patrón
 // que optimizeView/optimizeDetailView.
 func (m model) listBodyLines() ([]string, int) {
 	// appStyle (4) + borde de listBorder (2) + su padding horizontal (2).
-	innerWidth := m.width - 8
-	if innerWidth < 30 {
-		innerWidth = 30
-	}
+	innerWidth := max(1, m.width-appStyle.GetHorizontalFrameSize()-listBorder.GetHorizontalFrameSize())
 
 	var lines []string
 	cursorLine := 0
@@ -2108,8 +2239,15 @@ func (m model) bodyBudget(head, foot string) int {
 // windowLines recorta líneas a `budget` de alto, centrando la ventana en
 // `cursorLine`. Usado por las pantallas de optimización.
 func windowLines(lines []string, cursorLine, budget int) string {
-	if budget <= 0 || len(lines) <= budget {
+	if budget <= 0 {
+		return ""
+	}
+	if len(lines) <= budget {
 		return strings.Join(lines, "\n")
+	}
+	if budget < 3 {
+		start := max(0, min(cursorLine, len(lines)-budget))
+		return strings.Join(lines[start:start+budget], "\n")
 	}
 
 	inner := budget - 2
@@ -2173,7 +2311,7 @@ func (m model) maintenanceView() string {
 		b.WriteString(status)
 		b.WriteString("\n")
 	}
-	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter seleccionar  ·  esc volver"))
+	b.WriteString(renderFooter("  ↑↓ navegar  ·  enter seleccionar  ·  esc volver"))
 	return appStyle.Render(b.String())
 }
 
@@ -2211,7 +2349,7 @@ func (m model) maintenanceConfirmView() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(helpStyle.Render("  enter confirmar  ·  esc cancelar"))
+	b.WriteString(renderFooter("  enter confirmar  ·  esc cancelar"))
 	return appStyle.Render(b.String())
 }
 
@@ -2321,6 +2459,7 @@ func (m model) configView() string {
 	rows = append(rows, "Compresión de contexto: "+domain.ParseCompressionLevel(s.ContextCompressionLevel, s.ContextCompressionDisabled))
 	rows = append(rows, "Comprimir salidas de herramientas: "+onOff(s.ToolOutputCompression))
 	rows = append(rows, "Respuestas concisas: "+onOff(s.ConciseOutputDirective))
+	rows = append(rows, "Tema visual: "+themeLabel(m.theme)+" · enter cambiar")
 	for i, label := range rows {
 		if i == m.configCursor {
 			b.WriteString(itemSelected.Render("▸ " + label))
@@ -2335,7 +2474,7 @@ func (m model) configView() string {
 		b.WriteString(status)
 		b.WriteString("\n")
 	}
-	b.WriteString(helpStyle.Render("  ↑↓ navegar  ·  enter activar/ejecutar  ·  ctrl+y copiar  ·  esc volver"))
+	b.WriteString(renderFooter("  ↑↓ navegar  ·  enter activar/ejecutar  ·  t tema  ·  ctrl+y copiar  ·  esc volver"))
 	return appStyle.Render(b.String())
 }
 
@@ -2356,7 +2495,7 @@ func (m model) importView() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(helpStyle.Render("  enter importar  ·  esc volver"))
+	b.WriteString(renderFooter("  enter importar  ·  esc volver"))
 	return appStyle.Render(b.String())
 }
 
@@ -2379,7 +2518,7 @@ func (m model) editSettingView() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(helpStyle.Render("  enter guardar  ·  esc cancelar"))
+	b.WriteString(renderFooter("  enter guardar  ·  esc cancelar"))
 	return appStyle.Render(b.String())
 }
 
@@ -2394,16 +2533,17 @@ func (m model) detailView() string {
 
 	b.WriteString(backHint())
 	b.WriteString("\n\n")
-	b.WriteString(detailBorder.Render(
+	width := max(1, m.width-appStyle.GetHorizontalFrameSize()-detailBorder.GetHorizontalFrameSize())
+	b.WriteString(detailBorder.Width(width + detailBorder.GetHorizontalPadding()).Render(
 		lipgloss.JoinVertical(lipgloss.Top,
-			lipgloss.NewStyle().Bold(true).Foreground(highlight).Render(mem.Title),
+			lipgloss.NewStyle().Bold(true).Foreground(highlight).Render(truncate(mem.Title, width)),
 			"",
-			typeTag(string(mem.Type))+"  "+lipgloss.NewStyle().Foreground(faint).Render(mem.CreatedAt),
+			truncate(typeTag(string(mem.Type))+"  "+lipgloss.NewStyle().Foreground(faint).Render(mem.CreatedAt), width),
 			"",
 			content,
 			func() string {
 				if mem.Filepath != "" {
-					return "\n" + lipgloss.NewStyle().Foreground(faint).Italic(true).Render("📁 "+mem.Filepath)
+					return "\n" + lipgloss.NewStyle().Foreground(faint).Italic(true).Render(truncate("📁 "+mem.Filepath, width))
 				}
 				return ""
 			}(),
@@ -2462,12 +2602,28 @@ func (m model) renderField(label string, input *textinput.Model) string {
 // ─── Helpers ───────────────────────────────────────────────────────
 
 func truncate(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
+	if n <= 0 {
+		return ""
 	}
-	if n <= 3 {
-		return "..."
+	return ansi.Truncate(s, n, strings.Repeat(".", min(n, 3)))
+}
+
+func themeLabel(name string) string {
+	switch name {
+	case "light":
+		return "goMemory claro"
+	case "matrix":
+		return "Matrix"
+	case "dark":
+		return "goMemory oscuro"
+	default:
+		return "Automático"
 	}
-	return string(r[:n-3]) + "..."
+}
+
+// Separador de metadatos interno: no ocupa columnas y se elimina en fitTerminalView.
+const footerBoundary = "\x00"
+
+func renderFooter(text string) string {
+	return footerBoundary + helpStyle.Render(text)
 }

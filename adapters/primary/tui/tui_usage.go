@@ -184,6 +184,6 @@ func (m model) usageView() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString(helpStyle.Render("  tab cambiar campo  ·  enter calcular  ·  esc volver"))
+	b.WriteString(renderFooter("  tab cambiar campo  ·  enter calcular  ·  esc volver"))
 	return appStyle.Render(b.String())
 }

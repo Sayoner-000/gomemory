@@ -199,6 +199,7 @@ func NewSettingsRepository() ports.SettingsRepository {
 func (r *SettingsRepository) Read(root string) ports.SettingsData {
 	s := ReadSettings(root)
 	return ports.SettingsData{
+		Theme:                           s.Theme,
 		AutoApprove:                     s.AutoApprove,
 		AutoApproveTools:                s.AutoApproveTools,
 		CodeGraphDisabled:               s.CodeGraphDisabled,
@@ -247,6 +248,7 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 
 func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 	return WriteSettings(root, Settings{
+		Theme:                           s.Theme,
 		AutoApprove:                     s.AutoApprove,
 		AutoApproveTools:                s.AutoApproveTools,
 		CodeGraphDisabled:               s.CodeGraphDisabled,

@@ -2,6 +2,8 @@ package tui
 
 import (
 	"image/color"
+	"mem/adapters/primary/console"
+	"os"
 
 	"charm.land/lipgloss/v2"
 
@@ -10,26 +12,65 @@ import (
 
 // ─── Styles ───────────────────────────────────────────────────────
 
-// Paleta "Matrix" (tema oscuro fijo, sin AdaptiveColor) tomada tal cual de
-// sst/opencode (matrix.json, modo dark) — no es una interpretación propia,
-// son sus valores hex exactos mapeados por rol semántico:
-//
-//	background→matrixInk0  border→matrixInk3  borderActive/primary→rainGreen
-//	textMuted→rainGray     text→rainGreenHi    secondary→rainCyan
-//	accent→rainPurple      error→alertRed      warning→alertYellow
-//	info→alertBlue         (Decisión usa rainGreenDim, el verde "asentado")
+// Identidad goMemory: oscuro y claro, con roles accesibles por tema.
 var (
-	faint     color.Color = lipgloss.Color("#8ca391") // rainGray / textMuted
-	highlight color.Color = lipgloss.Color("#2eff6a") // rainGreen / primary, borderActive — Arquitectura
-	green     color.Color = lipgloss.Color("#1cc24b") // rainGreenDim — Decisión
-	red       color.Color = lipgloss.Color("#ff4b4b") // alertRed / error — Bugfix
-	blue      color.Color = lipgloss.Color("#30b3ff") // alertBlue / info — Patrón
-	yellow    color.Color = lipgloss.Color("#e6ff57") // alertYellow / warning — Aprendizaje
-	cyan      color.Color = lipgloss.Color("#00efff") // rainCyan / secondary — Hallazgo
-	pink      color.Color = lipgloss.Color("#c770ff") // rainPurple / accent — Preferencia
-	gray      color.Color = lipgloss.Color("#1e2a1b") // matrixInk3 / border — fondo de selección
-	white     color.Color = lipgloss.Color("#62ff94") // rainGreenHi / text — texto sobre selección
+	faint      color.Color = lipgloss.Color("#91a9c5")
+	highlight  color.Color = lipgloss.Color(console.Brillo)
+	green      color.Color = lipgloss.Color(console.Cian)
+	red        color.Color = lipgloss.Color("#ff777f")
+	blue       color.Color = lipgloss.Color(console.Azur)
+	yellow     color.Color = lipgloss.Color("#f4c66b")
+	cyan       color.Color = lipgloss.Color(console.Cian)
+	pink       color.Color = lipgloss.Color(console.Violeta)
+	gray       color.Color = lipgloss.Color("#132e4c")
+	white      color.Color = lipgloss.Color("#e5f4ff")
+	accentText color.Color = lipgloss.Color(console.Abismo)
 )
+
+var currentPalette = console.Theme(os.Getenv)
+
+func themePalette(name string) console.Palette {
+	return console.Theme(func(key string) string {
+		if key == "GOMEMORY_THEME" && name != "" {
+			return name
+		}
+		return os.Getenv(key)
+	})
+}
+
+func applyTheme(names ...string) {
+	name := ""
+	if len(names) > 0 {
+		name = names[0]
+	}
+	p := themePalette(name)
+	currentPalette = p
+	faint, highlight = lipgloss.Color(p.Muted), lipgloss.Color(p.Primary)
+	green, cyan = lipgloss.Color(p.Secondary), lipgloss.Color(p.Secondary)
+	blue, pink = lipgloss.Color(console.Azur), lipgloss.Color(console.Violeta)
+	gray, white, accentText = lipgloss.Color(p.Selection), lipgloss.Color(p.Text), lipgloss.Color(p.OnAccent)
+	red, yellow = lipgloss.Color("#ff777f"), lipgloss.Color("#f4c66b")
+	if p.Name == "light" {
+		red, yellow = lipgloss.Color("#b42336"), lipgloss.Color("#866000")
+	}
+	if p.Name == "matrix" {
+		green = lipgloss.Color("#1cc24b")
+		red, yellow = lipgloss.Color("#ff4b4b"), lipgloss.Color("#e6ff57")
+		blue, pink = lipgloss.Color("#30b3ff"), lipgloss.Color("#c770ff")
+	}
+	appStyle = appStyle.Foreground(white).Background(lipgloss.Color(p.Background))
+	titleStyle = titleStyle.Foreground(highlight)
+	subtitleStyle = subtitleStyle.Foreground(faint)
+	itemSelected = itemSelected.Background(gray).Foreground(white)
+	detailBorder = detailBorder.BorderForeground(highlight)
+	listBorder = listBorder.BorderForeground(highlight)
+	helpStyle = helpStyle.Foreground(faint)
+	formLabel = formLabel.Foreground(highlight)
+	errorStyle = errorStyle.Foreground(red)
+	dangerStyle = dangerStyle.Foreground(red)
+	backHintStyle = backHintStyle.Foreground(faint)
+	statusLineStyle = statusLineStyle.Foreground(faint)
+}
 
 func typeColor(t string) color.Color {
 	switch t {
@@ -108,9 +149,13 @@ var (
 			Italic(true)
 
 	typeTag = func(t string) string {
+		ink := lipgloss.Color("#ffffff")
+		if t == string(domain.Architecture) || t == string(domain.Discovery) || t == string(domain.Decision) || (currentPalette.Name != "light" && (t == string(domain.Learning) || t == string(domain.Bugfix) || t == string(domain.Pattern))) {
+			ink = accentText
+		}
 		return lipgloss.NewStyle().
 			Background(typeColor(t)).
-			Foreground(white).
+			Foreground(ink).
 			Padding(0, 1).
 			Bold(true).
 			Render(typeIcon(t) + " " + typeLabel(t))

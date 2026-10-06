@@ -35,6 +35,7 @@ func CmdInstall(deps *Deps, args []string) {
 	if !stat.IsDir() {
 		fail("%s no es un directorio", target)
 	}
+	console.PrintBrand("install")
 
 	// Selección (feature 034, US3): se decide antes de escribir nada. Sin
 	// terminal interactiva (hooks, CI, `curl | sh`, el subproceso de update)

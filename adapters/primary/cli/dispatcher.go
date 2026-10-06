@@ -3,11 +3,16 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"mem/adapters/primary/console"
 	"mem/version"
 )
 
 func Run(cmd string, args []string, deps *Deps) {
+	if commandHasBanner(cmd, args) {
+		console.PrintBrand(cmd)
+	}
 	switch cmd {
 	case "version", "--version", "-v":
 		fmt.Println("gomemory " + version.Version)
@@ -104,6 +109,21 @@ func Run(cmd string, args []string, deps *Deps) {
 		Usage()
 		os.Exit(1)
 	}
+}
+
+// Solo comandos de lectura humana: las salidas de datos y protocolos se
+// mantienen utilizables por agentes y scripts, incluso con una pseudo-TTY.
+func commandHasBanner(cmd string, args []string) bool {
+	for _, arg := range args {
+		if arg == "json" || strings.HasPrefix(arg, "--json") || strings.HasPrefix(arg, "--format") {
+			return false
+		}
+	}
+	switch cmd {
+	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "import", "adr-sync":
+		return true
+	}
+	return false
 }
 
 func fail(format string, args ...any) {

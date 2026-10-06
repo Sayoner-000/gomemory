@@ -342,21 +342,21 @@ func (m model) docsView() string {
 			b.WriteString(errorStyle.Render("  " + m.docErr))
 			b.WriteString("\n\n")
 		}
-		b.WriteString(helpStyle.Render("  enter confirmar  ·  esc cancelar"))
+		b.WriteString(renderFooter("  enter confirmar  ·  esc cancelar"))
 		return appStyle.Render(b.String())
 	}
 
 	if m.docConfirmReset {
 		b.WriteString(errorStyle.Render("  ¿Restaurar el contenido por defecto? Se descarta el texto actual."))
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("  s confirmar  ·  n cancelar"))
+		b.WriteString(renderFooter("  s confirmar  ·  n cancelar"))
 		return appStyle.Render(b.String())
 	}
 
 	if m.docVista != "" {
 		b.WriteString(windowLines(m.docContentLines(), m.docScroll, m.docBodyBudget()))
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("  ↑/↓ scroll  ·  pgup/pgdown página  ·  ctrl+y copiar  ·  esc volver"))
+		b.WriteString(renderFooter("  ↑/↓ scroll  ·  pgup/pgdown página  ·  ctrl+y copiar  ·  esc volver"))
 		return appStyle.Render(b.String())
 	}
 
@@ -378,7 +378,7 @@ func (m model) docsView() string {
 		b.WriteString(status)
 		b.WriteString("\n")
 	}
-	b.WriteString(helpStyle.Render("  esc volver"))
+	b.WriteString(renderFooter("  esc volver"))
 	return appStyle.Render(b.String())
 }
 

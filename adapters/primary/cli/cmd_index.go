@@ -5,7 +5,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"time"
 
+	"mem/adapters/primary/console"
 	"mem/application/ports"
 	"mem/application/usecases"
 )
@@ -29,10 +31,13 @@ func CmdIndex(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 	project := deps.ProjectRepo.Key(root)
+	console.PrintBrand("index")
 
 	ix := usecases.NewIndexer(deps.CodeGraphRepo, root, project)
 	fmt.Println("🔍 Indexando código Go...")
+	stop := console.StartProgress("Analizando código Go")
 	report, err := ix.IndexProject(*force)
+	stop()
 	if err != nil {
 		fail("indexar: %v", err)
 	}
@@ -65,7 +70,10 @@ func indexExternalGraph(deps *Deps) {
 			continue
 		}
 		fmt.Printf("🔗 Indexando grafo externo (%s)...\n", indexer.Name())
+		started := time.Now()
+		stop := console.StartProgress("Indexando " + indexer.Name())
 		nodes, edges, err := indexer.IndexRepository(context.Background(), "full")
+		stop()
 		if err != nil {
 			if errors.Is(err, ports.ErrIndexerNotInstalled) {
 				fmt.Printf("  (grafo externo: %s no está instalado en PATH, omitido)\n", indexer.Name())
@@ -75,5 +83,6 @@ func indexExternalGraph(deps *Deps) {
 			continue
 		}
 		fmt.Printf("  Nodos: %d, aristas: %d\n", nodes, edges)
+		fmt.Printf("  ✓ %s indexado en %s\n", indexer.Name(), time.Since(started).Round(time.Millisecond))
 	}
 }

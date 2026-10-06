@@ -1,6 +1,8 @@
 package ports
 
 type SettingsData struct {
+	// Theme selecciona la apariencia TUI: dark, light, matrix o auto.
+	Theme string `json:"theme,omitempty"`
 	// UpdateCheckDisabled, Agents y AgentScope (feature 034): aviso de versión
 	// y selección de `mem install`. Deben viajar aquí: Write reconstruye el
 	// Settings completo desde esta struct y perdería lo que no esté.

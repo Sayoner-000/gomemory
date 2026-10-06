@@ -3,6 +3,7 @@ package console
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -15,7 +16,7 @@ import (
 
 var (
 	titleStyle  = lipgloss.NewStyle().Bold(true)
-	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
+	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(Theme(os.Getenv).Primary)).Bold(true)
 	faintStyle  = lipgloss.NewStyle().Faint(true)
 	recStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 )

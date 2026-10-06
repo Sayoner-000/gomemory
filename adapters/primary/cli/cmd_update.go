@@ -52,6 +52,7 @@ func CmdUpdate(deps *Deps, args []string) {
 	if err := fs.Parse(args); err != nil {
 		return
 	}
+	console.PrintBrand("update")
 
 	client := &http.Client{Timeout: 15 * time.Second}
 

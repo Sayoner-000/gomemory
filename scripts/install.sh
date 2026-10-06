@@ -19,9 +19,44 @@ VERSION="${GOMEMORY_VERSION:-latest}"
 # o bajo `set -u` daría "tmp: unbound variable" al salir).
 tmp=""
 
-info()  { printf '\033[1;34m›\033[0m %s\n' "$*"; }
-ok()    { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
-err()   { printf '\033[1;31m✗\033[0m %s\n' "$*" >&2; }
+# Logo derivado de assets/gomemory-terminal.txt; funciona sin el binario.
+print_brand() {
+  [ -t 1 ] && [ -z "${CI:-}" ] || return 0
+  local width
+  width="$(tput cols 2>/dev/null || printf '80')"
+  case "$width" in *[!0-9]*|'') width=80 ;; esac
+  if [ -n "${NO_COLOR:-}" ] || [ "${TERM:-}" = dumb ] || [ "$width" -lt 78 ]; then
+    printf '\ngoMemory · %s · %s\n\n' "$VERSION" "$1"
+    return 0
+  fi
+  local theme="${GOMEMORY_THEME:-auto}"
+  if [ "$theme" != dark ] && [ "$theme" != light ]; then
+    local colorfgbg="${COLORFGBG:-}"
+    case "${colorfgbg##*;}" in 7|15) theme=light ;; *) theme=dark ;; esac
+  fi
+  if [ "$theme" = light ]; then printf '\n\033[38;2;57;38;227m'; else printf '\n\033[38;2;6;193;238m'; fi
+  cat <<'GOMEMORY_LOGO'
+             ⣴⣶  ⢀⣀
+        ⢰⣷   ⣿⣿  ⣼⣿⠇
+     ⣀   ⠿⠇  ⣉⡉  ⠿⠟ ⢀⣼⣷⡄
+    ⠘⢿⣦    ⣴⣿⣿⣿⣆    ⠻⡿⠋          ███  ██  █   █ ████ █   █  ██  ███  █  █
+      ⠁  ⢀⣾⣿⣿⣿⣿⣿⣾⣆    ⢠⣴⣿⣧      █    █  █ ██ ██ █    ██ ██ █  █ █  █ █  █
+  ⠈⣐⡦  ⢀⢢⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄  ⠈⠟⠋       █ ██ █  █ █ █ █ ███  █ █ █ █  █ ███   ██
+    ⠁ ⢠⣯⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆   ⣤⣴⣶     █  █ █  █ █   █ █    █   █ █  █ █ █   █
+      ⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆  ⠿⠟⠛      ███  ██  █   █ ████ █   █  ██  █  █  █
+     ⢸⣿⣿⣿⣿⠻⠙⣿⣿⣿⠱⡻⣿⣿⣿⣿⣿⡄ ⣠⣀⣀
+     ⢸⣿⣿⣿⣿⣦⣼⠿⣿⣿⣦⣴⣿⣿⣿⣿⣿⡧⠐⠿⣿⣿
+   ⠈⠆⢸⣿⣿⣿⣿⣿⣿⣿⣯⣿⣿⣿⣿⣿⣿⣿⣿⡇⣀⡀       Memoria persistente
+     ⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠸⣿⣿⡦      para agentes de código
+     ⠈⠛⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣥  ⠙⠁
+        ⠙⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⠙⠃
+GOMEMORY_LOGO
+  printf '\033[0m\n  %s  ›  %s\n\n' "$VERSION" "$1"
+}
+
+info()  { if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then printf '\033[1;34m›\033[0m %s\n' "$*"; else printf '› %s\n' "$*"; fi; }
+ok()    { if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then printf '\033[1;32m✓\033[0m %s\n' "$*"; else printf '✓ %s\n' "$*"; fi; }
+err()   { if [ -t 2 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then printf '\033[1;31m✗\033[0m %s\n' "$*" >&2; else printf '✗ %s\n' "$*" >&2; fi; }
 die()   { err "$*"; exit 1; }
 
 detect_os() {
@@ -73,7 +108,11 @@ uninstall() {
 }
 
 main() {
-  if [ "${1:-}" = "--uninstall" ]; then uninstall; fi
+  if [ "${1:-}" = "--uninstall" ]; then
+    print_brand "Desinstalar"
+    uninstall
+  fi
+  print_brand "Instalar"
 
   local os arch bin_dir asset url
   os="$(detect_os)"
