@@ -7,7 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.28.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.28.0)
+[![Version](https://img.shields.io/badge/version-2.29.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.29.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)
@@ -491,6 +491,7 @@ For security details and limitations, see [`docs/MANUAL.md`](docs/MANUAL.md).
 | [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Memory protocol technical reference |
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Agent-agnostic contract for the atomic plan mode — implement it for any agent gomemory doesn't know yet |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) | Machine-readable contract for measured context usage |
+| [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Console identity and TUI themes: dark, light and Matrix |
 | [`docs/release_gomemory_notes.md`](docs/release_gomemory_notes.md) | Automated release workflow and verification |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute |
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community guidelines |

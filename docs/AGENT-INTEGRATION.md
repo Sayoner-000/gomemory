@@ -92,9 +92,9 @@ mem plan-context          # equivalente sin envoltura de hook, para inyección d
 **Momento**: al entrar en modo plan, antes de que el modelo redacte.
 
 **Salida**: el método de descomposición atómica seguido del historial del proyecto, ya **ajustado al
-presupuesto** del canal (por defecto 9500 caracteres, configurable con `--budget`). El método va
+presupuesto del documento** (por defecto 9500 caracteres, configurable con `--budget`). El método va
 siempre completo; el historial se recorta si hace falta y se indica cómo recuperar el resto. Nunca hay
-cortes a mitad de frase.
+cortes a mitad de frase. El hook adapta esa salida al dialecto del agente.
 
 **Si el agente no puede inyectar en ese momento**: no pasa nada. El nivel 3 emite un recordatorio de
 una línea en cada turno, que es lo que sostiene la cobertura mientras tanto.

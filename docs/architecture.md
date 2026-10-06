@@ -68,7 +68,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable del ciclo de sesión, compactación, turnos, subagentes y modo plan |
 | `code-refresh` | `infrastructure/main.go` | Fast-path interno (detached): refresca el snapshot del grafo de código externo fuera del hot path. No abre la BD |
-| `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) y el toggle del grafo externo (`--code-graph`, `--code-graph-command`) |
+| `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) y la configuración del grafo externo (`--code-graph`, `--code-graph-command`, `--code-graph-providers`) |
 | `purge` | `adapters/primary/cli/cmd_purge.go` | Borra memorias (proyecto actual por defecto; `--all`/`--type`/`--older-than-days`) |
 | `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` del almacén global del proyecto (recupera espacio, no borra nada) |
 | `gc` | `adapters/primary/cli/cmd_gc.go` | Garbage collection por antigüedad a demanda (90 días por defecto) |
@@ -100,7 +100,7 @@ Interfaz de terminal con [Bubbletea](https://github.com/charmbracelet/bubbletea)
 - `screenDetail` — vista detalle de una memoria seleccionada
 - `screenSave` — formulario multi-campo (título, tipo, contenido, archivo) con validación
 - `screenMaintenance` / `screenMaintenanceConfirm` — acciones de mantenimiento (purge/gc, §14) con confirmación explícita
-- `screenConfig` — pantalla de configuración: auto-approve, modo plan atómico, Octopus AAR, aviso opcional de compactación, documentos fijados, reindexado del grafo externo y ajustes de huella
+- `screenConfig` — pantalla de configuración: auto-approve, modo plan atómico, Octopus AAR, aviso opcional de compactación, documentos fijados, estado de cada proveedor externo, reindexado de todos los grafos y ajustes de huella
 - `screenEditSetting` — una sola pantalla reutilizada por los ajustes numéricos de huella de contexto (`budget`/`compact_threshold`/`dedup_window_days`)
 - `screenImport` — importar un bundle JSON portable (`mem import`) desde la TUI
 - `screenOptimize` / `screenOptimizeDetail` / `screenOptimizeConfirm` / `screenOptimizeAllConfirm` — detección de memorias casi-duplicadas (`usecases.DetectProjectDuplicates`) con revisión por grupo y borrado confirmado, uno por uno o en bloque
@@ -291,13 +291,14 @@ Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `compact_age
 
 #### Grafo de código externo (brazo extensor, opcional)
 
-`build_context.go` puede enriquecer el contexto con la fuerza de un grafo de código **externo** ya indexado (p.ej. [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp): tree-sitter + LSP, multi-lenguaje, clusters, hotspots), **sin acoplarse** a él. El grafo propio Fase-1 (`index_project`/`search_code`/…) se mantiene intacto; esta capa es aditiva y opcional.
+`build_context.go` puede enriquecer el contexto con uno o varios grafos de código **externos** ya indexados, como [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp) y [CodeGraph](https://github.com/colbymchenry/codegraph), **sin acoplar el núcleo** a sus esquemas. El grafo propio de gomemory (`index_project`/`search_code`/…) se mantiene intacto; esta capa es aditiva y opcional.
 
 - **Puerto provider-agnóstico** `application/ports/code_graph_provider.go` (`CodeGraphProvider`): `Name()`, `Snapshot()` y `MaybeRefresh()`. El núcleo no menciona ningún proveedor concreto.
-- **Adaptador** `adapters/secondary/codegraph/codebasememory/`: habla por el **CLI** del proveedor (`codebase-memory-mcp cli <tool> <json>`, JSON por stdout), no por su SQLite — así queda desacoplado de su esquema interno. Casa el proyecto por `root_path` (vía `list_projects`).
-- **No-bloqueo (patrón engram):** el hot path (`Build`) solo **lee** un snapshot cacheado en `.memory/code_provider_snapshot.json` — instantáneo, nunca invoca al proveedor. Si el snapshot está viejo (TTL 60s), `MaybeRefresh()` lanza un proceso **detached** (`mem code-refresh`, fast-path en `main.go` sin abrir la BD; detach vía `setsid` en `proc_unix.go` / no-op en `proc_windows.go`) que sondea con timeout corto (~2s) y reescribe el snapshot de forma atómica (temporal + rename, para que una lectura concurrente nunca vea un JSON a medias) para la **próxima** llamada. Enriquecimiento eventual.
-- **Nunca indexa:** gomemory jamás invoca `index_repository` (eso puede tardar minutos). Repo no indexado → `available=false` → flujo normal.
-- **Enchufable por settings:** `code_graph_disabled` / `code_graph_command` (`mem settings --code-graph=…`). Sin proveedor/binario/snapshot → se degrada en silencio.
+- **Adaptadores**: `adapters/secondary/codegraph/codebasememory/` habla por el CLI de `codebase-memory-mcp` (`codebase-memory-mcp cli <tool> <json>`, JSON por stdout), no por su SQLite; casa el proyecto por `root_path` (vía `list_projects`). `adapters/secondary/codegraph/codegraphcli/` usa el CLI de CodeGraph para consultar su estado, sincronizar cambios e indexar el repositorio. Cada adaptador mantiene aisladas las diferencias de proveedor.
+- **No-bloqueo (patrón engram):** el hot path (`Build`) solo **lee** snapshots cacheados bajo `.memory/` — uno por proveedor, con nombre derivado de su identidad — instantáneos, nunca invoca al proveedor en línea. Si un snapshot está viejo (TTL 60s), `MaybeRefresh()` lanza un proceso **detached** (`mem code-refresh`, fast-path en `main.go` sin abrir la BD; detach vía `setsid` en `proc_unix.go` / no-op en `proc_windows.go`) que sondea con timeout corto (~2s) y reescribe el snapshot de forma atómica para la **próxima** llamada. Enriquecimiento eventual.
+- **Refresco fuera del camino de hooks.** Los hooks y `get_context` leen snapshots y pueden pedir un refresco desacoplado; no esperan a que termine una indexación. En CodeGraph, el refresco consulta `status --json` y ejecuta `sync` si hay cambios pendientes. Un lock del sistema operativo por proyecto serializa esos refrescos entre procesos.
+- **Indexado explícito.** `mem index` sí solicita el indexado completo de cada proveedor configurado, en orden. `--skip-graph` limita la operación al grafo propio. Si un proveedor falla o no está instalado, informa el resultado y continúa con los demás.
+- **Enchufable por settings:** `code_graph_disabled` y `code_graph_providers` controlan el brazo extensor; `code_graph_command` conserva compatibilidad con la configuración anterior. Sin proveedor/binario/snapshot disponible, se degrada sin bloquear el flujo normal.
 - **Agnóstico al agente:** vive en el binario `mem`; el bloque va en `get_context`, que todos los agentes consumen.
 - **Memoria conectada a código activo, recalculada en vivo (v1.23.0).** Además del resumen estructural, `Build()` cruza el `Filepath` de cada memoria contra `ImpactFor(filepath)` de cada proveedor **en cada llamada** (mismo contrato de no-bloqueo: solo lee el snapshot cacheado). Las que resuelven a un hotspot vigente aparecen en la sección `🔥 Memoria conectada a código activo`, ordenadas por fan-in. A diferencia de `annotateImpact` (que anota el `content` una única vez, al guardar, y queda congelado), esta relación se re-evalúa contra el snapshot vigente en cada `get_context` — si el código se reindexa y cambian los hotspots, la relevancia se actualiza sola sin tocar la memoria guardada.
 
@@ -319,19 +320,20 @@ consumidores) del primer proveedor disponible (`FirstAvailable`). `ContextReques
 `pack_build`) lo desactivan por invocación — default activado en ambos, cero cambio de
 comportamiento sin proveedor configurado.
 
-**Reindexado dual desde un solo comando (feature 016, v2.5.0).** `mem index` indexaba
-solo el grafo propio (Go, `go/parser`); el grafo externo requería invocarse a mano por
-separado. Ahora, tras el indexado nativo, `mem index` dispara también el reindexado del
-proveedor externo (`ports.CodeGraphIndexer`, implementado por
-`codebasememory.Provider.IndexRepository`) — salvo `--skip-graph`. Nunca hace fallar el
-comando si el proveedor no está instalado o el reindexado externo falla: solo
-informa/advierte, exit code `0` (el indexado nativo, que sí importa para el resto de
-gomemory, ya tuvo éxito). La TUI tiene la misma acción en la pantalla de Configuración
-("Reindexar grafo externo"), como primer `tea.Cmd` asíncrono real de esta interfaz — no
-bloquea mientras corre, con guardia (`reindexInProgress`) contra disparos concurrentes.
-Misma feature agregó la edición interactiva de los 3 ajustes de huella de contexto
-(`budget`/`compact_threshold`/`dedup_window_days`) desde la pantalla de Configuración,
-sin salir a editar `.memory/settings.json` a mano (ver §2, TUI).
+**Indexado de todos los proveedores (v2.28.0).** `mem index` actualiza primero el
+grafo propio de gomemory y luego recorre `code_graph_providers` en el orden configurado.
+Cada adaptador que implementa `CodeGraphIndexer` recibe un indexado `full`; si falta el
+binario o un proveedor falla, el comando informa ese resultado y continúa con el
+siguiente. `--skip-graph` omite todos los proveedores externos. La pantalla de
+Configuración de la TUI muestra el estado de cada proveedor y su acción de reindexado
+procesa todos los configurados en segundo plano, con resultado individual y protección
+contra ejecuciones simultáneas desde esa instancia.
+
+CodeGraph tiene además un lock del sistema operativo por proyecto durante el refresco
+automático. La protección cubre hooks concurrentes de procesos distintos; el sistema
+libera el lock al terminar el proceso. El refresco automático conserva su carácter
+desacoplado y solo sincroniza cambios pendientes, mientras que `mem index` solicita el
+indexado completo.
 
 #### Evolución del brazo extensor (feature 010): impacto, ADR y multi-proveedor
 
@@ -628,6 +630,20 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 | `PostToolUse` (matcher `ExitPlanMode`) | `plan-approved` | Cuando el usuario **aprueba un plan**, guarda el plan como memoria `decision` de forma determinista (sin gastar tokens ni depender de que el modelo llame `save_memory`). Cubre un hueco: un turno de plan mode es puro chat (sin ediciones ni comandos), así que `turn-end` lo descarta por vacío y las decisiones del plan se perdían. `PostToolUse` solo dispara si el usuario aprobó (un plan rechazado no ejecuta la tool). Transversal: acepta el plan en `tool_input.plan` (Claude Code) o en `plan` de nivel superior (OpenCode/otros); el plugin de OpenCode lo invoca al detectar un turno con `info.mode==="plan"`. Append-only: cada aprobación (incluidos planes revisados) genera una nueva `decision`, así la evolución no se pierde |
 | `PostToolUse` (matcher `EnterPlanMode`) | `plan-entered` | Entrega el método de descomposición y el historial necesario antes de redactar el plan |
 | _(interno, transversal)_ | `nudge` | Imprime en texto plano el recordatorio de guardado (o nada) según la misma decisión que `user-prompt-submit`. Lo consumen integraciones sin acceso al JSON de Claude Code, como el plugin de OpenCode, para que el comportamiento sea idéntico entre agentes |
+
+#### Integridad de hooks (feature 035)
+
+El guard de hooks combina un lock del sistema operativo durante la ejecución con
+recibos de una hora para eventos `UserPromptSubmit` que incluyen `prompt_id`.
+Así suprime invocaciones duplicadas solapadas y retries tardíos con la misma
+identidad, sin confundir prompts iguales de turnos distintos. El estado de
+recordatorios y avisos se asocia al `session_id` del host; al terminar la sesión,
+tanto el hook como `mem session end` limpian el marcador de conversación local.
+Las salidas compuestas por secciones pasan por un ajustador con prioridades;
+`plan-entered` aplica un presupuesto propio al documento. Los contadores de
+duplicados, recortes y exclusiones de compresión quedan disponibles en
+`mem doctor`. La compresión segura de salidas se documenta en
+[MANUAL.md](./MANUAL.md#compresión-de-salidas-de-herramientas).
 
 Los hooks son el mecanismo que hace que la memoria "tome todo bien" en Claude Code: sin ellos, las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto automáticamente. El campo `{"tools": true}` que se usaba antes en `user-prompt-submit` NO es soportado por Claude Code (era un no-op silencioso que dejaba las tools diferidas sin cargar); se reemplazó por el `systemMessage` con `ToolSearch`.
 
@@ -1362,7 +1378,7 @@ gomemory/
 │   │   │   ├── cmd_purge.go        #       mem purge
 │   │   │   ├── cmd_compact.go      #       mem compact
 │   │   │   ├── cmd_gc.go           #       mem gc
-│   │   │   ├── cmd_index.go        #       mem index — indexación manual de código Go
+│   │   │   ├── cmd_index.go        #       mem index — índice Go propio y reindexado de proveedores externos
 │   │   │   ├── cmd_update.go       #       mem update — auto-actualización del binario
 │   │   │   ├── transcript.go       #       extractor de actividad de turno (checkpoints)
 │   │   │   └── transcript_test.go  #       tests del extractor de checkpoints
@@ -1387,12 +1403,14 @@ gomemory/
 │           ├── maintenance.go       #       Purge/Compact/GC (no expuesto vía MCP)
 │           ├── settings.go          #       Config local (auto-approve + toggle grafo externo)
 │           └── repositories.go     #       Wrappers ports.*Repository
-│       └── codegraph/               #     Grafo de código externo (opcional, provider-agnóstico)
-│           └── codebasememory/      #       Adaptador CLI de codebase-memory-mcp
-│               ├── provider.go      #         Snapshot() hot path + Refresh() background
-│               ├── proc_unix.go     #         detach (setsid) del refresco
-│               ├── proc_windows.go  #         detach no-op en Windows
-│               └── provider_test.go #         Tests con fixtures reales del CLI
+│       └── codegraph/               #     Proveedores externos y coordinación de refresco
+│           ├── codebasememory/      #     Adaptador CLI de codebase-memory-mcp
+│           │   ├── provider.go      #       Snapshot() hot path + Refresh() background
+│           │   ├── proc_unix.go     #       detach (setsid) del refresco
+│           │   └── proc_windows.go  #       detach no-op en Windows
+│           ├── codegraphcli/        #     Adaptador CLI de CodeGraph
+│           ├── refresh_lock_unix.go #     Lock de refresco entre procesos (Unix)
+│           └── refresh_lock_windows.go #  Lock de refresco entre procesos (Windows)
 │
 ├── infrastructure/                  # Composition root
 │   ├── main.go                      #   Entry point, go:embed, dispatch

@@ -250,12 +250,14 @@ Esto:
 
 ### Integridad de los hooks (desde la feature 035)
 
-- **Tope del canal.** Ninguna salida inyectada supera los 10 000 caracteres que
-  Claude Code inyecta enteros. Por encima, el host guarda la salida en un
-  archivo y el modelo solo ve una vista previa de unos 2 KB. Lo que no cabe se
-  recorta por prioridad (carga de tools > protocolo > Octopus > documento de
-  plan > memoria) y la salida termina con «… contexto recortado: llama
-  get_context() para el resto».
+- **Tope del canal.** Claude Code inyecta enteras las salidas de hasta 10 000
+  caracteres. Por encima, el host guarda la salida en un archivo y el modelo
+  solo ve una vista previa de unos 2 KB. Cuando gomemory compone varias
+  secciones para el mismo canal, las ajusta por prioridad (carga de tools >
+  protocolo > Octopus > documento de plan > memoria) y añade «… contexto
+  recortado: llama get_context() para el resto». `plan-entered` limita su
+  documento a 9500 caracteres por defecto; ese presupuesto es configurable con
+  `--budget`.
 - **Un registro por subcomando.** Los hooks globales (`~/.claude/settings.json`)
   sirven a todos los proyectos. `mem install` registra en el proyecto solo los
   subcomandos que el global no cubre (por ejemplo `tool-output`), y
@@ -266,8 +268,8 @@ Esto:
   invocación paralela sale en silencio. En `UserPromptSubmit`, Claude Code
   también permite descartar una copia que llegue después de terminar la
   primera si ambas traen el mismo `prompt_id`; otro `prompt_id` se procesa
-  aunque el texto sea idéntico. Sin ese identificador, la guarda solo cubre
-  ejecuciones solapadas.
+  aunque el texto sea idéntico. El recibo de `prompt_id` vence después de una
+  hora. Sin ese identificador, la guarda solo cubre ejecuciones solapadas.
 - **Estado por conversación.** El estado de cada turno (huella, recordatorios,
   aviso pendiente) pertenece a la conversación del host (`session_id`; en
   OpenCode, el id de su sesión). Una conversación nueva empieza limpia; una
@@ -324,6 +326,10 @@ mem context
 # 4. Cerrar sesión con resumen
 mem session end -s "Prueba manual completada"
 ```
+
+`mem session end` también cierra el marcador de conversación local. El hook
+`mem hook session-end` aplica la misma limpieza, para que un inicio posterior
+sin `session_id` no herede el marcador de la sesión anterior.
 
 ### Tests Automatizados
 
@@ -753,7 +759,7 @@ para el detalle completo de flags y comportamiento.
 ```bash
 mem index                 # Indexa el código Go propio (símbolos: archivos, paquetes, funciones, métodos, tipos, llamadas)
 mem index --force          # Reindexado completo, ignora el cache incremental
-mem index --skip-graph     # Solo el grafo propio — no dispara el reindexado del proveedor externo
+mem index --skip-graph     # Solo el grafo propio — no reindexa proveedores externos
 ```
 
 `mem index` construye el grafo de símbolos **propio** de gomemory (Go puro, vía
@@ -767,10 +773,11 @@ code permanece `0` (el indexado nativo, que sí
 importa para el resto de gomemory, ya tuvo éxito).
 
 En la TUI, Configuración muestra por separado el estado de cada proveedor
-externo configurado. La acción "Reindexar grafos externos" procesa los dos
-cuando están configurados `codebase-memory-mcp` y `codegraph`, informa el
-resultado de cada uno y continúa con el segundo si el primero falla. Corre en
-segundo plano y evita disparos concurrentes.
+externo configurado. La acción "Reindexar grafos externos" procesa todos los
+proveedores configurados, informa el resultado de cada uno y continúa aunque
+uno falle. Corre en segundo plano y evita disparos concurrentes.
+La lista de proveedores se carga al iniciar la TUI; si cambias `code_graph_providers`
+o actualizas el binario con la TUI abierta, ciérrala y vuelve a ejecutarla.
 
 **Proveedor externo (opcional, "brazo extensor"):** si hay un binario CLI de
 grafo de código externo instalado, gomemory lo usa para enriquecer `mem
@@ -795,20 +802,20 @@ configura `.memory/settings.json` así:
 }
 ```
 
-En cada proyecto, ejecuta `codegraph init` una vez y comprueba el índice con
-`codegraph status`. `codegraph install` conecta su servidor MCP a los agentes;
+En cada proyecto, ejecuta `mem index` para crear o reconstruir el índice de
+CodeGraph y compruébalo con `codegraph status`. `codegraph install` conecta su servidor MCP a los agentes;
 `init` crea el índice local. Gomemory consulta `codegraph status --json` durante
 su refresco desacoplado y, si hay archivos pendientes, ejecuta `codegraph sync`
-fuera del camino de los hooks. Muestra ambos proveedores disponibles en
-`mem context`.
+fuera del camino de los hooks. `mem context` muestra cada proveedor configurado
+que esté disponible.
 CodeGraph aporta totales de nodos y relaciones, acceso a `codegraph_explore`
 y el comando `codegraph affected` para buscar pruebas relacionadas con cambios;
 la anotación de hotspots y la sincronización ADR siguen usando
-codebase-memory-mcp cuando está disponible. `mem index` reindexa ambos
-proveedores; CodeGraph también mantiene su índice actualizado mediante su
-servidor MCP cuando está activo y gomemory sincroniza los cambios pendientes
-al refrescar su snapshot. El directorio local `.codegraph/` se ignora en este
-repositorio.
+codebase-memory-mcp cuando está disponible. `mem index` reindexa todos los
+proveedores configurados. CodeGraph también mantiene su índice actualizado
+mediante su servidor MCP cuando está activo y gomemory sincroniza los cambios
+pendientes al refrescar su snapshot. El directorio local `.codegraph/` se ignora
+en este repositorio.
 
 ## 10. Optimización de Contexto (mem pack)
 
@@ -1403,3 +1410,14 @@ Compatibilidad verificada:
 `mem doctor` muestra el nivel efectivo, el uso del almacén de originales, el
 estado por runtime y los ajustes adaptativos. Con `--strict`, un nivel `max`
 sin almacén escribible produce un código de salida distinto de cero.
+
+
+## Temas de la terminal (v2.29.0)
+
+La TUI incluye goMemory oscuro, goMemory claro y Matrix. Pulsa `c` para abrir
+Configuración y `t` para alternar los temas, o selecciona «Tema visual» y pulsa
+Enter. La elección se aplica al instante y se guarda por proyecto.
+
+La consola presenta el logo de goMemory y muestra progreso durante el indexado.
+Consulta [Temas de terminal](./CONSOLE-THEMES.md) para seleccionar la apariencia
+con `GOMEMORY_THEME` y conocer el comportamiento de `NO_COLOR` y `COLORFGBG`.

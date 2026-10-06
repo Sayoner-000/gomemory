@@ -5,6 +5,41 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.29.0] - 2026-10-05
+
+### Added
+
+- Identidad visual de goMemory en la consola y los instaladores, con un logo
+  embebido basado en los assets oficiales y progreso visible durante `mem index`.
+- Tres temas para la TUI: goMemory oscuro, goMemory claro y Matrix. En
+  Configuración, `t` o Enter sobre «Tema visual» cambia el tema al instante y
+  guarda la elección por proyecto.
+- Selección de apariencia con `GOMEMORY_THEME` y detección opcional mediante
+  `COLORFGBG`. La consola respeta `NO_COLOR`, CI y la salida redirigida.
+- Variantes SVG y WebP del logo y del indicador de carga.
+
+### Changed
+
+- La TUI adapta marcos, formularios, selección y acciones al tamaño de la
+  terminal. Las pantallas largas permiten desplazarse con PgUp/PgDown.
+- La documentación describe la configuración de temas, el indexado de todos
+  los proveedores externos y el comportamiento actual de los hooks.
+
+### Fixed
+
+- `mem index` inicializa CodeGraph cuando el proyecto aún no tiene índice;
+  antes ejecutaba `index` directamente y CodeGraph requería un `init` manual.
+  Los errores conservan la salida del proveedor y se valida el proyecto del índice.
+- Los sondeos de CodeGraph tienen su propio plazo: el `status` final ya no
+  hereda el tiempo restante del comando de indexado. Se conserva la cancelación
+  del llamador.
+- Los bordes de la TUI ya no desbordan por el padding de las filas o por títulos
+  con caracteres de varias columnas. Un presupuesto de altura cero ya no
+  muestra toda la lista.
+- La lista se recorta una sola vez y las pantallas secundarias declaran su pie
+  de acciones, sin deducirlo de textos como `esc` o de líneas de borde.
+- El test del orden de filas de Configuración incluye el selector de tema.
+
 ## [v2.28.0] - 2026-10-04
 
 ### Fixed
