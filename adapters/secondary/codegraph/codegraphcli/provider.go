@@ -177,12 +177,27 @@ func (p *Provider) IndexRepository(ctx context.Context, _ string) (int, int, err
 	if p.binPath == "" {
 		return 0, 0, ports.ErrIndexerNotInstalled
 	}
-	cctx, cancel := context.WithTimeout(ctx, indexTimeout)
-	defer cancel()
-	if out, err := exec.CommandContext(cctx, p.binPath, "index", "--quiet", p.root).CombinedOutput(); err != nil {
-		return 0, 0, fmt.Errorf("codegraph index: %w: %s", err, out)
-	}
 	data, err := p.status(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("codegraph status: %w", err)
+	}
+	var current status
+	if err := json.Unmarshal(data, &current); err != nil || current.ProjectPath != p.root {
+		return 0, 0, errors.New("codegraph status: respuesta inesperada o proyecto incorrecto")
+	}
+	command, option := "index", "--quiet"
+	if !current.Initialized {
+		command, option = "init", "--yes"
+	}
+	// El plazo largo cubre solo el comando; cada status conserva su propio
+	// plazo corto y sigue respetando la cancelación del llamador.
+	cctx, cancel := context.WithTimeout(ctx, indexTimeout)
+	out, err := exec.CommandContext(cctx, p.binPath, command, option, p.root).CombinedOutput()
+	cancel()
+	if err != nil {
+		return 0, 0, fmt.Errorf("codegraph %s: %w: %s", command, err, out)
+	}
+	data, err = p.status(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("codegraph status: %w", err)
 	}

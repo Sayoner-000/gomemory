@@ -2,14 +2,67 @@ package codegraphcli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"mem/application/ports"
 	"mem/domain"
 )
+
+func TestIndexRepository_CreaOReconstruyeIndice(t *testing.T) {
+	for _, initialized := range []bool{false, true} {
+		for _, fail := range []bool{false, true} {
+			t.Run(fmt.Sprintf("initialized=%v/fail=%v", initialized, fail), func(t *testing.T) {
+				root := t.TempDir()
+				command, option := "init", "--yes"
+				if initialized {
+					command, option = "index", "--quiet"
+				}
+				initial := fmt.Sprintf(`{"initialized":%v,"projectPath":%q}`, initialized, root)
+				complete := fmt.Sprintf(`{"initialized":true,"projectPath":%q,"nodeCount":7,"edgeCount":9,"index":{"state":"complete"}}`, root)
+				script := fmt.Sprintf(`#!/bin/sh
+cd '%s' || exit 1
+if [ "$1" = status ]; then
+  if [ -f rebuilt ]; then printf '%%s\n' '%s'; else printf '%%s\n' '%s'; fi
+  exit 0
+fi
+printf '%%s\n' "$@" > arguments
+if [ '%v' = true ]; then echo 'writer lock held' >&2; exit 1; fi
+touch rebuilt
+`, root, complete, initial, fail)
+				bin := filepath.Join(root, "fake-codegraph")
+				if err := os.WriteFile(bin, []byte(script), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				p := New(root, filepath.Join(root, ".memory"), bin)
+				nodes, edges, err := p.IndexRepository(context.Background(), "full")
+				if fail {
+					if err == nil || !strings.Contains(err.Error(), "codegraph "+command) || !strings.Contains(err.Error(), "writer lock held") || nodes != 0 || edges != 0 {
+						t.Fatalf("fallo no propagado: %d, %d, %v", nodes, edges, err)
+					}
+				} else if err != nil || nodes != 7 || edges != 9 {
+					t.Fatalf("índice = %d, %d, %v", nodes, edges, err)
+				}
+				args, readErr := os.ReadFile(filepath.Join(root, "arguments"))
+				if readErr != nil || string(args) != command+"\n"+option+"\n"+root+"\n" {
+					t.Fatalf("argumentos = %q, %v", args, readErr)
+				}
+			})
+		}
+	}
+}
+
+func TestIndexRepository_SinBinario(t *testing.T) {
+	p := &Provider{}
+	if _, _, err := p.IndexRepository(context.Background(), "full"); !errors.Is(err, ports.ErrIndexerNotInstalled) {
+		t.Fatalf("error = %v", err)
+	}
+}
 
 func TestParseStatus_ExigeIndiceActualDelProyecto(t *testing.T) {
 	root := "/tmp/project"
@@ -75,5 +128,20 @@ func TestLiveCodeGraph_RefrescaIndiceInstalado(t *testing.T) {
 	snap := p.Snapshot()
 	if !snap.Available || snap.Architecture == nil || snap.Architecture.TotalNodes == 0 || snap.Project != root {
 		t.Fatalf("CodeGraph instalado no produjo un snapshot válido: %#v", snap)
+	}
+}
+
+func TestIndexRepository_RespetaCancelacionDelLlamador(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "fake-codegraph")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	p := New(root, filepath.Join(root, ".memory"), bin)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, err := p.IndexRepository(ctx, "full")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelación perdida: %v", err)
 	}
 }
