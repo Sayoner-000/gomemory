@@ -55,7 +55,7 @@ const defaultAgentList = "opencode,claude,codex"
 var codexConfigMu sync.Mutex
 
 func CmdMCPSetup(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("setup-mcp", flag.ContinueOnError)
+	fs := newFlagSet("setup-mcp", flag.ContinueOnError)
 	target := fs.String("target", ".", "Directorio del proyecto donde instalar configs (solo aplica a --scope project)")
 	agents := fs.String("agents", defaultAgentList, "Agentes objetivo (separados por coma): opencode, claude, cursor, windsurf, cline, codex, all")
 	scope := fs.String("scope", "project", "project (default, por repo) o global (una vez por máquina — claude, codex, opencode)")

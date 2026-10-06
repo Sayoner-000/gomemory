@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/dustin/go-humanize"
 
+	"mem/adapters/primary/console"
 	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
@@ -2125,7 +2126,13 @@ func (m model) listView() string {
 	}
 	contentWidth := max(1, m.width-appStyle.GetHorizontalFrameSize())
 	summary := fmt.Sprintf(" · %d memorias%s", len(m.filtered), sizeInfo)
-	header := titleStyle.MarginBottom(0).Render(truncate("goMemory · "+truncate(m.project, max(1, contentWidth-11-lipgloss.Width(summary)))+summary, contentWidth))
+	layout := console.NewLayout(console.Env{StdoutTTY: true, Width: contentWidth, Getenv: func(key string) string {
+		if key == "GOMEMORY_THEME" {
+			return currentPalette.Name
+		}
+		return os.Getenv(key)
+	}})
+	header := lipgloss.NewStyle().Bold(true).Render(truncate(layout.Header(m.project)+layout.Muted(summary), contentWidth))
 
 	// Input de filtro (visible solo cuando se está buscando)
 	filterBar := ""
@@ -2159,13 +2166,19 @@ func (m model) listView() string {
 		bodyLines, cursorLine := m.listBodyLines()
 		inner = windowLines(bodyLines, cursorLine, budget)
 	case strings.TrimSpace(m.filterInput.Value()) != "":
-		inner = itemNormal.Foreground(faint).Render(fmt.Sprintf("Sin resultados para «%s»", m.filterInput.Value()))
+		inner = m.emptyListState(fmt.Sprintf("Sin resultados para «%s»\nesc limpiar filtro", m.filterInput.Value()), budget)
 	default:
-		inner = itemNormal.Foreground(faint).Render("Sin memorias en este proyecto")
+		inner = m.emptyListState("Sin memorias en este proyecto\ns guardar tu primer aprendizaje", budget)
 	}
 	body := listBorder.Render(inner)
 
 	return appStyle.Render(lipgloss.JoinVertical(lipgloss.Top, header, filterBar, "", body, footer))
+}
+
+func (m model) emptyListState(message string, budget int) string {
+	width := max(1, m.width-appStyle.GetHorizontalFrameSize()-listBorder.GetHorizontalFrameSize())
+	lines := strings.Split(ansi.Wrap(message, width, ""), "\n")
+	return lipgloss.NewStyle().Foreground(faint).Render(windowLines(lines, 0, budget))
 }
 
 // Mantiene cada tecla junto a su acción al repartir los atajos por filas.

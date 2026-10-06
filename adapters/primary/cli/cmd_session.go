@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"text/tabwriter"
+
+	"github.com/charmbracelet/x/ansi"
+	"mem/adapters/primary/console"
 )
 
 func CmdSession(deps *Deps, args []string) {
@@ -43,8 +45,8 @@ func cmdSessionStart(deps *Deps, args []string) {
 
 	active, _ := deps.SessionRepo.Active(project)
 	if active != nil {
-		fmt.Printf("⚠  Ya hay una sesión activa desde %s\n", active.CreatedAt)
-		fmt.Printf("   Ciérrala con: mem session end\n")
+		humanf("⚠  Ya hay una sesión activa desde %s\n", active.CreatedAt)
+		humanf("   Ciérrala con: mem session end\n")
 		return
 	}
 
@@ -53,12 +55,12 @@ func cmdSessionStart(deps *Deps, args []string) {
 		fail("iniciar sesión: %v", err)
 	}
 
-	fmt.Printf("✓ Sesión iniciada: %s\n", sess.ID[:8])
-	fmt.Println("  Usa 'mem save' durante la sesión para asociar aprendizajes")
+	humanf("✓ Sesión iniciada: %s\n", sess.ID[:8])
+	humanln("  Usa 'mem save' durante la sesión para asociar aprendizajes")
 }
 
 func cmdSessionEnd(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("session end", flag.ContinueOnError)
+	fs := newFlagSet("session end", flag.ContinueOnError)
 	summary := fs.String("s", "", "Resumen de la sesión")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -92,14 +94,14 @@ func cmdSessionEnd(deps *Deps, args []string) {
 	}
 	endConversation(root)
 
-	fmt.Printf("✓ Sesión %s finalizada\n", sess.ID[:8])
+	humanf("✓ Sesión %s finalizada\n", sess.ID[:8])
 	if finalSummary != "" {
-		fmt.Printf("  Resumen: %s\n", finalSummary)
+		humanf("  Resumen: %s\n", finalSummary)
 	}
 }
 
 func cmdSessionList(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("session list", flag.ContinueOnError)
+	fs := newFlagSet("session list", flag.ContinueOnError)
 	limit := fs.Int("n", 10, "Número de sesiones")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -117,25 +119,21 @@ func cmdSessionList(deps *Deps, args []string) {
 	}
 
 	if len(sessions) == 0 {
-		fmt.Println("Sin sesiones registradas")
+		humanln("Sin sesiones registradas. Inicia una con: mem session start")
 		return
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(w, "ID\tInicio\tFin\tResumen")
-	_, _ = fmt.Fprintln(w, "--\t------\t---\t-------")
+	rows := make([][]string, 0, len(sessions))
 	for _, s := range sessions {
 		endStr := "activa"
 		if s.EndedAt != nil {
 			endStr = *s.EndedAt
 		}
 		summary := s.Summary
-		if len(summary) > 50 {
-			summary = summary[:47] + "..."
-		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", s.ID[:8], s.CreatedAt, endStr, summary)
+		summary = ansi.Truncate(summary, 50, "...")
+		rows = append(rows, []string{s.ID[:8], s.CreatedAt, endStr, summary})
 	}
-	_ = w.Flush()
+	fmt.Fprint(os.Stdout, formatMemoryRows(console.DetectEnv(), []string{"ID", "Inicio", "Fin", "Resumen"}, rows))
 }
 
 // conversationFlag extrae --conversation=<id> de args ("" si no está).

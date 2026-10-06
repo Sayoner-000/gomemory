@@ -84,7 +84,7 @@ func renderConsumo(s domain.RoutingStats) string {
 }
 
 func cmdOctopusStatus(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("octopus status", flag.ContinueOnError)
+	fs := newFlagSet("octopus status", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	asJSON := fs.Bool("json", false, "Emitir el estado como JSON")
 	if err := fs.Parse(args); err != nil {
@@ -100,7 +100,7 @@ func cmdOctopusStatus(deps *Deps, args []string) {
 }
 
 func cmdOctopusUsage(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("octopus usage", flag.ContinueOnError)
+	fs := newFlagSet("octopus usage", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	asJSON := fs.Bool("json", false, "Emitir el consumo como JSON")
 	if err := fs.Parse(args); err != nil {
@@ -121,7 +121,7 @@ func cmdOctopusUsage(deps *Deps, args []string) {
 }
 
 func cmdOctopusHistory(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("octopus history", flag.ContinueOnError)
+	fs := newFlagSet("octopus history", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	n := fs.Int("n", 20, "Cuántas decisiones mostrar")
 	clase := fs.String("class", "", "Filtrar por clase de tarea")

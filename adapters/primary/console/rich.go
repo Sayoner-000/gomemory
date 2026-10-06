@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // La UI rica se dibuja en línea, sin pantalla alternativa: al terminar queda
@@ -88,6 +89,26 @@ func (r *richUI) TypedConfirm(title, word string) (bool, error) {
 
 func isCancel(k string) bool { return k == "esc" || k == "ctrl+c" }
 
+func promptView(title, body string, done, canceled bool) tea.View {
+	icon := "◆"
+	if done {
+		icon = "◇"
+	}
+	if canceled {
+		icon, body = "■", "Cancelado"
+	}
+	width := NewLayout(DetectEnv()).Width()
+	var b strings.Builder
+	b.WriteString(ansi.Hardwrap(ansi.Wrap(titleStyle.Render(icon+" "+title), width, ""), width, false) + "\n")
+	for _, line := range strings.Split(strings.TrimSuffix(body, "\n"), "\n") {
+		line = strings.TrimPrefix(line, "  ")
+		for _, wrapped := range strings.Split(ansi.Hardwrap(ansi.Wrap(line, max(1, width-3), ""), max(1, width-3), false), "\n") {
+			b.WriteString(faintStyle.Render("│") + "  " + wrapped + "\n")
+		}
+	}
+	return tea.NewView(b.String())
+}
+
 // --- selección múltiple ---
 
 type multiSelectModel struct {
@@ -147,7 +168,6 @@ func (m multiSelectModel) values() []string {
 
 func (m multiSelectModel) View() tea.View {
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("◆ "+m.title) + "\n")
 	if m.done || m.canceled {
 		labels := make([]string, 0, len(m.opts))
 		for i, c := range m.checked {
@@ -156,7 +176,7 @@ func (m multiSelectModel) View() tea.View {
 			}
 		}
 		b.WriteString(faintStyle.Render("  "+strings.Join(labels, ", ")) + "\n")
-		return tea.NewView(b.String())
+		return promptView(m.title, b.String(), m.done, m.canceled)
 	}
 	for i, o := range m.opts {
 		box := "◻"
@@ -172,7 +192,7 @@ func (m multiSelectModel) View() tea.View {
 		b.WriteString("  " + line + "\n")
 	}
 	b.WriteString(faintStyle.Render("  ↑/↓ mover · espacio marcar · enter confirmar · esc cancelar") + "\n")
-	return tea.NewView(b.String())
+	return promptView(m.title, b.String(), m.done, m.canceled)
 }
 
 // --- selección única ---
@@ -219,10 +239,9 @@ func (m selectModel) value() string { return m.opts[m.cursor].Value }
 
 func (m selectModel) View() tea.View {
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("◆ "+m.title) + "\n")
 	if m.done || m.canceled {
 		b.WriteString(faintStyle.Render("  "+m.opts[m.cursor].Label) + "\n")
-		return tea.NewView(b.String())
+		return promptView(m.title, b.String(), m.done, m.canceled)
 	}
 	for i, o := range m.opts {
 		line := o.Label
@@ -238,7 +257,7 @@ func (m selectModel) View() tea.View {
 		b.WriteString("  " + line + "\n")
 	}
 	b.WriteString(faintStyle.Render("  ↑/↓ mover · enter elegir · esc cancelar") + "\n")
-	return tea.NewView(b.String())
+	return promptView(m.title, b.String(), m.done, m.canceled)
 }
 
 // --- confirmación ---
@@ -277,13 +296,20 @@ func (m confirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m confirmModel) View() tea.View {
+	if m.done || m.canceled {
+		answer := "No"
+		if m.answer {
+			answer = "Sí"
+		}
+		return promptView(m.title, answer, m.done, m.canceled)
+	}
 	yes, no := "Sí", "No"
 	if m.answer {
 		yes = cursorStyle.Render("› Sí")
 	} else {
 		no = cursorStyle.Render("› No")
 	}
-	return tea.NewView(titleStyle.Render("◆ "+m.title) + "\n  " + yes + "  /  " + no + "\n")
+	return promptView(m.title, yes+"  /  "+no+"\n  ←/→ elegir · enter confirmar · esc cancelar", m.done, m.canceled)
 }
 
 // --- confirmación escrita ---
@@ -315,6 +341,5 @@ func (m typedModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m typedModel) View() tea.View {
-	return tea.NewView(titleStyle.Render("◆ "+m.title) + "\n  Escribe " + m.word + " para confirmar: " +
-		m.input.View() + "\n")
+	return promptView(m.title, "Escribe "+m.word+" para confirmar: "+m.input.View(), m.done, m.canceled)
 }

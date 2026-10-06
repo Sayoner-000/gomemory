@@ -10,7 +10,7 @@ import (
 )
 
 func CmdSettings(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("settings", flag.ContinueOnError)
+	fs := newFlagSet("settings", flag.ContinueOnError)
 	autoApprove := fs.Bool("auto-approve", false, "Activar auto-approve en MCP")
 	codeGraph := fs.Bool("code-graph", true, "Activar el grafo de código externo (codebase-memory-mcp)")
 	codeGraphCmd := fs.String("code-graph-command", "", "Binario del proveedor de grafo externo (opcional, legado — ver --code-graph-providers)")
@@ -39,7 +39,7 @@ func CmdSettings(deps *Deps, args []string) {
 
 	if fs.NFlag() == 0 {
 		printSettings(deps, root)
-		fmt.Println("\nUsa --auto-approve=true|false o --code-graph=true|false para cambiar")
+		humanln("\nUsa --auto-approve=true|false o --code-graph=true|false para cambiar")
 		return
 	}
 
@@ -85,27 +85,27 @@ func CmdSettings(deps *Deps, args []string) {
 	if autoApproveChanged {
 		deps.SettingsRepo.ApplyAutoApprove(root, settings)
 	}
-	fmt.Println("✅ Settings actualizados")
+	humanln("✅ Settings actualizados")
 	printSettings(deps, root)
 }
 
 func printSettings(deps *Deps, root string) {
 	s := deps.SettingsRepo.Read(root)
-	fmt.Printf("Auto-approve: %v\n", s.AutoApprove)
+	humanf("CONFIGURACIÓN\n\nAuto-approve: %v\n", s.AutoApprove)
 	if s.AutoApprove {
-		fmt.Printf("Tools: %v\n", s.AutoApproveTools)
+		humanf("Tools: %v\n", s.AutoApproveTools)
 	}
-	fmt.Printf("Grafo de código externo: %v\n", !s.CodeGraphDisabled)
+	humanf("Grafo de código externo: %v\n", !s.CodeGraphDisabled)
 	if len(s.CodeGraphProviders) > 0 {
-		fmt.Printf("Proveedores candidatos (en orden): %s\n", strings.Join(s.CodeGraphProviders, ", "))
+		humanf("Proveedores candidatos (en orden): %s\n", strings.Join(s.CodeGraphProviders, ", "))
 	} else if s.CodeGraphCommand != "" {
-		fmt.Printf("Binario del proveedor: %s\n", s.CodeGraphCommand)
+		humanf("Binario del proveedor: %s\n", s.CodeGraphCommand)
 	}
-	fmt.Printf("Anotación de impacto al guardar: %v\n", !s.CodeImpactAnnotationDisabled)
-	fmt.Printf("Sincronización de ADR: %v\n", s.AdrSyncEnabled)
-	fmt.Printf("Brazo extensor spec-kit: %v\n", !s.SpeckitContextDisabled)
-	fmt.Printf("Planificación atómica en modo plan: %v\n", !s.AtomicPlanDisabled)
-	fmt.Print(formatCompressionSettings(s))
+	humanf("Anotación de impacto al guardar: %v\n", !s.CodeImpactAnnotationDisabled)
+	humanf("Sincronización de ADR: %v\n", s.AdrSyncEnabled)
+	humanf("Brazo extensor spec-kit: %v\n", !s.SpeckitContextDisabled)
+	humanf("Planificación atómica en modo plan: %v\n", !s.AtomicPlanDisabled)
+	humanf("%s", formatCompressionSettings(s))
 }
 
 // applyCompressionLevel valida y fija el nivel de compresión. Rechaza un valor

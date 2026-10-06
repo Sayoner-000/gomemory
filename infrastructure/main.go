@@ -85,6 +85,11 @@ var rootIndependentCommands = map[string]bool{
 }
 
 func main() {
+	args, noMotion := cli.PresentationArgs(os.Args[1:])
+	os.Args = append(os.Args[:1], args...)
+	if noMotion {
+		_ = os.Setenv("GOMEMORY_NO_MOTION", "1")
+	}
 	// code-refresh: proceso de fondo (detached) que refresca el snapshot del
 	// grafo externo FUERA del hot path. No abre la DB; resuelve el root y sondea
 	// al proveedor con su propio timeout. Best-effort: cualquier fallo → exit 0.

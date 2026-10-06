@@ -84,7 +84,7 @@ func ParseOctopusRouteFlags(args []string) (usecases.RouteTaskRequest, bool, err
 	objetivo := strings.TrimSpace(args[0])
 	args = args[1:]
 
-	fs := flag.NewFlagSet("octopus route", flag.ContinueOnError)
+	fs := newFlagSet("octopus route", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
 	class := fs.String("class", "", "Clase de tarea (investigation, implementation, documentation...)")

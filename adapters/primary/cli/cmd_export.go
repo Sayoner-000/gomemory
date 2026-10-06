@@ -12,7 +12,7 @@ import (
 // CmdExport vuelca las memorias y relaciones del proyecto actual a un archivo
 // JSON portable (cross-OS), apto para moverlas entre proyectos y máquinas.
 func CmdExport(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("export", flag.ContinueOnError)
+	fs := newFlagSet("export", flag.ContinueOnError)
 	out := fs.String("out", "", "archivo de salida (default gomemory-export-<proyecto>-<fecha>.json)")
 	if err := fs.Parse(args); err != nil {
 		return

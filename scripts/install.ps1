@@ -30,15 +30,15 @@ function Write-Brand($Operation) {
              ⣴⣶  ⢀⣀
         ⢰⣷   ⣿⣿  ⣼⣿⠇
      ⣀   ⠿⠇  ⣉⡉  ⠿⠟ ⢀⣼⣷⡄
-    ⠘⢿⣦    ⣴⣿⣿⣿⣆    ⠻⡿⠋          ███  ██  █   █ ████ █   █  ██  ███  █  █
-      ⠁  ⢀⣾⣿⣿⣿⣿⣿⣾⣆    ⢠⣴⣿⣧      █    █  █ ██ ██ █    ██ ██ █  █ █  █ █  █
-  ⠈⣐⡦  ⢀⢢⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄  ⠈⠟⠋       █ ██ █  █ █ █ █ ███  █ █ █ █  █ ███   ██
-    ⠁ ⢠⣯⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆   ⣤⣴⣶     █  █ █  █ █   █ █    █   █ █  █ █ █   █
-      ⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆  ⠿⠟⠛      ███  ██  █   █ ████ █   █  ██  █  █  █
+    ⠘⢿⣦    ⣴⣿⣿⣿⣆    ⠻⡿⠋
+      ⠁  ⢀⣾⣿⣿⣿⣿⣿⣾⣆    ⢠⣴⣿⣧
+  ⠈⣐⡦  ⢀⢢⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣄  ⠈⠟⠋
+    ⠁ ⢠⣯⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆   ⣤⣴⣶
+      ⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣆  ⠿⠟⠛
      ⢸⣿⣿⣿⣿⠻⠙⣿⣿⣿⠱⡻⣿⣿⣿⣿⣿⡄ ⣠⣀⣀
      ⢸⣿⣿⣿⣿⣦⣼⠿⣿⣿⣦⣴⣿⣿⣿⣿⣿⡧⠐⠿⣿⣿
-   ⠈⠆⢸⣿⣿⣿⣿⣿⣿⣿⣯⣿⣿⣿⣿⣿⣿⣿⣿⡇⣀⡀       Memoria persistente
-     ⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠸⣿⣿⡦      para agentes de código
+   ⠈⠆⢸⣿⣿⣿⣿⣿⣿⣿⣯⣿⣿⣿⣿⣿⣿⣿⣿⡇⣀⡀
+     ⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠸⣿⣿⡦
      ⠈⠛⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣥  ⠙⠁
         ⠙⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠁⠙⠃
 '@
@@ -50,7 +50,7 @@ function Write-Brand($Operation) {
   $escape = [char]27
   $brandColor = if ($theme -eq 'light') { '57;38;227' } else { '6;193;238' }
   Write-Host "$escape[38;2;${brandColor}m$logo$escape[0m"
-  Write-Host "`n  $displayVersion  ›  $Operation`n"
+  Write-Host "`n  goMemory · $displayVersion  ›  $Operation`n"
 }
 
 function Write-Info($m) { if ($env:NO_COLOR) { Write-Host "› $m" } else { Write-Host "› $m" -ForegroundColor Blue } }

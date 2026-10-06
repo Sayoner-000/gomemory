@@ -44,7 +44,7 @@ func envOr(key, fallback string) string {
 }
 
 func CmdUpdate(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("update", flag.ContinueOnError)
+	fs := newFlagSet("update", flag.ContinueOnError)
 	versionFlag := fs.String("version", "", "Versión específica a instalar (ej. v1.8.0), default: latest")
 	checkOnly := fs.Bool("check", false, "Solo mostrar versión actual vs. disponible, sin instalar")
 	yes := fs.Bool("yes", false, "No pedir confirmación (también -y)")

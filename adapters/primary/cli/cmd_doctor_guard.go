@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -19,13 +18,13 @@ func printDoctorHookGuard(dups []string, counts []domain.GuardCount) {
 	if len(dups) == 0 && len(counts) == 0 {
 		return
 	}
-	fmt.Println("\nProtecciones de hooks:")
+	humanln("\nProtecciones de hooks:")
 	if len(dups) > 0 {
-		fmt.Printf("  ⚠ hooks de gomemory duplicados en usuario y proyecto (claude): %s — cada evento corre dos veces → mem update\n",
+		humanf("  ⚠ hooks de gomemory duplicados en usuario y proyecto (claude): %s — cada evento corre dos veces → mem update\n",
 			strings.Join(dups, ", "))
 	}
 	if len(counts) > 0 {
-		fmt.Println("  protecciones (7 días):")
+		humanln("  protecciones (7 días):")
 		for _, c := range counts {
 			symbol := "·"
 			if c.Kind == domain.GuardDuplicateDropped || c.Kind == domain.GuardBudgetTrimmed {
@@ -35,7 +34,7 @@ func printDoctorHookGuard(dups []string, counts []domain.GuardCount) {
 			if c.LastDetail != "" {
 				detail = "  (último: " + c.LastDetail + ")"
 			}
-			fmt.Printf("    %s %-9s %-21s %d%s\n", symbol, c.Agent, c.Kind, c.Count, detail)
+			humanf("    %s %-9s %-21s %d%s\n", symbol, c.Agent, c.Kind, c.Count, detail)
 		}
 	}
 }

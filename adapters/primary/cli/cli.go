@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"mem/adapters/primary/console"
+
 	"mem/adapters/primary/tui"
 	"mem/version"
 )
@@ -31,10 +33,19 @@ func LaunchTUI(deps *Deps) {
 }
 
 func Usage() {
-	fmt.Printf("gomemory %s — Memoria colectiva para agentes AI\n", version.Version)
-	fmt.Print(`
+	fmt.Print(console.NewLayout(console.DetectEnv()).Document(helpReference()))
+}
+
+func helpReference() string {
+	return fmt.Sprintf("gomemory %s — Memoria colectiva para agentes AI\n", version.Version) + `
 Uso:
   mem                              Abrir interfaz TUI (sin argumentos abre el menú)
+
+INICIO RÁPIDO
+  mem install .                    Configurar memoria y agentes en este proyecto
+  mem save -t "Decisión" -y decision "Lo que aprendimos"
+  mem search "tema"                Recuperar aprendizajes
+  mem help <comando>               Ayuda de una familia de comandos
 
 COMMANDS
 
@@ -77,6 +88,7 @@ COMMANDS
   Sesiones
   mem session start                Iniciar nueva sesión
   mem session end [-s|--summary]   Finalizar sesión actual
+  mem session list [-n N]          Listar sesiones recientes
   mem wrap <comando> [args...]     Ejecutar comando y preguntar si guardar
 
   Revisión adversarial
@@ -89,6 +101,8 @@ COMMANDS
   mem init [--force]               Ya no es obligatorio: el store global se crea solo al primer uso
   mem migrate [--force]            Migrar .memory/mem.db legado (instalación por proyecto) al store global
   mem install [dir]                Instalar gomemory en un proyecto
+    --agents a,b  --scope project|global  --yes  --events
+                                    Elegir agentes y alcance; --events emite NDJSON v1 sin prompts
   mem uninstall [dir] [--yes]      Desinstalar gomemory por completo (reverso de install)
   mem seed                         Sembrar las memorias por defecto del proyecto actual
   mem setup [--port 9735] <agent>  Instalar plugin para opencode|claude-code (flags ANTES del agente)
@@ -127,6 +141,8 @@ COMMANDS
     --yes                Omitir el prompt de confirmación
   mem consolidate [--apply]        Fundir memorias redundantes (topic_key + actividad duplicada)
                                    Sin --apply solo previsualiza (nada se modifica)
+
+  Código y arquitectura
   mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)
   mem adr-sync status              Estado de sincronización de ADR (solo lectura)
 
@@ -139,7 +155,8 @@ COMMANDS
                                    Módulo opt-in: se activa en TUI → Configuración → "Octopus AAR"
   mem tui                          Abrir interfaz TUI explícitamente
   mem update [--check] [--version vX.Y.Z]
-                                   Actualizar el binario y refrescar la integración del proyecto
+                                    Actualizar el binario y refrescar la integración del proyecto
+  mem update-check                 Consultar actualizaciones en segundo plano (uso interno)
   mem version                      Mostrar la versión instalada
   mem help                         Mostrar esta ayuda
 
@@ -160,7 +177,9 @@ EJEMPLOS COMUNES
   mem export                       Volcar la memoria a un JSON portable
 
 OPCIONES
+  mem --no-motion <comando>         Desactivar animaciones (conserva los colores)
+  GOMEMORY_NO_MOTION=1              Desactivar movimiento mediante el entorno
   --json                           Salida legible por máquina (donde aplique: pack, usage, doctor)
   --help                           Esta ayuda (mem help)
-`)
+`
 }

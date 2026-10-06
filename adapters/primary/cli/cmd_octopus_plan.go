@@ -88,7 +88,7 @@ func (p planJSON) toRequest() usecases.RoutePlanRequest {
 // ParseOctopusPlanFlags parsea `mem octopus plan`. Separada para poder probarla
 // sin que un error dispare os.Exit.
 func ParseOctopusPlanFlags(args []string) (ruta string, overrides domain.PolicyOverrides, presupuesto int, asJSON bool, err error) {
-	fs := flag.NewFlagSet("octopus plan", flag.ContinueOnError)
+	fs := newFlagSet("octopus plan", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
 	file := fs.String("file", "", "Archivo JSON con el grafo de tareas")

@@ -1,9 +1,12 @@
 package console
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"mem/assets"
 )
 
 // Colores de los logos oficiales; compartidos por CLI y TUI.
@@ -18,7 +21,25 @@ const (
 
 type Palette struct {
 	Name, Background, Text, Muted, Primary, Secondary, Selection, OnAccent string
+	Warning, Error                                                         string
+	Logo                                                                   [4]string
 }
+
+func (p Palette) WarningColor() string {
+	return p.Warning
+}
+
+func (p Palette) ErrorColor() string {
+	return p.Error
+}
+
+var palettes = func() map[string]Palette {
+	var p map[string]Palette
+	if err := json.Unmarshal(assets.ConsoleThemes, &p); err != nil {
+		panic("paleta embebida inválida: " + err.Error())
+	}
+	return p
+}()
 
 // Theme acepta dark, light y auto. COLORFGBG es una pista opcional;
 // sin ella se usa dark. Nunca modifica el fondo de la terminal CLI.
@@ -35,13 +56,7 @@ func Theme(getenv func(string) string) Palette {
 			}
 		}
 	}
-	if mode == "matrix" {
-		return Palette{"matrix", "#0a0f0a", "#62ff94", "#8ca391", "#2eff6a", "#00efff", "#1e2a1b", "#0a0f0a"}
-	}
-	if mode == "light" {
-		return Palette{"light", "#f4f8ff", Abismo, "#53647e", Indigo, Violeta, "#e0e9fa", "#ffffff"}
-	}
-	return Palette{"dark", Abismo, "#e5f4ff", "#91a9c5", Brillo, Cian, "#132e4c", Abismo}
+	return palettes[mode]
 }
 
 func foreground(hex string) string {

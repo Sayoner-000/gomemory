@@ -13,7 +13,7 @@ import (
 // idénticos— en su fila más reciente (feature 020, fase B). Previsualiza por
 // defecto (FR-027, la operación es irreversible); --apply confirma.
 func CmdConsolidate(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("consolidate", flag.ContinueOnError)
+	fs := newFlagSet("consolidate", flag.ContinueOnError)
 	apply := fs.Bool("apply", false, "Aplicar de verdad (por defecto solo previsualiza)")
 	if err := fs.Parse(args); err != nil {
 		return

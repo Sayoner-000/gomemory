@@ -51,7 +51,7 @@ type doctorReportJSON struct {
 // Sin --strict, termina SIEMPRE con código 0 — un diagnóstico no debe romper
 // el flujo de quien lo consulta.
 func CmdDoctor(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	fs := newFlagSet("doctor", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "Salida JSON estable, para scripts")
 	strict := fs.Bool("strict", false, "Terminar con código != 0 si hay problemas")
 	if err := fs.Parse(args); err != nil {
@@ -116,14 +116,14 @@ func CmdDoctor(deps *Deps, args []string) {
 }
 
 func printDoctorHuman(report domain.CoverageReport, deps *Deps) {
-	fmt.Printf("mem doctor — %d canal(es), %d problema(s)\n\n", len(report.Channels), report.Problems())
+	humanf("mem doctor — %d canal(es), %d problema(s)\n\n", len(report.Channels), report.Problems())
 	for _, c := range report.Channels {
-		fmt.Printf("  %s %-10s %-10s %-8s %-14s %s\n", doctorSymbol(c.State), c.Arm, c.Agent, c.Scope, c.Kind, c.Detail)
+		humanf("  %s %-10s %-10s %-8s %-14s %s\n", doctorSymbol(c.State), c.Arm, c.Agent, c.Scope, c.Kind, c.Detail)
 	}
 	if len(report.Degradations) > 0 {
-		fmt.Println("\nDegradaciones declaradas (no requieren acción):")
+		humanln("\nDegradaciones declaradas (no requieren acción):")
 		for _, d := range report.Degradations {
-			fmt.Println("  - " + d)
+			humanln("  - " + d)
 		}
 	}
 	printDoctorRemedies(report)
@@ -166,15 +166,15 @@ func printDoctorCompaction(report domain.CoverageReport) {
 			continue
 		}
 		if !impreso {
-			fmt.Println("\nCompactación sin pérdida de memoria (feature 030), por agente instalado:")
+			humanln("\nCompactación sin pérdida de memoria (feature 030), por agente instalado:")
 			impreso = true
 		}
-		fmt.Printf("  %s:\n", agent.Name)
+		humanf("  %s:\n", agent.Name)
 		for _, cap := range domain.AllCompactionCapabilities() {
 			if agent.Compaction[cap] {
-				fmt.Printf("    %-24s sí\n", cap)
+				humanf("    %-24s sí\n", cap)
 			} else {
-				fmt.Printf("    %-24s %s\n", cap, agent.CompactionUnavailable[cap])
+				humanf("    %-24s %s\n", cap, agent.CompactionUnavailable[cap])
 			}
 		}
 	}
@@ -229,22 +229,22 @@ func printDoctorRemedies(report domain.CoverageReport) {
 
 	if len(orden) == 0 {
 		if report.Problems() == 0 {
-			fmt.Println("\n✅ Sin problemas: todos los canales activos funcionan.")
+			humanln("\n✅ Sin problemas: todos los canales activos funcionan.")
 		}
 		return
 	}
 
-	fmt.Println("\nQué hacer:")
+	humanln("\nQué hacer:")
 	for _, cmd := range orden {
 		g := grupos[cmd]
-		fmt.Printf("\n  Afecta a %d canal(es): %s\n", len(g.canales), strings.Join(g.canales, ", "))
+		humanf("\n  Afecta a %d canal(es): %s\n", len(g.canales), strings.Join(g.canales, ", "))
 		for _, e := range dedupeStrings(g.efectos) {
-			fmt.Printf("    • %s\n", e)
+			humanf("    • %s\n", e)
 		}
 		if g.correccion.Advertencia != "" {
-			fmt.Printf("    ⚠️  %s\n", g.correccion.Advertencia)
+			humanf("    ⚠️  %s\n", g.correccion.Advertencia)
 		}
-		fmt.Printf("    → %s\n", g.correccion.Comando)
+		humanf("    → %s\n", g.correccion.Comando)
 	}
 }
 
@@ -321,8 +321,8 @@ func printDoctorLiveness(deps *Deps) {
 	if len(avisos) == 0 {
 		return
 	}
-	fmt.Println("\nCanales que no responden:")
+	humanln("\nCanales que no responden:")
 	for _, a := range avisos {
-		fmt.Println(a)
+		humanln(a)
 	}
 }

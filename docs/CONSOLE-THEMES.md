@@ -44,3 +44,21 @@ Con `auto`, o sin la variable, se consulta `COLORFGBG`: fondo 7 o 15 selecciona 
 El tema oscuro usa Abismo como fondo y Brillo/Cian para destacar acciones. El claro usa un fondo pálido y acentos Índigo/Violeta. Los colores auxiliares de texto y estado se ajustan al contraste de cada fondo.
 
 La consola conserva el fondo de la terminal; la TUI dibuja el fondo del tema. Los banners y las animaciones respetan `NO_COLOR`, `TERM=dumb`, CI y la salida redirigida. El logo se adapta al ancho disponible y está embebido desde `assets/gomemory-terminal.txt`.
+
+La paleta compartida vive en `assets/console-themes.json`. Define también el
+gradiente del símbolo braille y los colores de aviso/error. El instalador
+TypeScript copia estos assets al compilar; la TUI utiliza los mismos roles.
+
+## Movimiento
+
+```sh
+mem --no-motion help
+GOMEMORY_NO_MOTION=1 mem index
+```
+
+`GOMEMORY_REDUCED_MOTION=1` tiene el mismo efecto. Desactivar el movimiento
+conserva el tema y los colores; `NO_COLOR` y `TERM=dumb` usan presentación plana.
+
+Consulta [la evidencia TDD y el contrato visual](CLI-VISUAL-TDD.md) para reproducir
+las comprobaciones de terminal, y [el instalador TypeScript](../installer/README.md)
+para ejecutar la entrada opcional desde el repositorio.

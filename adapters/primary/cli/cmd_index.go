@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"time"
 
 	"mem/adapters/primary/console"
@@ -19,7 +18,7 @@ import (
 // turno del agente; este comando es para correrlo a demanda (primera carga
 // de un proyecto grande, o forzar un reindexado completo con --force).
 func CmdIndex(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("index", flag.ContinueOnError)
+	fs := newFlagSet("index", flag.ContinueOnError)
 	force := fs.Bool("force", false, "Reindexar todos los archivos aunque no hayan cambiado")
 	skipGraph := fs.Bool("skip-graph", false, "Omitir el refresco del grafo de código externo")
 	if err := fs.Parse(args); err != nil {
@@ -34,7 +33,7 @@ func CmdIndex(deps *Deps, args []string) {
 	console.PrintBrand("index")
 
 	ix := usecases.NewIndexer(deps.CodeGraphRepo, root, project)
-	fmt.Println("🔍 Indexando código Go...")
+	humanln("CÓDIGO GO\nIndexando…")
 	stop := console.StartProgress("Analizando código Go")
 	report, err := ix.IndexProject(*force)
 	stop()
@@ -42,10 +41,10 @@ func CmdIndex(deps *Deps, args []string) {
 		fail("indexar: %v", err)
 	}
 
-	fmt.Printf("  Escaneados: %d, parseados: %d, omitidos (sin cambios): %d, eliminados: %d\n",
+	humanf("  Escaneados: %d, parseados: %d, omitidos (sin cambios): %d, eliminados: %d\n",
 		report.Scanned, report.Parsed, report.Skipped, report.Deleted)
-	fmt.Printf("  Nodos: %d, aristas: %d\n", report.Nodes, report.Edges)
-	fmt.Printf("  ✅ Listo en %s\n", report.Duration.Round(1e6))
+	humanf("  Nodos: %d, aristas: %d\n", report.Nodes, report.Edges)
+	humanf("  ✅ Listo en %s\n", report.Duration.Round(1e6))
 
 	if !*skipGraph {
 		indexExternalGraph(deps)
@@ -60,29 +59,29 @@ func CmdIndex(deps *Deps, args []string) {
 // comando ni impide indexar los siguientes — el exit code sigue en 0.
 func indexExternalGraph(deps *Deps) {
 	if len(deps.CodeProviders) == 0 {
-		fmt.Println("  (grafo externo: sin proveedor configurado, omitido)")
+		humanln("  (grafo externo: sin proveedor configurado, omitido)")
 		return
 	}
 	for _, provider := range deps.CodeProviders {
 		indexer, ok := provider.(ports.CodeGraphIndexer)
 		if !ok {
-			fmt.Printf("  (grafo externo: %s no soporta reindexado, omitido)\n", provider.Name())
+			humanf("  (grafo externo: %s no soporta reindexado, omitido)\n", provider.Name())
 			continue
 		}
-		fmt.Printf("🔗 Indexando grafo externo (%s)...\n", indexer.Name())
+		humanf("GRAFO EXTERNO\n🔗 Indexando grafo externo (%s)...\n", indexer.Name())
 		started := time.Now()
 		stop := console.StartProgress("Indexando " + indexer.Name())
 		nodes, edges, err := indexer.IndexRepository(context.Background(), "full")
 		stop()
 		if err != nil {
 			if errors.Is(err, ports.ErrIndexerNotInstalled) {
-				fmt.Printf("  (grafo externo: %s no está instalado en PATH, omitido)\n", indexer.Name())
+				humanf("  (grafo externo: %s no está instalado en PATH, omitido)\n", indexer.Name())
 				continue
 			}
-			fmt.Printf("  ⚠️  grafo externo (%s): %v\n", indexer.Name(), err)
+			humanf("  ⚠️  grafo externo (%s): %v\n", indexer.Name(), err)
 			continue
 		}
-		fmt.Printf("  Nodos: %d, aristas: %d\n", nodes, edges)
-		fmt.Printf("  ✓ %s indexado en %s\n", indexer.Name(), time.Since(started).Round(time.Millisecond))
+		humanf("  Nodos: %d, aristas: %d\n", nodes, edges)
+		humanf("  ✓ %s indexado en %s\n", indexer.Name(), time.Since(started).Round(time.Millisecond))
 	}
 }

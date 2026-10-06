@@ -17,10 +17,24 @@ import (
 )
 
 func CmdInstall(deps *Deps, args []string) {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		commandHelp("install")
+		return
+	}
 	opts, err := parseInstallArgs(args)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "✗", err)
 		os.Exit(2)
+	}
+	if opts.help {
+		commandHelp("install")
+		return
+	}
+	if opts.events {
+		if code := runInstallEvents(args); code != 0 {
+			os.Exit(code)
+		}
+		return
 	}
 
 	target, err := filepath.Abs(opts.target)
@@ -46,10 +60,10 @@ func CmdInstall(deps *Deps, args []string) {
 	choices := detectAgents(home, exec.LookPath)
 	sel := resolveInstallSelection(opts, saved, choices)
 	_, hasGlobal := resolveGlobalBinary(target)
-	if ui := console.New(console.DetectMode(console.DetectEnv(), opts.yes)); ui != nil && len(opts.agents) == 0 {
+	if ui := console.New(console.DetectMode(console.DetectEnv(), opts.yes)); ui != nil && !opts.agentsSet {
 		asked, err := askInstallSelection(ui, choices, hasGlobal, saved)
 		if err != nil {
-			fmt.Println("Instalación cancelada. No se escribió nada.")
+			humanln("Instalación cancelada. No se escribió nada.")
 			return
 		}
 		if opts.scope != "" {
@@ -65,15 +79,28 @@ func CmdInstall(deps *Deps, args []string) {
 			}
 		}
 	}
+	if console.DetectMode(console.DetectEnv(), opts.yes) == console.ModeRich {
+		if code := runNativeInstall(target, sel, hasGlobal); code != 0 {
+			os.Exit(code)
+		}
+		return
+	}
 
-	fmt.Printf("📦 Instalando gomemory en %s\n\n", target)
+	humanf("📦 Instalando gomemory en %s\n\n", target)
 	var results []console.StepResult
+	recordStep := func(step console.StepResult) {
+		results = append(results, step)
+		if os.Getenv("GOMEMORY_INSTALL_EVENT_CHILD") == "1" {
+			fmt.Fprint(os.Stderr, installEventPrefix)
+			writeInstallEvent(os.Stderr, eventFromStep(step))
+		}
+	}
 	addStep := func(name string, err error, manual string) {
 		step := console.StepResult{Name: name, Status: console.StepOK}
 		if err != nil {
 			step.Status, step.Detail, step.Manual = console.StepWarn, err.Error(), manual
 		}
-		results = append(results, step)
+		recordStep(step)
 	}
 
 	// Instalación nueva = proyecto sin settings.json todavía. Se mira ANTES de
@@ -89,12 +116,12 @@ func CmdInstall(deps *Deps, args []string) {
 	if !hasGlobal && sel.binary == "global" && console.DetectMode(console.DetectEnv(), opts.yes) != console.ModeNonInteractive {
 		// La persona eligió la instalación global en la consola (FR-020).
 		if err := installGlobalBinary(self); err != nil {
-			fmt.Printf("  ⚠️  No se pudo instalar el binario global: %v\n", err)
+			humanf("  ⚠️  No se pudo instalar el binario global: %v\n", err)
 			addStep("Binario global", err, "scripts/install.sh")
 		}
 	}
 	destBin, binStep := installBinary(target, self)
-	results = append(results, binStep)
+	recordStep(binStep)
 
 	// 2. Init memory (or verify existing)
 	dbName := "mem.db"
@@ -103,22 +130,22 @@ func CmdInstall(deps *Deps, args []string) {
 	if _, err := os.Stat(dbPath); err == nil {
 		err := deps.ProjectRepo.Init(target)
 		if err == nil {
-			fmt.Printf("  ✅ Memoria existente verificada\n")
+			humanf("  ✅ Memoria existente verificada\n")
 		} else {
-			fmt.Printf("  ⚠️  Base de datos dañada, reinicializando: %v\n", err)
+			humanf("  ⚠️  Base de datos dañada, reinicializando: %v\n", err)
 			if err := runIn(target, destBin, "init", "--force"); err != nil {
-				fmt.Printf("  ⚠️  Error al reinicializar: %v\n", err)
+				humanf("  ⚠️  Error al reinicializar: %v\n", err)
 				memoryErr = err
 			} else {
-				fmt.Printf("  ✅ Memoria reinicializada\n")
+				humanf("  ✅ Memoria reinicializada\n")
 			}
 		}
 	} else {
 		if err := runIn(target, destBin, "init"); err != nil {
-			fmt.Printf("  ⚠️  Error al inicializar: %v\n", err)
+			humanf("  ⚠️  Error al inicializar: %v\n", err)
 			memoryErr = err
 		} else {
-			fmt.Printf("  ✅ Memoria inicializada\n")
+			humanf("  ✅ Memoria inicializada\n")
 		}
 	}
 	addStep("Memoria", memoryErr, "ejecuta mem init en el proyecto")
@@ -127,7 +154,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// desinstalación de sistema no podría encontrar este proyecto para
 	// retirar su integración (feature 034, FR-013).
 	if err := persistence.RegisterProject(target); err != nil {
-		fmt.Printf("  ⚠️  No se pudo registrar el proyecto en el almacén global: %v\n", err)
+		humanf("  ⚠️  No se pudo registrar el proyecto en el almacén global: %v\n", err)
 		addStep("Registro del proyecto", err, "ejecuta mem install --yes de nuevo")
 	} else {
 		addStep("Registro del proyecto", nil, "")
@@ -142,7 +169,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// despacha sin contenedor, así que su Deps no trae MemoryRepo; y el destino
 	// puede ser un proyecto distinto del directorio actual, con su propio store.
 	if err := runIn(target, destBin, "seed"); err != nil {
-		fmt.Printf("  ⚠️  No se pudieron sembrar las memorias por defecto: %v\n", err)
+		humanf("  ⚠️  No se pudieron sembrar las memorias por defecto: %v\n", err)
 		addStep("Memorias por defecto", err, "ejecuta mem seed en el proyecto")
 	} else {
 		addStep("Memorias por defecto", nil, "")
@@ -167,10 +194,10 @@ func CmdInstall(deps *Deps, args []string) {
 	}
 
 	if err := os.WriteFile(gitignore, []byte(content), 0644); err != nil {
-		fmt.Printf("  ⚠️  Error al actualizar .gitignore: %v\n", err)
+		humanf("  ⚠️  Error al actualizar .gitignore: %v\n", err)
 		addStep(".gitignore", err, "añade .memory/ y /mem a .gitignore")
 	} else {
-		fmt.Printf("  ✅ .gitignore actualizado\n")
+		humanf("  ✅ .gitignore actualizado\n")
 		addStep(".gitignore", nil, "")
 	}
 
@@ -195,7 +222,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// no-op silencioso si el proyecto destino no tiene spec-kit (.specify/
 	// ausente) — nunca bloquea el resto de la instalación.
 	if err := setup.InstallSpeckitExtension(target, TemplatesFS); err != nil {
-		fmt.Printf("  ⚠️  Error al distribuir el brazo extensor spec-kit: %v\n", err)
+		humanf("  ⚠️  Error al distribuir el brazo extensor spec-kit: %v\n", err)
 		addStep("Extensión Spec Kit", err, "revisa .specify y repite mem install --yes")
 	} else {
 		addStep("Extensión Spec Kit", nil, "")
@@ -208,10 +235,10 @@ func CmdInstall(deps *Deps, args []string) {
 	if len(wrapperAgents) == 0 {
 		// Ni Claude Code ni OpenCode elegidos: no hay envoltorios que escribir.
 	} else if err := setup.InstallAtomicPlanWrappers(target, PlanMethod(), wrapperAgents...); err != nil {
-		fmt.Printf("  ⚠️  Error al distribuir el método de planificación atómica: %v\n", err)
+		humanf("  ⚠️  Error al distribuir el método de planificación atómica: %v\n", err)
 		addStep("Planificación atómica", err, "repite mem install --yes")
 	} else if PlanMethod() != "" {
-		fmt.Printf("  ✅ Método de planificación atómica distribuido (claude-code, opencode)\n")
+		humanf("  ✅ Método de planificación atómica distribuido (claude-code, opencode)\n")
 		addStep("Planificación atómica", nil, "")
 	}
 
@@ -222,10 +249,10 @@ func CmdInstall(deps *Deps, args []string) {
 	if len(wrapperAgents) == 0 {
 		// Sin agentes con envoltorio nativo.
 	} else if err := setup.InstallConstitutionWrappers(target, wrapperAgents...); err != nil {
-		fmt.Printf("  ⚠️  Error al distribuir el envoltorio de la constitución: %v\n", err)
+		humanf("  ⚠️  Error al distribuir el envoltorio de la constitución: %v\n", err)
 		addStep("Constitución", err, "repite mem install --yes")
 	} else {
-		fmt.Printf("  ✅ Envoltorio /constitution distribuido (claude-code, opencode)\n")
+		humanf("  ✅ Envoltorio /constitution distribuido (claude-code, opencode)\n")
 		addStep("Constitución", nil, "")
 	}
 
@@ -233,7 +260,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// Para OpenCode y Claude Code instalamos el plugin completo (que incluye los
 	// hooks automáticos), no solo el MCP: `install` debe dejar todo listo en un
 	// solo paso. El resto de agentes solo soportan config MCP.
-	fmt.Printf("  🔌 Configurando agentes (MCP + hooks)...\n")
+	humanf("  🔌 Configurando agentes (MCP + hooks)...\n")
 	br := binRefFor(target)
 	ref := setup.AgentRef{
 		HookCommand: br.HookCommand,
@@ -262,7 +289,7 @@ func CmdInstall(deps *Deps, args []string) {
 	}
 	if sel.scope == "project" && sel.has("opencode") {
 		if err := setup.InstallOpenCode(target, ref); err != nil {
-			fmt.Printf("  ⚠️  opencode: %v\n", err)
+			humanf("  ⚠️  opencode: %v\n", err)
 			addStep("Integración OpenCode", err, "repite mem install --yes --agents opencode")
 		} else {
 			addStep("Integración OpenCode", nil, "")
@@ -270,12 +297,12 @@ func CmdInstall(deps *Deps, args []string) {
 	}
 	if sel.scope == "project" && sel.has("claude") {
 		if err := setup.InstallClaudeCode(target, ref); err != nil {
-			fmt.Printf("  ⚠️  claude-code: %v\n", err)
+			humanf("  ⚠️  claude-code: %v\n", err)
 			addStep("Integración Claude Code", err, "repite mem install --yes --agents claude")
 		} else {
 			addStep("Integración Claude Code", nil, "")
 			if home != "" && len(setup.GomemoryHookSubs(filepath.Join(home, ".claude", "settings.json"))) > 0 {
-				results = append(results, console.StepResult{Name: "Hooks de Claude Code", Status: console.StepOK,
+				recordStep(console.StepResult{Name: "Hooks de Claude Code", Status: console.StepOK,
 					Detail: "globales activos: el proyecto solo añade los que el global no cubre"})
 			}
 		}
@@ -317,7 +344,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// arranca en max, porque toda omisión es recuperable. Una existente
 	// conserva su nivel (ausente = structural, el comportamiento anterior).
 	if err := applyInstallCompressionDefault(deps, target, nuevaInstalacion); err != nil {
-		fmt.Printf("  ⚠️  Nivel de compresión: %v\n", err)
+		humanf("  ⚠️  Nivel de compresión: %v\n", err)
 		addStep("Nivel de compresión", err, "repite mem install --yes")
 	} else {
 		addStep("Nivel de compresión", nil, "")
@@ -327,10 +354,10 @@ func CmdInstall(deps *Deps, args []string) {
 	// se abre: `mem update` ejecuta install, así que cada actualización cierra
 	// también los proyectos que no se vuelven a abrir (C-001 de acr_ad72cce1).
 	if n, err := persistence.HardenGlobalStore(); err != nil {
-		fmt.Printf("  ⚠️  Permisos del store global: %v\n", err)
+		humanf("  ⚠️  Permisos del store global: %v\n", err)
 		addStep("Permisos del almacén", err, "revisa permisos del almacén y repite mem install --yes")
 	} else if n > 0 {
-		fmt.Printf("  🔒 Permisos privados restaurados en %d entradas del store global\n", n)
+		humanf("  🔒 Permisos privados restaurados en %d entradas del store global\n", n)
 		addStep("Permisos del almacén", nil, "")
 	} else {
 		addStep("Permisos del almacén", nil, "")
@@ -341,7 +368,7 @@ func CmdInstall(deps *Deps, args []string) {
 	if s := deps.SettingsRepo.Read(target); strings.Join(s.Agents, ",") != strings.Join(sel.agents, ",") || s.AgentScope != sel.scope {
 		s.Agents, s.AgentScope = sel.agents, sel.scope
 		if err := deps.SettingsRepo.Write(target, s); err != nil {
-			fmt.Printf("  ⚠️  No se pudo guardar la selección de agentes: %v\n", err)
+			humanf("  ⚠️  No se pudo guardar la selección de agentes: %v\n", err)
 			addStep("Selección de agentes", err, "repite mem install --yes")
 		} else {
 			addStep("Selección de agentes", nil, "")
@@ -354,17 +381,17 @@ func CmdInstall(deps *Deps, args []string) {
 	settings := deps.SettingsRepo.Read(target)
 	if settings.AutoApprove {
 		deps.SettingsRepo.ApplyAutoApprove(target, settings)
-		fmt.Println("  ✅ Auto-approve aplicado desde settings")
+		humanln("  ✅ Auto-approve aplicado desde settings")
 	}
 
-	fmt.Println()
-	fmt.Println("🎉 gomemory instalado. Ahora puedes:")
-	fmt.Println()
-	fmt.Println("   cd", target)
+	humanln()
+	humanln("🎉 gomemory instalado. Ahora puedes:")
+	humanln()
+	humanln("   cd", target)
 	for _, line := range installNextSteps() {
-		fmt.Println(line)
+		humanln(line)
 	}
-	fmt.Println("\nResumen:")
+	humanln("\nResumen:")
 	reporter := console.NewReporter(os.Stdout, console.DetectMode(console.DetectEnv(), opts.yes) == console.ModeRich)
 	for _, result := range results {
 		reporter.Done(result)
@@ -381,13 +408,13 @@ func installBinary(target, self string) (string, console.StepResult) {
 		step.Detail = "global " + global
 		if c, retired, err := retireLocalCopy(target, global); retired {
 			step.Detail = retiredNotice(c, global)
-			fmt.Printf("  ✅ %s\n", step.Detail)
+			humanf("  ✅ %s\n", step.Detail)
 		} else if err != nil {
-			fmt.Printf("  ⚠️  No se pudo retirar %s: %v → bórralo a mano\n", c.Path, err)
+			humanf("  ⚠️  No se pudo retirar %s: %v → bórralo a mano\n", c.Path, err)
 			step.Status, step.Manual = console.StepWarn, "rm "+c.Path
 			step.Detail = fmt.Sprintf("no se pudo retirar %s: %v", c.Path, err)
 		}
-		fmt.Printf("  ✅ Usa el binario global %s; no se copia al proyecto\n", global)
+		humanf("  ✅ Usa el binario global %s; no se copia al proyecto\n", global)
 		return global, step
 	}
 
@@ -395,7 +422,7 @@ func installBinary(target, self string) (string, console.StepResult) {
 	selfInfo, selfErr := os.Stat(self)
 	destInfo, destErr := os.Stat(destBin)
 	if selfErr == nil && destErr == nil && os.SameFile(selfInfo, destInfo) {
-		fmt.Printf("  ✅ Binario ya es el actual (%s), no se reemplaza\n", destBin)
+		humanf("  ✅ Binario ya es el actual (%s), no se reemplaza\n", destBin)
 	} else {
 		if destErr == nil {
 			if err := os.Remove(destBin); err != nil {
@@ -408,11 +435,11 @@ func installBinary(target, self string) (string, console.StepResult) {
 		if err := os.Chmod(destBin, 0755); err != nil {
 			fail("ajustar permisos del binario: %v", err)
 		}
-		fmt.Printf("  ✅ Binario copiado a %s\n", destBin)
+		humanf("  ✅ Binario copiado a %s\n", destBin)
 	}
-	fmt.Println("  ℹ️  Sin `mem` global en el PATH: este proyecto usa su propia copia. Para una sola")
-	fmt.Println("      instalación que se actualiza con `mem update`, instala gomemory con scripts/install.sh")
-	fmt.Println("      (o mueve el binario a un directorio del PATH) y vuelve a ejecutar `mem install`.")
+	humanln("  ℹ️  Sin `mem` global en el PATH: este proyecto usa su propia copia. Para una sola")
+	humanln("      instalación que se actualiza con `mem update`, instala gomemory con scripts/install.sh")
+	humanln("      (o mueve el binario a un directorio del PATH) y vuelve a ejecutar `mem install`.")
 	step.Detail = "copia en " + destBin
 	return destBin, step
 }
@@ -734,6 +761,6 @@ func applyInstallCompressionDefault(deps *Deps, target string, nueva bool) error
 	if err := deps.SettingsRepo.Write(target, s); err != nil {
 		return err
 	}
-	fmt.Println("  ✅ Compresión de contexto: max (instalación nueva; cámbiala con mem settings --compression-level)")
+	humanln("  ✅ Compresión de contexto: max (instalación nueva; cámbiala con mem settings --compression-level)")
 	return nil
 }

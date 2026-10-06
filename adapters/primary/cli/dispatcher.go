@@ -10,6 +10,14 @@ import (
 )
 
 func Run(cmd string, args []string, deps *Deps) {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		switch cmd {
+		case "session", "pack", "review", "docs", "forget", "get", "gc", "compact", "purge", "octopus", "adr-sync", "project", "seed", "uninstall", "mcp", "hook", "update-check", "version":
+			if commandHelp(cmd) {
+				return
+			}
+		}
+	}
 	if commandHasBanner(cmd, args) {
 		console.PrintBrand(cmd)
 	}
@@ -103,7 +111,9 @@ func Run(cmd string, args []string, deps *Deps) {
 	case "tui":
 		LaunchTUI(deps)
 	case "help", "-h", "--help":
-		Usage()
+		if len(args) == 0 || !commandHelp(args[0]) {
+			Usage()
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "Error: comando desconocido '%s'\n\n", cmd)
 		Usage()
@@ -114,13 +124,28 @@ func Run(cmd string, args []string, deps *Deps) {
 // Solo comandos de lectura humana: las salidas de datos y protocolos se
 // mantienen utilizables por agentes y scripts, incluso con una pseudo-TTY.
 func commandHasBanner(cmd string, args []string) bool {
-	for _, arg := range args {
-		if arg == "json" || strings.HasPrefix(arg, "--json") || strings.HasPrefix(arg, "--format") {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			break
+		}
+		// search usa flag.FlagSet: después del primer posicional todo es
+		// consulta, incluso textos que parecen flags. -n consume su valor.
+		if cmd == "search" {
+			if arg == "-n" || arg == "--n" {
+				i++
+				continue
+			}
+			if !strings.HasPrefix(arg, "-") || arg == "-" {
+				break
+			}
+		}
+		if strings.HasPrefix(arg, "--json") || strings.HasPrefix(arg, "--format") {
 			return false
 		}
 	}
 	switch cmd {
-	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "import", "adr-sync":
+	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "capture", "session", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "import", "adr-sync":
 		return true
 	}
 	return false

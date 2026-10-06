@@ -116,7 +116,7 @@ func docsList(deps *Deps, stdout io.Writer) error {
 // a stderr, para que `mem docs show rules > reglas.md` produzca un archivo
 // limpio y `mem docs show rules | diff - reglas.md` funcione.
 func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
-	fs := flag.NewFlagSet("docs export", flag.ContinueOnError)
+	fs := newFlagSet("docs export", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	out := fs.String("o", "", "archivo de salida (default: stdout)")
 	todos := fs.Bool("all", false, "exportar todo el catálogo al directorio indicado con -o")
@@ -178,7 +178,7 @@ func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
 // archivo. Rechaza contenido vacío dejando el anterior INTACTO: un import
 // fallido que destruya lo que había es el peor modo de fallo de esta capacidad.
 func docsImport(deps *Deps, args []string, stderr io.Writer) error {
-	fs := flag.NewFlagSet("docs import", flag.ContinueOnError)
+	fs := newFlagSet("docs import", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	// --topic permite apuntar a CUALQUIER clave, dentro o fuera del catálogo:
 	// el catálogo es una comodidad, no un límite.

@@ -10,7 +10,7 @@ import (
 )
 
 func CmdSetup(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
+	fs := newFlagSet("setup", flag.ContinueOnError)
 	agent := fs.String("agent", "", "Agente: opencode, claude-code")
 	target := fs.String("target", ".", "Directorio del proyecto")
 	port := fs.Int("port", 9735, "Puerto del servidor HTTP")

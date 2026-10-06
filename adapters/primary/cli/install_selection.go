@@ -31,10 +31,13 @@ func (s installSelection) has(agent string) bool {
 }
 
 type installOptions struct {
-	target string
-	yes    bool
-	agents []string
-	scope  string
+	target    string
+	yes       bool
+	agents    []string
+	scope     string
+	events    bool
+	help      bool
+	agentsSet bool
 }
 
 // parseInstallArgs acepta los flags en cualquier posición, como uninstall:
@@ -55,12 +58,21 @@ func parseInstallArgs(args []string) (installOptions, error) {
 			return args[i], nil
 		}
 		switch {
+		case a == "--help" || a == "-h":
+			o.help = true
+		case a == "--events":
+			o.events, o.yes = true, true
 		case a == "--yes" || a == "-y":
 			o.yes = true
 		case a == "--agents" || strings.HasPrefix(a, "--agents="):
 			v, err := value()
 			if err != nil {
 				return o, err
+			}
+			o.agentsSet = true
+			if v == "none" {
+				o.agents = []string{}
+				continue
 			}
 			if o.agents, err = parseAgentList(v); err != nil {
 				return o, fmt.Errorf("%w: %v", errUsage, err)
@@ -90,12 +102,12 @@ func parseInstallArgs(args []string) (installOptions, error) {
 // flags mandan; si no, la guardada; si no, los detectados.
 func resolveInstallSelection(o installOptions, saved installSelection, choices []agentChoice) installSelection {
 	sel := installSelection{agents: o.agents, scope: o.scope, binary: "global"}
-	if len(sel.agents) == 0 {
+	if len(sel.agents) == 0 && !o.agentsSet {
 		sel.agents = saved.agents
 	}
 	// AgentScope se escribe junto con Agents. Un scope guardado distingue la
 	// elección explícita de cero agentes de una instalación aún sin selección.
-	if len(sel.agents) == 0 && saved.scope == "" {
+	if len(sel.agents) == 0 && saved.scope == "" && !o.agentsSet {
 		sel.agents = defaultAgents(choices)
 	}
 	if sel.scope == "" {
@@ -208,9 +220,9 @@ func installGlobalBinary(self string) error {
 	if err := copyFileMode(self, dest, 0o755); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ Binario global instalado en %s\n", dest)
+	humanf("  ✅ Binario global instalado en %s\n", dest)
 	if found, err := exec.LookPath(memBinaryName()); err != nil || !sameFilePath(found, dest) {
-		fmt.Printf("  ⚠️  %s no está en el PATH: añádelo para usar la instalación global\n", dir)
+		humanf("  ⚠️  %s no está en el PATH: añádelo para usar la instalación global\n", dir)
 	}
 	return nil
 }

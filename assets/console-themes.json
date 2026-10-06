@@ -1,0 +1,5 @@
+{
+  "dark": {"name":"dark","background":"#061328","text":"#e5f4ff","muted":"#91a9c5","primary":"#22e3f7","secondary":"#06c1ee","selection":"#132e4c","onAccent":"#061328","warning":"#f4c66b","error":"#ff777f","logo":["#2c8ff0","#06c1ee","#22e3f7","#6b56d4"]},
+  "light": {"name":"light","background":"#f4f8ff","text":"#061328","muted":"#53647e","primary":"#3926e3","secondary":"#6b56d4","selection":"#e0e9fa","onAccent":"#ffffff","warning":"#866000","error":"#b42336","logo":["#2c8ff0","#3926e3","#6b56d4","#3926e3"]},
+  "matrix": {"name":"matrix","background":"#0a0f0a","text":"#62ff94","muted":"#8ca391","primary":"#2eff6a","secondary":"#00efff","selection":"#1e2a1b","onAccent":"#0a0f0a","warning":"#e6ff57","error":"#ff4b4b","logo":["#2eff6a","#2eff6a","#00efff","#00efff"]}
+}

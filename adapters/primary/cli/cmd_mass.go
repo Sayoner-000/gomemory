@@ -24,7 +24,7 @@ func CmdMass(deps *Deps, args []string) {
 // ParseMassFlags parsea `mem mass [--task T] [--top N]`, separado de CmdMass
 // para probarlo sin que un error dispare os.Exit.
 func ParseMassFlags(args []string) (string, int, error) {
-	fs := flag.NewFlagSet("mass", flag.ContinueOnError)
+	fs := newFlagSet("mass", flag.ContinueOnError)
 	task := fs.String("task", "", "Tarea cuyos resultados de búsqueda siembran la masa")
 	top := fs.Int("top", 15, "Número máximo de memorias a listar")
 	if err := fs.Parse(args); err != nil {

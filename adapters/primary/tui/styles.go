@@ -49,13 +49,9 @@ func applyTheme(names ...string) {
 	green, cyan = lipgloss.Color(p.Secondary), lipgloss.Color(p.Secondary)
 	blue, pink = lipgloss.Color(console.Azur), lipgloss.Color(console.Violeta)
 	gray, white, accentText = lipgloss.Color(p.Selection), lipgloss.Color(p.Text), lipgloss.Color(p.OnAccent)
-	red, yellow = lipgloss.Color("#ff777f"), lipgloss.Color("#f4c66b")
-	if p.Name == "light" {
-		red, yellow = lipgloss.Color("#b42336"), lipgloss.Color("#866000")
-	}
+	red, yellow = lipgloss.Color(p.ErrorColor()), lipgloss.Color(p.WarningColor())
 	if p.Name == "matrix" {
 		green = lipgloss.Color("#1cc24b")
-		red, yellow = lipgloss.Color("#ff4b4b"), lipgloss.Color("#e6ff57")
 		blue, pink = lipgloss.Color("#30b3ff"), lipgloss.Color("#c770ff")
 	}
 	appStyle = appStyle.Foreground(white).Background(lipgloss.Color(p.Background))

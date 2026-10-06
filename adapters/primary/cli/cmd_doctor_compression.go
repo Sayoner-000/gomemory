@@ -99,16 +99,16 @@ func buildDoctorCompression(deps *Deps, root string) doctorCompressionJSON {
 }
 
 func printDoctorCompression(c doctorCompressionJSON) {
-	fmt.Println("\nCompresión:")
-	fmt.Printf("  nivel: %s (%s)\n", c.Level, c.Origin)
-	fmt.Printf("  originales: %.1f MB de %.0f MB · %d refs · escribible: %v\n", float64(c.OriginalsBytes)/(1<<20), float64(c.OriginalsMax)/(1<<20), c.OriginalsRefs, c.StoreWritable)
+	humanln("\nCompresión:")
+	humanf("  nivel: %s (%s)\n", c.Level, c.Origin)
+	humanf("  originales: %.1f MB de %.0f MB · %d refs · escribible: %v\n", float64(c.OriginalsBytes)/(1<<20), float64(c.OriginalsMax)/(1<<20), c.OriginalsRefs, c.StoreWritable)
 	for _, rt := range []string{"claude", "codex", "opencode"} {
-		fmt.Printf("  hook de salidas (%s): %s\n", rt, c.ToolOutput[rt])
+		humanf("  hook de salidas (%s): %s\n", rt, c.ToolOutput[rt])
 	}
 	for _, t := range c.Tuning {
-		fmt.Println("  ajuste adaptativo: " + t)
+		humanln("  ajuste adaptativo: " + t)
 	}
 	for _, p := range c.Problems {
-		fmt.Println("  ⚠ " + p)
+		humanln("  ⚠ " + p)
 	}
 }

@@ -58,7 +58,7 @@ func DetectEnv() Env {
 
 // DetectMode decide el modo. yes corresponde a --yes/-y.
 func DetectMode(e Env, yes bool) Mode {
-	if yes || !e.StdinTTY || !e.StdoutTTY {
+	if yes || !e.StdinTTY || !e.StdoutTTY || (e.Getenv != nil && e.Getenv("CI") != "") {
 		return ModeNonInteractive
 	}
 	getenv := e.Getenv

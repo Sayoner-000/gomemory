@@ -10,6 +10,8 @@ import (
 
 	"mem/assets"
 	"mem/version"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // PrintBrand presenta la identidad del comando solo en terminales humanas.
@@ -22,35 +24,44 @@ func visualTerminal(e Env) bool {
 }
 
 func animatedTerminal(e Env) bool {
-	return visualTerminal(e) && e.Getenv("TERM") != "dumb" && e.Getenv("NO_COLOR") == "" && e.Width >= minRichWidth
+	return styledTerminal(e) && e.Width >= minRichWidth && e.Getenv("GOMEMORY_NO_MOTION") == "" && e.Getenv("GOMEMORY_REDUCED_MOTION") == ""
+}
+
+func styledTerminal(e Env) bool {
+	return visualTerminal(e) && e.Getenv("TERM") != "dumb" && e.Getenv("NO_COLOR") == "" && e.Width >= 40
 }
 
 func printBrand(out io.Writer, e Env, command string) {
 	if !visualTerminal(e) {
 		return
 	}
-	if !animatedTerminal(e) {
-		_, _ = fmt.Fprintf(out, "\ngoMemory · %s · %s\n\n", version.Version, command)
+	layout := NewLayout(e)
+	if !styledTerminal(e) {
+		_, _ = fmt.Fprintln(out, "\n"+ansi.Wrap("goMemory · "+version.Version+" · "+command, layout.Width(), "")+"\n")
 		return
 	}
 	palette := Theme(e.Getenv)
-	if e.Width < 78 {
-		_, _ = fmt.Fprintf(out, "\n%sgo%sMemory\x1b[0m · %s\n  › %s\n\n", foreground(palette.Primary), foreground(palette.Text), version.Version, command)
+	if e.Width < 78 || (command != "help" && command != "install" && command != "welcome") {
+		_, _ = fmt.Fprintln(out, "\n"+ansi.Wrap(layout.Header(command)+" · "+layout.Muted(version.Version), layout.Width(), "")+"\n")
 		return
 	}
 	_, _ = fmt.Fprintln(out)
-	colors := []string{Azur, Cian, Brillo, Violeta, Indigo}
-	if palette.Name == "light" {
-		colors = []string{Azur, Indigo, Violeta, Indigo, Violeta}
-	}
+	colors := palette.Logo[:]
 	lines := strings.Split(strings.TrimSuffix(assets.TerminalLogo, "\n"), "\n")
+	markWidth := 0
+	for _, line := range lines {
+		markWidth = max(markWidth, ansi.StringWidth(line))
+	}
 	for i, line := range lines {
-		runes := []rune(line)
-		for len(runes) < 28 {
-			runes = append(runes, ' ')
+		text := ""
+		switch i {
+		case 3:
+			text = layout.Header("Memoria persistente")
+		case 5:
+			text = layout.Muted("Para agentes de código")
 		}
-		logo, text := string(runes[:28]), strings.TrimRight(string(runes[28:]), " ")
-		_, _ = fmt.Fprintf(out, "  %s%s\x1b[0m%s%s\x1b[0m\n", foreground(colors[i*len(colors)/len(lines)]), logo, foreground(palette.Text), text)
+		logo := foreground(colors[i*len(colors)/len(lines)]) + line + "\x1b[0m"
+		_, _ = fmt.Fprintln(out, "  "+logo+strings.Repeat(" ", markWidth-ansi.StringWidth(line)+4)+text)
 	}
 	_, _ = fmt.Fprintf(out, "\n  goMemory · \x1b[2m%s\x1b[0m  ›  %s\n\n", version.Version, command)
 }
@@ -74,7 +85,9 @@ func startProgress(out io.Writer, e Env, label string) func() {
 		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		started := time.Now()
 		for i := 0; ; i++ {
-			_, _ = fmt.Fprintf(out, "\r\x1b[2K  %s%s\x1b[0m %s · %s", foreground(palette.Primary), frames[i%len(frames)], label, time.Since(started).Round(time.Second))
+			elapsed := time.Since(started).Round(time.Second).String()
+			available := max(1, e.Width-ansi.StringWidth(elapsed)-7)
+			_, _ = fmt.Fprintf(out, "\r\x1b[2K  %s%s\x1b[0m %s · %s", foreground(palette.Primary), frames[i%len(frames)], ansi.Truncate(label, available, "…"), elapsed)
 			select {
 			case <-done:
 				_, _ = fmt.Fprint(out, "\r\x1b[2K")

@@ -5,6 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
+
+	"mem/adapters/primary/console"
 
 	"mem/application/usecases"
 	"mem/domain"
@@ -19,7 +22,7 @@ const contractVersion = 1
 // al emitir contexto (feature 020). NO renombrar la función Usage() de
 // cli.go — es el texto de ayuda, un concepto distinto.
 func CmdUsage(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("usage", flag.ContinueOnError)
+	fs := newFlagSet("usage", flag.ContinueOnError)
 	session := fs.String("session", "", "Sesión concreta (default: la activa, o la más reciente con registros)")
 	all := fs.Bool("all", false, "Todas las sesiones del proyecto")
 	asJSON := fs.Bool("json", false, "Salida legible por máquina (contracts/usage-report.md)")
@@ -72,7 +75,38 @@ func CmdUsage(deps *Deps, args []string) {
 		return
 	}
 
-	fmt.Print(usecases.FormatUsageReport(report, string(scope)))
+	fmt.Print(renderUsageHuman(report, string(scope), console.DetectEnv()))
+}
+
+func renderUsageHuman(report domain.UsageReport, scope string, env console.Env) string {
+	if !env.StdoutTTY || (env.Getenv != nil && env.Getenv("CI") != "") {
+		return usecases.FormatUsageReport(report, scope)
+	}
+	layout := console.NewLayout(env)
+	summary := report
+	summary.ByOperation, summary.ByChannel = nil, nil
+	text := usecases.FormatUsageReport(summary, scope)
+	before, total, hasTotal := strings.Cut(text, "\n======================================================================\n")
+	var b strings.Builder
+	b.WriteString(layout.Document(before))
+	for _, section := range []struct {
+		title   string
+		buckets []domain.UsageBucket
+	}{{"POR OPERACIÓN", report.ByOperation}, {"POR CANAL", report.ByChannel}} {
+		if len(section.buckets) == 0 {
+			continue
+		}
+		b.WriteString("\n" + layout.Section(section.title) + "\n")
+		rows := make([][]string, 0, len(section.buckets))
+		for _, bucket := range section.buckets {
+			rows = append(rows, []string{bucket.Key, fmt.Sprint(bucket.Calls), fmt.Sprint(bucket.BaselineTokens), fmt.Sprint(bucket.EmittedTokens)})
+		}
+		b.WriteString(layout.Table([]string{"Origen", "Llamadas", "Base (tokens)", "Emitido (tokens)"}, rows))
+	}
+	if hasTotal {
+		b.WriteString("\n" + layout.Document(total))
+	}
+	return b.String()
 }
 
 // usageScope identifica cómo se resolvió la sesión del reporte (FR-010).

@@ -15,7 +15,7 @@ import (
 // proyecto actual (resuelto por ProjectRepo.FindRoot), usado cuando el
 // usuario no pasa --project ni --all (FR-003: alcance por defecto = proyecto actual).
 func ParsePurgeFlags(args []string, defaultProject string) (ports.PurgeFilter, bool, error) {
-	fs := flag.NewFlagSet("purge", flag.ContinueOnError)
+	fs := newFlagSet("purge", flag.ContinueOnError)
 	project := fs.String("project", "", "Proyecto objetivo (default: proyecto actual)")
 	all := fs.Bool("all", false, "Purgar todos los proyectos del archivo .memory/mem.db")
 	memType := fs.String("type", "", "Filtrar por tipo de memoria")

@@ -12,7 +12,7 @@ import (
 // sirve para forzarla con --force en el caso "ambos existen", o para
 // confirmar explícitamente que ya no queda nada pendiente.
 func CmdMigrate(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
+	fs := newFlagSet("migrate", flag.ContinueOnError)
 	force := fs.Bool("force", false, "Sobrescribir el store global si ya tenía datos propios")
 	if err := fs.Parse(args); err != nil {
 		return

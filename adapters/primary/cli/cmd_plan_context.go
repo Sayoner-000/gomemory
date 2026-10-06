@@ -35,7 +35,7 @@ func PlanMethod() string { return planMethod }
 // El código de salida es SIEMPRE 0: ninguna condición puede interrumpir el modo
 // plan del agente (feature 013, FR-034).
 func CmdPlanContext(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("plan-context", flag.ContinueOnError)
+	fs := newFlagSet("plan-context", flag.ContinueOnError)
 	// --full recupera el historial completo aunque ya se haya entregado en esta
 	// sesión (feature 023, FR-010). Existe para el caso en que la sesión perdió
 	// el material —una compactación, por ejemplo— y el registro sigue creyendo

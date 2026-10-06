@@ -1,0 +1,18 @@
+[
+  {"name":"default","env":{},"expected":"dark"},
+  {"name":"light upper","env":{"GOMEMORY_THEME":"LIGHT","COLORFGBG":"0"},"expected":"light"},
+  {"name":"light spaced","env":{"GOMEMORY_THEME":" light ","COLORFGBG":"0"},"expected":"light"},
+  {"name":"dark upper overrides background","env":{"GOMEMORY_THEME":"DARK","COLORFGBG":"15"},"expected":"dark"},
+  {"name":"matrix spaced","env":{"GOMEMORY_THEME":" Matrix "},"expected":"matrix"},
+  {"name":"tabs newline","env":{"GOMEMORY_THEME":"\tLiGhT\n"},"expected":"light"},
+  {"name":"auto dark","env":{"GOMEMORY_THEME":"AUTO","COLORFGBG":"0"},"expected":"dark"},
+  {"name":"auto light","env":{"GOMEMORY_THEME":" AUTO ","COLORFGBG":"0;15"},"expected":"light"},
+  {"name":"unknown infers light","env":{"GOMEMORY_THEME":"unknown","COLORFGBG":"7"},"expected":"light"},
+  {"name":"unknown infers dark","env":{"GOMEMORY_THEME":"unknown","COLORFGBG":"0"},"expected":"dark"},
+  {"name":"empty infers light","env":{"GOMEMORY_THEME":"","COLORFGBG":"15"},"expected":"light"},
+  {"name":"invalid background","env":{"GOMEMORY_THEME":"auto","COLORFGBG":"garbage"},"expected":"dark"},
+  {"name":"numeric background with zeros","env":{"GOMEMORY_THEME":"AUTO","COLORFGBG":"015"},"expected":"light"},
+  {"name":"numeric background with sign","env":{"GOMEMORY_THEME":"auto","COLORFGBG":"0;+7"},"expected":"light"},
+  {"name":"background spaces are invalid","env":{"GOMEMORY_THEME":"auto","COLORFGBG":"0; 15"},"expected":"dark"},
+  {"name":"prototype name is unknown","env":{"GOMEMORY_THEME":"__proto__","COLORFGBG":"15"},"expected":"light"}
+]

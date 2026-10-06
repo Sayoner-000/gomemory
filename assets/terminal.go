@@ -7,3 +7,8 @@ import _ "embed"
 //
 //go:embed gomemory-terminal.txt
 var TerminalLogo string
+
+// ConsoleThemes es la fuente de roles visuales compartida con el instalador TS.
+//
+//go:embed console-themes.json
+var ConsoleThemes []byte

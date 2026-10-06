@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"text/tabwriter"
+
+	"github.com/charmbracelet/x/ansi"
+	"mem/adapters/primary/console"
 )
 
 func CmdList(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("list", flag.ContinueOnError)
+	fs := newFlagSet("list", flag.ContinueOnError)
 	limit := fs.Int("n", 20, "Número de resultados")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -26,24 +28,20 @@ func CmdList(deps *Deps, args []string) {
 	}
 
 	if len(mems) == 0 {
-		fmt.Println("Sin memorias guardadas. Crea una con: mem save \"tu aprendizaje\"")
+		humanln("Sin memorias guardadas. Crea una con: mem save \"tu aprendizaje\"")
 		return
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(w, "ID\tTipo\tTítulo\tFecha\tContenido")
-	_, _ = fmt.Fprintln(w, "--\t----\t------\t-----\t--------")
+	rows := make([][]string, 0, len(mems))
 	for _, m := range mems {
 		content := m.Content
-		if len(content) > 50 {
-			content = content[:47] + "..."
-		}
+		content = ansi.Truncate(content, 50, "...")
 		date := m.CreatedAt
 		if len(date) > 10 {
 			date = date[:10]
 		}
-		_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n", m.ID, m.Type, m.Title, date, content)
+		rows = append(rows, []string{fmt.Sprint(m.ID), string(m.Type), m.Title, date, content})
 	}
-	_ = w.Flush()
-	fmt.Printf("\n(%d memorias)\n", len(mems))
+	fmt.Fprint(os.Stdout, formatMemoryRows(console.DetectEnv(), []string{"ID", "Tipo", "Título", "Fecha", "Contenido"}, rows))
+	humanf("\n(%d memorias)\n", len(mems))
 }

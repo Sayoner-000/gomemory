@@ -12,7 +12,7 @@ import (
 // de instalación por proyecto anterior a esta feature), para quien prefiera
 // no esperar al primer save/mcp.
 func CmdInit(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("init", flag.ContinueOnError)
+	fs := newFlagSet("init", flag.ContinueOnError)
 	fs.Bool("force", false, "Ya no tiene efecto: el store global no requiere reinicialización manual")
 	if err := fs.Parse(args); err != nil {
 		return

@@ -21,7 +21,7 @@ func CmdCompare(deps *Deps, args []string) {
 		return
 	}
 
-	fs := flag.NewFlagSet("compare", flag.ContinueOnError)
+	fs := newFlagSet("compare", flag.ContinueOnError)
 	relation := fs.String("r", "related", "Relación: related|compatible|scoped|conflicts_with|supersedes|not_conflict")
 	confidence := fs.Float64("c", 1.0, "Confianza (0.0-1.0)")
 	reasoning := fs.String("m", "", "Razonamiento del veredicto")
@@ -95,7 +95,7 @@ func CmdCompare(deps *Deps, args []string) {
 }
 
 func cmdCompareList(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("compare list", flag.ContinueOnError)
+	fs := newFlagSet("compare list", flag.ContinueOnError)
 	limit := fs.Int("n", 20, "Número de relaciones")
 	if err := fs.Parse(args); err != nil {
 		return

@@ -12,7 +12,7 @@ import (
 )
 
 func CmdWrap(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("wrap", flag.ContinueOnError)
+	fs := newFlagSet("wrap", flag.ContinueOnError)
 	autoSession := fs.Bool("s", true, "Auto-iniciar sesión si no hay una activa")
 	if err := fs.Parse(args); err != nil {
 		return

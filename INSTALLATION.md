@@ -28,6 +28,18 @@ Tras instalar, sigue con **0.1 Registro global** (recomendado, sin pasos por pro
 o salta a la sección **4. Instalar en un proyecto** (el flujo clásico, todavía soportado).
 Las secciones 1–3 son solo para compilar desde el fuente.
 
+**La experiencia guiada principal está incluida en el binario Go.** Ejecuta
+`mem install .` en una terminal interactiva para ver preguntas conectadas,
+progreso y resultados por paso. No requiere Node.js ni npm.
+
+### Asistente opcional en TypeScript
+
+El repositorio incluye un [instalador de terminal en TypeScript](installer/README.md)
+con selección de agentes y alcance, progreso y resumen de resultados. Requiere
+Node.js 22.20 o superior y un binario compatible con `mem install --events`.
+Por ahora se ejecuta desde el fuente; el paquete todavía no está publicado en npm.
+La guía del instalador incluye instrucciones para usar el binario compilado local.
+
 ---
 
 ## 0.1 Registro global (recomendado — sin instalar por proyecto)

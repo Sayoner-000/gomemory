@@ -26,6 +26,7 @@ func TestDetectMode(t *testing.T) {
 		{"stdin no es TTY", Env{StdinTTY: false, StdoutTTY: true, Width: 120, Getenv: env(nil)}, false, ModeNonInteractive},
 		{"stdout no es TTY", Env{StdinTTY: true, StdoutTTY: false, Width: 120, Getenv: env(nil)}, false, ModeNonInteractive},
 		{"terminal completa", Env{StdinTTY: true, StdoutTTY: true, Width: 120, Getenv: env(nil)}, false, ModeRich},
+		{"CI con pseudo TTY", Env{StdinTTY: true, StdoutTTY: true, Width: 120, Getenv: env(map[string]string{"CI": "1"})}, false, ModeNonInteractive},
 		{"NO_COLOR", Env{StdinTTY: true, StdoutTTY: true, Width: 120, Getenv: env(map[string]string{"NO_COLOR": "1"})}, false, ModePlain},
 		{"TERM=dumb", Env{StdinTTY: true, StdoutTTY: true, Width: 120, Getenv: env(map[string]string{"TERM": "dumb"})}, false, ModePlain},
 		{"estrecha", Env{StdinTTY: true, StdoutTTY: true, Width: 59, Getenv: env(nil)}, false, ModePlain},

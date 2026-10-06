@@ -1439,3 +1439,26 @@ Enter. La elección se aplica al instante y se guarda por proyecto.
 La consola presenta el logo de goMemory y muestra progreso durante el indexado.
 Consulta [Temas de terminal](./CONSOLE-THEMES.md) para seleccionar la apariencia
 con `GOMEMORY_THEME` y conocer el comportamiento de `NO_COLOR` y `COLORFGBG`.
+
+
+## Consola y presentación (v2.30.0)
+
+La salida humana comparte jerarquía, espaciado y ancho visible en todos los
+comandos; la salida redirigida o con `--json` conserva su texto original,
+byte a byte, sin logos ni colores.
+
+- `mem --no-motion <comando>` (o `GOMEMORY_NO_MOTION=1`) desactiva las
+  animaciones y conserva los colores.
+- `mem help <comando>` muestra la ayuda de una familia (ej.
+  `mem help install`); `mem <comando> --help` lista sus opciones registradas.
+- La cabecera con el logo solo aparece en comandos de lectura humana y nunca
+  ante `--json`/`--format`. El contenido de una búsqueda no la altera:
+  `mem search json` muestra la cabecera igual que cualquier otra consulta.
+- `GOMEMORY_THEME` admite `dark`, `light`, `matrix` y `auto`, en cualquier
+  mayúscula y con espacios; cualquier otro valor infiere el tema desde
+  `COLORFGBG`. Los casos exactos viven en `assets/theme-resolution-cases.json`
+  y se verifican en Go y en el instalador TypeScript.
+- `mem install` en una terminal rica muestra un flujo en vivo con un resumen
+  final (`Flow`); con `--events` emite NDJSON v1 por stdout (eventos `start`,
+  `step` y `complete`) y los registros humanos por stderr, para que el
+  instalador TypeScript (`installer/`) lo consuma sin interpretar texto.

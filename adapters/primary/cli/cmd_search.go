@@ -1,16 +1,17 @@
 package cli
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
-	"text/tabwriter"
+
+	"github.com/charmbracelet/x/ansi"
+	"mem/adapters/primary/console"
 )
 
 func CmdSearch(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("search", flag.ContinueOnError)
+	fs := newFlagSet("search", flag.ContinueOnError)
 	limit := fs.Int("n", 20, "Número de resultados")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -33,24 +34,19 @@ func CmdSearch(deps *Deps, args []string) {
 	}
 
 	if len(mems) == 0 {
-		fmt.Println("Sin resultados para:", query)
+		humanln("Sin resultados para:", query)
 		return
 	}
 
 	// Se arma en memoria para poder pasarlo por el motor nativo con el nivel
 	// max (feature 033); con los demás niveles la salida no cambia.
-	var buf bytes.Buffer
-	w := tabwriter.NewWriter(&buf, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(w, "ID\tTipo\tTítulo\tContenido")
-	_, _ = fmt.Fprintln(w, "--\t----\t------\t--------")
+	rows := make([][]string, 0, len(mems))
 	for _, m := range mems {
 		content := m.Content
-		if len(content) > 60 {
-			content = content[:57] + "..."
-		}
-		_, _ = fmt.Fprintf(w, "%d\t%s\t%s\t%s\n", m.ID, m.Type, m.Title, content)
+		content = ansi.Truncate(content, 60, "...")
+		rows = append(rows, []string{fmt.Sprint(m.ID), string(m.Type), m.Title, content})
 	}
-	_ = w.Flush()
-	_, _ = os.Stdout.WriteString(compressDeliveredContext(deps, buf.String()))
-	fmt.Printf("\n(%d resultados)\n", len(mems))
+	text := formatMemoryRows(console.DetectEnv(), []string{"ID", "Tipo", "Título", "Contenido"}, rows)
+	_, _ = os.Stdout.WriteString(compressDeliveredContext(deps, text))
+	humanf("\n(%d resultados)\n", len(mems))
 }

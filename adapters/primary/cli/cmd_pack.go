@@ -48,7 +48,7 @@ func CmdPack(deps *Deps, args []string) {
 // Separada de cmdPackBuild para poder probarla sin que un error dispare
 // os.Exit (mismo patrón que ParsePurgeFlags).
 func ParsePackBuildFlags(args []string, defaultProject string) (usecases.ContextRequest, bool, error) {
-	fs := flag.NewFlagSet("pack build", flag.ContinueOnError)
+	fs := newFlagSet("pack build", flag.ContinueOnError)
 	task := fs.String("task", "", "Descripción de la tarea (obligatorio)")
 	maxTokens := fs.Int("max-tokens", 0, "Presupuesto total de tokens, > 0 (obligatorio)")
 	project := fs.String("project", "", "Proyecto objetivo (default: proyecto actual)")

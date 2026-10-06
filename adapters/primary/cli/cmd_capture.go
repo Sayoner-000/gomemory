@@ -11,7 +11,7 @@ import (
 )
 
 func CmdCapture(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("capture", flag.ContinueOnError)
+	fs := newFlagSet("capture", flag.ContinueOnError)
 	what := fs.String("w", "", "¿Qué se hizo o aprendió?")
 	why := fs.String("y", "", "¿Por qué se hizo así?")
 	where := fs.String("f", "", "Archivos afectados (separados por coma)")

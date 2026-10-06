@@ -12,7 +12,7 @@ import (
 // por contenido, preservando timestamps y remapeando el proyecto y los ids de
 // relación. No forma sinapsis automáticas.
 func CmdImport(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("import", flag.ContinueOnError)
+	fs := newFlagSet("import", flag.ContinueOnError)
 	if err := fs.Parse(args); err != nil {
 		return
 	}

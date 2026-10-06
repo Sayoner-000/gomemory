@@ -32,7 +32,7 @@ func CmdRules(deps *Deps, args []string) {
 // runPinnedShortcut resuelve un documento fijado por su alias y lo escribe en
 // stdout. Con --sync, además lo refleja en el archivo que espera spec-kit.
 func runPinnedShortcut(deps *Deps, alias string, args []string, stdout, stderr io.Writer) error {
-	fs := flag.NewFlagSet(alias, flag.ContinueOnError)
+	fs := newFlagSet(alias, flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	sync := fs.Bool("sync", false, "escribir también .specify/memory/constitution.md si el proyecto usa spec-kit")
 	if err := fs.Parse(args); err != nil {

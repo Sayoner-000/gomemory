@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-
 	"mem/adapters/primary/setup"
 )
 
@@ -78,11 +76,11 @@ func printDoctorOpenCode(st setup.OpenCodeInstallStatus) {
 	default:
 		plugin = "no instalado"
 	}
-	fmt.Printf("\nOpenCode: %s · plugin gomemory: %s\n", version, plugin)
+	humanf("\nOpenCode: %s · plugin gomemory: %s\n", version, plugin)
 	for _, p := range st.ForeignV1Plugins {
-		fmt.Printf("⚠️  plugin ajeno con forma v1 en OpenCode 2.x: ~/.config/opencode/plugins/%s (no es de gomemory; actualízalo en su proyecto)\n", p)
+		humanf("⚠️  plugin ajeno con forma v1 en OpenCode 2.x: ~/.config/opencode/plugins/%s (no es de gomemory; actualízalo en su proyecto)\n", p)
 	}
 	if st.StaleTestArtifact {
-		fmt.Printf("🧹 artefacto de pruebas en la carpeta de plugins: gomemory.test.mjs (se retira al reinstalar: %s)\n", openCodeRemedy)
+		humanf("🧹 artefacto de pruebas en la carpeta de plugins: gomemory.test.mjs (se retira al reinstalar: %s)\n", openCodeRemedy)
 	}
 }

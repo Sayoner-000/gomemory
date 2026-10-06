@@ -90,7 +90,7 @@ func FormatCompare(compressor ports.Compressor, input string) string {
 }
 
 func cmdPackCompress(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("pack compress", flag.ContinueOnError)
+	fs := newFlagSet("pack compress", flag.ContinueOnError)
 	levelFlag := fs.String("level", "", "Nivel: none|structural|max (default: el del proyecto)")
 	asJSON := fs.Bool("json", false, "Emitir el resultado como JSON")
 	compare := fs.Bool("compare", false, "Comparar los tres niveles sin imprimir el contenido")
@@ -183,7 +183,7 @@ func savingsReport(deps *Deps, ctx context.Context) (usecases.SavingsReport, err
 
 // cmdPackSavings implementa `mem pack savings [--json]` (FR-026).
 func cmdPackSavings(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("pack savings", flag.ContinueOnError)
+	fs := newFlagSet("pack savings", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "Emitir el informe como JSON")
 	if err := fs.Parse(args); err != nil {
 		fail("%v", err)
@@ -204,7 +204,7 @@ func cmdPackSavings(deps *Deps, args []string) {
 
 // cmdPackTune implementa `mem pack tune --reset [--type T]` (FR-027).
 func cmdPackTune(deps *Deps, args []string) {
-	fs := flag.NewFlagSet("pack tune", flag.ContinueOnError)
+	fs := newFlagSet("pack tune", flag.ContinueOnError)
 	reset := fs.Bool("reset", false, "Restablecer la agresividad máxima")
 	typ := fs.String("type", "", "Tipo de contenido (json, code, log, diff, table, prose); vacío = todos")
 	if err := fs.Parse(args); err != nil {

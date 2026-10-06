@@ -1,0 +1,26 @@
+{
+  "name": "gomemory-installer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Instalador opcional de goMemory para terminal",
+  "type": "module",
+  "bin": { "gomemory-install": "dist/cli.js" },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=22.20.0" },
+  "scripts": {
+    "build": "tsc && node scripts/assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@clack/prompts": "1.8.1",
+    "picocolors": "1.1.1",
+    "tar": "7.5.22",
+    "fflate": "0.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.15",
+    "typescript": "7.0.2"
+  }
+}

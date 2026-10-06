@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -74,29 +73,29 @@ func buildDoctorBinary(deps *Deps, root string) doctorBinaryJSON {
 }
 
 func printDoctorBinary(b doctorBinaryJSON) {
-	fmt.Println("\nVersión y binario:")
+	humanln("\nVersión y binario:")
 	if b.GlobalPath == "" {
-		fmt.Println("  binario global: no hay `mem` en el PATH (los proyectos usan su copia)")
+		humanln("  binario global: no hay `mem` en el PATH (los proyectos usan su copia)")
 	} else {
-		fmt.Printf("  binario global: %s (%s)\n", b.GlobalPath, b.GlobalVersion)
+		humanf("  binario global: %s (%s)\n", b.GlobalPath, b.GlobalVersion)
 	}
 	if len(b.LocalCopies) == 0 {
-		fmt.Println("  copias locales: ninguna")
+		humanln("  copias locales: ninguna")
 	}
 	for _, c := range b.LocalCopies {
-		fmt.Printf("  copia local: %s (%s) — se retirará al abrir el proyecto\n", c.Path, c.Version)
+		humanf("  copia local: %s (%s) — se retirará al abrir el proyecto\n", c.Path, c.Version)
 	}
 	if b.UpdateCheck.Enabled {
-		fmt.Println("  aviso de versión: activo")
+		humanln("  aviso de versión: activo")
 	} else {
-		fmt.Printf("  aviso de versión: desactivado (%s)\n", b.UpdateCheck.DisabledBy)
+		humanf("  aviso de versión: desactivado (%s)\n", b.UpdateCheck.DisabledBy)
 	}
 	switch {
 	case b.UpdateCheck.CheckedAt == "":
-		fmt.Println("  última consulta: nunca")
+		humanln("  última consulta: nunca")
 	case b.UpdateCheck.Error != "":
-		fmt.Printf("  última consulta: %s → error: %s\n", b.UpdateCheck.CheckedAt, b.UpdateCheck.Error)
+		humanf("  última consulta: %s → error: %s\n", b.UpdateCheck.CheckedAt, b.UpdateCheck.Error)
 	default:
-		fmt.Printf("  última consulta: %s → %s\n", b.UpdateCheck.CheckedAt, b.UpdateCheck.Latest)
+		humanf("  última consulta: %s → %s\n", b.UpdateCheck.CheckedAt, b.UpdateCheck.Latest)
 	}
 }

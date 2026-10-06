@@ -3,9 +3,10 @@ package console
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
-	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // StepStatus es el resultado de un paso del ciclo de vida.
@@ -26,23 +27,18 @@ type StepResult struct {
 	Status               StepStatus
 }
 
-var (
-	okStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	failStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-)
-
 func renderStep(r StepResult, styled bool) string {
 	icon := "✓"
-	style := okStyle
+	palette := Theme(os.Getenv)
+	color := palette.Secondary
 	switch r.Status {
 	case StepWarn:
-		icon, style = "⚠", warnStyle
+		icon, color = "⚠", palette.WarningColor()
 	case StepFail:
-		icon, style = "✗", failStyle
+		icon, color = "✗", palette.ErrorColor()
 	}
 	if styled {
-		icon = style.Render(icon)
+		icon = foreground(color) + icon + "\x1b[0m"
 	}
 	line := icon + " " + r.Name
 	if r.Detail != "" {
@@ -77,7 +73,11 @@ func NewReporter(out io.Writer, styled bool) *Reporter {
 
 func (r *Reporter) Done(res StepResult) {
 	r.results = append(r.results, res)
-	_, _ = fmt.Fprintln(r.out, "  "+renderStep(res, r.styled))
+	line := "  " + renderStep(res, r.styled)
+	if r.styled {
+		line = ansi.Hardwrap(ansi.Wrap(line, max(1, DetectEnv().Width), ""), max(1, DetectEnv().Width), false)
+	}
+	_, _ = fmt.Fprintln(r.out, line)
 }
 
 func (r *Reporter) Results() []StepResult { return r.results }
