@@ -7,7 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.29.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.29.0)
+[![Version](https://img.shields.io/badge/version-2.30.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.30.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)

@@ -5,6 +5,32 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.30.0] - 2026-10-06
+
+### Added
+
+- Instalación nativa en terminales ricas: `mem install` muestra un flujo en
+  vivo con resumen final y `mem install --events` emite NDJSON v1 (`start`,
+  `step`, `complete`) por stdout, con los registros humanos por stderr.
+- Instalador TypeScript opcional (`installer/`) que consume el contrato
+  NDJSON sin interpretar texto, con paridad de temas verificada contra los
+  mismos casos que Go (`assets/theme-resolution-cases.json`).
+- Ayuda por familias con `mem help <comando>` y `mem --no-motion <comando>`
+  para desactivar animaciones conservando los colores.
+- Presentación compartida de consola (jerarquía, espaciado y tablas que se
+  vuelven verticales en pantallas estrechas) en ayuda, listados, sesiones,
+  uso y reportes del instalador.
+
+### Fixed
+
+- La cabecera con el logo ya no depende del contenido de la búsqueda:
+  `mem search json` la muestra igual que cualquier otra consulta y `--json`
+  la suprime siempre, incluso tras `--`.
+- `GOMEMORY_THEME` se normaliza (mayúsculas y espacios) y `auto` u otros
+  valores infieren el tema desde `COLORFGBG`, igual en Go y TypeScript.
+- `CI=1` fuerza modo no interactivo aunque haya TTY, para que la instalación
+  nunca bloquee un pipeline esperando una pregunta.
+
 ## [v2.29.0] - 2026-10-05
 
 ### Added
