@@ -5,6 +5,44 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.31.0] - 2026-10-08
+
+### Added
+
+- Índice compacto de ayuda por flujos (`mem` sin argumentos) con detalle por
+  familia en `mem help <comando>`.
+- Flujo de instalación con pasos planificados, resumen final y siguiente
+  acción en `mem index`, reportes de estado e instalación nativa.
+- Autodetección de CodeGraph en el PATH con `code_graph_providers` vacío;
+  `mem install` conecta su servidor MCP a los agentes que aún no lo tengan
+  (con comprobación previa de identidad) y `mem doctor` informa en qué
+  agentes está conectado.
+- Puerta visual `scripts/visual-smoke.py`: verifica presentación por PTY
+  (temas × anchos × comandos) e instalación real en un HOME aislado.
+
+### Changed
+
+- Listados y reportes (`search`, `list`, `compare`, `docs`, `usage`,
+  `doctor`, `octopus`, revisiones, ADR) se presentan en paneles en terminal
+  humana y conservan su texto plano byte a byte con salida redirigida o
+  `--json`.
+- La detección del MCP de CodeGraph interpreta el TOML/JSON real por agente
+  (incluido el registro de Claude a nivel proyecto) en vez de
+  subcadenas, y exige una entrada de servidor válida.
+
+### Fixed
+
+- Los flags inválidos terminan con código 2 en todos los comandos (antes
+  éxito silencioso salvo en `install`); los comandos sin opciones rechazan
+  argumentos con código 2.
+- La cabecera con el logo ya no depende del contenido de la búsqueda y
+  `--json`/`--format` la suprimen siempre.
+- Cancelar una instalación detiene todo el árbol de procesos (grupo propio,
+  vigilancia del padre, paridad Windows con `taskkill`): sin instaladores
+  huérfanos que sigan mutando el proyecto.
+- `GOMEMORY_THEME` se normaliza igual en Go y TypeScript, con casos
+  compartidos verificados (`assets/theme-resolution-cases.json`).
+
 ## [v2.30.0] - 2026-10-06
 
 ### Added
