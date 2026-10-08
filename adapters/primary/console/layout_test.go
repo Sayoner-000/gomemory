@@ -17,7 +17,7 @@ func TestDocumentPreservesPipedOutputAndFitsHumanTerminals(t *testing.T) {
 				t.Fatalf("ancho %d: línea desbordada %q", width, line)
 			}
 		}
-		if !strings.Contains(ansi.Strip(out), "RESUMEN") || !strings.Contains(out, "información") {
+		if !strings.Contains(strings.ToUpper(ansi.Strip(out)), "RESUMEN") || !strings.Contains(out, "información") {
 			t.Fatalf("se perdió contenido: %q", out)
 		}
 	}
@@ -102,10 +102,99 @@ func TestHelpIndentationAndTrailingSpacesCannotOverflow(t *testing.T) {
 
 func TestSummaryUsesThemeStatusColors(t *testing.T) {
 	t.Setenv("GOMEMORY_THEME", "light")
-	out := RenderSummary([]StepResult{{Name: "Memoria", Status: StepOK}, {Name: "MCP", Status: StepWarn}, {Name: "Descarga", Status: StepFail}}, true)
+	out := renderSummary([]StepResult{{Name: "Memoria", Status: StepOK}, {Name: "MCP", Status: StepWarn}, {Name: "Descarga", Status: StepFail}}, true)
 	for _, color := range []string{Violeta, "#866000", "#b42336"} {
 		if !strings.Contains(out, foreground(color)) {
 			t.Fatalf("resumen sin color de tema %s: %q", color, out)
 		}
+	}
+}
+
+func TestDocumentGramaticaComun(t *testing.T) {
+	l := NewLayout(styledEnv(60))
+	in := "CONFIGURACIÓN\nAuto-approve: true\nRuta MCP: /x\n  ➖ gomemory: sin cambios\nUsa --auto-approve=true para cambiar\nError: subcomando requerido\n"
+	out := l.Document(in)
+	plain := ansi.Strip(out)
+	for _, want := range []string{"╭─ Configuración", "│ Auto-approve: true", "Ruta MCP: /x", "│ − gomemory: sin cambios", "→ Usa --auto-approve=true para cambiar", "Error: subcomando requerido"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("falta %q en:\n%s", want, plain)
+		}
+	}
+	if !strings.Contains(out, foreground(l.palette.Muted)+"Auto-approve:") {
+		t.Fatalf("la clave debe ir atenuada: %q", out)
+	}
+	if !strings.Contains(out, foreground(l.palette.ErrorColor())+"Error: subcomando requerido") {
+		t.Fatalf("el error debe usar el color de error: %q", out)
+	}
+	if got := ansi.Strip(l.Document("MCP Y AGENTES\n  uno\n")); !strings.Contains(got, "╭─ MCP y agentes") {
+		t.Fatalf("siglas en títulos: %q", got)
+	}
+}
+
+func TestDocumentContinuacionConSangriaColgante(t *testing.T) {
+	l := NewLayout(styledEnv(40))
+	out := ansi.Strip(l.Document("  ✓ gomemory claude user instructions hooks presentes en settings\n"))
+	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+	if len(lines) < 2 {
+		t.Fatalf("se esperaba ajuste: %q", out)
+	}
+	for _, line := range lines[1:] {
+		if !strings.HasPrefix(line, "    ") || ansi.StringWidth(line) > 40 {
+			t.Fatalf("continuación sin sangría colgante: %q", out)
+		}
+	}
+}
+
+func TestDocumentAgrupaSeccionesEnPanelesYDejaElPieFuera(t *testing.T) {
+	l := NewLayout(styledEnv(60))
+	in := "Encabezado libre\n\nMEMORIA DIARIA\n  mem save        Guardar\n  mem search      Buscar\n\nSISTEMA\n  mem tui         Abrir\n\nUsa mem help <comando> para ver flags\n"
+	out := ansi.Strip(l.Document(in))
+	for _, want := range []string{"Encabezado libre", "╭─ Memoria diaria", "│ mem save", "╭─ Sistema", "→ Usa mem help"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("falta %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "│ → Usa") {
+		t.Fatalf("el pie quedó dentro del panel:\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if ansi.StringWidth(line) > 60 {
+			t.Fatalf("desborde: %q", line)
+		}
+	}
+	if plain := NewLayout(plainEnv()).Document(in); plain != in {
+		t.Fatalf("salida no humana alterada: %q", plain)
+	}
+}
+
+func TestDocumentSeccionConLineaEnBlancoInicial(t *testing.T) {
+	out := ansi.Strip(NewLayout(styledEnv(60)).Document("CONFIGURACIÓN\n\nAuto-approve: true\nTema: dark\n\nUsa --tema para cambiar\n"))
+	if !strings.Contains(out, "│ Auto-approve: true") || !strings.Contains(out, "│ Tema: dark") || strings.Contains(out, "│ → Usa") {
+		t.Fatalf("sección mal agrupada:\n%s", out)
+	}
+}
+
+func TestReport_PanelConClavesAlineadasYSubtitulos(t *testing.T) {
+	l := NewLayout(styledEnv(60))
+	out := ansi.Strip(l.Report("Octopus AAR", "estado", "Topes efectivos\n  Agentes por plan: 4\n  Concurrencia: 3\n\nTasa de éxito: 100 %\n"))
+	for _, want := range []string{"╭─ Octopus AAR · estado", "│ Topes efectivos", "│   Agentes por plan: 4", "│   Concurrencia:     3", "│ Tasa de éxito: 100 %"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("falta %q:\n%s", want, out)
+		}
+	}
+	if plain := NewLayout(plainEnv()).Report("x", "", "a: 1\n"); plain != "a: 1\n" {
+		t.Fatalf("Report fuera de terminal debe dejar el texto intacto: %q", plain)
+	}
+}
+
+func TestDocumentTituloConDosPuntosAbreSeccion(t *testing.T) {
+	out := ansi.Strip(NewLayout(styledEnv(60)).Document("Compresión:\n  nivel: max\n  originales: 0.1 MB\n\nOpenCode: v1 detectado\n\nDegradaciones declaradas (no requieren acción):\n  - claude: x\n"))
+	for _, want := range []string{"╭─ Compresión", "│ nivel:", "OpenCode: v1 detectado", "╭─ Degradaciones declaradas · no requieren acción"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("falta %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "│ OpenCode") {
+		t.Fatalf("una línea clave-valor suelta no es sección:\n%s", out)
 	}
 }

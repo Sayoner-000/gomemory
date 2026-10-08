@@ -25,7 +25,7 @@ func CmdConsolidate(deps *Deps, args []string) {
 	}
 
 	if len(report.Groups) == 0 {
-		fmt.Println("No hay memorias consolidables (ningún grupo por clave de tópico ni por actividad duplicada).")
+		humanln("No hay memorias consolidables (ningún grupo por clave de tópico ni por actividad duplicada).")
 		return
 	}
 

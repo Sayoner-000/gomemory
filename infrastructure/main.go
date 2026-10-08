@@ -100,15 +100,11 @@ func main() {
 				// (ReadSettings ya normaliza el legado CodeGraphCommand a una
 				// lista de 1 si CodeGraphProviders viene vacía) — cada uno tiene
 				// su propio archivo de snapshot (ver snapshotPath), así que no se
-				// pisan entre sí. Sin candidatos configurados, autodetección en
-				// PATH (comportamiento previo a esta feature).
+				// pisan entre sí. Sin candidatos configurados, NewProviders
+				// autodetecta en PATH los proveedores conocidos.
 				memDir := filepath.Join(root, persistence.MemDir)
-				cmds := s.CodeGraphProviders
-				if len(cmds) == 0 {
-					cmds = []string{""}
-				}
 				ctx := context.Background()
-				codegraph.RefreshAll(ctx, memDir, codegraph.NewProviders(root, memDir, cmds))
+				codegraph.RefreshAll(ctx, memDir, codegraph.NewProviders(root, memDir, s.CodeGraphProviders))
 			}
 		}
 		os.Exit(0)

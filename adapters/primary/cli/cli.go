@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"mem/adapters/primary/console"
 
@@ -32,8 +33,109 @@ func LaunchTUI(deps *Deps) {
 	}
 }
 
+// Usage muestra el índice compacto: una línea por comando, agrupada por
+// flujo. Los flags y ejemplos viven en mem help <comando> (helpReference).
 func Usage() {
-	fmt.Print(console.NewLayout(console.DetectEnv()).Document(helpReference()))
+	env := console.DetectEnv()
+	text := helpIndexText()
+	if env.StdoutTTY && env.Getenv("CI") == "" {
+		// La cabecera ya muestra marca y versión; la línea de título sobra.
+		_, text, _ = strings.Cut(text, "\n\n")
+	}
+	fmt.Print(console.NewLayout(env).Document(text))
+}
+
+type helpEntry struct{ command, summary string }
+
+var helpIndex = []struct {
+	title    string
+	commands []helpEntry
+}{
+	{"MEMORIA DIARIA", []helpEntry{
+		{"save", "Guardar un aprendizaje"},
+		{"capture", "Guardar con qué, por qué, dónde y qué se aprendió"},
+		{"search", "Buscar en la memoria"},
+		{"get", "Ver una memoria por ID"},
+		{"list", "Memorias recientes (alias: log)"},
+		{"compare", "Comparar dos memorias y guardar el veredicto (alias: judge)"},
+		{"forget", "Borrar una memoria por ID"},
+	}},
+	{"CONTEXTO Y AHORRO", []helpEntry{
+		{"context", "Contexto de memoria del proyecto"},
+		{"plan-context", "Método de planificación atómica más contexto"},
+		{"mass", "Ranking de masa de las memorias"},
+		{"pack", "Paquetes de contexto: build · show · stats · savings"},
+		{"usage", "Tokens ahorrados al emitir contexto"},
+	}},
+	{"SESIONES", []helpEntry{
+		{"session", "Sesiones de trabajo: start · end · list"},
+		{"wrap", "Ejecutar un comando y ofrecer guardarlo"},
+	}},
+	{"REVISIÓN ADVERSARIAL", []helpEntry{
+		{"review", "Abrir y seguir revisiones ACR"},
+	}},
+	{"CÓDIGO Y ARQUITECTURA", []helpEntry{
+		{"index", "Indexar el código y los grafos externos"},
+		{"adr-sync", "Estado de sincronización de ADR"},
+	}},
+	{"INSTALACIÓN E INTEGRACIÓN", []helpEntry{
+		{"install", "Configurar memoria y agentes en un proyecto"},
+		{"uninstall", "Desinstalar gomemory"},
+		{"update", "Actualizar el binario y la integración"},
+		{"doctor", "Diagnóstico de la integración"},
+		{"settings", "Ver o cambiar la configuración"},
+		{"setup-mcp", "Registrar el servidor MCP en agentes"},
+		{"setup", "Instalar el plugin de un agente"},
+		{"seed", "Sembrar las memorias por defecto"},
+		{"init", "Inicializar el proyecto (opcional)"},
+		{"migrate", "Migrar una base legada al store global"},
+	}},
+	{"DOCUMENTOS Y PORTABILIDAD", []helpEntry{
+		{"docs", "Documentos fijados del proyecto"},
+		{"constitution", "Constitución vigente"},
+		{"rules", "Reglas de trabajo vigentes"},
+		{"export", "Exportar memorias a JSON portable"},
+		{"import", "Importar un bundle JSON"},
+	}},
+	{"MANTENIMIENTO", []helpEntry{
+		{"purge", "Vaciar memorias"},
+		{"compact", "Compactar la base de datos"},
+		{"gc", "Retirar memorias viejas"},
+		{"consolidate", "Fundir memorias redundantes"},
+	}},
+	{"SISTEMA", []helpEntry{
+		{"project", "Proyecto actual y su base"},
+		{"tui", "Abrir la interfaz TUI"},
+		{"octopus", "Enrutar trabajo: inline o delegar"},
+		{"mcp", "Servidor MCP para agentes"},
+		{"hook", "Entrada de hooks de agentes (uso interno)"},
+		{"version", "Versión instalada"},
+	}},
+}
+
+func helpIndexText() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "gomemory %s — Memoria colectiva para agentes AI\n\n", version.Version)
+	b.WriteString("INICIO RÁPIDO\n")
+	for _, row := range [][2]string{
+		{"mem", "Abrir la interfaz TUI"},
+		{"mem install .", "Configurar memoria y agentes en este proyecto"},
+		{"mem save \"aprendizaje\"", "Guardar lo que aprendiste"},
+		{"mem search \"tema\"", "Recuperarlo después"},
+	} {
+		fmt.Fprintf(&b, "  %-24s %s\n", row[0], row[1])
+	}
+	for _, group := range helpIndex {
+		b.WriteString("\n" + group.title + "\n")
+		for _, entry := range group.commands {
+			fmt.Fprintf(&b, "  %-24s %s\n", "mem "+entry.command, entry.summary)
+		}
+	}
+	b.WriteString("\nOPCIONES\n")
+	fmt.Fprintf(&b, "  %-24s %s\n", "mem --no-motion <cmd>", "Sin animaciones (conserva los colores)")
+	fmt.Fprintf(&b, "  %-24s %s\n", "--json", "Salida legible por máquina donde aplique")
+	b.WriteString("\nUsa mem help <comando> para ver flags y ejemplos\n")
+	return b.String()
 }
 
 func helpReference() string {

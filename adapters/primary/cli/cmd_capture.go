@@ -93,8 +93,8 @@ func CmdCapture(deps *Deps, args []string) {
 		fail("guardar capture: %v", err)
 	}
 
-	fmt.Printf("✓ Capture guardado (id=%d)\n", id)
+	humanf("✓ Capture guardado (id=%d)\n", id)
 	if sessionID != "" {
-		fmt.Printf("  Sesión activa: %s\n", sessionID[:8])
+		humanf("  Sesión activa: %s\n", sessionID[:8])
 	}
 }

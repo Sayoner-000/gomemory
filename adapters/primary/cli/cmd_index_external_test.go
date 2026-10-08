@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
 	"testing"
 
+	"mem/adapters/primary/console"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -29,19 +31,39 @@ func (p indexGraphProvider) IndexRepository(_ context.Context, mode string) (int
 	return 12, 34, p.err
 }
 
+func plainFlow(out *bytes.Buffer) *console.Flow {
+	return console.NewFlow(out, console.Env{Width: 200, Getenv: func(string) string { return "" }}, "Indexar")
+}
+
 func TestIndexExternalGraph_IndexaAmbosAunqueElPrimeroFalle(t *testing.T) {
 	var calls []string
 	deps := &Deps{CodeProviders: []ports.CodeGraphProvider{
 		indexGraphProvider{name: "codebase-memory-mcp", calls: &calls, err: errors.New("falló índice")},
 		indexGraphProvider{name: "codegraph", calls: &calls},
 	}}
-	out := captureStdout(t, func() { indexExternalGraph(deps) })
+	var out bytes.Buffer
+	indexExternalGraph(deps, plainFlow(&out))
 	if got := strings.Join(calls, ","); got != "codebase-memory-mcp:full,codegraph:full" {
 		t.Fatalf("orden de indexado = %q", got)
 	}
-	if !strings.Contains(out, "grafo externo (codebase-memory-mcp): falló índice") ||
-		!strings.Contains(out, "Indexando grafo externo (codegraph)") ||
-		!strings.Contains(out, "Nodos: 12, aristas: 34") {
-		t.Fatalf("salida no reporta ambos resultados:\n%s", out)
+	text := out.String()
+	if !strings.Contains(text, "⚠ codebase-memory-mcp: falló índice") ||
+		!strings.Contains(text, "✓ codegraph · 12 nodos · 34 aristas") {
+		t.Fatalf("salida no reporta ambos resultados:\n%s", text)
+	}
+}
+
+func TestIndexExternalGraph_SenalaCodeGraphAusenteConPista(t *testing.T) {
+	var calls []string
+	deps := &Deps{CodeProviders: []ports.CodeGraphProvider{
+		indexGraphProvider{name: "codebase-memory-mcp", calls: &calls},
+	}}
+	if got := strings.Join(externalGraphSteps(deps), ","); got != "codebase-memory-mcp,codegraph" {
+		t.Fatalf("plan del grafo externo = %q", got)
+	}
+	var out bytes.Buffer
+	indexExternalGraph(deps, plainFlow(&out))
+	if text := out.String(); !strings.Contains(text, "− codegraph: no instalado → curl") || !strings.Contains(text, "install.sh") {
+		t.Fatalf("falta la pista para instalar codegraph:\n%s", text)
 	}
 }

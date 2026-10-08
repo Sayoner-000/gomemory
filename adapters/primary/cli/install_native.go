@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -20,9 +21,15 @@ import (
 func consumeNativeInstall(input io.Reader, flow *console.Flow) (installEvent, error) {
 	scanner := bufio.NewScanner(input)
 	scanner.Buffer(make([]byte, 4096), 4*1024*1024)
+	scanner.Split(scanNDJSONLines)
 	var complete installEvent
 	warnings, closed := false, false
 	for scanner.Scan() {
+		// Mismo contrato y orden de comprobaciones que EventStream en
+		// installer/src/core.ts (S-003).
+		if strings.TrimSpace(scanner.Text()) == "" {
+			return complete, fmt.Errorf("línea en blanco fuera del contrato NDJSON")
+		}
 		if closed {
 			return complete, fmt.Errorf("evento después del cierre")
 		}
@@ -76,6 +83,15 @@ func consumeNativeInstall(input io.Reader, flow *console.Flow) (installEvent, er
 	return complete, nil
 }
 
+// scanNDJSONLines es bufio.ScanLines salvo que un evento final sin salto de
+// línea se rechaza como truncado, igual que el instalador TypeScript.
+func scanNDJSONLines(data []byte, atEOF bool) (int, []byte, error) {
+	if atEOF && len(data) > 0 && bytes.IndexByte(data, '\n') < 0 {
+		return 0, nil, fmt.Errorf("evento truncado: falta salto de línea de cierre")
+	}
+	return bufio.ScanLines(data, atEOF)
+}
+
 // nativeLogs mantiene un diagnóstico acotado sin mezclarlo con la presentación.
 type nativeLogs struct{ text []byte }
 
@@ -90,6 +106,7 @@ func (b *nativeLogs) Write(p []byte) (int, error) {
 func runNativeInstall(target string, selection installSelection, hasGlobal bool) int {
 	flow := console.NewFlow(os.Stdout, console.DetectEnv(), "Configurar proyecto")
 	defer flow.Stop()
+	flow.Next("mem tui")
 	self, err := os.Executable()
 	if err != nil {
 		flow.Done(console.StepResult{Name: "Binario", Status: console.StepFail, Detail: err.Error()})

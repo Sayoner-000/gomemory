@@ -82,31 +82,69 @@ func renderUsageHuman(report domain.UsageReport, scope string, env console.Env) 
 	if !env.StdoutTTY || (env.Getenv != nil && env.Getenv("CI") != "") {
 		return usecases.FormatUsageReport(report, scope)
 	}
-	layout := console.NewLayout(env)
-	summary := report
-	summary.ByOperation, summary.ByChannel = nil, nil
-	text := usecases.FormatUsageReport(summary, scope)
-	before, total, hasTotal := strings.Cut(text, "\n======================================================================\n")
+	l := console.NewLayout(env)
+	panelWidth := min(l.Width(), 100)
+	inner := l.WithWidth(panelWidth - 4)
+	title := "Uso de contexto"
+	switch {
+	case scope == "session" && report.SessionID != "":
+		title += " · sesión " + report.SessionID
+	case scope == "all":
+		title += " · todas las sesiones"
+	}
+	note := l.Muted("Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas.")
 	var b strings.Builder
-	b.WriteString(layout.Document(before))
+	if scope == "empty" || report.Calls == 0 {
+		b.WriteString(l.Panel(title, "", "", []string{"Sin actividad registrada todavía."}))
+		b.WriteString("\n" + l.Document("  "+note) + "\n")
+		return b.String()
+	}
+	tokens := func(n int) string { return console.FormatInt(n) + " tokens" }
+	pct := fmt.Sprintf("%d%%", int(report.ReductionRatio()*100))
+	summary := [][]string{
+		{"Línea base", tokens(report.BaselineTokens)},
+		{"Emitido", tokens(report.EmittedTokens)},
+		{"Ahorro", tokens(report.Saved()) + " · " + pct + "  " + l.Bar(int(report.ReductionRatio()*1000), 1000, 10)},
+	}
+	if report.SchemaOperations > 0 {
+		summary = append(summary, []string{"Descriptores", fmt.Sprintf("%s en %s operaciones", tokens(report.SchemaTokens), console.FormatInt(report.SchemaOperations))})
+	}
+	if ratio, ok := report.WindowRatio(); ok {
+		summary = append(summary, []string{"Huella evitada", fmt.Sprintf("%.2f%% de una ventana de %s (estimado)", ratio*100, tokens(report.WindowTokens))})
+	}
+	lines := make([]string, 0, len(summary))
+	for _, row := range summary {
+		lines = append(lines, l.Muted(fmt.Sprintf("%-15s", row[0]))+row[1])
+	}
+	b.WriteString(l.Panel(title, "", callsLabel(report.Calls), lines))
 	for _, section := range []struct {
 		title   string
 		buckets []domain.UsageBucket
-	}{{"POR OPERACIÓN", report.ByOperation}, {"POR CANAL", report.ByChannel}} {
+	}{{"Por operación", report.ByOperation}, {"Por canal", report.ByChannel}} {
 		if len(section.buckets) == 0 {
 			continue
 		}
-		b.WriteString("\n" + layout.Section(section.title) + "\n")
 		rows := make([][]string, 0, len(section.buckets))
 		for _, bucket := range section.buckets {
-			rows = append(rows, []string{bucket.Key, fmt.Sprint(bucket.Calls), fmt.Sprint(bucket.BaselineTokens), fmt.Sprint(bucket.EmittedTokens)})
+			rows = append(rows, []string{bucket.Key, console.FormatInt(bucket.Calls), console.FormatInt(bucket.BaselineTokens), console.FormatInt(bucket.EmittedTokens)})
 		}
-		b.WriteString(layout.Table([]string{"Origen", "Llamadas", "Base (tokens)", "Emitido (tokens)"}, rows))
+		table := inner.Table([]string{"Origen", "Llamadas", "Base (tokens)", "Emitido (tokens)"}, rows)
+		b.WriteString("\n" + l.Panel(section.title, "", "", strings.Split(strings.TrimRight(table, "\n"), "\n")))
 	}
-	if hasTotal {
-		b.WriteString("\n" + layout.Document(total))
-	}
+	b.WriteString("\n" + l.Document("  "+note) + "\n")
+	b.WriteString("  " + l.WithWidth(l.Width()-2).StatusBar(
+		l.Section("✓ Ahorro total")+" "+tokens(report.Saved()),
+		fmt.Sprintf("%.2f %%", report.ReductionRatio()*100),
+		callsLabel(report.Calls),
+	) + "\n")
 	return b.String()
+}
+
+func callsLabel(n int) string {
+	if n == 1 {
+		return "1 llamada"
+	}
+	return console.FormatInt(n) + " llamadas"
 }
 
 // usageScope identifica cómo se resolvió la sesión del reporte (FR-010).

@@ -18,8 +18,15 @@ func Run(cmd string, args []string, deps *Deps) {
 			}
 		}
 	}
+	rejectUnexpectedArgs(cmd, args)
 	if commandHasBanner(cmd, args) {
-		console.PrintBrand(cmd)
+		banner := cmd
+		if (cmd == "help" || cmd == "-h" || cmd == "--help") && len(args) > 0 {
+			// El logo completo es para el índice; la ayuda de un comando
+			// lleva la cabecera compacta.
+			banner = "help " + args[0]
+		}
+		console.PrintBrand(banner)
 	}
 	switch cmd {
 	case "version", "--version", "-v":
@@ -145,13 +152,31 @@ func commandHasBanner(cmd string, args []string) bool {
 		}
 	}
 	switch cmd {
-	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "capture", "session", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "import", "adr-sync":
+	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "capture", "session", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "import", "export", "adr-sync":
 		return true
 	}
 	return false
 }
 
+// noArgCommands no aceptan opciones ni argumentos (--help se atiende antes).
+var noArgCommands = map[string]bool{"seed": true, "compact": true, "project": true, "version": true, "--version": true, "-v": true, "update-check": true}
+
+// rejectUnexpectedArgs termina con código 2 si un comando sin opciones recibe
+// argumentos: ignorarlos ejecutaba la acción y declaraba éxito (C-001).
+func rejectUnexpectedArgs(cmd string, args []string) {
+	if !noArgCommands[cmd] || len(args) == 0 {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Error: mem %s no acepta argumentos: %s\n", cmd, strings.Join(args, " "))
+	exitProcess(2)
+}
+
 func fail(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
+	msg := fmt.Sprintf("Error: "+format+"\n", args...)
+	if env := console.DetectEnv(); humanTerminal(env) {
+		// Mismo color y ajuste que el resto de la salida; sigue en stderr.
+		msg = console.NewLayout(env).Document(msg)
+	}
+	fmt.Fprint(os.Stderr, msg)
 	os.Exit(1)
 }

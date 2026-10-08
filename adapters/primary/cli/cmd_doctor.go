@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"mem/adapters/primary/console"
 	"mem/adapters/primary/setup"
 	"mem/application/usecases"
 	"mem/domain"
@@ -103,11 +104,18 @@ func CmdDoctor(deps *Deps, args []string) {
 		data, _ := json.MarshalIndent(out, "", "  ")
 		fmt.Println(string(data))
 	} else {
+		// Todo el informe se presenta de una vez para que cada sección
+		// pueda ir en su panel.
+		console.BeginPage()
 		printDoctorHuman(report, deps)
 		printDoctorOpenCode(openCode)
 		printDoctorCompression(compressionState)
 		printDoctorBinary(binaryState)
+		if deps.SettingsRepo != nil {
+			printDoctorCodeGraphMCP(deps.SettingsRepo.Read(root), root)
+		}
 		printDoctorHookGuard(doctorHookGuardState(deps, root))
+		console.EndPage()
 	}
 
 	if *strict && problems > 0 {
@@ -116,9 +124,13 @@ func CmdDoctor(deps *Deps, args []string) {
 }
 
 func printDoctorHuman(report domain.CoverageReport, deps *Deps) {
-	humanf("mem doctor — %d canal(es), %d problema(s)\n\n", len(report.Channels), report.Problems())
-	for _, c := range report.Channels {
-		humanf("  %s %-10s %-10s %-8s %-14s %s\n", doctorSymbol(c.State), c.Arm, c.Agent, c.Scope, c.Kind, c.Detail)
+	if env := console.DetectEnv(); humanTerminal(env) {
+		humanf("%s", doctorAgentGroups(report))
+	} else {
+		humanf("mem doctor — %d canal(es), %d problema(s)\n\n", len(report.Channels), report.Problems())
+		for _, c := range report.Channels {
+			humanf("  %s %-10s %-10s %-8s %-14s %s\n", doctorSymbol(c.State), c.Arm, c.Agent, c.Scope, c.Kind, c.Detail)
+		}
 	}
 	if len(report.Degradations) > 0 {
 		humanln("\nDegradaciones declaradas (no requieren acción):")
@@ -129,6 +141,53 @@ func printDoctorHuman(report domain.CoverageReport, deps *Deps) {
 	printDoctorRemedies(report)
 	printDoctorLiveness(deps)
 	printDoctorCompaction(report)
+}
+
+// doctorAgentGroups agrupa los canales por agente como secciones "agente
+// (n canales · m problemas):" que la consola presenta en paneles; los
+// canales del brazo extensor llevan su proveedor como prefijo.
+func doctorAgentGroups(report domain.CoverageReport) string {
+	var order []string
+	byAgent := map[string][]domain.ActivationChannel{}
+	for _, c := range report.Channels {
+		if _, ok := byAgent[c.Agent]; !ok {
+			order = append(order, c.Agent)
+		}
+		byAgent[c.Agent] = append(byAgent[c.Agent], c)
+	}
+	var b strings.Builder
+	if n := report.Problems(); n > 0 {
+		fmt.Fprintf(&b, "✗ %d %s en %d canales de %d agentes\n", n, pluralES(n, "problema", "problemas"), len(report.Channels), len(order))
+	} else {
+		fmt.Fprintf(&b, "✓ Integración sana: %d canales de %d agentes\n", len(report.Channels), len(order))
+	}
+	for _, agent := range order {
+		problems := 0
+		var rows strings.Builder
+		for _, c := range byAgent[agent] {
+			if c.State == domain.StateOutdated || c.State == domain.StateDuplicated || c.State == domain.StateMissing {
+				problems++
+			}
+			detail := c.Detail
+			if c.Arm != domain.ArmGomemory {
+				detail = "[" + string(c.Arm) + "] " + detail
+			}
+			fmt.Fprintf(&rows, "  %s %-8s %-14s %s\n", doctorSymbol(c.State), c.Scope, c.Kind, detail)
+		}
+		meta := fmt.Sprintf("%d canales", len(byAgent[agent]))
+		if problems > 0 {
+			meta += fmt.Sprintf(" · %d %s", problems, pluralES(problems, "problema", "problemas"))
+		}
+		fmt.Fprintf(&b, "\n%s (%s):\n%s", agent, meta, rows.String())
+	}
+	return b.String()
+}
+
+func pluralES(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // installedAgentNames devuelve los nombres de agente que tienen al menos un

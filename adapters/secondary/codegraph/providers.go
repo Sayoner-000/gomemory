@@ -3,6 +3,7 @@ package codegraph
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -12,10 +13,16 @@ import (
 )
 
 // NewProviders conserva el orden de prioridad configurado. Sin candidatos
-// explícitos mantiene la autodetección histórica de codebase-memory-mcp.
+// explícitos mantiene la autodetección histórica de codebase-memory-mcp y
+// suma CodeGraph cuando su binario está en PATH, para que cualquier máquina
+// lo vea sin editar settings.json a mano.
 func NewProviders(root, memDir string, commands []string) []ports.CodeGraphProvider {
 	if len(commands) == 0 {
-		return []ports.CodeGraphProvider{codebasememory.New(root, memDir, "")}
+		providers := []ports.CodeGraphProvider{codebasememory.New(root, memDir, "")}
+		if _, err := exec.LookPath(codegraphcli.ProviderName); err == nil {
+			providers = append(providers, codegraphcli.New(root, memDir, ""))
+		}
+		return providers
 	}
 	providers := make([]ports.CodeGraphProvider, 0, len(commands))
 	for _, command := range commands {

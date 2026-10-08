@@ -38,6 +38,12 @@ func CmdSearch(deps *Deps, args []string) {
 		return
 	}
 
+	if env := console.DetectEnv(); humanTerminal(env) {
+		l := console.NewLayout(env)
+		fmt.Print(memoryPanel(l, "Resultados · «"+query+"»", fmt.Sprintf("%d", len(mems)), mems))
+		fmt.Println(l.Document("\nUsa mem get <id> para ver el detalle completo"))
+		return
+	}
 	// Se arma en memoria para poder pasarlo por el motor nativo con el nivel
 	// max (feature 033); con los demás niveles la salida no cambia.
 	rows := make([][]string, 0, len(mems))

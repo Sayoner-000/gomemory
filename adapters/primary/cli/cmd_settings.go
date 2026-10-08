@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"mem/adapters/primary/console"
 	"strings"
 
 	"mem/application/ports"
@@ -90,6 +91,8 @@ func CmdSettings(deps *Deps, args []string) {
 }
 
 func printSettings(deps *Deps, root string) {
+	console.BeginPage()
+	defer console.EndPage()
 	s := deps.SettingsRepo.Read(root)
 	humanf("CONFIGURACIÓN\n\nAuto-approve: %v\n", s.AutoApprove)
 	if s.AutoApprove {

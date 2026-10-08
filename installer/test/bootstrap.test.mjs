@@ -52,3 +52,46 @@ test('cancelar antes de descargar no realiza peticiones ni escrituras', async t 
   await assert.rejects(obtainBinary(parseOptions([]),()=>{},controller.signal));
   assert.equal(calls,0);
 });
+
+// S-001: en Windows un mem.exe en ejecución no puede reemplazarse, pero sí
+// apartarse con otro nombre. El rename inyectado reproduce ese bloqueo.
+const lockedRename = (realRename, destination) => async (from, to) => {
+  const { existsSync } = await import('node:fs');
+  if (to === destination && existsSync(destination)) throw Object.assign(new Error('EBUSY: archivo en uso'), {code:'EBUSY'});
+  return realRename(from, to);
+};
+
+test('Windows: reemplaza un mem.exe en uso apartándolo antes', async () => {
+  const { placeBinary } = await import('../dist/bootstrap.js');
+  const { rename } = await import('node:fs/promises');
+  const dir = await mkdtemp(join(tmpdir(),'gomemory-place-'));
+  const destination = join(dir,'mem.exe'), staged = join(dir,'.gomemory-nuevo');
+  await writeFile(destination,'viejo'); await writeFile(staged,'nuevo');
+  await placeBinary(staged, destination, 'win32', {rename: lockedRename(rename, destination)});
+  assert.equal(await readFile(destination,'utf8'), 'nuevo');
+  assert.deepEqual((await readdir(dir)).sort(), ['mem.exe']);
+  await rm(dir,{recursive:true,force:true});
+});
+
+test('Windows: si falla la colocación, restaura el binario anterior', async () => {
+  const { placeBinary } = await import('../dist/bootstrap.js');
+  const { rename } = await import('node:fs/promises');
+  const dir = await mkdtemp(join(tmpdir(),'gomemory-place-'));
+  const destination = join(dir,'mem.exe'), staged = join(dir,'.gomemory-nuevo');
+  await writeFile(destination,'viejo'); await writeFile(staged,'nuevo');
+  const failing = async (from, to) => { if (from === staged) throw new Error('disco lleno'); return rename(from, to); };
+  await assert.rejects(placeBinary(staged, destination, 'win32', {rename: failing}), /disco lleno/);
+  assert.equal(await readFile(destination,'utf8'), 'viejo');
+  await rm(dir,{recursive:true,force:true});
+});
+
+test('Unix: reemplazo atómico directo', async () => {
+  const { placeBinary } = await import('../dist/bootstrap.js');
+  const dir = await mkdtemp(join(tmpdir(),'gomemory-place-'));
+  const destination = join(dir,'mem'), staged = join(dir,'.gomemory-nuevo');
+  await writeFile(destination,'viejo'); await writeFile(staged,'nuevo');
+  await placeBinary(staged, destination, 'darwin');
+  assert.equal(await readFile(destination,'utf8'), 'nuevo');
+  assert.deepEqual(await readdir(dir), ['mem']);
+  await rm(dir,{recursive:true,force:true});
+});

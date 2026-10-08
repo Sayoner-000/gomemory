@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"mem/adapters/primary/console"
 	"os"
 	"strings"
 
@@ -96,7 +97,7 @@ func cmdOctopusStatus(deps *Deps, args []string) {
 		emitirJSON(s)
 		return
 	}
-	fmt.Print(RenderOctopusStatus(deps, s))
+	printReport(RenderOctopusStatus(deps, s), "octopus status")
 }
 
 func cmdOctopusUsage(deps *Deps, args []string) {
@@ -135,6 +136,11 @@ func cmdOctopusHistory(deps *Deps, args []string) {
 
 	if *asJSON {
 		emitirJSON(hist)
+		return
+	}
+	if env := console.DetectEnv(); humanTerminal(env) {
+		console.PrintBrand("octopus history")
+		fmt.Print(console.NewLayout(env).Report("Octopus AAR", "historial", RenderOctopusHistory(hist)))
 		return
 	}
 	fmt.Print(RenderOctopusHistory(hist))

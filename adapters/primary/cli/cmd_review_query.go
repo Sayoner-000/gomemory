@@ -59,13 +59,19 @@ func cmdReviewHistory(deps *Deps, args []string) {
 		fmt.Println("Este proyecto no tiene revisiones todavía.")
 		return
 	}
+	rows := make([][]string, 0, len(reviews))
 	for _, review := range reviews {
 		estado := string(review.Status)
 		if review.Status.Terminal() {
 			estado = string(review.Verdict)
 		}
-		fmt.Printf("%-16s  %-12s  %-18s  %s\n",
-			review.ID, review.Target.Type, estado, review.Target.Revision)
+		rows = append(rows, []string{review.ID, string(review.Target.Type), estado, review.Target.Revision})
+	}
+	if printListPanel("review history", "Revisiones", fmt.Sprint(len(rows)), []string{"ID", "Target", "Estado", "Revisión"}, rows) {
+		return
+	}
+	for _, r := range rows {
+		fmt.Printf("%-16s  %-12s  %-18s  %s\n", r[0], r[1], r[2], r[3])
 	}
 }
 

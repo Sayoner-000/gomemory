@@ -40,6 +40,9 @@ func runDocs(deps *Deps, args []string, stdout, stderr io.Writer) error {
 
 	switch sub {
 	case "list", "ls":
+		if len(args) > 0 {
+			return fmt.Errorf("opción desconocida %q\nUso: mem docs [list|show|export|import|reset]", args[0])
+		}
 		return docsList(deps, stdout)
 	case "show", "export":
 		return docsExport(deps, args, stdout, stderr)
@@ -92,9 +95,7 @@ func docsList(deps *Deps, stdout io.Writer) error {
 		return fmt.Errorf("no hay acceso a la memoria del proyecto")
 	}
 
-	w := tabwriter.NewWriter(stdout, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(w, "ALIAS\tDOCUMENTO\tESTADO\tLÍNEAS\tÚLTIMA MODIFICACIÓN")
-	_, _ = fmt.Fprintln(w, "-----\t---------\t------\t------\t-------------------")
+	rows := make([][]string, 0, len(domain.PinnedDocs))
 	for _, d := range domain.PinnedDocs {
 		st := usecases.PinnedDocState(topics, deps.Project, d.TopicKey, embeddedTemplate(d.Template))
 		fecha := st.UpdatedAt
@@ -104,7 +105,16 @@ func docsList(deps *Deps, stdout io.Writer) error {
 		if fecha == "" {
 			fecha = "—"
 		}
-		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n", d.Alias, d.Label, st.State, st.Lines, fecha)
+		rows = append(rows, []string{d.Alias, d.Label, string(st.State), fmt.Sprint(st.Lines), fecha})
+	}
+	if stdout == os.Stdout && printListPanel("docs", "Documentos fijados", fmt.Sprint(len(rows)), []string{"Alias", "Documento", "Estado", "Líneas", "Última modificación"}, rows) {
+		return nil
+	}
+	w := tabwriter.NewWriter(stdout, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(w, "ALIAS\tDOCUMENTO\tESTADO\tLÍNEAS\tÚLTIMA MODIFICACIÓN")
+	_, _ = fmt.Fprintln(w, "-----\t---------\t------\t------\t-------------------")
+	for _, r := range rows {
+		_, _ = fmt.Fprintln(w, strings.Join(r, "\t"))
 	}
 	return w.Flush()
 }

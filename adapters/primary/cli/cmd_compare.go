@@ -87,11 +87,11 @@ func CmdCompare(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 	if updated {
-		fmt.Printf("✓ Relación actualizada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
+		humanf("✓ Relación actualizada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
 	} else {
-		fmt.Printf("✓ Relación guardada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
+		humanf("✓ Relación guardada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
 	}
-	fmt.Printf("  Razonamiento: %s\n", reasonText)
+	humanf("  Razonamiento: %s\n", reasonText)
 }
 
 func cmdCompareList(deps *Deps, args []string) {
@@ -113,10 +113,17 @@ func cmdCompareList(deps *Deps, args []string) {
 	}
 
 	if len(rels) == 0 {
-		fmt.Println("Sin relaciones guardadas. Crea una con: mem compare -r related -m \"razón\" <id1> <id2>")
+		humanln("Sin relaciones guardadas. Crea una con: mem compare -r related -m \"razón\" <id1> <id2>")
 		return
 	}
 
+	rows := make([][]string, 0, len(rels))
+	for _, r := range rels {
+		rows = append(rows, []string{fmt.Sprint(r.ID), fmt.Sprint(r.MemoryIDA), fmt.Sprint(r.MemoryIDB), string(r.Relation), fmt.Sprintf("%.2f", r.Confidence), r.Reasoning})
+	}
+	if printListPanel("", "Relaciones", fmt.Sprint(len(rels)), []string{"ID", "A", "B", "Relación", "Confianza", "Razonamiento"}, rows) {
+		return
+	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	_, _ = fmt.Fprintln(w, "ID\tMemoria A\tMemoria B\tRelación\tConfianza\tRazonamiento")
 	_, _ = fmt.Fprintln(w, "--\t---------\t---------\t--------\t---------\t------------")
@@ -128,5 +135,5 @@ func cmdCompareList(deps *Deps, args []string) {
 		_, _ = fmt.Fprintf(w, "%d\t%d\t%d\t%s\t%.2f\t%s\n", r.ID, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, reason)
 	}
 	_ = w.Flush()
-	fmt.Printf("\n(%d relaciones)\n", len(rels))
+	humanf("\n(%d relaciones)\n", len(rels))
 }

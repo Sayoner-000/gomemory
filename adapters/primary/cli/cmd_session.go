@@ -133,6 +133,9 @@ func cmdSessionList(deps *Deps, args []string) {
 		summary = ansi.Truncate(summary, 50, "...")
 		rows = append(rows, []string{s.ID[:8], s.CreatedAt, endStr, summary})
 	}
+	if printListPanel("", "Sesiones", fmt.Sprint(len(rows)), []string{"ID", "Inicio", "Fin", "Resumen"}, rows) {
+		return
+	}
 	fmt.Fprint(os.Stdout, formatMemoryRows(console.DetectEnv(), []string{"ID", "Inicio", "Fin", "Resumen"}, rows))
 }
 

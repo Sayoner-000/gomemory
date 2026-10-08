@@ -32,6 +32,12 @@ func CmdList(deps *Deps, args []string) {
 		return
 	}
 
+	if env := console.DetectEnv(); humanTerminal(env) {
+		l := console.NewLayout(env)
+		fmt.Print(memoryPanel(l, "Memorias recientes", fmt.Sprintf("%d", len(mems)), mems))
+		fmt.Println(l.Document("\nUsa mem get <id> para ver el detalle completo"))
+		return
+	}
 	rows := make([][]string, 0, len(mems))
 	for _, m := range mems {
 		content := m.Content

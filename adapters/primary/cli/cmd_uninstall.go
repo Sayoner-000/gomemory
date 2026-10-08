@@ -284,7 +284,6 @@ func runUninstall(pl *uninstallPlanner, styled bool) int {
 		}
 	}
 
-	rep := console.NewReporter(os.Stdout, styled)
 	plan.Execute(func(it *domain.UninstallItem) error {
 		err := apply[string(it.Category)+"|"+it.Path]()
 		if err != nil {
@@ -292,7 +291,7 @@ func runUninstall(pl *uninstallPlanner, styled bool) int {
 		}
 		return err
 	})
-	fmt.Println("\nResumen:")
+	results := make([]console.StepResult, 0, len(plan.Items))
 	for _, it := range plan.Items {
 		label := it.Label
 		if label == "" {
@@ -302,8 +301,9 @@ func runUninstall(pl *uninstallPlanner, styled bool) int {
 		if it.Result == domain.ResultWarn {
 			st = console.StepWarn
 		}
-		rep.Done(console.StepResult{Name: label, Status: st, Detail: it.Detail, Manual: it.Manual})
+		results = append(results, console.StepResult{Name: label, Status: st, Detail: it.Detail, Manual: it.Manual})
 	}
+	console.PrintSummary(os.Stdout, console.DetectEnv(), "Desinstalar goMemory", results, "")
 	if plan.Warnings() > 0 {
 		return uninstallExitWarnings
 	}

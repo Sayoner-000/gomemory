@@ -2,15 +2,12 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"mem/adapters/primary/console"
 )
@@ -68,8 +65,13 @@ func bridgeInstallEvents(input io.Reader, events, logs io.Writer) (int, error) {
 }
 
 func runInstallEvents(args []string) int {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := notifyInstallCancel()
 	defer cancel()
+	// Si el cliente muere, nadie leerá los eventos: se cancela y se cierra el
+	// árbol del instalador en vez de dejarlo huérfano (C-002).
+	watchParent(ctx, cancel)
+	// Y si el puente arrancó ya adoptado, el cierre de su salida lo delata.
+	watchOutput(ctx, int(os.Stdout.Fd()), cancel)
 	self, err := os.Executable()
 	if err != nil {
 		writeInstallEvent(os.Stdout, installEvent{Version: 1, Type: "complete", Status: "fail", Detail: err.Error(), ExitCode: 1})

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"flag"
-	"fmt"
 )
 
 // CmdInit ya no es un paso obligatorio: el store global se crea de forma
@@ -26,7 +25,7 @@ func CmdInit(deps *Deps, args []string) {
 	if migrated, err := deps.ProjectRepo.MigrateLegacy(root, false); err != nil {
 		fail("migrar .memory/mem.db legado: %v", err)
 	} else if migrated {
-		fmt.Println("✓ Se detectó y migró un .memory/mem.db legado (instalación por proyecto anterior) al store global.")
+		humanln("✓ Se detectó y migró un .memory/mem.db legado (instalación por proyecto anterior) al store global.")
 	}
 
 	if err := deps.ProjectRepo.Init(root); err != nil {
@@ -34,9 +33,9 @@ func CmdInit(deps *Deps, args []string) {
 	}
 
 	project := deps.ProjectRepo.Key(root)
-	fmt.Printf("gomemory ya está listo para el proyecto '%s' — no hace falta ejecutar 'mem init' de nuevo.\n", project)
-	fmt.Printf("  Base de datos: %s\n", deps.ProjectRepo.DbPath(root))
-	fmt.Println()
-	fmt.Println("  Próximos pasos:")
-	fmt.Println("    mem save -t \"primera entrada\" \"Aprendizaje inicial del proyecto\"")
+	humanf("gomemory ya está listo para el proyecto '%s' — no hace falta ejecutar 'mem init' de nuevo.\n", project)
+	humanf("  Base de datos: %s\n", deps.ProjectRepo.DbPath(root))
+	humanln()
+	humanln("  Próximos pasos:")
+	humanln("    mem save -t \"primera entrada\" \"Aprendizaje inicial del proyecto\"")
 }

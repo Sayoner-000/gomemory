@@ -2,7 +2,6 @@ package cli
 
 import (
 	"flag"
-	"fmt"
 	"os"
 
 	"mem/application/usecases"
@@ -37,6 +36,6 @@ func CmdImport(deps *Deps, args []string) {
 		fail("importar: %v", err)
 	}
 
-	fmt.Printf("✓ Import: %d memorias nuevas (%d omitidas), %d relaciones nuevas (%d omitidas)\n",
+	humanf("✓ Import: %d memorias nuevas (%d omitidas), %d relaciones nuevas (%d omitidas)\n",
 		rep.MemoriesImported, rep.MemoriesSkipped, rep.RelationsImported, rep.RelationsSkipped)
 }

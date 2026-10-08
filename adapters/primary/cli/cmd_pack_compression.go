@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"mem/adapters/primary/console"
 	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
@@ -199,7 +200,63 @@ func cmdPackSavings(deps *Deps, args []string) {
 		fmt.Println(string(out))
 		return
 	}
-	fmt.Print(rep.Format())
+	env := console.DetectEnv()
+	if !humanTerminal(env) {
+		fmt.Print(rep.Format())
+		return
+	}
+	console.PrintBrand("pack savings")
+	fmt.Print(renderSavingsHuman(rep, console.NewLayout(env)))
+}
+
+// renderSavingsHuman presenta el ahorro por compresor con la misma estructura
+// de paneles que mem usage; las cifras son las de SavingsReport.Format.
+func renderSavingsHuman(rep usecases.SavingsReport, l console.Layout) string {
+	var b strings.Builder
+	total := ""
+	if len(rep.Rows) == 0 {
+		b.WriteString(l.Panel("Ahorro por compresor", "", "", []string{"Sin compresiones registradas todavía.", l.Muted("Activa el nivel max con mem settings --compression-level=max")}))
+	} else {
+		rows := make([][]string, 0, len(rep.Rows))
+		raw, final := 0, 0
+		for _, s := range rep.Rows {
+			before, after, ahorro, recup, lat := "—", "—", "—", "—", "—"
+			if s.Uses > 0 {
+				before, after = console.FormatInt(s.RawTokens), console.FormatInt(s.FinalTokens)
+				lat = fmt.Sprintf("%.1f ms", float64(s.LatencyMicrosTotal)/float64(s.Uses)/1000)
+				raw, final = raw+s.RawTokens, final+s.FinalTokens
+			}
+			if s.RawTokens > 0 {
+				ahorro = fmt.Sprintf("%.1f%%", 100*(1-float64(s.FinalTokens)/float64(s.RawTokens)))
+			}
+			if s.Omissions > 0 {
+				recup = fmt.Sprintf("%.1f%%", 100*float64(s.Retrievals)/float64(s.Omissions))
+			}
+			rows = append(rows, []string{s.Compressor, console.FormatInt(s.Uses), before, after, ahorro, recup, console.FormatInt(s.NoGains), console.FormatInt(s.Fallbacks), lat})
+		}
+		headers := []string{"Compresor", "Usos", "Antes", "Después", "Ahorro", "Recup.", "Sin ganancia", "Degr.", "Latencia"}
+		b.WriteString(panelTable(l, "Ahorro por compresor", fmt.Sprintf("%d compresores", len(rep.Rows)), headers, rows))
+		pct := 0.0
+		if raw > 0 {
+			pct = 100 * (1 - float64(final)/float64(raw))
+		}
+		total = "\n  " + l.WithWidth(l.Width()-2).StatusBar(
+			l.Section("✓ Ahorro total")+" "+console.FormatInt(raw-final)+" tokens",
+			fmt.Sprintf("%.1f %%", pct),
+			console.FormatInt(raw)+" → "+console.FormatInt(final),
+		) + "\n"
+	}
+	if len(rep.Tuning) > 0 {
+		lines := make([]string, 0, len(rep.Tuning))
+		for _, e := range rep.Tuning {
+			lines = append(lines, fmt.Sprintf("%-12s agresividad %d  %s", e.ContentType, e.Aggressiveness, l.Muted(e.Reason+" · "+e.UpdatedAt.Format("2006-01-02"))))
+		}
+		b.WriteString("\n" + l.Panel("Ajustes adaptativos", "", "", lines))
+	}
+	b.WriteString("\n" + l.Document(fmt.Sprintf("  Originales: %.1f MB de %.0f MB · %d refs · caducan a los %d días sin uso",
+		float64(rep.OriginalsBytes)/(1<<20), float64(rep.OriginalsMax)/(1<<20), rep.OriginalsCount, rep.TTLDays)) + "\n")
+	b.WriteString(total)
+	return b.String()
 }
 
 // cmdPackTune implementa `mem pack tune --reset [--type T]` (FR-027).

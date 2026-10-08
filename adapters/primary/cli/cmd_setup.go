@@ -2,7 +2,6 @@ package cli
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -23,8 +22,8 @@ func CmdSetup(deps *Deps, args []string) {
 	}
 
 	if *agent == "" {
-		fmt.Println("Uso: mem setup [--target dir] [--port 9735] <agent>  (flags ANTES del agente)")
-		fmt.Println("Agentes: opencode, claude-code")
+		humanln("Uso: mem setup [--target dir] [--port 9735] <agent>  (flags ANTES del agente)")
+		humanln("Agentes: opencode, claude-code")
 		os.Exit(1)
 	}
 
@@ -49,7 +48,7 @@ func CmdSetup(deps *Deps, args []string) {
 		MCPArgs:     br.MCPArgs,
 	}
 
-	fmt.Printf("🔌 Instalando plugin de gomemory para %s\n\n", *agent)
+	humanf("🔌 Instalando plugin de gomemory para %s\n\n", *agent)
 
 	switch *agent {
 	case "opencode":
@@ -61,11 +60,11 @@ func CmdSetup(deps *Deps, args []string) {
 			fail("error instalando plugin claude-code: %v", err)
 		}
 	default:
-		fmt.Printf("Agente desconocido: %s\n", *agent)
-		fmt.Println("Agentes disponibles: opencode, claude-code")
+		humanf("Agente desconocido: %s\n", *agent)
+		humanln("Agentes disponibles: opencode, claude-code")
 		os.Exit(1)
 	}
 
-	fmt.Printf("\n✅ Plugin %s instalado. Reinicia el agente para activarlo.\n", *agent)
+	humanf("\n✅ Plugin %s instalado. Reinicia el agente para activarlo.\n", *agent)
 	_ = port
 }

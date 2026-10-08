@@ -186,7 +186,7 @@ func TestRichSelectModel_EmpiezaEnLaRecomendada(t *testing.T) {
 
 // FR-015, FR-024: resumen con ✓/⚠/✗; el ⚠ lleva el comando manual.
 func TestRenderSummary_Plano(t *testing.T) {
-	got := RenderSummary([]StepResult{
+	got := renderSummary([]StepResult{
 		{Name: "Binario global", Status: StepOK},
 		{Name: "~/.codex/config.toml", Status: StepWarn, Detail: "no se pudo interpretar", Manual: "edita el archivo y quita [mcp_servers.gomemory]"},
 		{Name: "Checksum", Status: StepFail, Detail: "no coincide"},
@@ -195,19 +195,14 @@ func TestRenderSummary_Plano(t *testing.T) {
 		"⚠ ~/.codex/config.toml: no se pudo interpretar → edita el archivo y quita [mcp_servers.gomemory]\n" +
 		"✗ Checksum: no coincide\n"
 	if got != want {
-		t.Errorf("RenderSummary =\n%s\nquiero\n%s", got, want)
+		t.Errorf("renderStep =\n%s\nquiero\n%s", got, want)
 	}
 }
 
-func TestReporter_AcumulaYCuentaAvisos(t *testing.T) {
-	var out bytes.Buffer
-	r := NewReporter(&out, false)
-	r.Done(StepResult{Name: "a", Status: StepOK})
-	r.Done(StepResult{Name: "b", Status: StepWarn, Detail: "x", Manual: "y"})
-	if !strings.Contains(out.String(), "✓ a") || !strings.Contains(out.String(), "⚠ b: x → y") {
-		t.Errorf("cada paso debe informarse al terminar: %q", out.String())
+func renderSummary(results []StepResult, styled bool) string {
+	var b strings.Builder
+	for _, r := range results {
+		b.WriteString(renderStep(r, styled) + "\n")
 	}
-	if r.Warnings() != 1 || r.Failures() != 0 || len(r.Results()) != 2 {
-		t.Errorf("recuento: warn=%d fail=%d n=%d", r.Warnings(), r.Failures(), len(r.Results()))
-	}
+	return b.String()
 }

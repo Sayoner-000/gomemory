@@ -1,10 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
-	"os"
 
 	"mem/application/usecases"
 	"mem/domain"
@@ -16,9 +16,11 @@ func CmdMass(deps *Deps, args []string) {
 	if err != nil {
 		fail("mass: %v", err)
 	}
-	if err := runMass(deps, task, top, os.Stdout); err != nil {
+	var b bytes.Buffer
+	if err := runMass(deps, task, top, &b); err != nil {
 		fail("mass: %v", err)
 	}
+	printReport(b.String(), "mass")
 }
 
 // ParseMassFlags parsea `mem mass [--task T] [--top N]`, separado de CmdMass

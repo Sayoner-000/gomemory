@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"strconv"
 )
 
@@ -32,5 +31,5 @@ func CmdForget(deps *Deps, args []string) {
 	if !deleted {
 		fail("memoria %d no encontrada en el proyecto '%s'", id, project)
 	}
-	fmt.Printf("✓ Memoria %d eliminada\n", id)
+	humanf("✓ Memoria %d eliminada\n", id)
 }

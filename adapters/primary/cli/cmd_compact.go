@@ -23,5 +23,5 @@ func CmdCompact(deps *Deps, args []string) {
 	if err != nil {
 		fail("compactar: %v", err)
 	}
-	fmt.Println(FormatCompactResult(before, after))
+	humanln(FormatCompactResult(before, after))
 }

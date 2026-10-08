@@ -91,7 +91,7 @@ def main():
                     result = terminal([str(local_binary), *command], project, env, width)
                     plain = ANSI.sub("", result)
                     if command[0] == "search":
-                        assert "goMemory › search" in plain, (command, plain)
+                        assert re.search(r"◆ goMemory \S+ › search", plain), (command, plain)
                     for line in plain.splitlines():
                         assert visible_width(line) <= width, (theme, width, command, visible_width(line), line)
                     if args.preview and theme == "dark" and width == 80 and command == ["help"]:
@@ -107,7 +107,10 @@ def main():
         assert shutil.which("npm", path=native_env["PATH"]) is None
         native = terminal([str(local_binary), "install", str(project), "--agents", "none", "--scope", "project"], project, native_env, 80)
         native_plain = ANSI.sub("", native)
-        for expected in ("┌", "│", "✓ Memoria", "└", "goMemory listo"):
+        # Flow en vivo (panel ╭─ que se redibuja) o en línea (┌ │ └), según la
+        # terminal; en ambos el paso y el cierre son los mismos.
+        assert "╭─ Configurar proyecto" in native_plain or ("┌" in native_plain and "└" in native_plain), native_plain
+        for expected in ("✓ Memoria", "✓ Listo"):
             assert expected in native_plain, (expected, native_plain)
         assert '"contract_version"' not in native_plain
         assert "gomemory instalado. Ahora puedes" not in native_plain
@@ -123,7 +126,7 @@ def main():
         assert list(cancel_project.iterdir()) == []
         interactive = terminal([str(local_binary), "install", str(project)], project, native_env, 80,
                                [("¿Qué agentes", b"\r"), ("¿Alcance", b"\r"), ("¿Continuar?", b"\r")])
-        assert "goMemory listo" in ANSI.sub("", interactive)
+        assert "✓ Listo" in ANSI.sub("", interactive)
         assert "◇" in ANSI.sub("", interactive)
         print("✓ Preguntas reales con teclado · confirmación · Esc cancela sin escribir")
 

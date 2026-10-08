@@ -15,12 +15,29 @@ import (
 // La UI rica se dibuja en línea, sin pantalla alternativa: al terminar queda
 // en el historial de la terminal lo que se eligió, como en skills.sh.
 
+// Solo tokens de la paleta gomemory: cursor en primary, casilla marcada y
+// opción recomendada en secondary, pistas atenuadas.
 var (
 	titleStyle  = lipgloss.NewStyle().Bold(true)
 	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(Theme(os.Getenv).Primary)).Bold(true)
 	faintStyle  = lipgloss.NewStyle().Faint(true)
-	recStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	recStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color(Theme(os.Getenv).Secondary))
+	mutedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color(Theme(os.Getenv).Muted))
 )
+
+// labelWidth alinea las pistas de todas las opciones en una sola columna.
+func labelWidth(opts []Option) int {
+	w := 0
+	for _, o := range opts {
+		w = max(w, ansi.StringWidth(o.Label))
+	}
+	return w
+}
+
+// keyHints compone la línea de atajos al pie, separados por •.
+func keyHints(hints ...string) string {
+	return faintStyle.Render("  " + strings.Join(hints, " • "))
+}
 
 type richUI struct {
 	in  io.Reader
@@ -178,21 +195,31 @@ func (m multiSelectModel) View() tea.View {
 		b.WriteString(faintStyle.Render("  "+strings.Join(labels, ", ")) + "\n")
 		return promptView(m.title, b.String(), m.done, m.canceled)
 	}
-	for i, o := range m.opts {
-		box := "◻"
-		if m.checked[i] {
-			box = "◼"
+	selected := 0
+	for _, c := range m.checked {
+		if c {
+			selected++
 		}
-		line := fmt.Sprintf("%s %s%s", box, o.Label, hintSuffix(o.Hint))
+	}
+	for i, o := range m.opts {
+		box := "[ ]"
+		if m.checked[i] {
+			box = recStyle.Render("[x]")
+		}
+		label := o.Label
+		cursor := "  "
 		if i == m.cursor {
-			line = cursorStyle.Render("› " + line)
-		} else {
-			line = "  " + line
+			cursor, label = cursorStyle.Render("▸ "), titleStyle.Render(label)
+		}
+		line := cursor + box + " " + label
+		if o.Hint != "" {
+			line += strings.Repeat(" ", labelWidth(m.opts)-ansi.StringWidth(o.Label)+2) + mutedStyle.Render(o.Hint)
 		}
 		b.WriteString("  " + line + "\n")
 	}
-	b.WriteString(faintStyle.Render("  ↑/↓ mover · espacio marcar · enter confirmar · esc cancelar") + "\n")
-	return promptView(m.title, b.String(), m.done, m.canceled)
+	b.WriteString("\n" + keyHints("↑/↓ mover", "espacio marcar", "enter confirmar", "esc cancelar") + "\n")
+	title := m.title + " " + mutedStyle.Render(fmt.Sprintf("· %d de %d seleccionados", selected, len(m.opts)))
+	return promptView(title, b.String(), m.done, m.canceled)
 }
 
 // --- selección única ---
@@ -244,19 +271,21 @@ func (m selectModel) View() tea.View {
 		return promptView(m.title, b.String(), m.done, m.canceled)
 	}
 	for i, o := range m.opts {
-		line := o.Label
-		if o.Recommended {
-			line += " " + recStyle.Render("(Recomendado)")
-		}
-		line += hintSuffix(o.Hint)
+		label := o.Label
+		cursor := "  "
 		if i == m.cursor {
-			line = cursorStyle.Render("● ") + line
-		} else {
-			line = "○ " + line
+			cursor, label = cursorStyle.Render("▸ "), titleStyle.Render(label)
+		}
+		line := cursor + label
+		if o.Recommended {
+			line += " " + recStyle.Render("(recomendado)")
+		}
+		if o.Hint != "" {
+			line += "  " + mutedStyle.Render(o.Hint)
 		}
 		b.WriteString("  " + line + "\n")
 	}
-	b.WriteString(faintStyle.Render("  ↑/↓ mover · enter elegir · esc cancelar") + "\n")
+	b.WriteString("\n" + keyHints("↑/↓ mover", "enter elegir", "esc cancelar") + "\n")
 	return promptView(m.title, b.String(), m.done, m.canceled)
 }
 

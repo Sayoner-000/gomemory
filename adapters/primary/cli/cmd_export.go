@@ -41,5 +41,5 @@ func CmdExport(deps *Deps, args []string) {
 		fail("escribir bundle: %v", err)
 	}
 
-	fmt.Printf("✓ Exportadas %d memorias y %d relaciones → %s\n", len(bundle.Memories), len(bundle.Relations), path)
+	humanf("✓ Exportadas %d memorias y %d relaciones → %s\n", len(bundle.Memories), len(bundle.Relations), path)
 }

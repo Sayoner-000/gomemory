@@ -1,5 +1,12 @@
 package cli
 
+import (
+	"fmt"
+	"strings"
+
+	"mem/adapters/primary/console"
+)
+
 func CmdProject(deps *Deps, args []string) {
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
@@ -9,21 +16,27 @@ func CmdProject(deps *Deps, args []string) {
 	project := deps.ProjectRepo.Key(root)
 	dbPath := deps.ProjectRepo.DbPath(root)
 
-	humanf("Proyecto: %s\n", project)
-	humanf("Raíz:     %s\n", root)
-	humanf("BD:       %s\n", dbPath)
+	var b strings.Builder
+	fmt.Fprintf(&b, "Proyecto: %s\n", project)
+	fmt.Fprintf(&b, "Raíz:     %s\n", root)
+	fmt.Fprintf(&b, "BD:       %s\n", dbPath)
 
 	count := 0
 	if mems, err := deps.MemoryRepo.List(project, 200); err == nil {
 		count = len(mems)
 	}
 
-	humanf("Memorias:  %d\n", count)
+	fmt.Fprintf(&b, "Memorias:  %d\n", count)
 
 	sess, _ := deps.SessionRepo.Active(project)
 	if sess != nil {
-		humanf("Sesión:    Activa desde %s\n", sess.CreatedAt)
+		fmt.Fprintf(&b, "Sesión:    Activa desde %s\n", sess.CreatedAt)
 	} else {
-		humanln("Sesión:    Ninguna activa")
+		b.WriteString("Sesión:    Ninguna activa\n")
 	}
+	if env := console.DetectEnv(); humanTerminal(env) {
+		fmt.Print(console.NewLayout(env).Report("Proyecto", "", b.String()))
+		return
+	}
+	humanf("%s", b.String())
 }

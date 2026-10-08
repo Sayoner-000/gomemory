@@ -1,6 +1,8 @@
 package console
 
 import (
+	"mem/version"
+
 	"bytes"
 	"strings"
 	"testing"
@@ -31,15 +33,15 @@ func TestBrand_RespetaTerminalYSalidaRedirigida(t *testing.T) {
 				t.Fatalf("banner = %q", out.String())
 			}
 			out.Reset()
-			stop := startProgress(&out, e, "Indexando CodeGraph")
-			stop()
-			stop()
-			if tc.wantANSI {
-				if !strings.Contains(out.String(), "Indexando CodeGraph") || !strings.HasSuffix(out.String(), "\r\x1b[2K") {
-					t.Fatalf("progreso no limpiado = %q", out.String())
-				}
-			} else if out.Len() != 0 {
-				t.Fatalf("animación fuera de terminal compatible: %q", out.String())
+			flow := NewFlow(&out, e, "Indexar")
+			flow.Progress("Indexando CodeGraph")
+			flow.End("")
+			flow.Stop()
+			if redraws := strings.Contains(out.String(), "\x1b[J"); redraws != animatedTerminal(e) {
+				t.Fatalf("redibujo=%v en terminal animada=%v: %q", redraws, animatedTerminal(e), out.String())
+			}
+			if !tc.wantANSI && strings.Contains(out.String(), "\x1b[") {
+				t.Fatalf("secuencias de control fuera de terminal compatible: %q", out.String())
 			}
 		})
 	}
@@ -78,9 +80,22 @@ func TestNoMotionPreservesColorButStopsProgress(t *testing.T) {
 		t.Fatal("desactivar movimiento eliminó el tema")
 	}
 	out.Reset()
-	stop := startProgress(&out, e, "progreso")
-	stop()
-	if out.Len() != 0 {
+	flow := NewFlow(&out, e, "Indexar")
+	flow.Progress("progreso")
+	flow.End("")
+	if strings.Contains(out.String(), "\x1b[J") {
 		t.Fatalf("movimiento pese a GOMEMORY_NO_MOTION: %q", out.String())
+	}
+}
+
+func TestBrandCompactaUsaCabeceraUnificadaConRegla(t *testing.T) {
+	var out bytes.Buffer
+	printBrand(&out, styledEnv(90), "usage")
+	lines := strings.Split(strings.Trim(ansi.Strip(out.String()), "\n"), "\n")
+	if len(lines) != 2 || lines[0] != "◆ goMemory "+version.Version+" › usage" {
+		t.Fatalf("cabecera = %q", lines)
+	}
+	if strings.Trim(lines[1], "─") != "" || ansi.StringWidth(lines[1]) != 90 {
+		t.Fatalf("regla = %q", lines[1])
 	}
 }

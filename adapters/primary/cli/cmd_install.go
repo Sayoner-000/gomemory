@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -37,6 +38,11 @@ func CmdInstall(deps *Deps, args []string) {
 		return
 	}
 
+	if os.Getenv("GOMEMORY_INSTALL_EVENT_CHILD") == "1" {
+		// Hijo del puente --events: si el puente desaparece (incluso por
+		// SIGKILL), nadie cerraría este árbol; se cierra él mismo (C-002).
+		watchParent(context.Background(), killOwnProcessGroup)
+	}
 	target, err := filepath.Abs(opts.target)
 	if err != nil {
 		fail("ruta inválida: %v", err)
@@ -340,6 +346,14 @@ func CmdInstall(deps *Deps, args []string) {
 	// único JSON de configuración. Siguen soportados por la vía explícita:
 	// `mem setup-mcp --agents windsurf,cline`.
 
+	// CodeGraph en el grafo externo: su servidor MCP queda conectado a los
+	// agentes para que lo usen solos, como codebase-memory-mcp.
+	if home, err := os.UserHomeDir(); err == nil {
+		if step, ok := ensureCodeGraphMCP(deps.SettingsRepo.Read(target), home, target); ok {
+			recordStep(step)
+		}
+	}
+
 	// 6. Nivel de compresión por defecto (feature 033): una instalación nueva
 	// arranca en max, porque toda omisión es recuperable. Una existente
 	// conserva su nivel (ausente = structural, el comportamiento anterior).
@@ -391,11 +405,7 @@ func CmdInstall(deps *Deps, args []string) {
 	for _, line := range installNextSteps() {
 		humanln(line)
 	}
-	humanln("\nResumen:")
-	reporter := console.NewReporter(os.Stdout, console.DetectMode(console.DetectEnv(), opts.yes) == console.ModeRich)
-	for _, result := range results {
-		reporter.Done(result)
-	}
+	console.PrintSummary(os.Stdout, console.DetectEnv(), "Instalar goMemory", results, "mem tui")
 }
 
 // installBinary resuelve qué binario usa el proyecto. Con un global en el PATH

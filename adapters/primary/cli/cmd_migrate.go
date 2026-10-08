@@ -2,7 +2,6 @@ package cli
 
 import (
 	"flag"
-	"fmt"
 )
 
 // CmdMigrate expone explícitamente la migración de un `.memory/mem.db`
@@ -28,7 +27,7 @@ func CmdMigrate(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 	if !migrated {
-		fmt.Println("Nada que migrar: no hay .memory/mem.db legado en este proyecto (o ya se migró antes).")
+		humanln("Nada que migrar: no hay .memory/mem.db legado en este proyecto (o ya se migró antes).")
 		return
 	}
 
@@ -37,6 +36,6 @@ func CmdMigrate(deps *Deps, args []string) {
 	if mems, err := deps.MemoryRepo.List(project, 1_000_000); err == nil {
 		count = len(mems)
 	}
-	fmt.Printf("✓ Migración completa: %d memoria(s) movidas al store global\n", count)
-	fmt.Printf("  Base de datos: %s\n", deps.ProjectRepo.DbPath(root))
+	humanf("✓ Migración completa: %d memoria(s) movidas al store global\n", count)
+	humanf("  Base de datos: %s\n", deps.ProjectRepo.DbPath(root))
 }

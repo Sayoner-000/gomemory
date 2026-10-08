@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -51,5 +52,31 @@ func TestNativeNDJSONRejectsBlankLines(t *testing.T) {
 				t.Errorf("línea en blanco aceptada: %q", input)
 			}
 		}
+	}
+}
+
+// S-003: Go y TypeScript aplican el mismo contrato NDJSON (installer/src/core.ts,
+// EventStream): mismas entradas, mismo veredicto y mismo motivo.
+func TestConsumeNativeInstall_ParidadNDJSONConTypeScript(t *testing.T) {
+	complete := `{"contract_version":1,"type":"complete","status":"ok","exit_code":0}`
+	for name, tc := range map[string]struct{ input, reason string }{
+		"blanco inicial":       {"\n" + complete + "\n", "línea en blanco"},
+		"solo espacios":        {"   \n" + complete + "\n", "línea en blanco"},
+		"blanco entre eventos": {`{"contract_version":1,"type":"start"}` + "\n\n" + complete + "\n", "línea en blanco"},
+		"blanco tras cierre":   {complete + "\n\n", "línea en blanco"},
+		"sin salto final":      {complete, "truncado"},
+		"CRLF":                 {complete + "\r\n", ""},
+		"espacio final":        {complete + "   \n", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			flow := console.NewFlow(io.Discard, console.Env{Getenv: func(string) string { return "" }}, "x")
+			_, err := consumeNativeInstall(strings.NewReader(tc.input), flow)
+			switch {
+			case tc.reason == "" && err != nil:
+				t.Fatalf("debía aceptarse: %v", err)
+			case tc.reason != "" && (err == nil || !strings.Contains(err.Error(), tc.reason)):
+				t.Fatalf("debía rechazarse por %q: %v", tc.reason, err)
+			}
+		})
 	}
 }

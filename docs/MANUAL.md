@@ -789,12 +789,14 @@ Ajustes relevantes (`mem settings` o `.memory/settings.json`):
 | Ajuste | Default | Qué hace |
 | :--- | :--- | :--- |
 | `code_graph_disabled` | `false` | Desactiva el proveedor externo por completo |
-| `code_graph_providers` | *(ninguno)* | Lista ordenada de comandos de proveedor; acepta `codebase-memory-mcp` y `codegraph` |
+| `code_graph_providers` | *(ninguno: autodetección)* | Lista ordenada de comandos de proveedor; acepta `codebase-memory-mcp` y `codegraph`. Vacía, usa codebase-memory-mcp y suma CodeGraph si está en el PATH |
 | `code_impact_annotation_disabled` | `false` | Desactiva la anotación de impacto (`[impacto: X es hotspot...]`) al guardar una memoria con `--filepath` |
 | `adr_sync_enabled` | `false` | Sincronización bidireccional (opt-in) de memorias de arquitectura con el documento ADR del proveedor — ver `mem adr-sync status` |
 
-Para usar **CodeGraph junto con codebase-memory-mcp**, instala ambos CLI y
-configura `.memory/settings.json` así:
+Para usar **CodeGraph junto con codebase-memory-mcp** basta con instalar ambos
+CLI: con `code_graph_providers` vacío, gomemory detecta CodeGraph en el PATH en
+cualquier proyecto y máquina. Fijar la lista solo hace falta para cambiar el
+orden o excluir un proveedor, por ejemplo:
 
 ```json
 {
@@ -803,8 +805,11 @@ configura `.memory/settings.json` así:
 ```
 
 En cada proyecto, ejecuta `mem index` para crear o reconstruir el índice de
-CodeGraph y compruébalo con `codegraph status`. `codegraph install` conecta su servidor MCP a los agentes;
-`init` crea el índice local. Gomemory consulta `codegraph status --json` durante
+CodeGraph y compruébalo con `codegraph status`. Con CodeGraph activo, `mem
+install` (y `mem update`, que lo ejecuta) conecta su servidor MCP a los agentes
+que aún no lo tengan, con `codegraph install --target auto --location global
+--yes`, para que lo usen por su cuenta igual que codebase-memory-mcp; `mem
+doctor` muestra en qué agentes está conectado. `init` crea el índice local. Gomemory consulta `codegraph status --json` durante
 su refresco desacoplado y, si hay archivos pendientes, ejecuta `codegraph sync`
 fuera del camino de los hooks. `mem context` muestra cada proveedor configurado
 que esté disponible.
@@ -1462,3 +1467,24 @@ byte a byte, sin logos ni colores.
   final (`Flow`); con `--events` emite NDJSON v1 por stdout (eventos `start`,
   `step` y `complete`) y los registros humanos por stderr, para que el
   instalador TypeScript (`installer/`) lo consuma sin interpretar texto.
+
+
+## Consola, instalación y CodeGraph (v2.31.0)
+
+- `mem` sin argumentos muestra un índice compacto por flujos; `mem help
+  <comando>` detalla cada familia y `mem <comando> --help` sus opciones.
+- Los comandos sin opciones (`seed`, `compact`, `project`, `version`,
+  `update-check`) rechazan argumentos con código 2; una flag inválida también
+  termina con código 2 en todos los comandos.
+- `mem index` y los reportes de estado (`usage`, `doctor`, listados) presentan
+  un flujo con pasos planificados y un resumen final con siguiente acción.
+  Cancelar una instalación (`Ctrl+C`, cierre de terminal) detiene todo el
+  árbol de procesos, sin dejar instaladores huérfanos.
+- CodeGraph se autodetecta en el PATH cuando `code_graph_providers` está
+  vacío; con la lista explícita se fija orden o exclusión. Con CodeGraph
+  activo, `mem install` conecta su servidor MCP a los agentes que aún no lo
+  tengan (`codegraph install --target auto --location global --yes`, previa
+  comprobación de identidad) y `mem doctor` muestra en qué agentes está
+  conectado.
+- `scripts/visual-smoke.py ./mem` verifica la presentación por PTY
+  (temas × anchos × comandos) y la instalación real en un HOME aislado.

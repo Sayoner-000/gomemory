@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 )
 
@@ -17,7 +18,7 @@ func CmdADRSync(deps *Deps, args []string) {
 	}
 
 	if deps.ADRSyncRepo == nil {
-		fmt.Println("Sincronización de ADR: sin repositorio configurado.")
+		humanln("Sincronización de ADR: sin repositorio configurado.")
 		return
 	}
 
@@ -26,9 +27,9 @@ func CmdADRSync(deps *Deps, args []string) {
 		fail("listar sincronización de ADR: %v", err)
 	}
 	if len(recs) == 0 {
-		fmt.Println("Sin registros de sincronización de ADR todavía.")
+		humanln("Sin registros de sincronización de ADR todavía.")
 		if deps.ADRSyncProvider == nil {
-			fmt.Println("(la sincronización está desactivada: mem settings --adr-sync=true)")
+			humanln("(la sincronización está desactivada: mem settings --adr-sync=true)")
 		}
 		return
 	}
@@ -46,9 +47,8 @@ func CmdADRSync(deps *Deps, args []string) {
 			conflict++
 		}
 	}
-	fmt.Printf("ADR sincronizados: %d ok · %d pendiente(s) · %d fallido(s) · %d conflicto(s) resuelto(s)\n\n", ok, pending, failed, conflict)
-
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	summary := fmt.Sprintf("ADR sincronizados: %d ok · %d pendiente(s) · %d fallido(s) · %d conflicto(s) resuelto(s)", ok, pending, failed, conflict)
+	rows := make([][]string, 0, len(recs))
 	for _, r := range recs {
 		arrow := "→"
 		if r.Origin == "provider" {
@@ -58,7 +58,15 @@ func CmdADRSync(deps *Deps, args []string) {
 		if r.MemoryID != nil {
 			memID = fmt.Sprintf("%d", *r.MemoryID)
 		}
-		_, _ = fmt.Fprintf(w, "[%s]\t%s\t%s %s\t%s\t%s\n", memID, r.Section, arrow, r.Provider, r.Status, r.LastSyncedAt)
+		rows = append(rows, []string{"[" + memID + "]", r.Section, arrow + " " + r.Provider, string(r.Status), fmt.Sprint(r.LastSyncedAt)})
+	}
+	if printListPanel("", "ADR sincronizados", fmt.Sprintf("%d ok · %d pendientes · %d fallidos", ok, pending, failed), []string{"Memoria", "Sección", "Proveedor", "Estado", "Sincronizado"}, rows) {
+		return
+	}
+	fmt.Println(summary + "\n")
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	for _, r := range rows {
+		_, _ = fmt.Fprintln(w, strings.Join(r, "\t"))
 	}
 	_ = w.Flush()
 }

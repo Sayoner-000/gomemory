@@ -16,6 +16,34 @@ async function get(url: string, signal?: AbortSignal): Promise<Uint8Array> {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+type PlaceOps = { rename: (from: string, to: string) => Promise<void> };
+
+// placeBinary deja el binario preparado en su destino. En Windows un mem.exe en
+// ejecución (p. ej. el servidor MCP) no puede reemplazarse, pero sí apartarse:
+// se renombra el actual, se coloca el nuevo y, si algo falla, se restaura. El
+// apartado se borra si ya no está en uso; si lo está, queda y no estorba.
+export async function placeBinary(staged: string, destination: string, platform: string, ops: PlaceOps = {rename}): Promise<void> {
+  if (platform !== 'win32') {
+    await ops.rename(staged, destination);
+    return;
+  }
+  let aside: string | undefined;
+  try {
+    await access(destination);
+    aside = `${destination}.old-${randomUUID()}`;
+    await ops.rename(destination, aside);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  try {
+    await ops.rename(staged, destination);
+  } catch (error) {
+    if (aside) await ops.rename(aside, destination);
+    throw error;
+  }
+  if (aside) await rm(aside, {force:true}).catch(() => undefined);
+}
+
 // La extracción queda limitada al ejecutable, después de verificar el archivo.
 export async function extractBinary(archive: Uint8Array, platform: string, directory: string): Promise<string> {
   const name = platform === 'win32' ? 'mem.exe' : 'mem';
@@ -65,7 +93,8 @@ export async function obtainBinary(options: Options, progress: (message:string) 
     await copyFile(binary, staged);
     await chmod(staged, 0o755);
     const destination = join(directory, process.platform === 'win32' ? 'mem.exe' : 'mem');
-    await rename(staged, destination);
+    await placeBinary(staged, destination, process.platform);
+    staged = undefined;
     return destination;
   } finally {
     if (staged) await rm(staged, {force:true});

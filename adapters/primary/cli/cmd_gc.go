@@ -44,7 +44,7 @@ func CmdGC(deps *Deps, args []string) {
 		prompt := fmt.Sprintf("Esto eliminará memorias de %s con más de %d días de antigüedad. ¿Continuar?",
 			purgeScopeLabel(filter), filter.OlderThanDays)
 		if !ConfirmAction(os.Stdin, prompt) {
-			fmt.Println("Garbage collection cancelado. No se eliminó nada.")
+			humanln("Garbage collection cancelado. No se eliminó nada.")
 			return
 		}
 	}
@@ -55,8 +55,8 @@ func CmdGC(deps *Deps, args []string) {
 	}
 
 	if deleted == 0 {
-		fmt.Println("No había memorias más viejas que el umbral indicado.")
+		humanln("No había memorias más viejas que el umbral indicado.")
 		return
 	}
-	fmt.Printf("✅ %d memoria(s) eliminada(s) por garbage collection de %s.\n", deleted, purgeScopeLabel(filter))
+	humanf("✅ %d memoria(s) eliminada(s) por garbage collection de %s.\n", deleted, purgeScopeLabel(filter))
 }

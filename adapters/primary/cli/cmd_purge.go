@@ -75,7 +75,7 @@ func CmdPurge(deps *Deps, args []string) {
 	if !yes {
 		prompt := fmt.Sprintf("Esto eliminara memorias de %s permanentemente. ¿Continuar?", purgeScopeLabel(filter))
 		if !ConfirmAction(os.Stdin, prompt) {
-			fmt.Println("Purga cancelada. No se eliminó nada.")
+			humanln("Purga cancelada. No se eliminó nada.")
 			return
 		}
 	}
@@ -86,8 +86,8 @@ func CmdPurge(deps *Deps, args []string) {
 	}
 
 	if deleted == 0 {
-		fmt.Println("No había memorias que purgar en el alcance indicado.")
+		humanln("No había memorias que purgar en el alcance indicado.")
 		return
 	}
-	fmt.Printf("✅ %d memoria(s) eliminada(s) de %s.\n", deleted, purgeScopeLabel(filter))
+	humanf("✅ %d memoria(s) eliminada(s) de %s.\n", deleted, purgeScopeLabel(filter))
 }

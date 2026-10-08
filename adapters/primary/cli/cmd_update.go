@@ -123,11 +123,7 @@ func CmdUpdate(deps *Deps, args []string) {
 		steps = append(steps, console.StepResult{Name: name, Detail: detail, Status: status, Manual: manual})
 	}
 	summary := func() {
-		fmt.Println("\nResumen:")
-		reporter := console.NewReporter(os.Stdout, mode == console.ModeRich)
-		for _, s := range steps {
-			reporter.Done(s)
-		}
+		console.PrintSummary(os.Stdout, console.DetectEnv(), "Actualizar goMemory", steps, "mem version")
 	}
 	abort := func(name, detail, manual string) {
 		step(name, detail, console.StepFail, manual)

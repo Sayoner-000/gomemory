@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"testing"
 
 	"mem/domain"
@@ -65,11 +66,35 @@ func TestCmdSave_InvalidFlag_DoesNotInsertGarbage(t *testing.T) {
 		SessionRepo: &fakeSessionRepo{},
 	}
 
-	CmdSave(deps, []string{"--title", "Prueba", "--type", "decision", "contenido de prueba"})
+	code := runExpectingExit(t, func() {
+		CmdSave(deps, []string{"--title", "Prueba", "--type", "decision", "contenido de prueba"})
+	})
 
 	if len(repo.inserted) != 0 {
 		t.Fatalf("una flag inválida no debía llegar a Insert; se guardó %+v", repo.inserted)
 	}
+	if code != 2 {
+		t.Fatalf("una flag inválida debe terminar con código 2 (C-001), se obtuvo %d", code)
+	}
+}
+
+// runExpectingExit ejecuta fn sustituyendo exitProcess: registra el código y
+// corta la ejecución como lo haría os.Exit. Devuelve -1 si no hubo salida.
+func runExpectingExit(t *testing.T, fn func()) (code int) {
+	t.Helper()
+	type exited struct{}
+	code = -1
+	exitProcess = func(c int) { code = c; panic(exited{}) }
+	t.Cleanup(func() { exitProcess = os.Exit })
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(exited); !ok {
+				panic(r)
+			}
+		}
+	}()
+	fn()
+	return code
 }
 
 // Camino feliz: con las flags realmente soportadas (-t/-y/-f) antes del
