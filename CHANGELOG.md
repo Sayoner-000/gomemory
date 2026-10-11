@@ -5,6 +5,45 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.32.0] - 2026-10-11
+
+### Added
+
+- Comando `mem sanitize` (vista previa por defecto, `--apply` para sanear):
+  reescribe resúmenes, razonamientos y diagnósticos históricos con contenido
+  protegido, elimina originales comprimidos no recuperables, regenera
+  `.memory/context.md` y compacta la base con verificación. Informe depurado
+  en `maintenance/privacy/<run_id>.json` con códigos estables
+  (`SANITIZE_BUSY`, `SANITIZE_PENDING_CLEANUP`, `SANITIZE_TIMEOUT`,
+  `SANITIZE_FAILED`).
+- Workflow CI `test` en cada push y pull request: `go vet`, suite completa,
+  detector de carreras en las rutas afectadas y umbral de cobertura del 80%.
+
+### Changed
+
+- Protección uniforme de texto (`ProtectText`): sesiones, relaciones,
+  diagnósticos de canal, contexto, exportaciones y recuperaciones de
+  originales eliminan regiones `<private>` (también anidadas o sin cierre)
+  y ocultan credenciales reconocidas al escribir y al leer.
+- Instaladores (`install.sh`/`install.ps1`): resuelven la versión una sola vez
+  a un tag estable y verifican el SHA-256 de `checksums.txt` antes de
+  extraer; cualquier fallo deja intacto el binario instalado.
+- `mem update` en Linux/macOS prepara el binario completo junto al actual y
+  lo publica con un único renombrado atómico; en Windows deja `mem.exe.new`
+  con instrucciones para completar el cambio.
+- `mem wrap` informa `WRAP_START_FAILED` sin pedir guardado cuando el comando
+  nunca llegó a ejecutarse, sin filtrar argumentos ni el error crudo.
+- `Builder.Build` trabaja sobre una copia local con el contador de descartes
+  a cero: llamadas repetidas o concurrentes del servidor MCP ya no acumulan
+  ni mezclan la línea base de tokens.
+
+### Fixed
+
+- `mem compare` muestra el razonamiento guardado (protegido) en vez del texto
+  crudo tecleado; `mem session end` muestra el resumen guardado.
+- La lectura de `channel_activity.last_error` y del último prompt de sesión
+  ya no reemite contenido protegido de filas anteriores al cambio.
+
 ## [v2.31.0] - 2026-10-08
 
 ### Added
