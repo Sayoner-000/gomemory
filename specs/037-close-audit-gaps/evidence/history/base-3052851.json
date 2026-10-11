@@ -1,0 +1,59 @@
+{
+  "cases_selected": [
+    "history"
+  ],
+  "cases_run": 10,
+  "status": "failed",
+  "results": [
+    {
+      "case_id": "history.preview",
+      "ok": false,
+      "detail": "salida 1 categorías {}"
+    },
+    {
+      "case_id": "history.cancel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.concurrent_writer",
+      "ok": false,
+      "detail": "salida 1 stderr Error: comando desconocido 'sanitize'"
+    },
+    {
+      "case_id": "history.unreadable_copy",
+      "ok": false,
+      "detail": "salida 1 estado "
+    },
+    {
+      "case_id": "history.checkpoint_blocked",
+      "ok": false,
+      "detail": "salida 1 estado "
+    },
+    {
+      "case_id": "history.retry_completes",
+      "ok": false,
+      "detail": "salida 1 estado None"
+    },
+    {
+      "case_id": "history.identity_preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.idempotent",
+      "ok": false,
+      "detail": "salida 1 filas None"
+    },
+    {
+      "case_id": "history.reports_closed",
+      "ok": false,
+      "detail": "estados set()"
+    },
+    {
+      "case_id": "history.residues",
+      "ok": false,
+      "detail": "residuos: ['backups/history-8ce0cbf2aeb432ce/20250101-000000.000000000.json:privado', 'backups/history-8ce0cbf2aeb432ce/20250101-000000.000000000.json:credencial', 'backups/history-8ce0cbf2aeb432ce/20250102-000000.000000000.json:privado', 'backups/history-8ce0cbf2aeb432ce/20250102-000000.000000000.json:credencial', 'projects/history-8ce0cbf2aeb432ce/mem.db-wal:privado']"
+    }
+  ]
+}

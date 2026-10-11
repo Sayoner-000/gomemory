@@ -91,7 +91,7 @@ func CmdCompare(deps *Deps, args []string) {
 	} else {
 		humanf("✓ Relación guardada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
 	}
-	humanf("  Razonamiento: %s\n", reasonText)
+	humanf("  Razonamiento: %s\n", rel.Reasoning)
 }
 
 func cmdCompareList(deps *Deps, args []string) {

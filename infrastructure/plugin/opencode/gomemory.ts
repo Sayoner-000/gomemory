@@ -17,7 +17,7 @@
 // Solo se admiten imports de `node:*`: el archivo se instala suelto, sin
 // node_modules.
 import type { Plugin } from "@opencode-ai/plugin";
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 
 // El instalador sustituye el marcador de la línea siguiente por la referencia
 // portable a `mem` (normalmente "mem" en el PATH). Este comentario no lo escribe
@@ -525,15 +525,81 @@ Discoveries / Accomplished / Next Steps / Relevant Files.`;
 // suyo. Así las dos versiones comparten exactamente las mismas llamadas a
 // `mem` (contrato C-2 de specs/032-opencode-v2-plugin-compat).
 
-type Exec = (bin: string, args: string[], opts: { cwd: string; input?: string }) => Promise<string>;
+type Exec = (bin: string, args: string[], opts: { cwd: string; input?: string; signal?: AbortSignal }) => Promise<string>;
+
+// Gracia entre la cancelación cortés (SIGTERM) y la forzada (SIGKILL) de un
+// `mem` en curso, dentro del plazo global de cierre (feature 037, H-06).
+const KILL_GRACE_MS = 1_000;
+
+const abortError = (): Error => Object.assign(new Error("operación cancelada"), { name: "AbortError" });
 
 // Ejecuta `mem` como subproceso. stdin se cierra siempre: un `mem hook …` que
 // lee stdin se quedaría esperando hasta el timeout si quedara abierto.
-const execFileExec: Exec = (bin, args, { cwd, input }) =>
+//
+// Con `signal`, una señal ya abortada no arranca el proceso y una abortada
+// después termina el árbol propio (SIGTERM y, tras la gracia, SIGKILL). La
+// promesa solo se resuelve en `close`, cuando el hijo ya salió y cerró su
+// salida: rechazar por abort no se confunde con "terminó".
+//
+// Se usa spawn y no execFile porque execFile descarta `detached`: en Unix el
+// hijo debe encabezar su propio grupo de procesos para que la cancelación
+// alcance también a sus descendientes, que de otro modo heredan la salida y
+// mantienen viva la llamada. Windows no tiene grupos equivalentes y conserva
+// la terminación del hijo.
+const EXEC_TIMEOUT_MS = 30_000;
+const EXEC_MAX_BUFFER = 16 * 1024 * 1024;
+
+const execFileExec: Exec = (bin, args, { cwd, input, signal }) =>
   new Promise((resolve, reject) => {
-    const child = execFile(bin, args, { cwd, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) =>
-      err ? reject(err) : resolve(String(stdout)),
-    );
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+    const groups = process.platform !== "win32";
+    const child = spawn(bin, args, { cwd, detached: groups, stdio: ["pipe", "pipe", "ignore"] });
+    const kill = (sig: NodeJS.Signals) => {
+      try {
+        if (groups && child.pid) process.kill(-child.pid, sig);
+        else child.kill(sig);
+      } catch {
+        // ya terminó
+      }
+    };
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const terminate = () => {
+      kill("SIGTERM");
+      killTimer ??= setTimeout(() => kill("SIGKILL"), KILL_GRACE_MS);
+    };
+    let failure: Error | undefined;
+    const timeout = setTimeout(() => {
+      failure ??= new Error(`mem excedió ${EXEC_TIMEOUT_MS} ms`);
+      terminate();
+    }, EXEC_TIMEOUT_MS);
+    const chunks: Buffer[] = [];
+    let size = 0;
+    child.stdout?.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > EXEC_MAX_BUFFER) {
+        failure ??= new Error("salida de mem demasiado grande");
+        terminate();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    signal?.addEventListener("abort", terminate, { once: true });
+    let settled = false;
+    const finish = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (killTimer) clearTimeout(killTimer);
+      signal?.removeEventListener("abort", terminate);
+      if (signal?.aborted) reject(abortError());
+      else if (err) reject(err);
+      else resolve(Buffer.concat(chunks).toString());
+    };
+    child.on("error", (err) => finish(err));
+    child.on("close", (code) => finish(failure ?? (code === 0 ? undefined : new Error(`mem terminó con código ${code}`))));
     child.stdin?.on("error", () => {});
     child.stdin?.end(input ?? "");
   });
@@ -595,10 +661,12 @@ const normalizeMessagesV2 = (list: unknown): Array<{ info: any; parts: any[] }> 
   });
 };
 
-const clientShim = (ctx: any) => ({
+// signal cancela la petición en clientes que admiten requestOptions; uno que
+// no lo admite ignora el segundo argumento y el plazo global de cierre lo cubre.
+const clientShim = (ctx: any, signal: () => AbortSignal) => ({
   session: {
     messages: async ({ path }: { path: { id: string } }) => ({
-      data: normalizeMessagesV2(await ctx.session.context({ sessionID: path.id })),
+      data: normalizeMessagesV2(await ctx.session.context({ sessionID: path.id }, { signal: signal() })),
     }),
   },
 });
@@ -619,6 +687,36 @@ const resultText = (result: any): string => {
   return typeof output === "string" ? output : JSON.stringify(output);
 };
 
+// withReducedText publica en el resultado v2 el texto reducido por la fábrica
+// v1 (feature 037, H-05), en la misma representación que leyó resultText:
+//   content string → se sustituye content;
+//   content Part[] → la primera parte textual conserva sus metadatos con el
+//                    texto reducido, las demás textuales (que formaban ese
+//                    mismo texto) se retiran y las no textuales quedan en su
+//                    orden relativo;
+//   output string  → se sustituye output.
+// Un output que no es texto nunca se reemplaza por un string, y sin texto
+// soportado el resultado vuelve intacto.
+const withReducedText = (result: any, text: string): any => {
+  const content = result?.content;
+  if (typeof content === "string") return { ...result, content: text };
+  if (Array.isArray(content)) {
+    let replaced = false;
+    const parts: any[] = [];
+    for (const part of content) {
+      if (part?.type !== "text") {
+        parts.push(part);
+      } else if (!replaced) {
+        parts.push({ ...part, text });
+        replaced = true;
+      }
+    }
+    return replaced ? { ...result, content: parts } : result;
+  }
+  if (typeof result?.output === "string") return { ...result, output: text };
+  return result;
+};
+
 // Contrato C-3.1: nada que haga gomemory debe propagar una excepción a
 // OpenCode. Los ganchos v1 ya son best-effort; esto cubre la traducción.
 const safe = async (fn: () => Promise<void>): Promise<void> => {
@@ -629,15 +727,66 @@ const safe = async (fn: () => Promise<void>): Promise<void> => {
   }
 };
 
-const createV2Setup = (exec: Exec) => async (ctx: any) => {
+// Plazo global del cierre normal en el entorno de validación (FR-020).
+const CLOSE_BUDGET_MS = 5_000;
+
+type CleanupResult = { ok: true } | { ok: false; code: "OPENCODE_CLEANUP_FAILED"; failures: string[] };
+
+// Espera a que todas las promesas terminen o venza el plazo. No las abandona
+// a ciegas: quien llama ya canceló su trabajo y solo mide si terminó a tiempo.
+const settledWithin = async (pending: Array<Promise<unknown>>, ms: number): Promise<boolean> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), Math.max(0, ms));
+  });
+  const done = Promise.allSettled(pending).then(() => true);
+  try {
+    return await Promise.race([done, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+// Ciclo de vida de una instancia v2 (feature 037, H-06):
+//   initializing → active → closing → closed
+// Cada operación propia (gancho o evento) se registra antes de empezar; desde
+// el primer closing no arranca IO nuevo. El cierre aborta la suscripción y
+// las operaciones en curso (la señal llega hasta el subproceso `mem`), libera
+// todos los registros aunque alguno falle, espera lo pendiente dentro del
+// plazo y solo entonces cierra la sesión de memoria propia por un canal
+// independiente de la señal ya abortada. Un fallo de setup revierte lo propio
+// y NO cierra la sesión de memoria: podría ser de otra instancia.
+const createV2Setup = (exec: Exec, options: { closeBudgetMs?: number } = {}) => async (ctx: any) => {
+  const budget = options.closeBudgetMs ?? CLOSE_BUDGET_MS;
   const directory: string = ctx.location.directory;
+  let state: "initializing" | "active" | "closing" | "closed" = "initializing";
+  const subscription = new AbortController();
+  const operations = new AbortController();
+  // Durante el cierre de sesión final, mem corre con su propio plazo.
+  let finalSignal: AbortSignal | null = null;
+  const ops = new Set<Promise<unknown>>();
+
+  const lifecycleExec: Exec = (bin, args, opts) => {
+    if (finalSignal) return exec(bin, args, { ...opts, signal: finalSignal });
+    if (state === "closing" || state === "closed") return Promise.reject(abortError());
+    return exec(bin, args, { ...opts, signal: operations.signal });
+  };
   const hooks: any = await GomemoryPlugin({
-    $: bunShellShim(exec),
+    $: bunShellShim(lifecycleExec),
     directory,
-    client: clientShim(ctx),
+    client: clientShim(ctx, () => operations.signal),
   } as any);
   const registrations: Array<{ dispose: () => Promise<void> }> = [];
-  const controller = new AbortController();
+
+  // track registra una operación propia; desde closing no la inicia.
+  const closing = () => state === "closing" || state === "closed";
+  const track = (fn: () => Promise<void>): Promise<void> | undefined => {
+    if (closing()) return undefined;
+    const op = safe(fn);
+    ops.add(op);
+    void op.finally(() => ops.delete(op));
+    return op;
+  };
 
   // Un servicio de OpenCode 2.x aloja varias ubicaciones y entrega los eventos
   // y los ganchos de sesión a TODAS las instancias del plugin (reproducido con
@@ -659,7 +808,7 @@ const createV2Setup = (exec: Exec) => async (ctx: any) => {
     // Host sin la API: una sola ubicación, como en 1.x.
     if (typeof ctx.session?.get !== "function") return true;
     try {
-      const info = await ctx.session.get({ sessionID });
+      const info = await ctx.session.get({ sessionID }, { signal: operations.signal });
       const mine = info?.location?.directory === directory;
       owners.set(sessionID, mine);
       return mine;
@@ -685,76 +834,138 @@ const createV2Setup = (exec: Exec) => async (ctx: any) => {
     "session.deleted": "session.deleted",
     "session.compaction.ended": "session.compacted",
   };
-  void (async () => {
+  // La promesa de la suscripción se conserva: el cierre la espera, no la
+  // abandona.
+  const subscriptionTask = (async () => {
     try {
-      for await (const ev of ctx.event.subscribe({ signal: controller.signal })) {
-        if (controller.signal.aborted) break;
+      for await (const ev of ctx.event.subscribe({ signal: subscription.signal })) {
+        if (subscription.signal.aborted) break;
         const type = v1Events[ev?.type];
         if (!type) continue;
-        const sessionID = ev.data?.sessionID;
-        const hinted = ev.data?.location?.directory ?? ev.location?.directory;
-        if (!(await ownsSession(sessionID, hinted))) continue;
-        await safe(() => hooks.event({ event: { type, properties: { sessionID, info: { id: sessionID } } } }));
-        if (type === "session.deleted") owners.delete(sessionID);
+        await track(async () => {
+          const sessionID = ev.data?.sessionID;
+          const hinted = ev.data?.location?.directory ?? ev.location?.directory;
+          if (!(await ownsSession(sessionID, hinted))) return;
+          await hooks.event({ event: { type, properties: { sessionID, info: { id: sessionID } } } });
+          if (type === "session.deleted") owners.delete(sessionID);
+        });
       }
     } catch {
-      // la suscripción termina al abortar o al descargarse el plugin
+      // la suscripción termina al abortar, al descargarse el plugin o si el
+      // host la rechaza; el cierre no depende de ella
     }
   })();
 
-  // v2:prompt
-  registrations.push(
-    await ctx.session.hook("prompt", async (ev: any) =>
-      (await ownsSession(ev.sessionID)) &&
-      safe(() => hooks["chat.message"]({ sessionID: ev.sessionID }, { parts: [{ type: "text", text: ev.prompt?.text ?? "" }] })),
-    ),
-  );
+  try {
+    // v2:prompt
+    registrations.push(
+      await ctx.session.hook("prompt", (ev: any) =>
+        track(async () => {
+          if (!(await ownsSession(ev.sessionID))) return;
+          await hooks["chat.message"]({ sessionID: ev.sessionID }, { parts: [{ type: "text", text: ev.prompt?.text ?? "" }] });
+        }),
+      ),
+    );
 
-  // v2:context
-  registrations.push(
-    await ctx.session.hook("context", (ev: any) =>
-      safe(async () => {
-        if (!(await ownsSession(ev.sessionID))) return;
-        const out = { system: [] as string[] };
-        await hooks["experimental.chat.system.transform"]({ sessionID: ev.sessionID }, out);
-        for (const text of out.system) ev.system.push({ type: "text", text });
-      }),
-    ),
-  );
+    // v2:context
+    registrations.push(
+      await ctx.session.hook("context", (ev: any) =>
+        track(async () => {
+          if (!(await ownsSession(ev.sessionID))) return;
+          const out = { system: [] as string[] };
+          await hooks["experimental.chat.system.transform"]({ sessionID: ev.sessionID }, out);
+          if (closing()) return;
+          for (const text of out.system) ev.system.push({ type: "text", text });
+        }),
+      ),
+    );
 
-  // v2:compaction
-  // Corre sobre la petición de resumen: lo que se añade al system lo tiene en
-  // cuenta el compresor, igual que output.context en v1.
-  registrations.push(
-    await ctx.session.hook("compaction", (ev: any) =>
-      safe(async () => {
-        if (!(await ownsSession(ev.sessionID))) return;
-        const out = { context: [] as string[] };
-        await hooks["experimental.session.compacting"]({ sessionID: ev.sessionID }, out);
-        for (const text of out.context) ev.system.push({ type: "text", text });
-      }),
-    ),
-  );
+    // v2:compaction
+    // Corre sobre la petición de resumen: lo que se añade al system lo tiene en
+    // cuenta el compresor, igual que output.context en v1.
+    registrations.push(
+      await ctx.session.hook("compaction", (ev: any) =>
+        track(async () => {
+          if (!(await ownsSession(ev.sessionID))) return;
+          const out = { context: [] as string[] };
+          await hooks["experimental.session.compacting"]({ sessionID: ev.sessionID }, out);
+          if (closing()) return;
+          for (const text of out.context) ev.system.push({ type: "text", text });
+        }),
+      ),
+    );
 
-  // v2:tool.execute.after
-  registrations.push(
-    await ctx.tool.hook("execute.after", (ev: any) =>
-      safe(async () => {
-        if (ev.status !== "completed" || !(await ownsSession(ev.sessionID))) return;
-        await hooks["tool.execute.after"]({ tool: v1ToolName(ev.tool), sessionID: ev.sessionID, callID: ev.id }, { output: resultText(ev.result) });
-      }),
-    ),
-  );
+    // v2:tool.execute.after
+    // La fábrica v1 reduce sobre un objeto { output }; el consumidor v2 lee
+    // event.result, así que la reducción se publica ahí (feature 037, H-05).
+    // Tras el gancho se vuelve a comprobar el estado: una reducción que
+    // termina después del cierre no se publica.
+    registrations.push(
+      await ctx.tool.hook("execute.after", (ev: any) =>
+        track(async () => {
+          if (ev.status !== "completed" || !(await ownsSession(ev.sessionID))) return;
+          const text = resultText(ev.result);
+          const out = { output: text };
+          await hooks["tool.execute.after"]({ tool: v1ToolName(ev.tool), sessionID: ev.sessionID, callID: ev.id }, out);
+          if (closing()) return;
+          if (typeof out.output === "string" && out.output !== text) ev.result = withReducedText(ev.result, out.output);
+        }),
+      ),
+    );
+  } catch (err) {
+    // Rollback de setup: termina la suscripción propia, libera lo registrado
+    // y conserva la causa original. Sin hooks.dispose(): cerraría la sesión
+    // de memoria, que no es de esta activación fallida.
+    state = "closing";
+    subscription.abort();
+    operations.abort();
+    for (const r of registrations) await safe(() => r.dispose());
+    await settledWithin([subscriptionTask, ...ops], budget);
+    state = "closed";
+    throw err;
+  }
+  state = "active";
 
   // v2:cleanup
-  return async () => {
-    controller.abort();
-    for (const r of registrations) await safe(() => r.dispose());
-    await safe(() => hooks.dispose());
-  };
+  // Idempotente: las llamadas repetidas comparten el resultado.
+  let cleanupPromise: Promise<CleanupResult> | undefined;
+  return (): Promise<CleanupResult> =>
+    (cleanupPromise ??= (async (): Promise<CleanupResult> => {
+      state = "closing";
+      const deadline = Date.now() + budget;
+      const failures: string[] = [];
+      subscription.abort();
+      operations.abort();
+      for (const r of registrations) {
+        try {
+          await r.dispose();
+        } catch {
+          failures.push("registration");
+        }
+      }
+      const settled = await settledWithin([subscriptionTask, ...ops], deadline - Date.now());
+      if (!settled) {
+        failures.push("pending_operations");
+      } else {
+        // Cierre de la sesión de memoria propia con el presupuesto restante.
+        finalSignal = AbortSignal.timeout(Math.max(1, deadline - Date.now()));
+        try {
+          if (!(await settledWithin([safe(() => hooks.dispose())], deadline - Date.now()))) {
+            failures.push("session_end");
+          }
+        } finally {
+          finalSignal = null;
+        }
+      }
+      if (failures.length > 0) {
+        return { ok: false, code: "OPENCODE_CLEANUP_FAILED", failures };
+      }
+      state = "closed";
+      return { ok: true };
+    })());
 };
 
-export const __testing = { createV2Setup };
+export const __testing = { createV2Setup, execFileExec };
 
 export default {
   id: "gomemory",

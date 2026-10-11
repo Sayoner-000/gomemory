@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"mem/adapters/primary/console"
+	"mem/domain"
 )
 
 func CmdSession(deps *Deps, args []string) {
@@ -95,8 +96,10 @@ func cmdSessionEnd(deps *Deps, args []string) {
 	endConversation(root)
 
 	humanf("✓ Sesión %s finalizada\n", sess.ID[:8])
-	if finalSummary != "" {
-		humanf("  Resumen: %s\n", finalSummary)
+	// Se muestra lo que quedó guardado, no el argumento crudo (spec 037,
+	// FR-002): la respuesta no puede revelar lo que la persistencia elimina.
+	if shown := strings.TrimSpace(domain.ProtectText(finalSummary)); shown != "" {
+		humanf("  Resumen: %s\n", shown)
 	}
 }
 

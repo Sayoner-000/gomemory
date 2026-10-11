@@ -16,6 +16,9 @@ func RecordVerdict(relRepo ports.RelationRepository, project string, idA, idB in
 	if idA == idB {
 		return nil, false, fmt.Errorf("no se puede comparar una memoria consigo misma")
 	}
+	// La relación devuelta se muestra al llamador: debe coincidir con lo que
+	// persiste el repositorio, nunca con el argumento crudo (spec 037, FR-002).
+	reasoning = domain.ProtectText(reasoning)
 
 	existing, _ := relRepo.GetByPair(project, idA, idB)
 	if existing != nil {

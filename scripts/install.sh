@@ -5,8 +5,15 @@
 #   curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 #
 # Opciones (variables de entorno):
-#   GOMEMORY_VERSION=v1.6.0   Instala una versión específica (por defecto: latest)
+#   GOMEMORY_VERSION=v1.6.0   Instala una versión estable específica (por defecto: latest)
 #   GOMEMORY_BIN_DIR=/ruta    Directorio de instalación (por defecto: ~/.local/bin)
+#
+# Integridad (spec 037, H-08): la versión se resuelve una sola vez a un tag
+# estable; el archivo y checksums.txt salen de ese mismo release y el SHA-256
+# se verifica ANTES de extraer. Solo se extrae el miembro `mem`, que debe ser
+# un ejecutable regular de la plataforma. Cualquier fallo deja intacto el
+# binario instalado. checksums.txt viene del mismo origen: verifica la
+# integridad publicada, no es una firma independiente.
 #
 # Desinstalar:
 #   curl -fsSL .../install.sh | bash -s -- --uninstall
@@ -107,6 +114,63 @@ uninstall() {
   exit 0
 }
 
+# resolve_tag convierte la selección en UN tag estable concreto. `latest` se
+# consulta una sola vez: el archivo y checksums.txt se piden después a ese tag
+# exacto, así un release publicado entre ambas descargas no los mezcla.
+resolve_tag() {
+  local tag="$VERSION"
+  if [ "$tag" = "latest" ]; then
+    local api
+    api="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")" \
+      || die "No se pudo consultar la última versión estable de ${REPO}."
+    tag="$(printf '%s' "$api" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+  fi
+  case "$tag" in
+    v*) ;;
+    *) tag="v$tag" ;;
+  esac
+  printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+    || die "Versión no soportada: '${tag}'. Usa un release estable vX.Y.Z."
+  printf '%s' "$tag"
+}
+
+# sha256_of imprime el SHA-256 de un archivo. Sin herramienta no se instala.
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    die "No hay sha256sum ni shasum: no se puede verificar la descarga."
+  fi
+}
+
+# expected_sha256 extrae el digest del asset desde checksums.txt: exige una
+# única línea cuyo nombre (con asterisco binario opcional) coincida EXACTO
+# con el asset y un digest de 64 hex. Una entrada duplicada se rechaza aunque
+# ambos digests coincidan.
+expected_sha256() {
+  local sums="$1" name="$2" matches count
+  matches="$(awk -v want="$name" '{ f = $2; sub(/^\*/, "", f); if (NF == 2 && f == want) print $1 }' "$sums")"
+  count="$(printf '%s' "$matches" | grep -c . || true)"
+  [ "$count" -eq 1 ] || die "checksums.txt no tiene exactamente una entrada para ${name} (${count})."
+  printf '%s' "$matches" | grep -Eqi '^[0-9a-f]{64}$' || die "checksums.txt tiene un digest inválido para ${name}."
+  printf '%s' "$matches" | tr 'A-F' 'a-f'
+}
+
+# assert_platform_binary valida sin ejecutarlo que el archivo es un
+# ejecutable regular, no vacío, no enlace, con la cabecera de la plataforma.
+assert_platform_binary() {
+  local f="$1" os="$2" magic
+  [ ! -L "$f" ] && [ -f "$f" ] && [ -s "$f" ] || die "El archivo no contiene un binario ${BIN_NAME} regular y no vacío."
+  magic="$(head -c 4 "$f" | od -An -tx1 | tr -d ' \n')"
+  case "$os:$magic" in
+    linux:7f454c46) ;;
+    darwin:cffaedfe|darwin:cefaedfe|darwin:feedfacf|darwin:feedface|darwin:cafebabe) ;;
+    *) die "El binario descargado no es un ejecutable para ${os}." ;;
+  esac
+}
+
 main() {
   if [ "${1:-}" = "--uninstall" ]; then
     print_brand "Desinstalar"
@@ -114,42 +178,48 @@ main() {
   fi
   print_brand "Instalar"
 
-  local os arch bin_dir asset url
+  local os arch bin_dir asset tag base want got
   os="$(detect_os)"
   arch="$(detect_arch)"
   bin_dir="$(pick_bin_dir)"
   asset="mem_${os}_${arch}.tar.gz"
+  tag="$(resolve_tag)"
+  base="https://github.com/${REPO}/releases/download/${tag}"
 
-  if [ "$VERSION" = "latest" ]; then
-    url="https://github.com/${REPO}/releases/latest/download/${asset}"
-  else
-    url="https://github.com/${REPO}/releases/download/${VERSION}/${asset}"
-  fi
-
-  info "Instalando gomemory (${os}/${arch}, ${VERSION})"
-  info "Descargando ${url}"
+  info "Instalando gomemory (${os}/${arch}, ${tag})"
+  info "Descargando ${base}/${asset}"
 
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
 
-  if ! curl -fsSL "$url" -o "$tmp/$asset"; then
-    die "No se pudo descargar el release. ¿Existe el asset ${asset}? Revisa https://github.com/${REPO}/releases"
+  curl -fsSL "${base}/${asset}" -o "$tmp/$asset" \
+    || die "No se pudo descargar ${asset} de ${tag}. Revisa https://github.com/${REPO}/releases"
+  curl -fsSL "${base}/checksums.txt" -o "$tmp/checksums.txt" \
+    || die "No se pudo descargar checksums.txt de ${tag}: no se instala sin verificar."
+
+  want="$(expected_sha256 "$tmp/checksums.txt" "$asset")"
+  got="$(sha256_of "$tmp/$asset")"
+  [ "$got" = "$want" ] || die "El SHA-256 de ${asset} no coincide con checksums.txt. No se instaló nada."
+  ok "Integridad verificada (SHA-256)"
+
+  # Solo el miembro esperado: un nombre con ruta o traversal no coincide.
+  mkdir "$tmp/extract"
+  tar -xzf "$tmp/$asset" -C "$tmp/extract" "$BIN_NAME" 2>/dev/null \
+    || die "El archivo no contiene el binario ${BIN_NAME}."
+  assert_platform_binary "$tmp/extract/$BIN_NAME" "$os"
+
+  mkdir -p "$bin_dir" || die "No se pudo crear ${bin_dir}."
+  # Se prepara al lado del destino y se publica con mv: el binario anterior
+  # sigue completo hasta el rename y el resultado es un inodo nuevo (en macOS
+  # la firma se cachea por inodo; reescribir encima deja un `mem` que muere
+  # con SIGKILL sin explicación).
+  local staged
+  staged="$(mktemp "$bin_dir/.${BIN_NAME}.XXXXXX" 2>/dev/null)" \
+    || die "No se puede escribir en ${bin_dir}. El binario anterior no se modificó."
+  if ! { cp "$tmp/extract/$BIN_NAME" "$staged" && chmod 0755 "$staged" && mv -f "$staged" "$bin_dir/$BIN_NAME"; }; then
+    rm -f "$staged"
+    die "No se pudo instalar en ${bin_dir}. El binario anterior no se modificó."
   fi
-
-  tar -xzf "$tmp/$asset" -C "$tmp"
-  [ -f "$tmp/$BIN_NAME" ] || die "El archivo no contiene el binario $BIN_NAME"
-
-  mkdir -p "$bin_dir"
-  # El `rm -f` previo NO es limpieza cosmética: en macOS la firma de código se
-  # cachea por inodo, y `cp` sobre un ejecutable existente reutiliza el inodo.
-  # El binario resultante muere con SIGKILL en cada invocación, sin mensaje ni
-  # error de firma —`codesign -v` lo da por válido—, así que el síntoma es un
-  # `mem` que no responde y nada que explique por qué. `install` sí crea un
-  # inodo nuevo (comprobado), pero el fallback tenía que hacerlo también.
-  install -m 0755 "$tmp/$BIN_NAME" "$bin_dir/$BIN_NAME" 2>/dev/null \
-    || { rm -f "$bin_dir/$BIN_NAME" \
-      && cp "$tmp/$BIN_NAME" "$bin_dir/$BIN_NAME" \
-      && chmod 0755 "$bin_dir/$BIN_NAME"; }
 
   ok "gomemory instalado en $bin_dir/$BIN_NAME"
 

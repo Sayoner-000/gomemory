@@ -1,0 +1,64 @@
+{
+  "cases_selected": [
+    "context-wrap"
+  ],
+  "cases_run": 11,
+  "status": "passed",
+  "results": [
+    {
+      "case_id": "context.cli_sequential",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_overlapped_content",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.discards_present",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_metrics_isolated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_equals_isolated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.missing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.no_permission",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_0",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_7",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_signal",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

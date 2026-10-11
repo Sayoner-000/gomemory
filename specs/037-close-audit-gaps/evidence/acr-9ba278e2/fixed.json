@@ -1,0 +1,312 @@
+{
+  "cases_selected": [
+    "privacy",
+    "history",
+    "context-wrap",
+    "installation"
+  ],
+  "cases_run": 60,
+  "status": "passed",
+  "results": [
+    {
+      "case_id": "privacy.save",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.session_end_cli",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_save_session_summary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_end_session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_stderr",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.hook_compact_summary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.hook_channel_error",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.relation_create",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.relation_update",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.relation_list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_judge_memories",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.export",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.import",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.context",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.session_list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.original_public_stored",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.original_public_exact",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.original_private_not_stored",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.store_bytes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.preview",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.cancel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.concurrent_writer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.unreadable_copy",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.checkpoint_blocked",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.retry_completes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.identity_preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.idempotent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.reports_closed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.residues",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.cli_sequential",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_overlapped_content",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.discards_present",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_metrics_isolated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_equals_isolated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.missing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.no_permission",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_0",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_7",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_signal",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.explicit_ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.latest_resolved_once",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.hash_mismatch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_absent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_404",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_invalid",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_missing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_substring_only",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_duplicated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.network_failure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.no_sha_tool",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.empty_binary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.symlink_member",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.traversal_member",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.not_platform_binary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.prerelease_tag",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.readonly_destination",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.completes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.never_absent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.no_leftovers",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -88,4 +88,7 @@ type Deps struct {
 	// forzado a true (feature 030, US1): el contexto de proyecto que se
 	// entrega tras compactar va en modo índice, nunca con contenido íntegro.
 	CompactContextBuilder ports.ContextBuilder
+	// Sanitizer sanea la información histórica protegida del proyecto
+	// (spec 037, US2). nil = comando no disponible.
+	Sanitizer ports.PrivacySanitizer
 }

@@ -171,3 +171,61 @@ func TestDecodeBundle_MigraV1YRechazaFuturo(t *testing.T) {
 		t.Fatal("un bundle de versión posterior debe rechazarse")
 	}
 }
+
+// TestPortability_ProtegeContenidoHistorico cubre US1.2/US1.7 (FR-002): la
+// exportación no reemite contenido protegido de filas anteriores al cambio
+// (memorias guardadas antes de la política de credenciales y razonamientos
+// crudos), y la importación de un bundle con razonamiento protegido lo
+// depura conservando la fecha de origen.
+func TestPortability_ProtegeContenidoHistorico(t *testing.T) {
+	db, err := persistence.Init(t.TempDir())
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	memRepo := persistence.NewMemoryRepository(db)
+	relRepo := persistence.NewRelationRepository(db)
+
+	const leak = "público <private>SECRETO_037</private> y AKIAIOSFODNN7EXAMPLE"
+	if _, err := db.Exec(`INSERT INTO memories (id, project, type, title, content, origin_prompt, created_at, updated_at) VALUES (1, 'src', 'decision', ?, ?, ?, '2020-01-01 00:00:00', '2020-01-01 00:00:00'), (2, 'src', 'decision', 'B', 'cuerpo B', '', '2020-01-01 00:00:00', '2020-01-01 00:00:00')`, leak, leak, leak); err != nil {
+		t.Fatalf("fixture memorias: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO memory_relations (project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at) VALUES ('src', 1, 2, 'related', 0.5, ?, '2020-01-01 00:00:00')`, leak); err != nil {
+		t.Fatalf("fixture relación: %v", err)
+	}
+
+	bundle, err := usecases.ExportProject(memRepo, relRepo, "src")
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := usecases.EncodeBundle(&buf, bundle); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	for _, gone := range []string{"SECRETO_037", "AKIAIOSFODNN7EXAMPLE"} {
+		if strings.Contains(buf.String(), gone) {
+			t.Fatalf("export reemite %q:\n%s", gone, buf.String())
+		}
+	}
+	if !strings.Contains(buf.String(), "público") {
+		t.Fatalf("export perdió el texto público:\n%s", buf.String())
+	}
+
+	in := domain.ExportBundle{Version: domain.ExportVersion, Memories: []domain.ExportMemory{
+		{RefID: 10, Type: "decision", Title: "X", Content: "cuerpo X"},
+		{RefID: 11, Type: "decision", Title: "Y", Content: "cuerpo Y"},
+	}, Relations: []domain.ExportRelation{{RefA: 10, RefB: 11, Relation: "related", Confidence: 0.4, Reasoning: leak, CreatedAt: "2019-09-09 09:09:09"}}}
+	if _, err := usecases.ImportBundle(memRepo, relRepo, "dst", in); err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	var reasoning, created string
+	if err := db.QueryRow(`SELECT reasoning, created_at FROM memory_relations WHERE project = 'dst'`).Scan(&reasoning, &created); err != nil {
+		t.Fatalf("leer relación importada: %v", err)
+	}
+	if strings.Contains(reasoning, "SECRETO_037") || strings.Contains(reasoning, "AKIAIOSFODNN7EXAMPLE") || !strings.Contains(reasoning, "público") {
+		t.Fatalf("import guardó reasoning sin proteger: %q", reasoning)
+	}
+	if created != "2019-09-09 09:09:09" {
+		t.Fatalf("import alteró created_at: %q", created)
+	}
+}

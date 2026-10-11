@@ -5,12 +5,15 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -194,5 +197,117 @@ func TestReplaceSelfUnix(t *testing.T) {
 	}
 	if _, err := os.Stat(current + ".old"); err == nil {
 		t.Error("el archivo .old debió limpiarse tras un reemplazo exitoso")
+	}
+}
+
+// writeScript037 escribe un ejecutable de shell que imprime word.
+func writeScript037(t *testing.T, path, word string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte("#!/bin/sh\necho "+word+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func runScript037(t *testing.T, path string) string {
+	t.Helper()
+	out, err := exec.Command(path).Output()
+	if err != nil {
+		t.Fatalf("ejecutar %s: %v", path, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// TestReplaceSelfUnix_NuncaAusenteNiParcial cubre US4.4 (spec 037, H-04):
+// mientras se prepara el binario nuevo, el destino sigue siendo el anterior
+// completo y ejecutable; tras publicar, es el nuevo. Sin ventana de ausencia.
+func TestReplaceSelfUnix_NuncaAusenteNiParcial(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el contrato de disponibilidad aplica a Unix")
+	}
+	dir := t.TempDir()
+	current, newBin := filepath.Join(dir, "mem"), filepath.Join(dir, "mem-new")
+	writeScript037(t, current, "old")
+	writeScript037(t, newBin, "new")
+
+	observed := map[string]string{}
+	replaceStep = func(stage string) error {
+		observed[stage] = runScript037(t, current)
+		return nil
+	}
+	t.Cleanup(func() { replaceStep = func(string) error { return nil } })
+
+	if err := replaceSelf(current, newBin); err != nil {
+		t.Fatalf("replaceSelf: %v", err)
+	}
+	for _, stage := range []string{"copied", "chmod", "sync", "close", "rename"} {
+		if observed[stage] != "old" {
+			t.Fatalf("en la etapa %q el destino respondió %q, quiero el anterior completo", stage, observed[stage])
+		}
+	}
+	if got := runScript037(t, current); got != "new" {
+		t.Fatalf("tras publicar: %q", got)
+	}
+	assertNoUpdateLeftovers(t, dir, "mem", "mem-new")
+}
+
+// TestReplaceSelfUnix_FalloAntesDePublicarConservaAnterior cubre US4.5: un
+// fallo o cancelación en cualquier etapa previa al rename conserva el
+// ejecutable anterior, limpia el temporal propio y no declara éxito.
+func TestReplaceSelfUnix_FalloAntesDePublicarConservaAnterior(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el contrato de disponibilidad aplica a Unix")
+	}
+	for _, failAt := range []string{"copied", "chmod", "sync", "close", "rename"} {
+		t.Run(failAt, func(t *testing.T) {
+			dir := t.TempDir()
+			current, newBin := filepath.Join(dir, "mem"), filepath.Join(dir, "mem-new")
+			writeScript037(t, current, "old")
+			writeScript037(t, newBin, "new")
+			replaceStep = func(stage string) error {
+				if stage == failAt {
+					return context.Canceled
+				}
+				return nil
+			}
+			t.Cleanup(func() { replaceStep = func(string) error { return nil } })
+
+			if err := replaceSelf(current, newBin); err == nil {
+				t.Fatal("un fallo antes de publicar no puede declarar éxito")
+			}
+			if got := runScript037(t, current); got != "old" {
+				t.Fatalf("el destino cambió a %q", got)
+			}
+			assertNoUpdateLeftovers(t, dir, "mem", "mem-new")
+		})
+	}
+
+	dir := t.TempDir()
+	current := filepath.Join(dir, "mem")
+	writeScript037(t, current, "old")
+	if err := replaceSelf(current, filepath.Join(dir, "no-existe")); err == nil {
+		t.Fatal("fuente ausente debe fallar")
+	}
+	if got := runScript037(t, current); got != "old" {
+		t.Fatalf("fuente ausente alteró el destino: %q", got)
+	}
+	assertNoUpdateLeftovers(t, dir, "mem")
+}
+
+// assertNoUpdateLeftovers comprueba que en dir solo quedan los archivos
+// esperados: ni temporales ni el respaldo .old de la versión anterior.
+func assertNoUpdateLeftovers(t *testing.T, dir string, want ...string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allowed := map[string]bool{}
+	for _, w := range want {
+		allowed[w] = true
+	}
+	for _, e := range entries {
+		if !allowed[e.Name()] {
+			t.Fatalf("archivo residual tras la actualización: %s", e.Name())
+		}
 	}
 }

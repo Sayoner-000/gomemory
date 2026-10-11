@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# curl de fixture para las pruebas de instalación de la feature 037.
+#
+# Sirve las URLs reales del release desde un directorio local, sin red:
+#   https://api.github.com/repos/<repo>/releases/latest  -> $INSTALL037_FIXTURE/api/latest.json
+#   https://github.com/<repo>/releases/download/<tag>/<f> -> $INSTALL037_FIXTURE/download/<tag>/<f>
+# Un archivo ausente se comporta como HTTP 404 con -f (salida 22). Si la URL
+# contiene $INSTALL037_FAIL_URL, simula un fallo de red (salida 6).
+# Solo entiende las opciones que usan los instaladores: -f -s -S -L y -o.
+set -u
+out=""
+url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+root="${INSTALL037_FIXTURE:?INSTALL037_FIXTURE sin definir}"
+if [ -n "${INSTALL037_FAIL_URL:-}" ] && [[ "$url" == *"$INSTALL037_FAIL_URL"* ]]; then
+  echo "curl: (6) Could not resolve host (fixture)" >&2
+  exit 6
+fi
+case "$url" in
+  https://api.github.com/repos/*/releases/latest) src="$root/api/latest.json" ;;
+  https://github.com/*/releases/download/*)
+    rest="${url#*/releases/download/}"
+    src="$root/download/$rest" ;;
+  *) echo "curl: (22) URL no prevista por el fixture: $url" >&2; exit 22 ;;
+esac
+if [ ! -f "$src" ]; then
+  echo "curl: (22) The requested URL returned error: 404" >&2
+  exit 22
+fi
+if [ -n "$out" ]; then
+  cat "$src" > "$out"
+else
+  cat "$src"
+fi

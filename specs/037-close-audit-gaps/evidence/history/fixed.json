@@ -1,0 +1,59 @@
+{
+  "cases_selected": [
+    "history"
+  ],
+  "cases_run": 10,
+  "status": "passed",
+  "results": [
+    {
+      "case_id": "history.preview",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.cancel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.concurrent_writer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.unreadable_copy",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.checkpoint_blocked",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.retry_completes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.identity_preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.idempotent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.reports_closed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.residues",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

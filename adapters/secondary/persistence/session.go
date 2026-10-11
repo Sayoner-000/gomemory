@@ -37,7 +37,7 @@ func StartSession(db *sql.DB, project string) (*domain.Session, error) {
 // hay sesión activa no hace nada (best-effort): el prompt no se pierde de forma
 // crítica, solo no habrá provenance para ese turno.
 func SetSessionLastPrompt(db *sql.DB, project, prompt string) error {
-	prompt = domain.RedactSecrets(domain.RedactPrivate(prompt))
+	prompt = domain.ProtectText(prompt)
 	if len(prompt) > maxOriginPromptLen {
 		prompt = prompt[:maxOriginPromptLen]
 	}
@@ -66,7 +66,7 @@ const maxOriginPromptLen = 2000
 func UpdateSessionSummary(db *sql.DB, id, summary string) error {
 	res, err := db.Exec(
 		`UPDATE sessions SET summary = ? WHERE id = ? AND ended_at IS NULL`,
-		summary, id,
+		domain.ProtectText(summary), id,
 	)
 	if err != nil {
 		return fmt.Errorf("update session summary: %w", err)
@@ -78,10 +78,12 @@ func UpdateSessionSummary(db *sql.DB, id, summary string) error {
 	return nil
 }
 
+// EndSession cierra la sesión id con su resumen protegido (spec 037,
+// FR-001): ninguna región privada ni credencial reconocida se persiste.
 func EndSession(db *sql.DB, id, summary string) error {
 	res, err := db.Exec(
 		`UPDATE sessions SET ended_at = `+Now+`, summary = ? WHERE id = ? AND ended_at IS NULL`,
-		summary, id,
+		domain.ProtectText(summary), id,
 	)
 	if err != nil {
 		return fmt.Errorf("end session: %w", err)
@@ -107,6 +109,9 @@ func ActiveSession(db *sql.DB, project string) (*domain.Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("active session: %w", err)
 	}
+	// Filas anteriores a la feature 037 pueden guardar el resumen en crudo:
+	// se depura al leer, sin reescribir la fila (eso es tarea de sanitize).
+	s.Summary = domain.ProtectText(s.Summary)
 	if endedAt.Valid {
 		s.EndedAt = &endedAt.String
 	}
@@ -135,6 +140,7 @@ func RecentSessions(db *sql.DB, project string, limit int) ([]domain.Session, er
 		if err != nil {
 			return nil, fmt.Errorf("scan session: %w", err)
 		}
+		s.Summary = domain.ProtectText(s.Summary)
 		if endedAt != "" {
 			s.EndedAt = &endedAt
 		}

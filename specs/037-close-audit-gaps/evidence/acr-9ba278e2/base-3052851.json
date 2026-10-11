@@ -1,0 +1,312 @@
+{
+  "cases_selected": [
+    "privacy",
+    "history",
+    "context-wrap",
+    "installation"
+  ],
+  "cases_run": 60,
+  "status": "failed",
+  "results": [
+    {
+      "case_id": "privacy.save",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.session_end_cli",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.mcp_save_session_summary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_end_session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_stderr",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.hook_compact_summary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.hook_channel_error",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.relation_create",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.relation_update",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.relation_list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_judge_memories",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.export",
+      "ok": false,
+      "detail": "salida 0 o export revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.import",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.context",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.session_list",
+      "ok": false,
+      "detail": "revela ['privado']"
+    },
+    {
+      "case_id": "privacy.original_public_stored",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.original_public_exact",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.original_private_not_stored",
+      "ok": false,
+      "detail": "salida 0 refs=['42e12f554812']"
+    },
+    {
+      "case_id": "privacy.store_bytes",
+      "ok": false,
+      "detail": "marcadores en almacén: ['projects/privacy-9ebbf4e1f0beec99/mem.db-wal:privado', 'projects/privacy-9ebbf4e1f0beec99/mem.db-wal:credencial', 'projects/privacy-9ebbf4e1f0beec99/mem.db:privado', 'projects/privacy-9ebbf4e1f0beec99/mem.db:credencial', 'projects/privacy-import-dba4c21cde517b77/mem.db:privado']"
+    },
+    {
+      "case_id": "history.preview",
+      "ok": false,
+      "detail": "salida 1 categorías {}"
+    },
+    {
+      "case_id": "history.cancel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.concurrent_writer",
+      "ok": false,
+      "detail": "salida 1 stderr Error: comando desconocido 'sanitize'"
+    },
+    {
+      "case_id": "history.unreadable_copy",
+      "ok": false,
+      "detail": "salida 1 estado "
+    },
+    {
+      "case_id": "history.checkpoint_blocked",
+      "ok": false,
+      "detail": "salida 1 estado "
+    },
+    {
+      "case_id": "history.retry_completes",
+      "ok": false,
+      "detail": "salida 1 estado None"
+    },
+    {
+      "case_id": "history.identity_preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "history.idempotent",
+      "ok": false,
+      "detail": "salida 1 filas None"
+    },
+    {
+      "case_id": "history.reports_closed",
+      "ok": false,
+      "detail": "estados set()"
+    },
+    {
+      "case_id": "history.residues",
+      "ok": false,
+      "detail": "residuos: ['backups/history-e13a7dc863737bf0/20250101-000000.000000000.json:privado', 'backups/history-e13a7dc863737bf0/20250101-000000.000000000.json:credencial', 'backups/history-e13a7dc863737bf0/20250102-000000.000000000.json:privado', 'backups/history-e13a7dc863737bf0/20250102-000000.000000000.json:credencial', 'projects/privacy-9ebbf4e1f0beec99/mem.db-wal:privado']"
+    },
+    {
+      "case_id": "context.cli_sequential",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_overlapped_content",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.discards_present",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "context.mcp_metrics_isolated",
+      "ok": false,
+      "detail": "emisiones MCP: [(8420, 655), (16175, 655), (47134, 655), (54889, 655), (62643, 655), (62663, 655), (62683, 655), (62703, 655)] (8 filas)"
+    },
+    {
+      "case_id": "context.mcp_equals_isolated",
+      "ok": false,
+      "detail": "solapadas [(8420, 655), (16175, 655)] vs aislada [(8420, 655)]"
+    },
+    {
+      "case_id": "wrap.missing",
+      "ok": false,
+      "detail": "salida 0: ━━━ ¿Guardar algo en memoria? ━━━\n¿Guardar? (s/N):"
+    },
+    {
+      "case_id": "wrap.no_permission",
+      "ok": false,
+      "detail": "salida 0: ━━━ ¿Guardar algo en memoria? ━━━\n¿Guardar? (s/N):"
+    },
+    {
+      "case_id": "wrap.child_0",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_7",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_1",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "wrap.child_signal",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.explicit_ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.latest_resolved_once",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.hash_mismatch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_absent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_404",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_invalid",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_missing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_substring_only",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_duplicated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.network_failure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.no_sha_tool",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.empty_binary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.symlink_member",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.traversal_member",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.not_platform_binary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.prerelease_tag",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.readonly_destination",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.completes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.never_absent",
+      "ok": false,
+      "detail": "3610/754059 invocaciones fallaron: ['ausente', 'ausente', 'ausente']"
+    },
+    {
+      "case_id": "update.no_leftovers",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -7,11 +7,14 @@ import (
 	"mem/domain"
 )
 
+// InsertRelation guarda una relación con su razonamiento protegido (spec
+// 037, FR-001). Todos los lectores de este archivo también depuran
+// reasoning, para que filas anteriores al cambio no se reemitan en crudo.
 func InsertRelation(db *sql.DB, r *domain.Relation) (int64, error) {
 	res, err := db.Exec(
 		`INSERT INTO memory_relations (project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, `+Now+`)`,
-		r.Project, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, r.Reasoning,
+		r.Project, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, domain.ProtectText(r.Reasoning),
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert relation: %w", err)
@@ -22,7 +25,7 @@ func InsertRelation(db *sql.DB, r *domain.Relation) (int64, error) {
 func UpdateRelation(db *sql.DB, id int64, relation domain.RelationType, confidence float64, reasoning string) error {
 	res, err := db.Exec(
 		`UPDATE memory_relations SET relation = ?, confidence = ?, reasoning = ? WHERE id = ?`,
-		string(relation), confidence, reasoning, id,
+		string(relation), confidence, domain.ProtectText(reasoning), id,
 	)
 	if err != nil {
 		return fmt.Errorf("update relation: %w", err)
@@ -47,6 +50,7 @@ func GetRelation(db *sql.DB, project string, id int64) (*domain.Relation, error)
 	if err != nil {
 		return nil, fmt.Errorf("get relation: %w", err)
 	}
+	r.Reasoning = domain.ProtectText(r.Reasoning)
 	return &r, nil
 }
 
@@ -65,6 +69,7 @@ func GetRelationByPair(db *sql.DB, project string, memIDA, memIDB int64) (*domai
 	if err != nil {
 		return nil, fmt.Errorf("get relation by pair: %w", err)
 	}
+	r.Reasoning = domain.ProtectText(r.Reasoning)
 	return &r, nil
 }
 
@@ -89,6 +94,7 @@ func ListRelations(db *sql.DB, project string, limit int) ([]domain.Relation, er
 		if err != nil {
 			return nil, fmt.Errorf("scan relation: %w", err)
 		}
+		r.Reasoning = domain.ProtectText(r.Reasoning)
 		rels = append(rels, r)
 	}
 	if rels == nil {
@@ -116,6 +122,7 @@ func ListAllRelations(db *sql.DB, project string) ([]domain.Relation, error) {
 		if err := rows.Scan(&r.ID, &r.Project, &r.MemoryIDA, &r.MemoryIDB, &r.Relation, &r.Confidence, &r.Reasoning, &r.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan relation: %w", err)
 		}
+		r.Reasoning = domain.ProtectText(r.Reasoning)
 		rels = append(rels, r)
 	}
 	if rels == nil {
@@ -131,7 +138,7 @@ func ImportRelation(db *sql.DB, r *domain.Relation) (int64, error) {
 	res, err := db.Exec(
 		`INSERT INTO memory_relations (project, memory_id_a, memory_id_b, relation, confidence, reasoning, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?,''), `+Now+`))`,
-		r.Project, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, r.Reasoning, r.CreatedAt,
+		r.Project, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, domain.ProtectText(r.Reasoning), r.CreatedAt,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("import relation: %w", err)

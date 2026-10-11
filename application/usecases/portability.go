@@ -16,6 +16,8 @@ import (
 // ExportProject arma un bundle portable con TODAS las memorias y relaciones del
 // proyecto. Los RefID del bundle son los ids reales de origen; sirven para
 // remapear las relaciones al importar. Normaliza los filepaths a `/` (cross-OS).
+// Los campos de texto salen protegidos (spec 037, FR-002): una fila guardada
+// antes de la política vigente no se reemite en crudo en el bundle.
 func ExportProject(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, project string) (domain.ExportBundle, error) {
 	mems, err := memRepo.ListAll(project)
 	if err != nil {
@@ -35,10 +37,10 @@ func ExportProject(memRepo ports.MemoryRepository, relRepo ports.RelationReposit
 		bundle.Memories = append(bundle.Memories, domain.ExportMemory{
 			RefID:          m.ID,
 			Type:           string(m.Type),
-			Title:          m.Title,
-			Content:        m.Content,
+			Title:          domain.ProtectText(m.Title),
+			Content:        domain.ProtectText(m.Content),
 			Filepath:       filepath.ToSlash(m.Filepath),
-			OriginPrompt:   m.OriginPrompt,
+			OriginPrompt:   domain.ProtectText(m.OriginPrompt),
 			TopicKey:       m.TopicKey,
 			SourceReviewID: m.SourceReviewID,
 			CreatedAt:      m.CreatedAt,
@@ -51,7 +53,7 @@ func ExportProject(memRepo ports.MemoryRepository, relRepo ports.RelationReposit
 			RefB:       r.MemoryIDB,
 			Relation:   string(r.Relation),
 			Confidence: r.Confidence,
-			Reasoning:  r.Reasoning,
+			Reasoning:  domain.ProtectText(r.Reasoning),
 			CreatedAt:  r.CreatedAt,
 		})
 	}

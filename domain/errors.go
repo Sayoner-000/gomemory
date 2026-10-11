@@ -16,3 +16,8 @@ var (
 	// tocar cualquier puerto (feature 015).
 	ErrInvalidContextRequest = errors.New("invalid context request")
 )
+
+// ErrProtectedContent indica que un texto contiene una región privada o una
+// credencial reconocida y por eso no se guarda ni se devuelve como original
+// recuperable (spec 037, FR-004). El mensaje nunca incluye el contenido.
+var ErrProtectedContent = errors.New("contenido protegido: no se guarda ni se recupera como original")

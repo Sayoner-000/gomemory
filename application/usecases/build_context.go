@@ -330,7 +330,18 @@ func New(lister ports.MemoryLister, session ports.SessionQuerier, relations port
 	return &Builder{Lister: lister, Session: session, Relations: relations, Project: project, Root: root}
 }
 
+// Build arma el contexto del proyecto. Cada llamada trabaja sobre una copia
+// local del Builder con el contador de descartes en cero (spec 037, H-03):
+// la configuración es inmutable y se comparte, pero el estado de una
+// construcción no. Así llamadas repetidas o concurrentes sobre la misma
+// instancia —el servidor MCP la reutiliza— no acumulan ni mezclan descartes.
 func (b *Builder) Build() (string, error) {
+	local := *b
+	local.discardedChars = 0
+	return local.build()
+}
+
+func (b *Builder) build() (string, error) {
 	mems, err := b.Lister.List(b.Project, 100)
 	if err != nil {
 		return "", err
@@ -624,7 +635,10 @@ func (b *Builder) Build() (string, error) {
 			if s.EndedAt == nil {
 				continue
 			}
-			summary := strings.TrimSpace(s.Summary)
+			// Proteger ANTES de recortar (spec 037, FR-002): un extracto que
+			// corte la etiqueta de cierre dejaría la región privada abierta a
+			// medias y no se podría reconocer después.
+			summary := strings.TrimSpace(domain.ProtectText(s.Summary))
 			if summary == "" {
 				summary = "(sin resumen)"
 			}

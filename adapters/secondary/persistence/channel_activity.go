@@ -62,7 +62,7 @@ func RecordChannelError(db *sql.DB, project, agent, scope, kind, msg string) err
 		 ON CONFLICT(project, agent, scope, kind) DO UPDATE SET
 		   last_error = excluded.last_error,
 		   last_error_at = excluded.last_error_at`,
-		project, agent, scope, kind, msg)
+		project, agent, scope, kind, domain.ProtectText(msg))
 	if err != nil {
 		return fmt.Errorf("registrar fallo de canal: %w", err)
 	}
@@ -83,7 +83,7 @@ func LastChannelActivity(db *sql.DB, project, agent, scope, kind string) (Channe
 	}
 	return ChannelActivity{
 		FiredAt:     parseStoredTime(firedAt),
-		LastError:   lastErr,
+		LastError:   domain.ProtectText(lastErr),
 		LastErrorAt: parseStoredTime(errAt),
 	}, true
 }

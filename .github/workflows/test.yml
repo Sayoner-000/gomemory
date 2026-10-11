@@ -1,0 +1,142 @@
+name: test
+
+# Validación de cambios (spec 037, FR-025/FR-027). release.yml solo corre con
+# tags y no ejecutaba la suite: este workflow la ejecuta en cada push y pull
+# request, sin omitir pruebas ni rebajar umbrales para aprobar.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: núcleo Go, cobertura y runner (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # Python mínimo de los runners: 3.12 (sintaxis); la CI usa 3.13.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./... -count=1
+
+      - name: Detector de carreras en las rutas afectadas
+        run: go test -race ./application/usecases ./adapters/secondary/persistence ./adapters/primary/cli -count=1
+
+      - name: Cobertura combinada (umbral 80 %)
+        run: |
+          GOMEMORY_COVERAGE_OUTPUT="$RUNNER_TEMP/coverage" bash scripts/coverage.sh
+
+      - name: Runner de la auditoría 037 sobre el binario real
+        run: |
+          go build -o "$RUNNER_TEMP/bin/mem" ./infrastructure
+          python3 scripts/audit_037_smoke.py \
+            --mem-bin "$RUNNER_TEMP/bin/mem" \
+            --work-dir "$RUNNER_TEMP/audit037/work" \
+            --data-home "$RUNNER_TEMP/audit037/data" \
+            --out-dir "$RUNNER_TEMP/audit037/evidence" \
+            --case all
+
+      - name: Evidencia del runner
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: audit037-linux
+          path: ${{ runner.temp }}/audit037/evidence
+          if-no-files-found: warn
+
+  plugin-installer:
+    name: plugin OpenCode e instalador TypeScript
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Mínimo declarado por installer/package.json (engines: >=22.20.0).
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.20.0"
+
+      - name: Plugin OpenCode (suite completa)
+        run: node --test infrastructure/plugin/opencode/gomemory.test.mjs
+
+      - name: Instalador
+        run: |
+          npm --prefix installer ci
+          npm --prefix installer run typecheck
+          npm --prefix installer test
+
+  macos-installation:
+    name: instalación y actualización Unix (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Runner de instalación sobre Mach-O real
+        run: |
+          go build -o "$RUNNER_TEMP/bin/mem" ./infrastructure
+          python3 scripts/audit_037_smoke.py \
+            --mem-bin "$RUNNER_TEMP/bin/mem" \
+            --work-dir "$RUNNER_TEMP/audit037/work" \
+            --data-home "$RUNNER_TEMP/audit037/data" \
+            --out-dir "$RUNNER_TEMP/audit037/evidence" \
+            --case installation
+
+  windows:
+    name: Windows (Go y install.ps1)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: go test
+        run: go test ./... -count=1
+
+      - name: Instalador PowerShell (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $work = Join-Path $env:RUNNER_TEMP 'audit037-ps51'
+          go build -o (Join-Path $env:RUNNER_TEMP 'mem.exe') ./infrastructure
+          powershell -NoProfile -File scripts/audit_037_windows_smoke.ps1 -MemBin (Join-Path $env:RUNNER_TEMP 'mem.exe') -WorkDir $work -Case all
+          exit $LASTEXITCODE
+
+      - name: Instalador PowerShell (PowerShell 7)
+        shell: pwsh
+        run: |
+          $work = Join-Path $env:RUNNER_TEMP 'audit037-ps7'
+          pwsh -NoProfile -File scripts/audit_037_windows_smoke.ps1 -MemBin (Join-Path $env:RUNNER_TEMP 'mem.exe') -WorkDir $work -Case all
+          exit $LASTEXITCODE
+
+      - name: Evidencia de Windows
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: audit037-windows
+          path: |
+            ${{ runner.temp }}/audit037-ps51/result.json
+            ${{ runner.temp }}/audit037-ps7/result.json
+          if-no-files-found: warn

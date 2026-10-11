@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import plugin, { GomemoryPlugin, __testing } from './gomemory.ts';
 
@@ -84,14 +84,39 @@ test('default export is the dual v1+v2 definition', () => {
 
 const settle = () => new Promise(r => setTimeout(r, 15));
 
+// Comparación por prefijo semántico de argumentos (H-09, FR-024): producción
+// añade argumentos como --conversation=<id>, así que comparar la llamada
+// completa con 'session start' dejaba de detectar el inicio real.
+const startsWith = (args, prefix) => prefix.split(' ').every((w, i) => args[i] === w);
+
+// Fixtures v2 vivas: afterEach las libera aunque un assert falle a mitad de
+// prueba, para que una suscripción abierta no contamine a las siguientes.
+const liveV2 = new Set();
+afterEach(async () => {
+  for (const f of [...liveV2]) await f.cleanup();
+});
+
 // ctx falso con la forma de @opencode/plugin@2.0.16: suscripción de eventos
 // como iterador asíncrono, ganchos por dominio y un exec que registra llamadas.
-async function v2Fixture({ directory = '/proj', outputs = {}, owners } = {}) {
+// Opciones del fixture (feature 037):
+//   execImpl(args, opts)  sustituye la respuesta de mem (p. ej. IO lento que
+//                         solo termina al abortarse la señal recibida)
+//   failHook              nombre del registro cuyo hook() rechaza en setup
+//   disposeFail           nombre del registro cuyo dispose() rechaza
+//   subscribeFail         la suscripción a eventos rechaza al iterar
+//   options               opciones internas de createV2Setup (closeBudgetMs)
+async function v2Fixture({ directory = '/proj', outputs = {}, owners, execImpl, failHook, disposeFail, subscribeFail, options, allowSetupFailure } = {}) {
   const calls = [];
+  const failures = [];
   const out = { context: 'CTX', 'hook compaction-context': 'COMPACT', ...outputs };
   const exec = async (bin, args, opts) => {
-    calls.push({ args, input: opts?.input ?? '', cwd: opts?.cwd });
-    if (out.fail?.includes(args.join(' '))) throw new Error('boom');
+    calls.push({ args, input: opts?.input ?? '', cwd: opts?.cwd, signal: opts?.signal });
+    const failing = out.fail?.find(prefix => startsWith(args, prefix));
+    if (failing) { failures.push(failing); throw new Error('boom'); }
+    if (execImpl) {
+      const res = await execImpl(args, opts);
+      if (res !== undefined) return res;
+    }
     return out[args.join(' ')] ?? '';
   };
   let messages = [];
@@ -99,21 +124,34 @@ async function v2Fixture({ directory = '/proj', outputs = {}, owners } = {}) {
   let wake = () => {};
   const sessionHooks = {};
   const toolHooks = {};
-  const reg = { dispose: async () => {} };
+  const disposed = [];
+  let subscriptionSignal;
+  const register = (name, fn, target) => {
+    if (failHook === name) throw new Error(`registro ${name} rechazado`);
+    target[name] = fn;
+    return { dispose: async () => {
+      disposed.push(name);
+      if (disposeFail === name) throw new Error(`dispose ${name} falló`);
+    } };
+  };
   const ctx = {
     location: { directory },
     event: {
-      subscribe: ({ signal }) => ({
-        async *[Symbol.asyncIterator]() {
-          while (!signal?.aborted) {
-            if (queue.length) { yield queue.shift(); continue; }
-            await new Promise(r => { wake = r; signal?.addEventListener('abort', r, { once: true }); });
-          }
-        },
-      }),
+      subscribe: ({ signal }) => {
+        subscriptionSignal = signal;
+        return {
+          async *[Symbol.asyncIterator]() {
+            if (subscribeFail) throw new Error('suscripción rechazada');
+            while (!signal?.aborted) {
+              if (queue.length) { yield queue.shift(); continue; }
+              await new Promise(r => { wake = r; signal?.addEventListener('abort', r, { once: true }); });
+            }
+          },
+        };
+      },
     },
     session: {
-      hook: async (name, fn) => { sessionHooks[name] = fn; return reg; },
+      hook: async (name, fn) => register(name, fn, sessionHooks),
       context: async () => (typeof messages === 'function' ? messages() : messages),
       // owners: sessionID → directorio dueño. Sin owners, el fake no expone
       // get (host sin la API): el plugin asume que la sesión es suya.
@@ -122,9 +160,22 @@ async function v2Fixture({ directory = '/proj', outputs = {}, owners } = {}) {
         return { id: sessionID, location: { directory: owners[sessionID] } };
       } } : {}),
     },
-    tool: { hook: async (name, fn) => { toolHooks[name] = fn; return reg; } },
+    tool: { hook: async (name, fn) => register(name, fn, toolHooks) },
   };
-  const cleanup = await __testing.createV2Setup(exec)(ctx);
+  let rawCleanup;
+  let setupError;
+  try {
+    rawCleanup = await __testing.createV2Setup(exec, options)(ctx);
+  } catch (err) {
+    if (!allowSetupFailure) throw err;
+    setupError = err;
+    rawCleanup = async () => {};
+  }
+  let cleaned;
+  const cleanup = () => {
+    liveV2.delete(fixture);
+    return (cleaned ??= rawCleanup());
+  };
   const emit = async (type, data = { sessionID: 's1' }, dir = directory) => {
     // dir === null: evento sin location, como session.execution.* en 2.0.16.
     queue.push({ type, data, ...(dir === null ? {} : { location: { directory: dir } }) });
@@ -136,8 +187,16 @@ async function v2Fixture({ directory = '/proj', outputs = {}, owners } = {}) {
     await sessionHooks[name](ev);
     return ev.system.map(p => { assert.equal(p.type, 'text'); return p.text; });
   };
-  return { calls, emit, system, sessionHooks, toolHooks, cleanup, setMessages: v => { messages = v; },
-    hookCalls: name => calls.filter(c => c.args[0] === 'hook' && c.args[1] === name) };
+  const fixture = { calls, failures, emit, system, sessionHooks, toolHooks, cleanup, rawCleanup, disposed, setupError,
+    subscriptionSignal: () => subscriptionSignal, setMessages: v => { messages = v; },
+    hookCalls: name => calls.filter(c => c.args[0] === 'hook' && c.args[1] === name),
+    callsTo: prefix => calls.filter(c => startsWith(c.args, prefix)),
+    // Inicio de sesión de memoria de una conversación concreta y en el
+    // directorio del proyecto: comando, identidad y proyecto a la vez.
+    sessionStarts: id => calls.filter(c => startsWith(c.args, 'session start')
+      && c.args.includes(`--conversation=${id}`) && c.cwd === directory) };
+  liveV2.add(fixture);
+  return fixture;
 }
 
 const v2Assistant = (id, tools, agent = 'build') => ({ type: 'assistant', id, agent, content: tools.map(([name, input]) => (
@@ -146,10 +205,10 @@ const v2Assistant = (id, tools, agent = 'build') => ({ type: 'assistant', id, ag
 test('v2: session.created starts a session only for this directory', async () => {
   const f = await v2Fixture();
   await f.emit('session.created', { sessionID: 's1' }, '/otro');
-  assert.equal(f.calls.filter(c => c.args.join(' ') === 'session start').length, 0);
+  assert.equal(f.callsTo('session start').length, 0);
   await f.emit('session.created');
-  assert.equal(f.calls.filter(c => c.args.join(' ') === 'session start').length, 1);
-  assert.equal(f.calls[0].cwd, '/proj');
+  assert.equal(f.callsTo('session start').length, 1);
+  assert.equal(f.sessionStarts('s1').length, 1);
   await f.cleanup();
 });
 
@@ -174,9 +233,9 @@ test('v2: context hook injects protocol and project memory as text parts', async
 test('v2: cleanup stops the subscription and closes the session', async () => {
   const f = await v2Fixture();
   await f.cleanup();
-  assert.equal(f.calls.filter(c => c.args.join(' ') === 'session end').length, 1);
+  assert.equal(f.callsTo('session end').length, 1);
   await f.emit('session.created');
-  assert.equal(f.calls.filter(c => c.args.join(' ') === 'session start').length, 0);
+  assert.equal(f.callsTo('session start').length, 0);
 });
 
 test('v2: prompt hook records provenance', async () => {
@@ -229,6 +288,9 @@ test('v2: a failing mem never throws into OpenCode', async () => {
   await f.emit('session.created');
   await f.sessionHooks.prompt({ sessionID: 's1', prompt: { text: 'hola' } });
   await f.system('context');
+  // El fallo inyectado tiene que haberse producido de verdad: sin esto, un
+  // fixture que deja de coincidir con los argumentos pasa sin probar nada.
+  for (const prefix of ['context', 'hook prompt', 'session start']) assert.ok(f.failures.includes(prefix), `sin fallo en ${prefix}`);
   await f.cleanup();
 });
 
@@ -282,7 +344,7 @@ test('v2: foreign sessions get no context, prompt, compaction or subagent calls'
   assert.deepEqual(await f.system('compaction', 'sA'), []);
   await f.sessionHooks.prompt({ sessionID: 'sA', prompt: { text: 'hola' } });
   await f.toolHooks['execute.after']({ tool: 'subagent', sessionID: 'sA', status: 'completed', result: { content: 'x' } });
-  const before = f.calls.filter(c => c.args.join(' ') === 'session end');
+  const before = f.callsTo('session end');
   assert.deepEqual(f.calls.filter(c => !before.includes(c)), []);
   await f.cleanup();
 });
@@ -291,8 +353,201 @@ test('v2: session.created uses the session location, not the envelope', async ()
   const f = await v2Fixture({ owners: {} });
   await f.emit('session.created', { sessionID: 'sB', location: { directory: '/projB' } }, null);
   await f.emit('session.created', { sessionID: 'sP', location: { directory: '/proj' } }, '/home');
-  assert.equal(f.calls.filter(c => c.args.join(' ') === 'session start').length, 1);
+  assert.equal(f.callsTo('session start').length, 1);
+  assert.equal(f.sessionStarts('sP').length, 1);
   assert.ok((await f.system('context', 'sP')).length > 0);
   assert.deepEqual(await f.system('context', 'sB'), []);
   await f.cleanup();
+});
+
+// ── Feature 037 · H-05: el consumidor v2 recibe la salida reducida ─────────
+// La fábrica v1 escribía la reducción en un objeto temporal que nadie leía:
+// event.result seguía con el texto original. Estas pruebas observan
+// event.result DESPUÉS del gancho, que es lo que recibe OpenCode.
+
+const BIG = 'x'.repeat(9000);
+const compressing = { 'hook tool-output --enabled': 'true', 'hook tool-output opencode': JSON.stringify({ output: 'REDUCIDO' }) };
+
+const afterTool = async (f, ev) => {
+  const event = { tool: 'shell', sessionID: 's1', status: 'completed', id: 'c1', ...ev };
+  await f.toolHooks['execute.after'](event);
+  return event;
+};
+
+test('v2 (037): content string reducido llega al consumidor y conserva los demás campos', async () => {
+  const f = await v2Fixture({ outputs: compressing });
+  const ev = await afterTool(f, { result: { content: BIG, title: 'ls', metadata: { exit: 0 } } });
+  assert.deepEqual(ev.result, { content: 'REDUCIDO', title: 'ls', metadata: { exit: 0 } });
+  await f.cleanup();
+});
+
+test('v2 (037): partes mixtas: primera textual reducida con sus metadatos, no textuales en orden', async () => {
+  const f = await v2Fixture({ outputs: compressing });
+  const content = [
+    { type: 'text', text: 'a'.repeat(5000), id: 'p1', synthetic: true },
+    { type: 'image', url: 'file:///img.png', id: 'p2' },
+    { type: 'text', text: 'b'.repeat(5000), id: 'p3' },
+    { type: 'file', path: 'x.go', id: 'p4' },
+  ];
+  const ev = await afterTool(f, { result: { content } });
+  assert.deepEqual(ev.result.content, [
+    { type: 'text', text: 'REDUCIDO', id: 'p1', synthetic: true },
+    { type: 'image', url: 'file:///img.png', id: 'p2' },
+    { type: 'file', path: 'x.go', id: 'p4' },
+  ]);
+  await f.cleanup();
+});
+
+test('v2 (037): output string reducido; output objeto nunca se reemplaza por texto', async () => {
+  const f = await v2Fixture({ outputs: compressing });
+  const ev = await afterTool(f, { result: { output: BIG, title: 't' } });
+  assert.deepEqual(ev.result, { output: 'REDUCIDO', title: 't' });
+  const objectOutput = { output: { rows: [BIG] } };
+  const ev2 = await afterTool(f, { result: objectOutput });
+  assert.equal(ev2.result, objectOutput);
+  assert.deepEqual(ev2.result.output, { rows: [BIG] });
+  await f.cleanup();
+});
+
+test('v2 (037): sin compresión, sin ganancia, incompleto, ajeno o sin dueño: resultado intacto', async () => {
+  const cases = [
+    { name: 'desactivada', outputs: { 'hook tool-output --enabled': 'false' } },
+    { name: 'sin ganancia', outputs: { 'hook tool-output --enabled': 'true', 'hook tool-output opencode': JSON.stringify({ output: BIG }) } },
+    { name: 'protegida (el hook devuelve vacío)', outputs: { 'hook tool-output --enabled': 'true', 'hook tool-output opencode': '' } },
+    { name: 'no completado', outputs: compressing, ev: { status: 'error' } },
+    { name: 'sesión ajena', outputs: compressing, owners: { s1: '/otro' } },
+    { name: 'dueño no resuelto', outputs: compressing, owners: {} },
+  ];
+  for (const c of cases) {
+    const f = await v2Fixture({ outputs: c.outputs, owners: c.owners });
+    const result = { content: BIG };
+    const ev = await afterTool(f, { result, ...(c.ev ?? {}) });
+    assert.equal(ev.result, result, c.name);
+    assert.equal(ev.result.content, BIG, c.name);
+    await f.cleanup();
+  }
+});
+
+test('v2 (037): una reducción que termina después del cierre no se publica', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const f = await v2Fixture({ outputs: compressing, execImpl: async (args) => {
+    if (startsWith(args, 'hook tool-output opencode')) { await gate; }
+  } });
+  const result = { content: BIG };
+  const event = { tool: 'shell', sessionID: 's1', status: 'completed', id: 'c1', result };
+  const pending = f.toolHooks['execute.after'](event);
+  await settle();
+  const closing = f.cleanup();
+  release();
+  await pending;
+  await closing;
+  assert.equal(event.result, result);
+});
+
+// ── Feature 037 · H-06: ciclo de vida cancelable y rollback de setup ───────
+
+for (const failHook of ['prompt', 'context', 'compaction', 'execute.after']) test(`v2 (037): fallo al registrar ${failHook} revierte lo propio sin cerrar la sesión ajena`, async () => {
+  const f = await v2Fixture({ failHook, allowSetupFailure: true });
+  assert.match(String(f.setupError?.message), new RegExp(`registro ${failHook} rechazado`));
+  assert.equal(f.subscriptionSignal()?.aborted, true, 'la suscripción propia debe abortarse');
+  const order = ['prompt', 'context', 'compaction', 'execute.after'];
+  assert.deepEqual(f.disposed, order.slice(0, order.indexOf(failHook)), 'se liberan los registros previos');
+  assert.equal(f.callsTo('session end').length, 0, 'el rollback no cierra la sesión de memoria');
+});
+
+test('v2 (037): cierre con evento en curso cancela el IO, espera y no deja operaciones', async () => {
+  let started;
+  const ioStarted = new Promise(r => { started = r; });
+  let abortedSeen = false;
+  const f = await v2Fixture({ execImpl: (args, opts) => {
+    if (!startsWith(args, 'hook turn-end')) return undefined;
+    started();
+    return new Promise((_, reject) => {
+      opts.signal?.addEventListener('abort', () => { abortedSeen = true; reject(new Error('abortado')); }, { once: true });
+    });
+  } });
+  f.setMessages([v2Assistant('msg_100', [['write', { filePath: 'a.go' }]])]);
+  f.emit('session.idle');
+  await ioStarted;
+  const t0 = Date.now();
+  const res = await f.cleanup();
+  assert.ok(Date.now() - t0 <= 5000, 'cierre en <= 5 s');
+  assert.equal(abortedSeen, true, 'el subproceso en curso recibió la cancelación');
+  assert.equal(res?.ok, true, JSON.stringify(res));
+  assert.equal(f.callsTo('session end').length, 1);
+  assert.equal(f.callsTo('session end')[0].signal?.aborted, false, 'el cierre de sesión no usa la señal ya abortada');
+  const before = f.calls.length;
+  await f.sessionHooks.prompt({ sessionID: 's1', prompt: { text: 'tarde' } });
+  await f.toolHooks['execute.after']({ tool: 'task', sessionID: 's1', status: 'completed', result: { content: 'x' } });
+  await f.emit('session.created');
+  assert.equal(f.calls.length, before, 'después de closing no hay IO nuevo');
+});
+
+test('v2 (037): cleanup repetido comparte el resultado y no duplica el cierre', async () => {
+  const f = await v2Fixture();
+  const [a, b] = await Promise.all([f.rawCleanup(), f.rawCleanup()]);
+  assert.deepEqual(a, b);
+  assert.equal(f.callsTo('session end').length, 1);
+  assert.equal(f.disposed.length, 4);
+  liveV2.delete(f);
+});
+
+test('v2 (037): un dispose que falla no impide liberar el resto y se informa depurado', async () => {
+  const f = await v2Fixture({ disposeFail: 'context' });
+  const res = await f.cleanup();
+  assert.deepEqual(f.disposed, ['prompt', 'context', 'compaction', 'execute.after']);
+  assert.equal(res?.ok, false);
+  assert.equal(res?.code, 'OPENCODE_CLEANUP_FAILED');
+  assert.ok(!JSON.stringify(res).includes('dispose context falló'), 'sin el mensaje crudo');
+  assert.equal(f.callsTo('session end').length, 1);
+});
+
+test('v2 (037): una suscripción rechazada no rompe el cierre', async () => {
+  const f = await v2Fixture({ subscribeFail: true });
+  const res = await f.cleanup();
+  assert.equal(res?.ok, true, JSON.stringify(res));
+  assert.equal(f.disposed.length, 4);
+});
+
+test('v2 (037): IO que ignora la cancelación agota el plazo y el cierre no se declara exitoso', async () => {
+  let started;
+  const ioStarted = new Promise(r => { started = r; });
+  const f = await v2Fixture({ options: { closeBudgetMs: 200 }, execImpl: (args) => {
+    if (!startsWith(args, 'hook turn-end')) return undefined;
+    started();
+    return new Promise(() => {});
+  } });
+  f.setMessages([v2Assistant('msg_200', [['write', { filePath: 'b.go' }]])]);
+  f.emit('session.idle');
+  await ioStarted;
+  const t0 = Date.now();
+  const res = await f.cleanup();
+  assert.ok(Date.now() - t0 < 2000, 'respeta el plazo configurado');
+  assert.equal(res?.ok, false);
+  assert.equal(res?.code, 'OPENCODE_CLEANUP_FAILED');
+});
+
+// execFileExec real (037, H-06): la cancelación termina el subproceso y la
+// promesa solo se rechaza cuando el hijo ya salió.
+test('v2 (037): execFileExec cancela un subproceso real y respeta la gracia antes de SIGKILL', { skip: process.platform === 'win32' }, async () => {
+  const { execFileExec } = __testing;
+  const pre = new AbortController();
+  pre.abort();
+  await assert.rejects(execFileExec('/bin/sh', ['-c', 'echo no'], { cwd: '/', signal: pre.signal }), { name: 'AbortError' });
+
+  const polite = new AbortController();
+  const t0 = Date.now();
+  const p1 = execFileExec('/bin/sh', ['-c', 'sleep 30'], { cwd: '/', signal: polite.signal });
+  setTimeout(() => polite.abort(), 50);
+  await assert.rejects(p1, { name: 'AbortError' });
+  assert.ok(Date.now() - t0 < 1000, 'SIGTERM basta para un proceso cortés');
+
+  const stubborn = new AbortController();
+  const t1 = Date.now();
+  const p2 = execFileExec('/bin/sh', ['-c', 'trap "" TERM; sleep 30 & wait'], { cwd: '/', signal: stubborn.signal });
+  setTimeout(() => stubborn.abort(), 50);
+  await assert.rejects(p2, { name: 'AbortError' });
+  const took = Date.now() - t1;
+  assert.ok(took >= 1000 && took < 3000, `SIGKILL tras la gracia de 1 s (tardó ${took} ms)`);
 });

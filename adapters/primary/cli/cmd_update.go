@@ -258,7 +258,7 @@ func resolveUpdateTarget(self, root string) (string, bool) {
 }
 
 // checkReplaceable comprueba antes de descargar que se puede escribir junto al
-// binario destino (replaceSelf crea el respaldo y el nuevo ahí mismo).
+// binario destino (replaceSelf prepara ahí mismo el temporal que publica).
 func checkReplaceable(path string) error {
 	f, err := os.CreateTemp(filepath.Dir(path), ".mem-update-*")
 	if err != nil {
@@ -438,11 +438,16 @@ func extractBinaryFromZip(archivePath, binName, destPath string) error {
 	return fmt.Errorf("binario %s no encontrado en el zip", binName)
 }
 
+// replaceStep es un punto de observación por etapa del reemplazo Unix: las
+// pruebas lo usan como barrera o para inyectar fallos/cancelación. En
+// producción no hace nada.
+var replaceStep = func(stage string) error { return nil }
+
 // replaceSelf reemplaza el binario en ejecución de forma atómica. En unix se
 // puede renombrar sobre un binario que está corriendo (el inode viejo sigue
-// vivo hasta que el proceso actual termina). En Windows el ejecutable está
-// bloqueado mientras corre, así que se deja el nuevo binario listo y se avisa
-// al usuario que complete el reemplazo manualmente.
+// vivo hasta que el proceso actual termina): ver replaceSelfUnix. En Windows
+// el ejecutable está bloqueado mientras corre, así que se deja el nuevo
+// binario listo y se avisa al usuario que complete el reemplazo manualmente.
 func replaceSelf(currentPath, newPath string) error {
 	if runtime.GOOS == "windows" {
 		finalPath := currentPath + ".new"
@@ -457,19 +462,68 @@ func replaceSelf(currentPath, newPath string) error {
 		)
 	}
 
-	backup := currentPath + ".old"
-	_ = os.Remove(backup)
-	if err := os.Rename(currentPath, backup); err != nil {
-		return fmt.Errorf("respaldar binario actual: %w", err)
+	return replaceSelfUnix(currentPath, newPath)
+}
+
+// replaceSelfUnix prepara el binario nuevo completo en un temporal del mismo
+// directorio (copia, permisos, sync y close) y solo entonces lo publica con
+// rename, que en Unix es atómico dentro de un sistema de archivos (spec 037,
+// H-04). Cualquier invocación concurrente encuentra el anterior completo o
+// el nuevo completo: nunca una ruta ausente ni un archivo a medio copiar.
+// Un fallo antes del rename elimina el temporal y conserva el instalado.
+func replaceSelfUnix(currentPath, newPath string) (err error) {
+	in, err := os.Open(newPath)
+	if err != nil {
+		return fmt.Errorf("abrir binario nuevo: %w", err)
 	}
-	if err := copyFile(newPath, currentPath); err != nil {
-		_ = os.Rename(backup, currentPath)
-		return fmt.Errorf("instalar binario nuevo: %w", err)
+	defer func() { _ = in.Close() }()
+
+	tmp, err := os.CreateTemp(filepath.Dir(currentPath), ".mem-update-*")
+	if err != nil {
+		return fmt.Errorf("preparar binario nuevo: %w", err)
 	}
-	if err := os.Chmod(currentPath, 0755); err != nil {
+	tmpName := tmp.Name()
+	closed := false
+	defer func() {
+		if err != nil {
+			if !closed {
+				_ = tmp.Close()
+			}
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err = io.Copy(tmp, in); err != nil {
+		return fmt.Errorf("copiar binario nuevo: %w", err)
+	}
+	if err = replaceStep("copied"); err != nil {
 		return err
 	}
-	_ = os.Remove(backup)
+	if err = replaceStep("chmod"); err != nil {
+		return err
+	}
+	if err = tmp.Chmod(0o755); err != nil {
+		return fmt.Errorf("permisos del binario nuevo: %w", err)
+	}
+	if err = replaceStep("sync"); err != nil {
+		return err
+	}
+	if err = tmp.Sync(); err != nil {
+		return fmt.Errorf("sincronizar binario nuevo: %w", err)
+	}
+	if err = replaceStep("close"); err != nil {
+		return err
+	}
+	closed = true
+	if err = tmp.Close(); err != nil {
+		return fmt.Errorf("cerrar binario nuevo: %w", err)
+	}
+	if err = replaceStep("rename"); err != nil {
+		return err
+	}
+	if err = os.Rename(tmpName, currentPath); err != nil {
+		return fmt.Errorf("publicar binario nuevo: %w", err)
+	}
 	return nil
 }
 

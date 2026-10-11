@@ -27,3 +27,5 @@ opencode.json
 .idea/
 .agents/
 .specify/
+__pycache__/
+*.pyc

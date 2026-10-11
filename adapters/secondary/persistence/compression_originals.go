@@ -51,7 +51,14 @@ func NewOriginalStoreRepository(db *sql.DB, clock ports.ClockPort, ttlDays, maxM
 	return &OriginalStoreRepository{db: db, clock: clock, ttl: ttl, maxBytes: maxBytes}
 }
 
+// Put guarda el original y devuelve su referencia. Rechaza con
+// domain.ErrProtectedContent un texto con región privada (también sin
+// cierre) o credencial reconocida: un original recuperable no puede
+// conservar lo que la política de privacidad elimina (spec 037, FR-004).
 func (r *OriginalStoreRepository) Put(ctx context.Context, project, content, contentType, compressor string) (string, error) {
+	if domain.IsPrivateContent(content) {
+		return "", domain.ErrProtectedContent
+	}
 	sum := sha256.Sum256([]byte(content))
 	hash := hex.EncodeToString(sum[:])
 	now := r.clock.Now()
@@ -134,6 +141,11 @@ func (r *OriginalStoreRepository) Get(ctx context.Context, ref string) (string, 
 	content, err := gunzipBytes(gz)
 	if err != nil {
 		return "", ports.OriginalMeta{}, false, err
+	}
+	// Un original guardado por una versión anterior puede ser protegido:
+	// nunca se devuelve, ni siquiera parcialmente (FR-004).
+	if domain.IsPrivateContent(content) {
+		return "", ports.OriginalMeta{}, false, domain.ErrProtectedContent
 	}
 	if _, err := r.db.ExecContext(ctx,
 		`UPDATE compression_originals SET last_access_at = ?, expires_at = ? WHERE ref = ?`,

@@ -102,6 +102,7 @@ var helpIndex = []struct {
 		{"compact", "Compactar la base de datos"},
 		{"gc", "Retirar memorias viejas"},
 		{"consolidate", "Fundir memorias redundantes"},
+		{"sanitize", "Sanear contenido privado histórico"},
 	}},
 	{"SISTEMA", []helpEntry{
 		{"project", "Proyecto actual y su base"},
@@ -243,6 +244,10 @@ COMMANDS
     --yes                Omitir el prompt de confirmación
   mem consolidate [--apply]        Fundir memorias redundantes (topic_key + actividad duplicada)
                                    Sin --apply solo previsualiza (nada se modifica)
+  mem sanitize [--apply]           Sanear resúmenes, razonamientos y diagnósticos guardados con
+                                   contenido privado (sin --apply solo previsualiza)
+    --json               Informe como un objeto JSON
+    --timeout <duración> Tiempo máximo de la operación (default: 60s)
 
   Código y arquitectura
   mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)

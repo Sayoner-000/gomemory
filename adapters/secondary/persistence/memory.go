@@ -493,7 +493,7 @@ func activeSessionLastPrompt(db *sql.DB, project string) string {
 	if err != nil || !p.Valid {
 		return ""
 	}
-	return p.String
+	return domain.ProtectText(p.String)
 }
 
 // GetMemoryByID devuelve una memoria por ID dentro de un proyecto, o nil si

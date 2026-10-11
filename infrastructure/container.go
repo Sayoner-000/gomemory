@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"path/filepath"
+	"time"
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/tui"
@@ -69,6 +72,8 @@ type Container struct {
 	SessionSummaries      ports.SessionSummaryUpdater
 	SessionMemories       ports.SessionMemoryLister
 	CompactContextBuilder ports.ContextBuilder
+	// Sanitizer (spec 037, US2): saneamiento histórico del proyecto actual.
+	Sanitizer ports.PrivacySanitizer
 }
 
 // NewContainer construye el composition root. channel es la etiqueta del
@@ -256,6 +261,17 @@ func NewContainer(root, channel string) (*Container, error) {
 		SessionMemories:       sessionMemories,
 		CompactContextBuilder: &compactContextBuilder,
 	}
+	if dataHome, err := persistence.DataHome(); err == nil {
+		store := persistence.NewPrivacyMaintenanceStore(db)
+		c.Sanitizer = &usecases.SanitizeProject{
+			Repo:      store,
+			UoW:       store,
+			Artifacts: persistence.NewPrivacyArtifacts(dataHome, project, filepath.Join(root, persistence.MemDir, "context.md")),
+			Context:   contextBuilder,
+			Clock:     clock.SystemClock{},
+			NewRunID:  newSanitizeRunID,
+		}
+	}
 	if settings.AdrSyncEnabled {
 		c.ADRSyncProvider = adrSyncProvider
 	}
@@ -309,6 +325,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		SessionSummaries:      c.SessionSummaries,
 		SessionMemories:       c.SessionMemories,
 		CompactContextBuilder: c.CompactContextBuilder,
+		Sanitizer:             c.Sanitizer,
 	}
 }
 
@@ -355,4 +372,12 @@ func (c *Container) RunTUI() error {
 		Compressor:    c.Compressor,
 		SpecKitReader: c.SpecKitReader,
 	})
+}
+
+// newSanitizeRunID identifica una ejecución de mem sanitize --apply: fecha
+// UTC ordenable más un sufijo aleatorio, sin contenido del proyecto.
+func newSanitizeRunID() string {
+	var b [4]byte
+	_, _ = rand.Read(b[:])
+	return time.Now().UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b[:])
 }

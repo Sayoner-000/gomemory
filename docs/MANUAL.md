@@ -329,7 +329,9 @@ mem session end -s "Prueba manual completada"
 
 `mem session end` también cierra el marcador de conversación local. El hook
 `mem hook session-end` aplica la misma limpieza, para que un inicio posterior
-sin `session_id` no herede el marcador de la sesión anterior.
+sin `session_id` no herede el marcador de la sesión anterior. El resumen que
+muestra al cerrar es el que quedó guardado (ya protegido), no el argumento
+crudo.
 
 ### Tests Automatizados
 
@@ -711,6 +713,53 @@ mem gc --older-than-days 180 --all --yes
 Limpieza por antigüedad, reutilizando la misma lógica de `purge`. Solo se
 ejecuta cuando el usuario lo pide explícitamente — nunca en segundo plano.
 
+### Sanear información privada histórica (`mem sanitize`)
+
+Desde la funcionalidad 037 (cierre de la auditoría defensiva), resúmenes de
+sesión, razonamientos de relaciones y diagnósticos de canal se guardan y se
+muestran sin regiones `<private>` (también anidadas o sin cierre) ni credenciales
+reconocidas. Los registros guardados **antes** ya se muestran depurados, pero en
+la base siguen en crudo hasta sanearlos:
+
+```bash
+mem sanitize                    # vista previa: categorías, ids y cantidades; no modifica nada
+mem sanitize --apply            # aplica el saneamiento del proyecto actual
+mem sanitize --apply --json     # informe como un único objeto JSON
+mem sanitize --apply --timeout 5m
+```
+
+- **Alcance**: solo el proyecto actual. No hay modo "todos los proyectos" ni
+  ruta arbitraria a una base. Solo por CLI: no existe herramienta MCP de aplicación.
+- **Qué cambia**: únicamente el texto protegido. Identificadores, fechas,
+  confianza y texto público se conservan. Los originales comprimidos con contenido
+  protegido se eliminan (prometían recuperación exacta). La segunda aplicación no
+  produce cambios.
+- **Qué no cambia**: las memorias. Una memoria con un `</private>` suelto es el
+  remanente de un bloque anidado que una versión anterior cortó a medias; no se
+  puede delimitar automáticamente, así que se reporta como `memory_review` para
+  revisarla a mano (`mem get <id>`).
+- **Archivos controlados**: reescribe los snapshots de `DataHome/backups/<proyecto>`
+  por temporal y reemplazo, regenera `.memory/context.md` si contenía contenido
+  protegido y compacta la base (`VACUUM` + checkpoint del WAL). Un snapshot de otra
+  versión se sanea igual y conserva sus campos. Un enlace o un archivo que no es
+  JSON válido no se toca: queda pendiente y se informa. No se crean respaldos crudos.
+- **Informe**: `DataHome/maintenance/privacy/<run_id>.json` (permisos 0600), sin
+  texto ni fragmentos. Se publica como `pending_cleanup` **antes** de tocar la base
+  y solo pasa a `completed` cuando la limpieza se verificó.
+- **Ventana de mantenimiento**: detén antes los clientes de gomemory abiertos
+  (agentes, servidor MCP, TUI) y reinicia los que usen una versión anterior: un
+  lector abierto impide vaciar el WAL y una versión antigua podría volver a escribir
+  datos crudos.
+
+| Código | Significado |
+| --- | --- |
+| 0 | Vista previa correcta o saneamiento y limpieza verificados |
+| 1 | `SANITIZE_BUSY`, `SANITIZE_PENDING_CLEANUP`, `SANITIZE_TIMEOUT` o `SANITIZE_FAILED`: repite `mem sanitize --apply` tras resolver la causa indicada |
+| 2 | Argumentos inválidos (por ejemplo `--timeout 0s`); no se inició nada |
+
+Límites: el saneamiento no alcanza exportaciones manuales, copias del sistema ni
+medios externos, y no promete borrado físico en SSD. Cada informe lo recuerda.
+
 ### Desinstalación completa
 
 ```bash
@@ -1007,7 +1056,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
 
 - **Sin telemetría externa** — los registros de uso y enrutamiento permanecen en el almacén local.
 - **Binario autocontenido** — sin dependencias compartidas que puedan ser comprometidas.
-- **Redacción automática** — contenido envuelto en `<private>...</private>` se elimina antes de llegar a la base de datos.
+- **Redacción automática** — contenido envuelto en `<private>...</private>` (también anidado o sin cierre) y las credenciales reconocidas se eliminan antes de llegar a la base de datos, en memorias, resúmenes de sesión, razonamientos de relaciones y diagnósticos, y no se reemiten en consultas, contexto ni exportaciones. Los registros anteriores se sanean con `mem sanitize`.
 - **SQLite WAL** — integridad ACID con Write-Ahead Logging. Los datos sobreviven cortes de energía.
 - **Permisos MCP granulares** — `forget_memory` queda fuera de auto-approve por ser destructivo/irreversible.
 
@@ -1114,8 +1163,10 @@ mem import backup.json
   el mismo archivo no crea duplicados. Preserva los `created_at/updated_at`
   originales, remapea el proyecto y los ids de relación, y **no** genera
   sinapsis automáticas espurias.
-- **Privacidad:** el import mantiene la redacción de `<private>` (el export solo
-  vuelca lo ya persistido, que en origen ya viene redactado).
+- **Privacidad:** el export aplica `ProtectText` a títulos, contenidos, prompts
+  de origen y razonamientos: una fila guardada antes de la protección vigente
+  no se reemite en crudo en el bundle. Los originales comprimidos con contenido
+  protegido no se exportan como recuperables.
 - **También desde la TUI:** tecla `c` → *Configuración* → *Exportar memorias* /
   *Importar memorias*. Esa misma pantalla muestra el estado del grafo de código
   externo y permite alternar el toggle sin salir a la línea de comandos.

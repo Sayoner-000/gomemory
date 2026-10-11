@@ -275,3 +275,51 @@ func TestHookCompactSummary_EmitJSONImprimeSoboVacio(t *testing.T) {
 		t.Errorf("con --emit=json esperaba \"{}\", got %q", out)
 	}
 }
+
+// TestHooks_ProtegenResumenYDiagnostico cubre US1.1/US1.3 (spec 037,
+// FR-001/FR-005) por la vía de eventos de integración: compact-summary y
+// channel-error no persisten ni imprimen regiones privadas (anidadas o sin
+// cierre) ni credenciales reconocidas.
+func TestHooks_ProtegenResumenYDiagnostico(t *testing.T) {
+	bin := buildMemBinary(t)
+	target := dirDeProyecto(t)
+	if err := persistence.EnsureDir(target); err != nil {
+		t.Fatalf("ensure dir: %v", err)
+	}
+	db, err := persistence.Open(target)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	project := persistence.ProjectKey(target)
+	if _, err := persistence.NewSessionRepository(db).Start(project); err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	_ = db.Close()
+
+	const protected = "público <private>SECRETO_037 <PRIVATE>anidado</private></private> AKIAIOSFODNN7EXAMPLE <private>sin cierre"
+	out := runHookWithStdin(t, bin, target, "compact-summary", `{"compact_summary":"`+protected+`"}`)
+	out += runHookWithStdinArgs(t, bin, target, []string{"hook", "channel-error", "opencode", "user", "turn_reminder", "fallo " + protected}, "")
+
+	db2, err := persistence.Open(target)
+	if err != nil {
+		t.Fatalf("reopen db: %v", err)
+	}
+	defer func() { _ = db2.Close() }()
+	var summary, lastErr string
+	if err := db2.QueryRow(`SELECT COALESCE(summary,'') FROM sessions WHERE project = ? AND ended_at IS NULL`, project).Scan(&summary); err != nil {
+		t.Fatalf("leer summary: %v", err)
+	}
+	if err := db2.QueryRow(`SELECT last_error FROM channel_activity WHERE project = ? AND kind = 'turn_reminder'`, project).Scan(&lastErr); err != nil {
+		t.Fatalf("leer last_error: %v", err)
+	}
+	for where, got := range map[string]string{"salida": out, "summary": summary, "last_error": lastErr} {
+		for _, gone := range []string{"SECRETO_037", "anidado", "AKIAIOSFODNN7EXAMPLE", "sin cierre"} {
+			if strings.Contains(got, gone) {
+				t.Fatalf("%s revela %q: %q", where, gone, got)
+			}
+		}
+	}
+	if !strings.Contains(summary, "público") || !strings.Contains(lastErr, "fallo público") {
+		t.Fatalf("se perdió el texto público: summary=%q last_error=%q", summary, lastErr)
+	}
+}

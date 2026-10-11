@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -219,5 +220,61 @@ func TestSaveSessionSummary_DescripcionAcotada(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("save_session_summary debe estar registrada en el servidor")
+	}
+}
+
+// TestSessionTools_ProtegenResumen cubre US1.1 (FR-001/FR-002) por la vía
+// de herramientas del agente: save_session_summary y end_session persisten y
+// responden sin contenido protegido.
+func TestSessionTools_ProtegenResumen(t *testing.T) {
+	root := t.TempDir()
+	db, err := persistence.Init(root)
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	sessRepo := persistence.NewSessionRepository(db)
+	sess, err := sessRepo.Start("proj")
+	if err != nil {
+		t.Fatalf("start session: %v", err)
+	}
+	deps := &Deps{
+		Root: root, Project: "proj",
+		MemoryRepo:       persistence.NewMemoryRepository(db),
+		SessionRepo:      sessRepo,
+		SessionSummaries: sessRepo.(ports.SessionSummaryUpdater),
+	}
+	cs := connectMCPTestSession(t, deps, root, "proj")
+	ctx := context.Background()
+
+	const summary = "Logrado: público <private>SECRETO_037 <private>anidado</private></private> token AKIAIOSFODNN7EXAMPLE <private>abierto"
+	stored := func() string {
+		var s string
+		if err := db.QueryRow(`SELECT COALESCE(summary,'') FROM sessions WHERE id = ?`, sess.ID).Scan(&s); err != nil {
+			t.Fatalf("leer summary: %v", err)
+		}
+		return s
+	}
+	check := func(where, got string) {
+		t.Helper()
+		for _, gone := range []string{"SECRETO_037", "anidado", "AKIAIOSFODNN7EXAMPLE", "abierto"} {
+			if strings.Contains(got, gone) {
+				t.Fatalf("%s revela %q: %q", where, gone, got)
+			}
+		}
+	}
+
+	for _, tool := range []string{"save_session_summary", "end_session"} {
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: map[string]any{"summary": summary}})
+		if err != nil || res.IsError {
+			t.Fatalf("%s: err=%v res=%v", tool, err, res)
+		}
+		check(tool+" respuesta", toolText(res))
+		got := stored()
+		check(tool+" persistido", got)
+		if !strings.Contains(got, "Logrado: público") {
+			t.Fatalf("%s perdió el texto público: %q", tool, got)
+		}
 	}
 }

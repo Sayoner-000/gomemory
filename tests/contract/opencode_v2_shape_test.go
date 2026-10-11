@@ -77,7 +77,9 @@ func TestOpenCodeV2_GanchosRegistrados(t *testing.T) {
 		{"context", `ctx.session.hook("context"`, `hooks["experimental.chat.system.transform"]`},
 		{"compaction", `ctx.session.hook("compaction"`, `hooks["experimental.session.compacting"]`},
 		{"tool.execute.after", `ctx.tool.hook("execute.after"`, `hooks["tool.execute.after"]`},
-		{"cleanup", "controller.abort()", "hooks.dispose()"},
+		// Feature 037 (H-06): el cierre aborta la suscripción propia y, solo
+		// después de esperar lo pendiente, cierra la sesión con hooks.dispose().
+		{"cleanup", "subscription.abort()", "hooks.dispose()"},
 	}
 	for _, c := range casos {
 		b := v2Block(t, texto, c.bloque)

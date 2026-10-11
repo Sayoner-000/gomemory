@@ -5,6 +5,14 @@
 #
 # Desinstalar:
 #   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1))) -Uninstall
+#
+# Integridad (spec 037, H-08): la versión se resuelve una sola vez a un tag
+# estable; el zip y checksums.txt salen de ese mismo release y el SHA-256 se
+# verifica ANTES de extraer. Solo se extrae mem.exe, que debe ser un
+# ejecutable PE no vacío. Cualquier fallo deja intacto el binario instalado.
+# checksums.txt viene del mismo origen: verifica la integridad publicada, no
+# es una firma independiente. Los errores usan throw (no exit): con
+# `irm | iex` un exit cerraría la consola de quien instala.
 
 param(
   [switch]$Uninstall,
@@ -81,28 +89,111 @@ if ($Uninstall) {
 }
 Write-Brand "Instalar"
 
-if (-not $Version) { $Version = "latest" }
-
-$arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "amd64" }
-$asset = "mem_windows_$arch.zip"
-
-if ($Version -eq "latest") {
-  $url = "https://github.com/$Repo/releases/latest/download/$asset"
-} else {
-  $url = "https://github.com/$Repo/releases/download/$Version/$asset"
+# Resolve-GomemoryTag convierte la selección en UN tag estable concreto.
+# `latest` se consulta una sola vez; el zip y checksums.txt se piden después a
+# ese tag exacto.
+function Resolve-GomemoryTag([string]$Requested) {
+  $tag = $Requested
+  if (-not $tag -or $tag -eq 'latest') {
+    try {
+      $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
+    } catch {
+      throw "No se pudo consultar la última versión estable de $Repo."
+    }
+    $tag = [string]$release.tag_name
+  }
+  if (-not $tag.StartsWith('v')) { $tag = "v$tag" }
+  if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+    throw "Versión no soportada: '$tag'. Usa un release estable vX.Y.Z."
+  }
+  return $tag
 }
 
-Write-Info "Instalando gomemory (windows/$arch, $Version)"
-Write-Info "Descargando $url"
+# Get-ExpectedSha256 exige una única línea cuyo nombre (con asterisco binario
+# opcional) coincida EXACTO con el asset y un digest de 64 hex. Una entrada
+# duplicada se rechaza aunque ambos digests coincidan.
+function Get-ExpectedSha256([string]$SumsPath, [string]$Name) {
+  $found = @(Get-Content -LiteralPath $SumsPath | ForEach-Object {
+    $parts = @($_.Trim() -split '\s+')
+    if ($parts.Count -eq 2 -and $parts[1].TrimStart('*') -ceq $Name) { $parts[0] }
+  })
+  if ($found.Count -ne 1) {
+    throw "checksums.txt no tiene exactamente una entrada para $Name ($($found.Count))."
+  }
+  if ($found[0] -notmatch '^[0-9a-fA-F]{64}$') {
+    throw "checksums.txt tiene un digest inválido para $Name."
+  }
+  return $found[0].ToLowerInvariant()
+}
 
-$tmp = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ([System.Guid]::NewGuid()))
+# Expand-GomemoryBinary extrae solo la entrada raíz mem.exe del zip (sin rutas
+# ni traversal) y valida que sea un PE no vacío, sin ejecutarlo.
+function Expand-GomemoryBinary([string]$ZipPath, [string]$Destination) {
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
+  try {
+    $entries = @($archive.Entries | Where-Object { $_.FullName -ceq $BinName })
+    if ($entries.Count -ne 1) { throw "El archivo no contiene exactamente un $BinName en la raíz." }
+    if ($entries[0].Length -le 0) { throw "El $BinName del archivo está vacío." }
+    $in = $entries[0].Open()
+    try {
+      $out = [System.IO.File]::Create($Destination)
+      try { $in.CopyTo($out) } finally { $out.Dispose() }
+    } finally { $in.Dispose() }
+  } finally { $archive.Dispose() }
+  $header = [byte[]]::new(2)
+  $stream = [System.IO.File]::OpenRead($Destination)
+  try { $read = $stream.Read($header, 0, 2) } finally { $stream.Dispose() }
+  if ($read -ne 2 -or $header[0] -ne 0x4D -or $header[1] -ne 0x5A) {
+    throw "El binario descargado no es un ejecutable de Windows."
+  }
+}
+
+# Publish-GomemoryBinary prepara el nuevo binario junto al destino y lo
+# publica con una sola operación de reemplazo. Si el destino está en uso o el
+# directorio no admite escritura, falla sin tocar el binario anterior.
+function Publish-GomemoryBinary([string]$Source, [string]$Dir) {
+  New-Item -ItemType Directory -Force -Path $Dir | Out-Null
+  $dest = Join-Path $Dir $BinName
+  $staged = Join-Path $Dir (".$BinName." + [System.Guid]::NewGuid().ToString('N') + ".tmp")
+  try {
+    Copy-Item -LiteralPath $Source -Destination $staged
+    if (Test-Path -LiteralPath $dest) {
+      [System.IO.File]::Replace($staged, $dest, [NullString]::Value)
+    } else {
+      [System.IO.File]::Move($staged, $dest)
+    }
+  } catch {
+    Remove-Item -LiteralPath $staged -Force -ErrorAction SilentlyContinue
+    throw "No se pudo instalar en ${Dir}: el binario anterior no se modificó."
+  }
+}
+
+$arch = "amd64"
+$asset = "mem_windows_$arch.zip"
+$tag = Resolve-GomemoryTag $Version
+$base = "https://github.com/$Repo/releases/download/$tag"
+
+Write-Info "Instalando gomemory (windows/$arch, $tag)"
+Write-Info "Descargando $base/$asset"
+
+$tmp = New-Item -ItemType Directory -Path (Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid()))
 try {
   $zip = Join-Path $tmp $asset
-  Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-  Expand-Archive -Path $zip -DestinationPath $tmp -Force
+  $sums = Join-Path $tmp "checksums.txt"
+  try { Invoke-WebRequest -Uri "$base/$asset" -OutFile $zip -UseBasicParsing }
+  catch { throw "No se pudo descargar $asset de $tag." }
+  try { Invoke-WebRequest -Uri "$base/checksums.txt" -OutFile $sums -UseBasicParsing }
+  catch { throw "No se pudo descargar checksums.txt de ${tag}: no se instala sin verificar." }
 
-  New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-  Copy-Item (Join-Path $tmp $BinName) (Join-Path $InstallDir $BinName) -Force
+  $want = Get-ExpectedSha256 $sums $asset
+  $got = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+  if ($got -ne $want) { throw "El SHA-256 de $asset no coincide con checksums.txt. No se instaló nada." }
+  Write-Ok "Integridad verificada (SHA-256)"
+
+  $extracted = Join-Path $tmp $BinName
+  Expand-GomemoryBinary $zip $extracted
+  Publish-GomemoryBinary $extracted $InstallDir
 
   Write-Ok "gomemory instalado en $InstallDir\$BinName"
   Add-ToUserPath $InstallDir

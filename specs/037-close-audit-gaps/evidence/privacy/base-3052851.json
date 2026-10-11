@@ -1,0 +1,104 @@
+{
+  "cases_selected": [
+    "privacy"
+  ],
+  "cases_run": 19,
+  "status": "failed",
+  "results": [
+    {
+      "case_id": "privacy.save",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.session_end_cli",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.mcp_save_session_summary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_end_session",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_stderr",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.hook_compact_summary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.hook_channel_error",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.relation_create",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.relation_update",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.relation_list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.mcp_judge_memories",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.export",
+      "ok": false,
+      "detail": "salida 0 o export revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.import",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.context",
+      "ok": false,
+      "detail": "revela ['privado', 'credencial']"
+    },
+    {
+      "case_id": "privacy.session_list",
+      "ok": false,
+      "detail": "revela ['privado']"
+    },
+    {
+      "case_id": "privacy.original_public_stored",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.original_public_exact",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "privacy.original_private_not_stored",
+      "ok": false,
+      "detail": "salida 0 refs=['42e12f554812']"
+    },
+    {
+      "case_id": "privacy.store_bytes",
+      "ok": false,
+      "detail": "marcadores en almacén: ['projects/privacy-import-494a96c35e1bc274/mem.db:privado', 'projects/privacy-import-494a96c35e1bc274/mem.db:credencial', 'projects/privacy-f3fb1b68c221d9fe/mem.db-wal:privado', 'projects/privacy-f3fb1b68c221d9fe/mem.db-wal:credencial', 'projects/privacy-f3fb1b68c221d9fe/mem.db:privado']"
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "cases_selected": [
+    "installation"
+  ],
+  "cases_run": 20,
+  "status": "passed",
+  "results": [
+    {
+      "case_id": "install.explicit_ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.latest_resolved_once",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.hash_mismatch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_absent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_404",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.checksums_invalid",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_missing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_substring_only",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.entry_duplicated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.network_failure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.no_sha_tool",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.empty_binary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.symlink_member",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.traversal_member",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.not_platform_binary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.prerelease_tag",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.readonly_destination",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.completes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.never_absent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.no_leftovers",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

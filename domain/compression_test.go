@@ -63,3 +63,21 @@ func TestIsPrivateContent(t *testing.T) {
 		t.Error("falso positivo en texto normal")
 	}
 }
+
+// TestIsPrivateContent_EtiquetasIncompletasYAnidadas cubre FR-004 (spec 037):
+// el detector comparte la regla del redactor, así que una apertura sin cierre
+// o un anidamiento también impiden guardar un original recuperable.
+func TestIsPrivateContent_EtiquetasIncompletasYAnidadas(t *testing.T) {
+	for _, s := range []string{
+		"salida <private>sin cierre",
+		"salida <PRIVATE>mayúsculas sin cierre",
+		"a <private>X <private>Y</private> Z</private> b",
+	} {
+		if !IsPrivateContent(s) {
+			t.Errorf("IsPrivateContent(%q) = false, quiero true", s)
+		}
+	}
+	if IsPrivateContent("privado es una palabra normal, igual que <privat>") {
+		t.Error("falso positivo sin etiqueta")
+	}
+}

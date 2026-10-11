@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"strings"
@@ -49,9 +51,16 @@ func CmdWrap(deps *Deps, args []string) {
 
 	exitCode := 0
 	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
+		var exitErr *exec.ExitError
+		if !errors.As(runErr, &exitErr) {
+			// El comando nunca llegó a ejecutarse (spec 037, H-07): no es un
+			// éxito y no hay resultado que guardar. Sin argumentos ni error
+			// crudo en el diagnóstico: pueden llevar datos sensibles.
+			fmt.Fprintf(os.Stderr, "WRAP_START_FAILED: %s\n", wrapStartCause(command[0], runErr))
+			exitProcess(1)
+			return
 		}
+		exitCode = exitErr.ExitCode()
 	}
 
 	fmt.Fprint(os.Stderr, "\n━━━ ¿Guardar algo en memoria? ━━━\n")
@@ -111,4 +120,18 @@ func saveInteractive(reader *bufio.Reader, deps *Deps, project string) {
 	}
 
 	fmt.Fprintf(os.Stderr, "✓ Memoria guardada (id=%d)\n", id)
+}
+
+// wrapStartCause explica por qué no arrancó el comando con una causa útil
+// (ruta o permisos) y solo el nombre del comando, ya protegido.
+func wrapStartCause(command string, err error) string {
+	name := domain.ProtectText(command)
+	switch {
+	case errors.Is(err, exec.ErrNotFound), errors.Is(err, fs.ErrNotExist):
+		return fmt.Sprintf("no se encontró el comando %q (revisa el nombre o el PATH)", name)
+	case errors.Is(err, fs.ErrPermission):
+		return fmt.Sprintf("sin permiso para ejecutar %q (revisa el bit de ejecución)", name)
+	default:
+		return fmt.Sprintf("no se pudo iniciar %q", name)
+	}
 }

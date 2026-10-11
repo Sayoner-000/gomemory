@@ -1,0 +1,109 @@
+{
+  "cases_selected": [
+    "installation"
+  ],
+  "cases_run": 20,
+  "status": "failed",
+  "results": [
+    {
+      "case_id": "install.explicit_ok",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.latest_resolved_once",
+      "ok": false,
+      "detail": "salida 1, instalado=otro, residuos=[]: oad/mem_darwin_arm64.tar.gz\n✗ No se pudo descargar el release. ¿Existe el asset mem_darwin_arm64.tar.gz? Revisa https://github.com/Sayoner-000/gomemory/releases"
+    },
+    {
+      "case_id": "install.hash_mismatch",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.checksums_absent",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.checksums_404",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.checksums_invalid",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.entry_missing",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.entry_substring_only",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.entry_duplicated",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.network_failure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.no_sha_tool",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.empty_binary",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.symlink_member",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.traversal_member",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "install.not_platform_binary",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.prerelease_tag",
+      "ok": false,
+      "detail": "salida 0, previo MODIFICADO, residuos=[]"
+    },
+    {
+      "case_id": "install.readonly_destination",
+      "ok": false,
+      "detail": "salida 0, previo intacto, residuos=[]"
+    },
+    {
+      "case_id": "update.completes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "case_id": "update.never_absent",
+      "ok": false,
+      "detail": "5987/646487 invocaciones fallaron: ['tamaño parcial 0', 'tamaño parcial 0', 'tamaño parcial 0']"
+    },
+    {
+      "case_id": "update.no_leftovers",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "runner": "audit_037_opencode_smoke",
+  "status": "pending_verification",
+  "steps": [
+    {
+      "id": "host.version",
+      "ok": null,
+      "detail": "se requiere OpenCode 2.x; el binario reporta \"1.18.35\""
+    }
+  ],
+  "bench": "temporal (eliminable)",
+  "opencode_version": "1.18.35",
+  "next": "Prepara un OpenCode 2.x en un banco separado (p. ej. @opencode/cli@2.0.16 con --prefix temporal) y vuelve a ejecutar.",
+  "cases_run": 1
+}

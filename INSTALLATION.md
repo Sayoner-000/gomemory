@@ -20,7 +20,19 @@ irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.
 ```
 
 Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=vX.Y.Z` para fijar versión,
-`GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino.
+`GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino. En Windows,
+`GOMEMORY_VERSION` o `-Version vX.Y.Z`.
+
+**Integridad de la descarga.** Ambos instaladores resuelven una sola vez la
+versión a un release estable `vX.Y.Z`, descargan el archivo y `checksums.txt` de
+ese mismo release y comprueban el SHA-256 **antes** de extraer. Se rechaza un
+`checksums.txt` ausente, inválido, sin entrada exacta para el archivo o con
+entradas duplicadas, y también una descarga cuyo binario esté vacío, sea un
+enlace o no sea un ejecutable de la plataforma. Ante cualquier fallo, el binario
+instalado antes sigue intacto: el nuevo se prepara junto al destino y se publica
+en un solo paso. Linux/macOS necesitan `sha256sum` o `shasum`; sin ninguno, la
+instalación se detiene. `checksums.txt` viene del mismo release: verifica la
+integridad publicada, no es una firma independiente.
 
 Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`.
 
@@ -384,7 +396,13 @@ mem update --check   # muestra versión actual vs. disponible, sin instalar
 mem update            # descarga e instala la última versión (o --version vX.Y.Z)
 ```
 
-`mem update` reemplaza el binario actual en su propia ubicación. Si instalaste
+`mem update` reemplaza el binario actual en su propia ubicación. En Linux y
+macOS prepara el binario nuevo completo junto al actual y lo publica con un único
+renombrado: durante la actualización cualquier otra invocación encuentra la
+versión anterior o la nueva, nunca un archivo ausente o a medio copiar, y un
+fallo antes de publicar deja la anterior intacta. En Windows el binario en uso
+está bloqueado: el nuevo queda como `mem.exe.new` con las instrucciones para
+completar el cambio. Si instalaste
 con `mem install` (pack por proyecto) o los plugins de la sección **5**,
 reinstala tras actualizar solo si hubo cambios en esas partes:
 
