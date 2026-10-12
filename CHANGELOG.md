@@ -5,6 +5,39 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.33.0] - 2026-10-12
+
+### Added
+
+- Skill `defensive-qa-audit`: auditoría defensiva multilenguaje (Go, Python,
+  JS/TS, Java, PHP, Rust, Shell, SQL, CI, HTML/CSS) con prevención de fugas,
+  evidencia reproducible con datos sintéticos, propuesta de cierre por hallazgo
+  y tabla de cobertura. Integra memoria previa, grafo de código y derivación a
+  la revisión adversarial cuando gomemory está conectado. Se instala y actualiza
+  como `adversarial-consensus-review` (alcance global de `mem install`,
+  `mem setup-mcp --scope global`, `mem update`) y la desinstalación de sistema
+  la retira. Copia descargable en `skills/defensive-qa-audit/`.
+- Prueba de sincronía entre `skills/` e `infrastructure/templates/` para las
+  skills distribuidas.
+- Directiva canónica `domain.CodeRetrievalPolicy` (feature 038): prioridad de
+  recuperación según capacidades del agente, compartida entre el bloque de
+  instalación y los recordatorios de sesión para que no diverjan.
+- Puerta CI `evidence038`: verifica `pyproject.toml` y `uv.lock`, compara el
+  export con hashes contra `scripts/requirements-038-test.txt`, ejecuta la
+  suite pytest y la auditoría `pip_audit`.
+
+### Changed
+
+- Protocolo de memoria sube a v9: reemplaza la obligación incondicional del
+  grafo externo por precedencia condicional según capacidad y suficiencia,
+  con salvaguardas (sin inferir ahorro por nombre de herramienta, sin asumir
+  cuerpos ni compresión en `get_symbol`, sin prometer compresión automática).
+- Migración v8→v9 en `mem install`/`mem update`: reemplaza el bloque anterior
+  conservando contenido ajeno, delimitador final e idempotencia.
+- `mem install` ya no crea `AGENTS.md`/`CLAUDE.md` en la raíz del proyecto;
+  el bloque viaja por MCP initialize.
+- `.gitignore` excluye `.venv/`.
+
 ## [v2.32.0] - 2026-10-11
 
 ### Added

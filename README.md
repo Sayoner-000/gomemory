@@ -7,7 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.32.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.32.0)
+[![Version](https://img.shields.io/badge/version-2.33.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.33.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)
@@ -205,6 +205,9 @@ mem review show <review-id>    # target → reviewers → consensus → fixes �
 ```
 
 See [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/) for the full protocol.
+
+**Defensive QA audit**
+A multi-language defensive audit skill (`defensive-qa-audit`) for Go, Python, JS/TS, Java, PHP, Rust, shell, SQL, CI and HTML/CSS, focused on leaks (PII, credentials, resources, memory, XSS, exposed errors). Every finding needs a `file:line` location, a synthetic-data reproduction and a verifiable closing proposal; the report includes a coverage table. With gomemory connected, it checks prior audits, uses the code graph for blast radius, saves high-severity findings as memory, and can hand them to adversarial consensus review. Installed and kept current in `~/.claude|.codex|.opencode/skills/` by `mem install` (global scope), `mem setup-mcp --scope global` and `mem update`. See [`skills/defensive-qa-audit`](skills/defensive-qa-audit/).
 
 **Code graph integration**
 Optional integrations with external code graphs (`codebase-memory-mcp` and [`CodeGraph`](https://github.com/colbymchenry/codegraph)) enrich memory with project structure and code context. Configure both in `code_graph_providers`; `mem index` refreshes each configured graph. Non-blocking and agnostic to the agent. Controlled via `mem settings --code-graph=true|false`.
