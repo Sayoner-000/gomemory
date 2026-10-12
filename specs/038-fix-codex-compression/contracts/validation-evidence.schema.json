@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gomemory.local/specs/038/validation-evidence.schema.json",
+  "title": "038 validation evidence input v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "agent_profile", "session", "queries", "calls", "comparisons", "surface_checks", "regression_checks"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "agent_profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["agent", "version", "rewrite_status", "capability_evidence"],
+      "properties": {
+        "agent": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "rewrite_status": { "enum": ["supported", "unsupported", "unknown"] },
+        "capability_evidence": { "type": "string", "minLength": 1 }
+      }
+    },
+    "session": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "mode", "repository_revision", "manifest_path", "manifest_sha256", "mcp_sha256", "codec_id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "mode": { "enum": ["tui", "exec", "synthetic"] },
+        "repository_revision": { "type": "string", "minLength": 1 },
+        "manifest_path": { "type": "string", "minLength": 1 },
+        "manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "mcp_sha256": { "$ref": "#/$defs/sha256" },
+        "codec_id": { "const": "codex-tui-visible-text-utf8-v1" }
+      }
+    },
+    "queries": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/query" } },
+    "calls": { "type": "array", "items": { "$ref": "#/$defs/call" } },
+    "comparisons": { "type": "array", "items": { "$ref": "#/$defs/comparison" } },
+    "surface_checks": { "$ref": "#/$defs/surface_checks" },
+    "regression_checks": { "$ref": "#/$defs/regression_checks" }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "item": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "text"],
+      "properties": { "id": { "$ref": "#/$defs/id" }, "text": { "type": "string", "minLength": 1 } }
+    },
+    "comparison_key": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tool_family", "source_scope", "source_revision", "query", "filters", "limit"],
+      "properties": {
+        "tool_family": { "type": "string", "minLength": 1 },
+        "source_scope": { "type": "string", "minLength": 1 },
+        "source_revision": { "type": "string", "minLength": 1 },
+        "query": { "type": "string", "minLength": 1 },
+        "filters": { "type": "array", "items": { "type": "string" } },
+        "limit": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "query": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "prompt", "eligibility", "eligibility_reason", "comparison_key", "required_facts", "required_references", "manual_tool_coaching"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "prompt": { "type": "string", "minLength": 1 },
+        "eligibility": { "enum": ["eligible", "ineligible"] },
+        "eligibility_reason": { "type": "string" },
+        "comparison_key": { "$ref": "#/$defs/comparison_key" },
+        "required_facts": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/item" }, "$comment": "La unicidad por id no es expresable en JSON Schema; la exige check_schema en scripts/validate_038_evidence.py." },
+        "required_references": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/item" }, "$comment": "La unicidad por id no es expresable en JSON Schema; la exige check_schema en scripts/validate_038_evidence.py." },
+        "manual_tool_coaching": { "type": "boolean" }
+      }
+    },
+    "capture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["point", "session_id", "trace_path", "trace_sha256", "agent_version", "mcp_sha256", "codec_id"],
+      "properties": {
+        "point": { "enum": ["codex_tui_model_input", "unsupported"] },
+        "session_id": { "$ref": "#/$defs/id" },
+        "trace_path": { "type": "string", "minLength": 1 },
+        "trace_sha256": { "$ref": "#/$defs/sha256" },
+        "agent_version": { "type": "string", "minLength": 1 },
+        "mcp_sha256": { "$ref": "#/$defs/sha256" },
+        "codec_id": { "const": "codex-tui-visible-text-utf8-v1" }
+      }
+    },
+    "call": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "query_id", "side", "tool", "route", "compression", "arguments", "comparison_key", "visible_text", "capture"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "query_id": { "$ref": "#/$defs/id" },
+        "side": { "enum": ["observed", "reference"] },
+        "tool": { "type": "string", "minLength": 1 },
+        "route": { "enum": ["compressed_origin", "automatic_rewrite", "external", "other"] },
+        "compression": { "enum": ["max", "none"] },
+        "arguments": { "type": "object" },
+        "comparison_key": { "$ref": "#/$defs/comparison_key" },
+        "visible_text": { "type": "string" },
+        "capture": { "$ref": "#/$defs/capture" }
+      }
+    },
+    "call_pair": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observed_call_id", "reference_call_id"],
+      "properties": {
+        "observed_call_id": { "$ref": "#/$defs/id" },
+        "reference_call_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "evidence_ref": {
+      "type": "object", "additionalProperties": false,
+      "required": ["item_id", "observed_call_id"],
+      "properties": {
+        "item_id": { "$ref": "#/$defs/id" },
+        "observed_call_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "review": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reviewer", "equivalence_checked", "required_evidence_preserved", "fact_evidence", "reference_evidence"],
+      "properties": {
+        "reviewer": { "type": "string", "minLength": 1 },
+        "equivalence_checked": { "type": "boolean" },
+        "required_evidence_preserved": { "type": "boolean" },
+        "fact_evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence_ref" } },
+        "reference_evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence_ref" } }
+      }
+    },
+    "comparison": {
+      "type": "object", "additionalProperties": false,
+      "required": ["query_id", "paired_calls", "additional_observed_call_ids", "review"],
+      "properties": {
+        "query_id": { "$ref": "#/$defs/id" },
+        "paired_calls": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/call_pair" } },
+        "additional_observed_call_ids": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+        "review": { "$ref": "#/$defs/review" }
+      }
+    },
+    "check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["passed", "evidence_ref"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "evidence_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+    "capture_check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["passed", "evidence_ref"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "evidence_ref": { "const": ".memory/validation/038/capture-certification.json" }
+      }
+    },
+    "surface_checks": {
+      "type": "object", "additionalProperties": false,
+      "required": ["policy_consistent", "migration_preserved", "compatible_profiles", "capture_verified"],
+      "properties": {
+        "policy_consistent": { "$ref": "#/$defs/check" },
+        "migration_preserved": { "$ref": "#/$defs/check" },
+        "compatible_profiles": { "$ref": "#/$defs/check" },
+        "capture_verified": { "$ref": "#/$defs/capture_check" }
+      }
+    },
+    "regression_checks": {
+      "type": "object", "additionalProperties": false,
+      "required": ["go_tests", "pytest_local", "pytest_ci", "coverage_80"],
+      "properties": {
+        "go_tests": { "$ref": "#/$defs/check" },
+        "pytest_local": { "$ref": "#/$defs/check" },
+        "pytest_ci": { "$ref": "#/$defs/check" },
+        "coverage_80": { "$ref": "#/$defs/check" }
+      }
+    }
+  }
+}

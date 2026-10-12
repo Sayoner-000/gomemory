@@ -1,0 +1,12 @@
+[project]
+name = "gomemory-038-test"
+version = "0.0.0"
+description = "Dependencias de prueba aisladas para la validación de la feature 038 (sin paquete instalable)"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest==9.1.1",
+  "pip-audit==2.10.1",
+]

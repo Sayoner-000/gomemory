@@ -3,6 +3,7 @@ package setup
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -138,5 +139,66 @@ func TestInstallAtomicPlanGlobal_SinMetodoSoloEscribeElProtocolo(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".claude", "skills", "atomic-decomposition")); err == nil {
 		t.Error("sin método no debe crearse el envoltorio")
+	}
+}
+
+// T012 (feature 038, FR-006): instalación global repetida en el destino Codex
+// con contenido ajeno preservado, HOME aislado y sin tocar el AGENTS.md real.
+// El compositor de prueba preserva el contenido previo, como exige el contrato
+// a composeAgentFile.
+func TestInstallAtomicPlanGlobal_CodexPreservaAjenoYEsIdempotente(t *testing.T) {
+	home := homeFalso(t, ".codex")
+	destino := filepath.Join(home, ".codex", "AGENTS.md")
+	ajeno := "# Notas propias\n\nPreferencias del equipo.\n"
+	if err := os.WriteFile(destino, []byte(ajeno+"<!-- gomemory-protocol-v8 -->\n## Memoria Persistente\nprotocolo viejo\n## Sección propia posterior\nNota posterior.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	componer := func(existing string) (string, bool) {
+		const bloque = "<!-- gomemory-protocol-v9 -->\nprotocolo vigente\n"
+		if strings.Contains(existing, "gomemory-protocol-v9") {
+			return existing, false
+		}
+		if idx := strings.Index(existing, "<!-- gomemory-protocol-v"); idx != -1 {
+			antes := strings.TrimRight(existing[:idx], "\n")
+			resto := existing[idx:]
+			// Misma regla que protocolEnd (cli): delimitador final si existe;
+			// si no, se saltan la línea del marcador y la del título propio y
+			// se corta en el siguiente encabezado de nivel 2; si no, EOF.
+			corte := len(existing)
+			if fin := strings.Index(resto, "<!-- gomemory-protocol-end -->"); fin != -1 {
+				corte = idx + fin + len("<!-- gomemory-protocol-end -->")
+			} else if lineas := strings.SplitAfterN(resto, "\n", 3); len(lineas) == 3 {
+				tras := len(resto) - len(lineas[2])
+				if h2 := regexp.MustCompile(`(?m)^## `).FindStringIndex(lineas[2]); h2 != nil {
+					corte = idx + tras + h2[0]
+				}
+			}
+			return antes + "\n" + bloque + strings.TrimLeft(existing[corte:], "\n"), true
+		}
+		return strings.TrimRight(existing, "\n") + "\n" + bloque, true
+	}
+
+	if _, err := InstallAtomicPlanGlobal(metodoDePrueba, componer); err != nil {
+		t.Fatalf("InstallAtomicPlanGlobal: %v", err)
+	}
+	una, err := os.ReadFile(destino)
+	if err != nil {
+		t.Fatalf("falta %s: %v", destino, err)
+	}
+	for _, want := range []string{"Preferencias del equipo.", "## Sección propia posterior\nNota posterior.", "gomemory-protocol-v9"} {
+		if !strings.Contains(string(una), want) {
+			t.Errorf("la instalación perdió %q", want)
+		}
+	}
+	if strings.Contains(string(una), "protocolo viejo") || strings.Contains(string(una), "## Memoria Persistente") {
+		t.Error("quedó contenido del protocolo anterior")
+	}
+
+	if _, err := InstallAtomicPlanGlobal(metodoDePrueba, componer); err != nil {
+		t.Fatalf("segunda instalación: %v", err)
+	}
+	dos, _ := os.ReadFile(destino)
+	if string(una) != string(dos) {
+		t.Error("la segunda instalación alteró el contenido: no es idempotente")
 	}
 }

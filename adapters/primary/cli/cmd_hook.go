@@ -1614,11 +1614,8 @@ IMPORTANTE — no confundir sistemas: este proyecto usa EXCLUSIVAMENTE las tools
 	`sistema de memoria nativo del harness (archivo MEMORY.md bajo ~/.claude/projects/.../memory/) ` +
 	`NO aplica aquí — ignóralo por completo en este proyecto y no lo consultes ni escribas en él.
 
-GRAFO DE CÓDIGO EXTERNO: si el servidor MCP codebase-memory-mcp está conectado, úsalo SIEMPRE ` +
-	`para exploración de código en vez de leer archivos a mano: ` +
-	strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, ", ") + `. Para explorar el código usa las ` +
-	`herramientas del grafo; para entregar un plan usa el árbol de tareas atómicas. Lo que descubras ` +
-	`con el grafo alimenta las hojas del árbol. Si no está conectado, esta guía no aplica.`
+GRAFO DE CÓDIGO EXTERNO: ` + domain.CodeRetrievalPolicy + ` Para entregar un plan usa el ` +
+	`árbol de tareas atómicas. Lo que descubras con el grafo alimenta las hojas del árbol.`
 
 // firstOr devuelve el argumento en la posición dada, o un valor por defecto.
 func firstOr(args []string, i int, def string) string {

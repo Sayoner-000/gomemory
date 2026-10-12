@@ -1,0 +1,1 @@
+{"criterio": {"alternativa_con_cuerpo": true, "ausencia_de_promesa_de_compresion": true, "motivo_comunicado": true}, "prompt": "Muéstrame el cuerpo literal de la función hookToolOutput y su archivo", "referencia": {"archivo": "adapters/primary/cli/hook_tool_output.go", "simbolo": "hookToolOutput"}, "schema_version": 1}

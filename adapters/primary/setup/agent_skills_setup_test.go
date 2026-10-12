@@ -250,3 +250,62 @@ func TestSkillEmbebida_EsAgnosticaDeProveedor(t *testing.T) {
 		t.Error("la skill no empieza con frontmatter: los agentes no la descubrirían")
 	}
 }
+
+// TestInstallDefensiveQASkill_AlcanzaLosTresAgentesSinReescribir: la auditoría
+// defensiva viaja por el mismo canal que la revisión adversarial, así que debe
+// cumplir sus mismas garantías: llega a los tres agentes y reinstalar no
+// reescribe lo que ya está al día.
+func TestInstallDefensiveQASkill_AlcanzaLosTresAgentesSinReescribir(t *testing.T) {
+	home := homeFalso(t, ".claude", ".codex", ".opencode")
+	cuerpo := "---\nname: defensive-qa-audit\ndescription: Auditoría defensiva.\n---\n\n# QA\n"
+
+	escritos, err := InstallDefensiveQASkill(cuerpo)
+	if err != nil {
+		t.Fatalf("InstallDefensiveQASkill: %v", err)
+	}
+	for _, agente := range []string{".claude", ".codex", ".opencode"} {
+		p := filepath.Join(home, agente, "skills", "defensive-qa-audit", "SKILL.md")
+		if data, err := os.ReadFile(p); err != nil || string(data) != cuerpo {
+			t.Errorf("%s: falta o no es la skill verbatim (err=%v)", p, err)
+		}
+	}
+	if len(escritos) != 3 {
+		t.Errorf("escritos = %v, se esperaban 3 rutas", escritos)
+	}
+
+	if escritos, _ := InstallDefensiveQASkill(cuerpo); len(escritos) != 0 {
+		t.Errorf("la reinstalación reescribió %v; debía ser idempotente", escritos)
+	}
+	if escritos, _ := InstallDefensiveQASkill("  \n"); len(escritos) != 0 {
+		t.Errorf("escribió %v con un cuerpo vacío", escritos)
+	}
+}
+
+// TestSkillsEmbebidas_FrontmatterYCopiaDescargable: cada skill distribuida
+// existe en dos sitios — la plantilla que embebe el binario y la copia
+// descargable de skills/. Ninguna prueba las comparaba, así que podían
+// divergir en silencio: quien la baja con curl recibiría otra versión que
+// quien la recibe por mem install. Además, el `name` del frontmatter debe
+// coincidir con el directorio o el agente no la empareja.
+func TestSkillsEmbebidas_FrontmatterYCopiaDescargable(t *testing.T) {
+	raiz := filepath.Join("..", "..", "..")
+	for _, nombre := range []string{adversarialReviewSkillName, defensiveQASkillName} {
+		embebida, err := os.ReadFile(filepath.Join(raiz, "infrastructure", "templates", nombre, "SKILL.md"))
+		if err != nil {
+			t.Fatalf("leer la skill embebida %s: %v", nombre, err)
+		}
+		descargable, err := os.ReadFile(filepath.Join(raiz, "skills", nombre, "SKILL.md"))
+		if err != nil {
+			t.Fatalf("leer la copia descargable %s: %v", nombre, err)
+		}
+		if string(embebida) != string(descargable) {
+			t.Errorf("%s: skills/ e infrastructure/templates/ divergen", nombre)
+		}
+		// La plantilla de ACR trae CRLF en parte del frontmatter: se compara la
+		// línea sin el fin de línea, que es lo que lee el parser YAML del agente.
+		lineas := strings.SplitN(string(embebida), "\n", 3)
+		if len(lineas) < 2 || lineas[0] != "---" || strings.TrimSpace(lineas[1]) != "name: "+nombre {
+			t.Errorf("%s: el frontmatter no empieza con name: %s", nombre, nombre)
+		}
+	}
+}

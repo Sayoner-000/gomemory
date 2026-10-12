@@ -111,6 +111,18 @@ func InstallAdversarialReviewSkill(body string) ([]string, error) {
 	return InstallAgentSkill(adversarialReviewSkillName, body)
 }
 
+// defensiveQASkillName es el directorio de la habilidad de auditoría defensiva;
+// como el de ACR, debe coincidir con el `name` de su frontmatter.
+const defensiveQASkillName = "defensive-qa-audit"
+
+// InstallDefensiveQASkill distribuye la auditoría defensiva multilenguaje por
+// el mismo canal que la revisión adversarial. A diferencia de esa guía, esta
+// sí nombra herramientas de gomemory (memorias previas, grafo, save_memory),
+// pero siempre como capacidad opcional: sin ellas la auditoría sigue completa.
+func InstallDefensiveQASkill(body string) ([]string, error) {
+	return InstallAgentSkill(defensiveQASkillName, body)
+}
+
 // atomicPlanSkillFrontmatter y constitutionSkillFrontmatter son las cabeceras
 // que necesitan las dos habilidades ya existentes para ser descubiertas. Su
 // texto replica el que globalTargets/constitutionWrappers ya usan para Claude:

@@ -29,3 +29,5 @@ opencode.json
 .specify/
 __pycache__/
 *.pyc
+
+.venv/

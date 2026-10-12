@@ -259,6 +259,17 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	}
 	written = append(written, skills...)
 
+	// Auditoría defensiva multilenguaje: mismo canal y mismo criterio de ámbito
+	// que la revisión adversarial — es un método de trabajo del usuario.
+	auditoria, err := setup.InstallDefensiveQASkill(embeddedTemplate("defensive-qa-audit/SKILL.md"))
+	if err != nil {
+		fmt.Printf("  ⚠️  auditoría defensiva (scope global): %v\n", err)
+	}
+	for _, p := range auditoria {
+		fmt.Printf("  ✅ auditoría defensiva: %s\n", p)
+	}
+	written = append(written, auditoria...)
+
 	// Habilidades ya existentes hacia Codex y OpenCode. Cierra un hueco abierto
 	// desde las features 013/021: gomemory escribía habilidades solo en
 	// `.claude/skills/`, así que estos dos agentes nunca recibieron el método de

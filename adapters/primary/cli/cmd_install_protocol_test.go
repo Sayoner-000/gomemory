@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -57,10 +58,12 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 // buildIntegrationBlock(): cambiar el contenido sin subir el marcador dejaría a
 // los proyectos ya instalados en v6 (este mismo repo, entre otros) sin forma de
 // detectar que hay una versión nueva al reinstalar. Subió a v8 cuando el
-// protocolo pasó de `./mem …` a `mem …` (feature 034, FR-005).
-func TestProtocolVersionMarker_SubioAV8(t *testing.T) {
-	if integrationVersionMarker != "<!-- gomemory-protocol-v8 -->" {
-		t.Errorf("integrationVersionMarker = %q, se esperaba la v8", integrationVersionMarker)
+// protocolo pasó de `./mem …` a `mem …` (feature 034, FR-005). Subió a v9 con
+// la directiva condicional por capacidad (feature 038): al próximo bump,
+// renombrar este test y su mensaje.
+func TestProtocolVersionMarker_SubioAV9(t *testing.T) {
+	if integrationVersionMarker != "<!-- gomemory-protocol-v9 -->" {
+		t.Errorf("integrationVersionMarker = %q, se esperaba la v9 (feature 038)", integrationVersionMarker)
 	}
 }
 
@@ -155,5 +158,47 @@ func TestComposeAgentFile_InstalaYActualizaBaselineUniversal(t *testing.T) {
 	}
 	if !strings.Contains(updated, "Texto propio.") {
 		t.Error("la actualización no debe perder instrucciones ajenas")
+	}
+}
+
+// T011 (feature 038, FR-006): migración v8→v9. El bloque instalado en v8 debe
+// reemplazarse por el v9 conservando delimitador final, baseline, bloques
+// ajenos antes/después y sin duplicar en la segunda composición. Carga el
+// fixture T004. En rojo hasta T015: el marcador vigente sigue en v8.
+func TestComposeAgentFile_MigraV8AV9SinDejarRestos(t *testing.T) {
+	const v9 = "<!-- gomemory-protocol-v9 -->"
+	raw, err := os.ReadFile("../../../tests/fixtures/038/protocol-v8.md")
+	if err != nil {
+		t.Fatalf("falta el fixture T004: %v", err)
+	}
+	previo := string(raw)
+
+	out, changed := composeAgentFile(previo, "", buildIntegrationBlock())
+
+	if !changed {
+		t.Fatal("composeAgentFile debía reportar cambios al subir de v8 a v9")
+	}
+	if strings.Contains(out, "gomemory-protocol-v8") {
+		t.Error("quedaron restos del marcador v8")
+	}
+	if !strings.Contains(out, v9) {
+		t.Errorf("el bloque migrado debe llevar el marcador %q", v9)
+	}
+	if !strings.Contains(out, "<!-- gomemory-protocol-end -->") {
+		t.Error("se perdió el delimitador final del bloque")
+	}
+	for _, want := range []string{"Contenido ajeno previo", "Contenido ajeno posterior", "codegraph-config-ejemplo", "MCP-SERVER-EXTERNO", "038-PROTOCOL-V8-FIXTURE"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("se perdió contenido ajeno o marcador: %q", want)
+		}
+	}
+
+	if strings.Count(out, "## Memoria Persistente") != 1 {
+		t.Errorf("la migración debe dejar exactamente una cabecera, hay %d", strings.Count(out, "## Memoria Persistente"))
+	}
+
+	twice, changed := composeAgentFile(out, "", buildIntegrationBlock())
+	if changed || twice != out {
+		t.Error("la segunda composición debe ser idempotente")
 	}
 }

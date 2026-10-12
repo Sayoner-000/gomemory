@@ -4,7 +4,7 @@ import "path/filepath"
 
 // globalSkillNames son las habilidades que gomemory deposita en el ámbito de
 // usuario (InstallAgentSkill, InstallAtomicPlanGlobal).
-var globalSkillNames = []string{"atomic-decomposition", "constitution", adversarialReviewSkillName}
+var globalSkillNames = []string{"atomic-decomposition", "constitution", adversarialReviewSkillName, defensiveQASkillName}
 
 // GlobalGeneratedArtifacts devuelve, relativas al HOME, las rutas que gomemory
 // escribe como artefacto completo en el ámbito de usuario: el directorio de

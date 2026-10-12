@@ -690,16 +690,12 @@ func buildIntegrationBlock() string {
 		"",
 		"Grafo de código propio del proyecto: " + bt + strings.Join(domain.MCPCodeTools, bt+", "+bt) + bt + ".",
 		"",
-		"Si el servidor MCP " + bt + "codebase-memory-mcp" + bt + " está conectado, úsalo SIEMPRE para " +
-			"exploración de código en vez de leer archivos a mano: " +
-			bt + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, bt+", "+bt) + bt + ". " +
-			"Para explorar el código usa las herramientas del grafo; para entregar un plan usa el árbol " +
-			"de tareas atómicas. Lo que descubras con el grafo alimenta las hojas del árbol. " +
-			"Si no está conectado, esta guía no aplica — no hay nada que invocar.",
+		domain.CodeRetrievalPolicy,
 		"",
-		"Si tu agente no permite que gomemory comprima las salidas de herramientas externas (p. ej. Codex), " +
-			"explora el código con " + bt + "search_code" + bt + "/" + bt + "get_symbol" + bt + " de gomemory, " +
-			"que comprimen en origen.",
+		"Proveedor externo de grafo disponible cuando el proyecto lo requiera: " + bt + "codebase-memory-mcp" + bt +
+			" (" + bt + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, bt+", "+bt) + bt + ").",
+		"",
+		"Para entregar un plan usa el árbol de tareas atómicas. Lo que descubras con el grafo alimenta las hojas del árbol.",
 		"",
 		"Si el MCP no está disponible en el agente actual, usa el CLI equivalente (si " + bt + "mem" + bt + " no está en el PATH, usa " + bt + "./mem" + bt + "):",
 		bt + `mem save -t "título" -y tipo "contenido"` + bt + ", " + bt + `mem search "tema"` + bt + ", " + bt + "mem context" + bt + ", " + bt + "mem plan-context" + bt + ", " + bt + "mem session start|end" + bt + ", " + bt + "mem forget <id>" + bt + ", " + bt + "mem judge -r <veredicto> -m \"razón\" <id1> <id2>" + bt + ".",

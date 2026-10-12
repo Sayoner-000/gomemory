@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"mem/adapters/primary/setup"
+	"mem/domain"
 )
 
 // Este archivo verificaba antes TestInstallPreservesContentAroundLegacyProtocolBlock:
@@ -124,6 +127,31 @@ func TestInstallMensajeFinal(t *testing.T) {
 	for _, obsoleto := range []string{"al leer AGENTS.md", "setup-mcp --scope global"} {
 		if strings.Contains(out, obsoleto) {
 			t.Errorf("el mensaje final sigue mencionando %q, que ya no aplica", obsoleto)
+		}
+	}
+}
+
+// T016 (feature 038, FR-006): verificación posterior al cambio. El bloque
+// nuevo viaja por MCP initialize (sin AGENTS por proyecto), la retirada con
+// respaldo de archivos legados se conserva y el hook incompatible de Codex
+// sigue declarado solo para su retirada.
+func TestInstall038_BloqueV9SinAgentsYRetiradaCodex(t *testing.T) {
+	if domain.ProtocolVersionMarker != "<!-- gomemory-protocol-v9 -->" {
+		t.Fatalf("ProtocolVersionMarker = %q, se esperaba la v9", domain.ProtocolVersionMarker)
+	}
+	retirado := setup.CodexToolOutputHook.Sub
+	for _, h := range setup.CodexGomemoryHooks() {
+		if h.Sub == retirado {
+			t.Fatalf("el hook %q debe seguir retirado del ciclo Codex", retirado)
+		}
+	}
+
+	bin := buildMemBinary(t)
+	target := dirDeProyecto(t)
+	runInstallEn(t, bin, target)
+	for _, artefacto := range []string{"AGENTS.md", "CLAUDE.md"} {
+		if _, err := os.Stat(filepath.Join(target, artefacto)); err == nil {
+			t.Errorf("mem install creó %q en la raíz del proyecto", artefacto)
 		}
 	}
 }

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gomemory.local/specs/038/capture-certification.schema.json",
+  "title": "038 Codex TUI capture certification v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "agent_version", "mcp_sha256", "adapter", "oracle", "probes", "review"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "agent_version": { "$ref": "#/$defs/nonempty" },
+    "mcp_sha256": { "$ref": "#/$defs/sha256" },
+    "adapter": { "$ref": "#/$defs/source" },
+    "oracle": { "$ref": "#/$defs/source" },
+    "probes": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/probe" }, "allOf": [ { "contains": { "properties": { "side": { "const": "observed" } } } }, { "contains": { "properties": { "side": { "const": "reference" } } } } ], "$comment": "La unicidad de id, call_id y marker entre probes no es expresable en JSON Schema; la exige check_cert en scripts/validate_038_evidence.py." },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer", "approved", "source_review_ref"],
+      "properties": {
+        "reviewer": { "$ref": "#/$defs/nonempty" },
+        "approved": { "type": "boolean" },
+        "source_review_ref": { "$ref": "#/$defs/nonempty" }
+      }
+    }
+  },
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interface", "event", "field_path", "implementation_ref", "extractor_path", "extractor_sha256"],
+      "properties": {
+        "interface": { "$ref": "#/$defs/nonempty" },
+        "event": { "$ref": "#/$defs/nonempty" },
+        "field_path": { "$ref": "#/$defs/nonempty" },
+        "implementation_ref": { "$ref": "#/$defs/nonempty" },
+        "extractor_path": { "$ref": "#/$defs/nonempty" },
+        "extractor_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "side", "session_id", "call_id", "marker", "fixture_path", "fixture_sha256", "adapter_trace_path", "adapter_trace_sha256", "oracle_trace_path", "oracle_trace_sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonempty" },
+        "side": { "enum": ["observed", "reference"] },
+        "session_id": { "$ref": "#/$defs/nonempty" },
+        "call_id": { "$ref": "#/$defs/nonempty" },
+        "marker": { "$ref": "#/$defs/nonempty" },
+        "fixture_path": { "$ref": "#/$defs/nonempty" },
+        "fixture_sha256": { "$ref": "#/$defs/sha256" },
+        "adapter_trace_path": { "$ref": "#/$defs/nonempty" },
+        "adapter_trace_sha256": { "$ref": "#/$defs/sha256" },
+        "oracle_trace_path": { "$ref": "#/$defs/nonempty" },
+        "oracle_trace_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "agent_profile": {
+    "agent": "codex",
+    "version": "synthetic-fixture",
+    "rewrite_status": "unsupported",
+    "capability_evidence": "fixture sintético"
+  },
+  "session": {
+    "id": "fixture-session",
+    "mode": "synthetic",
+    "repository_revision": "fixture-revision",
+    "manifest_path": "fixtures/manifest.json",
+    "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "mcp_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "codec_id": "codex-tui-visible-text-utf8-v1"
+  },
+  "queries": [
+    {
+      "id": "q1",
+      "prompt": "Enumera las funciones de ejemplo y sus ubicaciones",
+      "eligibility": "eligible",
+      "eligibility_reason": "consulta estructural de Go en fixture",
+      "comparison_key": {
+        "tool_family": "search_code",
+        "source_scope": "fixture-go",
+        "source_revision": "fixture-revision",
+        "query": "funciones de ejemplo",
+        "filters": ["language:go"],
+        "limit": 10
+      },
+      "required_facts": [{ "id": "f1", "text": "Existe Example" }],
+      "required_references": [{ "id": "r1", "text": "example.go:1" }],
+      "manual_tool_coaching": false
+    }
+  ],
+  "calls": [
+    {
+      "id": "observed-1",
+      "query_id": "q1",
+      "side": "observed",
+      "tool": "search_code",
+      "route": "compressed_origin",
+      "compression": "max",
+      "arguments": { "query": "funciones de ejemplo", "limit": 10 },
+      "comparison_key": {
+        "tool_family": "search_code",
+        "source_scope": "fixture-go",
+        "source_revision": "fixture-revision",
+        "query": "funciones de ejemplo",
+        "filters": ["language:go"],
+        "limit": 10
+      },
+      "visible_text": "Resultado\nExample example.go:1\n",
+      "capture": {
+        "point": "unsupported",
+        "session_id": "fixture-session",
+        "trace_path": "fixtures/observed.trace",
+        "trace_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "agent_version": "synthetic-fixture",
+        "mcp_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "codec_id": "codex-tui-visible-text-utf8-v1"
+      }
+    },
+    {
+      "id": "reference-1",
+      "query_id": "q1",
+      "side": "reference",
+      "tool": "search_code",
+      "route": "compressed_origin",
+      "compression": "none",
+      "arguments": { "query": "funciones de ejemplo", "limit": 10 },
+      "comparison_key": {
+        "tool_family": "search_code",
+        "source_scope": "fixture-go",
+        "source_revision": "fixture-revision",
+        "query": "funciones de ejemplo",
+        "filters": ["language:go"],
+        "limit": 10
+      },
+      "visible_text": "Resultado\nfunc Example() example.go:1\n",
+      "capture": {
+        "point": "unsupported",
+        "session_id": "fixture-reference",
+        "trace_path": "fixtures/reference.trace",
+        "trace_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "agent_version": "synthetic-fixture",
+        "mcp_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "codec_id": "codex-tui-visible-text-utf8-v1"
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "query_id": "q1",
+      "paired_calls": [{ "observed_call_id": "observed-1", "reference_call_id": "reference-1" }],
+      "additional_observed_call_ids": [],
+      "review": {
+        "reviewer": "fixture",
+        "equivalence_checked": true,
+        "required_evidence_preserved": true,
+        "fact_evidence": [{ "item_id": "f1", "observed_call_id": "observed-1" }],
+        "reference_evidence": [{ "item_id": "r1", "observed_call_id": "observed-1" }]
+      }
+    }
+  ],
+  "surface_checks": {
+    "policy_consistent": { "passed": false, "evidence_ref": "fixture sintético" },
+    "migration_preserved": { "passed": false, "evidence_ref": "fixture sintético" },
+    "compatible_profiles": { "passed": false, "evidence_ref": "fixture sintético" },
+    "capture_verified": { "passed": false, "evidence_ref": ".memory/validation/038/capture-certification.json" }
+  },
+  "regression_checks": {
+    "go_tests": { "passed": false, "evidence_ref": "fixture sintético" },
+    "pytest_local": { "passed": false, "evidence_ref": "fixture sintético" },
+    "pytest_ci": { "passed": false, "evidence_ref": "fixture sintético" },
+    "coverage_80": { "passed": false, "evidence_ref": "fixture sintético" }
+  }
+}

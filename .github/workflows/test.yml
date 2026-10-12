@@ -59,6 +59,30 @@ jobs:
           path: ${{ runner.temp }}/audit037/evidence
           if-no-files-found: warn
 
+  evidence038:
+    name: evaluador 038 (pytest, lock y auditoría)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - uses: astral-sh/setup-uv@v6
+
+      # Puerta obligatoria 038 (T030): el export con hashes debe coincidir byte
+      # a byte con el versionado; la suite y la auditoría deben estar en verde.
+      - name: Puerta del evaluador 038
+        run: |
+          test -f pyproject.toml || { echo "falta pyproject.toml"; exit 1; }
+          test -f uv.lock || { echo "falta uv.lock"; exit 1; }
+          uv export --locked --only-dev --format requirements.txt --output-file /tmp/requirements-038-check.txt
+          cmp /tmp/requirements-038-check.txt scripts/requirements-038-test.txt
+          uv sync --locked --only-dev
+          uv run --locked --only-dev python -m pytest -q scripts/test_validate_038_evidence.py
+          uv run --locked --only-dev python -m pip_audit --require-hashes -r scripts/requirements-038-test.txt
+
   plugin-installer:
     name: plugin OpenCode e instalador TypeScript
     runs-on: ubuntu-latest
