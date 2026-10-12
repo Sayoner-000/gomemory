@@ -5,6 +5,24 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.33.1] - 2026-10-12
+
+### Fixed
+
+- Ledger de revisión: los lectores (`findings`, `consensus_findings`,
+  `rejudgments`, `fix_rounds`) aplican `domain.ProtectText` al leer, como ya
+  hacían sesiones y relaciones, y `mem sanitize --apply` cubre sus columnas
+  (incluidas listas JSON, protegidas elemento a elemento). Cierra el hueco de
+  la auditoría defensiva 2026-10-12 (H-01): filas anteriores a la redacción al
+  escribir ya no se reemiten en crudo.
+- Entrada acotada: los hooks leen stdin con tope de 8 MB (`readBounded`, error
+  limpio en vez de contenido truncado) y `mem pack` con tope de 32 MB (H-02).
+
+### Security
+
+- Acciones de CI fijadas por SHA con comentario de versión y Dependabot
+  semanal para `github-actions` (H-03).
+
 ## [v2.33.0] - 2026-10-12
 
 ### Added
