@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -1183,12 +1184,36 @@ func readHookStdinRaw() []byte {
 	if err != nil || (stat.Mode()&os.ModeCharDevice) != 0 {
 		return nil // No es un pipe: no bloquear leyendo la terminal.
 	}
-	data, err := io.ReadAll(os.Stdin)
+	data, err := readBounded(os.Stdin, hookStdinMax)
 	if err != nil {
+		// Un payload ilegible o desmedido se trata como ausente: el hook
+		// corre en cada turno y fallar aquí bloquearía al agente.
+		if errors.Is(err, errPayloadTooLarge) {
+			fmt.Fprintf(os.Stderr, "mem hook: %v; se ignora\n", err)
+		}
 		return nil
 	}
 	hookStdin = data
 	return data
+}
+
+// hookStdinMax acota el payload de un hook. Holgado frente a una salida de
+// herramienta real; existe para que un pipe anómalo no agote la memoria.
+const hookStdinMax = 8 << 20
+
+var errPayloadTooLarge = errors.New("payload excede el tope")
+
+// readBounded lee r entero hasta limit bytes. Si hay más, no los acumula:
+// devuelve errPayloadTooLarge en vez de un contenido truncado.
+func readBounded(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("%w de %d MB", errPayloadTooLarge, limit>>20)
+	}
+	return data, nil
 }
 
 // stdin solo puede leerse una vez por proceso: la guarda de reentrada lo lee

@@ -1,0 +1,8 @@
+version: 2
+updates:
+  # Las acciones van fijadas por SHA (tag mutable = código arbitrario en CI);
+  # Dependabot propone el SHA nuevo y actualiza el comentario de versión.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

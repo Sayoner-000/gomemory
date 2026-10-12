@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -90,6 +89,10 @@ func FormatCompare(compressor ports.Compressor, input string) string {
 	return b.String()
 }
 
+// packInputMax acota la entrada de mem pack (archivo o stdin): por encima
+// del tope se falla en vez de comprimir un contenido truncado.
+const packInputMax = 32 << 20
+
 func cmdPackCompress(deps *Deps, args []string) {
 	fs := newFlagSet("pack compress", flag.ContinueOnError)
 	levelFlag := fs.String("level", "", "Nivel: none|structural|max (default: el del proyecto)")
@@ -107,7 +110,7 @@ func cmdPackCompress(deps *Deps, args []string) {
 		fail("abrir input: %v", err)
 	}
 	defer func() { _ = in.Close() }()
-	raw, err := io.ReadAll(in)
+	raw, err := readBounded(in, packInputMax)
 	if err != nil {
 		fail("leer input: %v", err)
 	}

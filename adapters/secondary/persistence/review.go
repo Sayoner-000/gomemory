@@ -946,6 +946,7 @@ func (r *ReviewRepository) ListFixDeltas(project, reviewID string) ([]domain.Fix
 		if err := json.Unmarshal([]byte(verification), &delta.Verification); err != nil {
 			return nil, err
 		}
+		redactarEnLugar(delta.Verification)
 		out = append(out, delta)
 	}
 	return out, rows.Err()
@@ -1058,6 +1059,8 @@ func scanFinding(row scanner) (*domain.Finding, error) {
 	if err := json.Unmarshal([]byte(evidence), &finding.Evidence); err != nil {
 		return nil, err
 	}
+	finding.Claim = redactarTexto(finding.Claim)
+	redactarEnLugar(finding.Evidence)
 	return &finding, nil
 }
 
@@ -1098,6 +1101,7 @@ func scanConsensus(row scanner, reviewID string) (*domain.ConsensusFinding, erro
 	if err := json.Unmarshal([]byte(sources), &finding.SourceFindingIDs); err != nil {
 		return nil, err
 	}
+	finding.Claim = redactarTexto(finding.Claim)
 	return &finding, nil
 }
 
@@ -1177,9 +1181,18 @@ func parseReviewTime(value string) time.Time {
 // cita entra en `claim`, en `evidence` o en `verification`. Sin esto, una
 // revisión de seguridad se convierte en el sitio donde el secreto queda
 // persistido en claro y luego se sirve por `mem review show` — y el ledger está
-// pensado para durar, así que el descuido no caduca.
+// pensado para durar, así que el descuido no caduca. Los lectores del ledger
+// también la aplican, para que filas anteriores a la redacción al escribir no
+// se reemitan en crudo (como relation.go).
 func redactarTexto(s string) string {
-	return domain.RedactSecrets(domain.RedactPrivate(s))
+	return domain.ProtectText(s)
+}
+
+// redactarEnLugar depura una lista leída sin convertir nil en vacía.
+func redactarEnLugar(items []string) {
+	for i := range items {
+		items[i] = redactarTexto(items[i])
+	}
 }
 
 // jsonArray serializa una lista para las columnas JSON de fix_rounds, que
@@ -1376,6 +1389,7 @@ func reJudgmentsForFinding(
 		if err := json.Unmarshal([]byte(evidence), &judgment.Evidence); err != nil {
 			return nil, err
 		}
+		redactarEnLugar(judgment.Evidence)
 		out = append(out, judgment)
 	}
 	return out, rows.Err()

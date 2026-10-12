@@ -716,7 +716,8 @@ ejecuta cuando el usuario lo pide explícitamente — nunca en segundo plano.
 ### Sanear información privada histórica (`mem sanitize`)
 
 Desde la funcionalidad 037 (cierre de la auditoría defensiva), resúmenes de
-sesión, razonamientos de relaciones y diagnósticos de canal se guardan y se
+sesión, razonamientos de relaciones, diagnósticos de canal y el ledger de revisión
+(hallazgos, consenso, re-juicios y verificaciones de corrección) se guardan y se
 muestran sin regiones `<private>` (también anidadas o sin cierre) ni credenciales
 reconocidas. Los registros guardados **antes** ya se muestran depurados, pero en
 la base siguen en crudo hasta sanearlos:
@@ -1056,7 +1057,7 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
 
 - **Sin telemetría externa** — los registros de uso y enrutamiento permanecen en el almacén local.
 - **Binario autocontenido** — sin dependencias compartidas que puedan ser comprometidas.
-- **Redacción automática** — contenido envuelto en `<private>...</private>` (también anidado o sin cierre) y las credenciales reconocidas se eliminan antes de llegar a la base de datos, en memorias, resúmenes de sesión, razonamientos de relaciones y diagnósticos, y no se reemiten en consultas, contexto ni exportaciones. Los registros anteriores se sanean con `mem sanitize`.
+- **Redacción automática** — contenido envuelto en `<private>...</private>` (también anidado o sin cierre) y las credenciales reconocidas se eliminan antes de llegar a la base de datos, en memorias, resúmenes de sesión, razonamientos de relaciones, diagnósticos y el ledger de revisión, y no se reemiten en consultas, contexto ni exportaciones. Los registros anteriores se sanean con `mem sanitize`.
 - **SQLite WAL** — integridad ACID con Write-Ahead Logging. Los datos sobreviven cortes de energía.
 - **Permisos MCP granulares** — `forget_memory` queda fuera de auto-approve por ser destructivo/irreversible.
 

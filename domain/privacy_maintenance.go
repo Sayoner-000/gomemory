@@ -28,6 +28,13 @@ const (
 	// anterior cortó a medias. El texto privado no se puede delimitar, así que
 	// nunca se modifica automáticamente: se reporta para revisión manual.
 	SanitizeMemoryReview SanitizeCategory = "memory_review"
+	// Ledger de revisión: duradero por diseño, así que las filas anteriores
+	// a la redacción al escribir no caducan solas.
+	SanitizeReviewFinding         SanitizeCategory = "review_finding"
+	SanitizeReviewFindingEvidence SanitizeCategory = "review_finding_evidence"
+	SanitizeReviewConsensus       SanitizeCategory = "review_consensus"
+	SanitizeReviewRejudgment      SanitizeCategory = "review_rejudgment"
+	SanitizeReviewFixVerification SanitizeCategory = "review_fix_verification"
 )
 
 // sanitizeFields es la lista permitida categoría → campo. Nada fuera de ella
@@ -38,6 +45,12 @@ var sanitizeFields = map[SanitizeCategory]string{
 	SanitizeChannelError: "last_error",
 	SanitizeOriginal:     "content",
 	SanitizeMemoryReview: "content",
+
+	SanitizeReviewFinding:         "claim",
+	SanitizeReviewFindingEvidence: "evidence",
+	SanitizeReviewConsensus:       "claim",
+	SanitizeReviewRejudgment:      "evidence",
+	SanitizeReviewFixVerification: "verification",
 }
 
 // SanitizeCandidate es un registro que requiere saneamiento. Text vive solo

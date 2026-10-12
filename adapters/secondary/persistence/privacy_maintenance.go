@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -109,6 +110,10 @@ func readSanitizeCandidates(ctx context.Context, q queryer, project string) ([]d
 		return nil, fmt.Errorf("candidatos de originales: %w", err)
 	}
 
+	if err := readLedgerCandidates(ctx, q, project, add); err != nil {
+		return nil, err
+	}
+
 	// Memorias: siempre se guardaron depuradas, pero las anteriores a la
 	// política de credenciales o con remanentes de bloques anidados (cierre
 	// huérfano) no se pueden reescribir con seguridad. Solo se reportan.
@@ -130,6 +135,91 @@ func readSanitizeCandidates(ctx context.Context, q queryer, project string) ([]d
 		return nil, fmt.Errorf("candidatos de memorias: %w", err)
 	}
 	return out, nil
+}
+
+// ledgerColumn describe una columna sensible del ledger de revisión. Las
+// tablas no tienen columna project: el alcance sale de reviews.project.
+type ledgerColumn struct {
+	cat    domain.SanitizeCategory
+	table  string
+	column string
+	scope  string // condición SQL sobre review_id/reviewer_result_id que fija el proyecto
+	list   bool   // columna JSON con una lista de textos
+}
+
+const (
+	scopeByReview = `review_id IN (SELECT id FROM reviews WHERE project = ?)`
+	scopeByResult = `reviewer_result_id IN (SELECT rr.id FROM reviewer_results rr
+		JOIN reviews rv ON rv.id = rr.review_id WHERE rv.project = ?)`
+)
+
+var ledgerColumns = []ledgerColumn{
+	{domain.SanitizeReviewFinding, "findings", "claim", scopeByResult, false},
+	{domain.SanitizeReviewFindingEvidence, "findings", "evidence", scopeByResult, true},
+	{domain.SanitizeReviewConsensus, "consensus_findings", "claim", scopeByReview, false},
+	{domain.SanitizeReviewRejudgment, "rejudgments", "evidence", scopeByReview, true},
+	{domain.SanitizeReviewFixVerification, "fix_rounds", "verification", scopeByReview, true},
+}
+
+func ledgerColumnFor(cat domain.SanitizeCategory) (ledgerColumn, bool) {
+	for _, col := range ledgerColumns {
+		if col.cat == cat {
+			return col, true
+		}
+	}
+	return ledgerColumn{}, false
+}
+
+func readLedgerCandidates(ctx context.Context, q queryer, project string,
+	add func(domain.SanitizeCategory, string, string, string)) error {
+	for _, col := range ledgerColumns {
+		query := `SELECT id, ` + col.column + ` FROM ` + col.table + ` WHERE ` + col.scope
+		err := scanRows(ctx, q, query, project, func(r *sql.Rows) error {
+			var id int64
+			var text string
+			if err := r.Scan(&id, &text); err != nil {
+				return err
+			}
+			needs := domain.NeedsSanitize(text)
+			if col.list {
+				var err error
+				if _, needs, err = protectJSONList(text); err != nil {
+					return err
+				}
+			}
+			if needs {
+				add(col.cat, col.column, strconv.FormatInt(id, 10), text)
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("candidatos de %s.%s: %w", col.table, col.column, err)
+		}
+	}
+	return nil
+}
+
+// protectJSONList protege cada elemento de una lista JSON y la vuelve a
+// serializar como la escriben los adaptadores (json.Marshal). Proteger el JSON
+// como texto no basta: json.Marshal escapa `<` como `\u003c`, así que un bloque
+// privado no se ve, y una región que cruce elementos rompería la estructura.
+func protectJSONList(raw string) (string, bool, error) {
+	var items []string
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return "", false, fmt.Errorf("%w: lista JSON ilegible en el ledger", domain.ErrValidation)
+	}
+	changed := false
+	for i := range items {
+		if domain.NeedsSanitize(items[i]) {
+			items[i] = domain.ProtectText(items[i])
+			changed = true
+		}
+	}
+	if !changed {
+		return raw, false, nil
+	}
+	out, err := json.Marshal(items)
+	return string(out), true, err
 }
 
 func scanRows(ctx context.Context, q queryer, query, project string, each func(*sql.Rows) error) error {
@@ -241,7 +331,24 @@ func (t *privacyTx) Apply(ctx context.Context, c domain.SanitizeCandidate, text 
 		res, err = t.tx.ExecContext(ctx,
 			`DELETE FROM compression_originals WHERE ref = ? AND project = ?`, c.RecordID, c.Project)
 	default:
-		return false, fmt.Errorf("%w: categoría solo informativa", domain.ErrValidation)
+		col, ok := ledgerColumnFor(c.Category)
+		if !ok {
+			return false, fmt.Errorf("%w: categoría solo informativa", domain.ErrValidation)
+		}
+		id, perr := strconv.ParseInt(c.RecordID, 10, 64)
+		if perr != nil {
+			return false, fmt.Errorf("%w: id del ledger inválido", domain.ErrValidation)
+		}
+		if col.list {
+			// La protección por elemento se recalcula aquí: text viene de
+			// proteger el JSON serializado, que no ve \u003cprivate\u003e.
+			if text, _, err = protectJSONList(c.Text); err != nil {
+				return false, err
+			}
+		}
+		res, err = t.tx.ExecContext(ctx,
+			`UPDATE `+col.table+` SET `+col.column+` = ? WHERE id = ? AND `+col.column+` = ? AND `+col.scope,
+			text, id, c.Text, c.Project)
 	}
 	if err != nil {
 		return false, err
