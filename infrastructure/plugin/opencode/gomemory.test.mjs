@@ -2,7 +2,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import plugin, { GomemoryPlugin, __testing } from './gomemory.ts';
 
-async function fixture() {
+async function fixture({ decide = () => '' } = {}) {
   const calls = [];
   let messages = [];
   let recovery = '';
@@ -11,7 +11,11 @@ async function fixture() {
     const proc = {
       cwd: () => proc, quiet: () => proc,
       stdin: { getWriter: () => ({ write: async bytes => { input += new TextDecoder().decode(bytes); }, close: async () => {} }) },
-      text: async () => { calls.push({ args, input }); return args.join(' ') === 'hook post-compact' ? recovery : ''; },
+      text: async () => {
+        calls.push({ args, input });
+        if (args.join(' ') === 'hook socratica-decide') return decide(JSON.parse(input));
+        return args.join(' ') === 'hook post-compact' ? recovery : '';
+      },
     };
     return proc;
   };
@@ -550,4 +554,80 @@ test('v2 (037): execFileExec cancela un subproceso real y respeta la gracia ante
   await assert.rejects(p2, { name: 'AbortError' });
   const took = Date.now() - t1;
   assert.ok(took >= 1000 && took < 3000, `SIGKILL tras la gracia de 1 s (tardó ${took} ms)`);
+});
+
+// ── Socratica (feature 039, US6) ────────────────────────────────────────────
+// El plugin no decide nada: aplica la respuesta de `mem hook socratica-decide`.
+
+const textPart = text => ({ id: 'prt_1', sessionID: 's1', messageID: 'msg_1', type: 'text', text });
+const decision = d => () => JSON.stringify({ capture: false, forward: '', forwarded: false, directive: '', ...d });
+
+test('socratica: capture prepends the directive part and records the original prompt', async () => {
+  const f = await fixture({ decide: decision({ capture: true, directive: 'DIRECTIVA' }) });
+  const output = { parts: [textPart('envía el informe trimestral al cliente')] };
+  await f.hooks['chat.message']({ sessionID: 's1' }, output);
+  assert.equal(output.parts.length, 2);
+  assert.equal(output.parts[0].text, 'DIRECTIVA');
+  assert.equal(output.parts[0].synthetic, true);
+  assert.equal(output.parts[1].text, 'envía el informe trimestral al cliente');
+  const decide = f.calls.find(c => c.args.join(' ') === 'hook socratica-decide');
+  assert.deepEqual(JSON.parse(decide.input), { prompt: 'envía el informe trimestral al cliente', client: 'opencode', attachments: false });
+  assert.ok(f.calls.some(c => c.args.join(' ') === 'hook prompt'));
+});
+
+test('socratica: forward rewrites the text with the decided prompt', async () => {
+  const f = await fixture({ decide: decision({ forwarded: true, forward: '>hola' }) });
+  const output = { parts: [textPart('>>hola')] };
+  await f.hooks['chat.message']({ sessionID: 's1' }, output);
+  assert.deepEqual(output.parts.map(p => p.text), ['>hola']);
+});
+
+test('socratica: a pass-through decision leaves the message intact', async () => {
+  for (const text of ['/plan algo', 'texto aprobado']) {
+    const f = await fixture({ decide: decision({}) });
+    const output = { parts: [textPart(text)] };
+    await f.hooks['chat.message']({ sessionID: 's1' }, output);
+    assert.deepEqual(output.parts.map(p => p.text), [text]);
+  }
+});
+
+test('socratica: attachments are reported to the decision', async () => {
+  let seen;
+  const f = await fixture({ decide: input => { seen = input; return decision({})(); } });
+  await f.hooks['chat.message']({ sessionID: 's1' }, { parts: [textPart('mira esta imagen y dime qué ves'), { type: 'file', mime: 'image/png' }] });
+  assert.equal(seen.attachments, true);
+});
+
+test('socratica: an unavailable or invalid decision changes nothing', async () => {
+  for (const decide of [() => '', () => 'no es json']) {
+    const f = await fixture({ decide });
+    const output = { parts: [textPart('envía el informe trimestral al cliente')] };
+    await f.hooks['chat.message']({ sessionID: 's1' }, output);
+    assert.deepEqual(output.parts.map(p => p.text), ['envía el informe trimestral al cliente']);
+  }
+});
+
+test('socratica: the plugin holds no capture rules of its own', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const source = await readFile(new URL('./gomemory.ts', import.meta.url), 'utf8');
+  for (const rule of ['LowInfoMaxWords', 'ContinuationWindow', 'GOMEMORY_SOCRATICA_DISPATCH', 'startsWith(">")', "startsWith('>')"]) {
+    assert.ok(!source.includes(rule), `el plugin replica la regla ${rule}`);
+  }
+});
+
+test('v2 socratica: the decision reaches the real prompt text', async () => {
+  const cases = [
+    [{ capture: true, directive: 'DIRECTIVA' }, 'envía el informe trimestral al cliente', 'DIRECTIVA\n\nenvía el informe trimestral al cliente'],
+    [{ forwarded: true, forward: 'hola' }, '>hola', 'hola'],
+    [{}, 'texto sin cambios', 'texto sin cambios'],
+  ];
+  for (const [d, text, want] of cases) {
+    const decisionJSON = JSON.stringify({ capture: false, forward: '', forwarded: false, directive: '', ...d });
+    const f = await v2Fixture({ outputs: { 'hook socratica-decide': decisionJSON } });
+    const ev = { sessionID: 's1', prompt: { text } };
+    await f.sessionHooks.prompt(ev);
+    assert.equal(ev.prompt.text, want);
+    assert.equal(f.hookCalls('prompt').length, 1);
+    await f.cleanup();
+  }
 });

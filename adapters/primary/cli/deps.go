@@ -1,8 +1,18 @@
 package cli
 
-import "mem/application/ports"
+import (
+	"io"
+
+	"mem/application/ports"
+	"mem/application/usecases"
+)
 
 type Deps struct {
+	Socratica *usecases.SocraticaFlow
+	// SocraticaExec lanza el agente destino con el prompt aprobado y
+	// SocraticaPrint construye el lanzador de --print (feature 039, R4).
+	SocraticaExec  ports.AgentLauncher
+	SocraticaPrint func(w io.Writer, raw bool) ports.AgentLauncher
 	// Root y Project son la raíz y el identificador de proyecto ya resueltos
 	// por el composition root (infrastructure.NewContainer) antes de
 	// construir el resto de repos — la única fuente de verdad para "a qué

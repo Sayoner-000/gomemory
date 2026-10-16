@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gomemory/socratica/generation/v1",
+  "title": "Socratica generation result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "questions",
+    "proposed",
+    "additions",
+    "placeholders"
+  ],
+  "properties": {
+    "questions": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "options"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 4,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          }
+        }
+      }
+    },
+    "proposed": {
+      "type": "string",
+      "description": "Vacío en la fase de preguntas; prompt reescrito en la fase de reescritura"
+    },
+    "additions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Adiciones sustantivas respecto al original"
+    },
+    "placeholders": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Marcadores [..] presentes en proposed"
+    },
+    "scrutiny": {
+      "type": "object",
+      "description": "Solo modo scrutiny (síntesis equilibrada)",
+      "additionalProperties": false,
+      "properties": {
+        "restatement": {
+          "type": "string",
+          "description": "Afirmación o decisión reformulada en términos neutrales"
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "kind"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "fact",
+                  "hypothesis"
+                ]
+              }
+            }
+          }
+        },
+        "strongest_support": {
+          "type": "string"
+        },
+        "strongest_objection": {
+          "type": "string"
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missing_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "decision_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hypotheses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Afirmaciones sin evidencia, rotuladas como hipótesis"
+        }
+      }
+    }
+  }
+}

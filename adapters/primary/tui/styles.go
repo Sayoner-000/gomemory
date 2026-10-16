@@ -210,3 +210,15 @@ var (
 			Foreground(faint).
 			Italic(true)
 )
+
+// Tokens de Socratica (feature 039, contracts/tui.md). socUpcoming sigue el
+// atenuado del tema vigente; el resto son fijos.
+var (
+	socDone     color.Color = lipgloss.Color("#3DD68C")
+	socCurrent  color.Color = lipgloss.Color("#F2C46D")
+	socFg       color.Color = lipgloss.Color("#E6EDF3")
+	socLabel    color.Color = lipgloss.Color("#7D8590")
+	socControl  color.Color = lipgloss.Color("#262B33")
+	socWarn     color.Color = lipgloss.Color("#E3B341")
+	socUpcoming             = func() color.Color { return faint }
+)

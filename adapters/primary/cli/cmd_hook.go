@@ -85,6 +85,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookPlanGuard(deps, args[1:])
 	case "plan-entered":
 		hookPlanEntered(deps, args[1:])
+	case "socratica-decide":
+		hookSocraticaDecide(deps)
 	case "prompt":
 		hookPrompt(deps)
 	case "agent-notice":
@@ -554,8 +556,13 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// El payload se lee una sola vez: además del prompt trae permission_mode, la
 	// única señal de una entrada a plan hecha con Shift+Tab.
 	payload := readHookStdin()
-	if prompt, _ := payload["prompt"].(string); strings.TrimSpace(prompt) != "" {
-		_ = deps.SessionRepo.SetLastPrompt(project, prompt)
+	prompt, _ := payload["prompt"].(string)
+	// Socratica decide una sola vez por turno: la marca de despacho se
+	// consume al clasificar, así que procedencia y directiva comparten
+	// resultado (feature 039, US6).
+	socratica := classifySocraticaPrompt(deps, project, agentOfDialect(dialect), usecases.PromptSignals{Text: prompt, DispatchID: os.Getenv(socraticaDispatchEnv)})
+	if strings.TrimSpace(prompt) != "" {
+		recordPromptProvenance(deps, project, prompt, socratica)
 	}
 	planDoc, planEntered := planEntryFromPrompt(deps, root, payload)
 
@@ -606,6 +613,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 		if msg, ok := octopusDelegationReminderOnChange(root, deps.SettingsRepo.Read(root).OctopusEnabled); ok {
 			sections = append(sections, domain.HookSection{Name: "octopus", Priority: domain.HookPriorityOctopus, Text: msg})
 		}
+		sections = appendSocraticaSection(sections, socratica)
 
 		writeHookOutput(renderPromptContext(dialect, fitPromptSections(deps, dialect, sections)))
 		return
@@ -651,6 +659,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	} else if msg, ok := computePlanModeReminder(settings.AtomicPlanDisabled); ok {
 		sections = append(sections, domain.HookSection{Name: "plan", Priority: domain.HookPriorityPlan, Text: msg, Trimmable: true})
 	}
+	sections = appendSocraticaSection(sections, socratica)
 	// Ajustado al tope del canal (FR-004): medido en vivo, este primer prompt
 	// llegaba a 12 944 caracteres en modo plan y el modelo solo veía 2 KB.
 	additional, _ := fitHookSections(deps, agentOfDialect(dialect), sections)
@@ -976,9 +985,79 @@ func hookPrompt(deps *Deps) {
 		os.Exit(0)
 	}
 	if prompt := promptFromStdin(); strings.TrimSpace(prompt) != "" {
-		_ = deps.SessionRepo.SetLastPrompt(deps.ProjectRepo.Key(root), prompt)
+		project := deps.ProjectRepo.Key(root)
+		// Solo procedencia: la decisión de captura de OpenCode ya la tomó
+		// `mem hook socratica-decide`, que es quien consume la marca.
+		c := classifySocraticaPrompt(deps, project, "opencode", usecases.PromptSignals{Text: prompt})
+		recordPromptProvenance(deps, project, prompt, c)
 	}
 	os.Exit(0)
+}
+
+// hookSocraticaDecide implementa `mem hook socratica-decide` para el plugin de
+// OpenCode: recibe por stdin (acotado con readBounded) el prompt y las señales
+// que solo el plugin conoce, y responde la decisión en JSON. El plugin aplica
+// la respuesta y no contiene reglas propias (research R5, M4).
+func hookSocraticaDecide(deps *Deps) {
+	out := map[string]any{"capture": false, "forward": "", "forwarded": false, "directive": ""}
+	defer func() {
+		data, _ := json.Marshal(out)
+		fmt.Println(string(data))
+	}()
+	root, err := deps.ProjectRepo.FindRoot()
+	if err != nil {
+		return
+	}
+	payload := readHookStdin()
+	prompt, _ := payload["prompt"].(string)
+	client, _ := payload["client"].(string)
+	if client == "" {
+		client = "opencode"
+	}
+	attachments, _ := payload["attachments"].(bool)
+	busy, _ := payload["busy"].(bool)
+	c := classifySocraticaPrompt(deps, deps.ProjectRepo.Key(root), client, usecases.PromptSignals{Text: prompt, Attachments: attachments, Busy: busy, DispatchID: os.Getenv(socraticaDispatchEnv)})
+	out["capture"], out["forward"], out["forwarded"], out["directive"] = c.Capture, c.Forward, c.Forwarded, c.Directive
+}
+
+// socraticaDispatchEnv lleva el dispatch_id de un prompt aprobado al entorno
+// del agente lanzado desde la CLI o la TUI (research R4).
+const socraticaDispatchEnv = "GOMEMORY_SOCRATICA_DISPATCH"
+
+// classifySocraticaPrompt delega toda la decisión en el caso de uso. Sin
+// Socratica cableado solo se reconoce la invocación explícita. Un error
+// (p. ej. ajustes inválidos) deja la intercepción apagada y se avisa por
+// stderr sin bloquear el turno.
+func classifySocraticaPrompt(deps *Deps, project, client string, sig usecases.PromptSignals) usecases.PromptClassification {
+	if deps.Socratica == nil {
+		return usecases.PromptClassification{SkipProvenance: domain.IsSocraticaInvocation(sig.Text)}
+	}
+	c, err := deps.Socratica.ClassifyPrompt(context.Background(), project, client, sig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mem hook: socratica: %v\n", err)
+		return usecases.PromptClassification{SkipProvenance: c.SkipProvenance}
+	}
+	return c
+}
+
+// recordPromptProvenance stores the turn's prompt as memory origin, except for
+// Socratica turns (invocations, replies to a pending flow and captured
+// prompts, FR-026). Those clear it instead: skipping the write would leave the
+// previous turn's prompt as the origin of anything saved now.
+func recordPromptProvenance(deps *Deps, project, prompt string, c usecases.PromptClassification) {
+	if c.SkipProvenance {
+		prompt = ""
+	}
+	_ = deps.SessionRepo.SetLastPrompt(project, prompt)
+}
+
+// appendSocraticaSection adds the capture or escape directive. It is short
+// and decisive for the turn, so it is never trimmed.
+func appendSocraticaSection(sections []domain.HookSection, c usecases.PromptClassification) []domain.HookSection {
+	if c.Directive == "" {
+		return sections
+	}
+	return append(sections, domain.HookSection{Name: "socratica", Priority: domain.HookPriorityProtocol + 5, Text: c.Directive})
 }
 
 // hookAgentNotice implementa `mem hook agent-notice` (feature 030, US4):

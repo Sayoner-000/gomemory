@@ -31,3 +31,8 @@ __pycache__/
 *.pyc
 
 .venv/
+node_modules/
+*.log
+.env.*
+!.env.example
+Thumbs.db

@@ -5,6 +5,34 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.34.0] - 2026-10-16
+
+### Added
+
+- **Socratica** (feature 039): skill `socratica` with two modes, `/socratica` (refine a prompt) and `/socratic-q` (examine a proposal), at most three questions and explicit approval before anything runs. Distributed to Claude Code, Codex and OpenCode with thin command wrappers, removed by `mem uninstall`.
+- MCP tool `socratica_flow` (single tool with `action`): persisted flow, duplicate-dispatch prevention (`approve` → `ack` with `ack_nonce` before executing), recovery of uncertain dispatches by explicit choice, bounded and privacy-protected history.
+- `mem socratica refine|history|on|off|status|pending|private`, with question generation through the installed `claude`/`codex` in tool-less or read-only mode, and TUI screens (`p`).
+- Opt-in automatic interception in the prompt hooks and the OpenCode plugin (`mem hook socratica-decide`); capabilities stay off until acceptance evidence exists (`--unverified` only to gather it).
+- Memories saved during a Socratica turn take neither that prompt nor the previous turn's as their origin.
+
+### Fixed
+
+- Auditoría defensiva 2026-10-16 (H-01): `sessions.last_prompt` entra en
+  `mem sanitize` como `SanitizeSessionPrompt`, con redacción al leer igual que
+  `summary`; las filas anteriores a la redacción al escribir ya no quedan
+  fuera del saneamiento.
+- Auditoría defensiva 2026-10-16 (H-02): las mutaciones socratica
+  (`ReleaseDispatch`, `MarkDispatched`, `ForceResend`, `DeleteFlow`,
+  `RedactFlow`) verifican fila afectada (`ErrSocraticaNoMatch`) en vez de
+  devolver éxito en vacío.
+- Auditoría defensiva 2026-10-16 (H-03): `mem socratica refine -` lee stdin
+  acotado (`readBounded`) y la cola del transcript usa lectura completa
+  (`io.ReadFull`), sin truncados silenciosos.
+- Auditoría defensiva 2026-10-16 (H-04/H-05/H-06): `reviews.target_scope`
+  cubierto por el ledger, endurecimiento de permisos WAL/SHM, lock de dispatch
+  con `O_NOFOLLOW` y verificación tras apertura. ACR posterior: 0 confirmadas
+  en el árbol actual.
+
 ## [v2.33.1] - 2026-10-12
 
 ### Fixed

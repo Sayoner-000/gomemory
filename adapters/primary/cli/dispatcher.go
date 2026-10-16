@@ -12,7 +12,7 @@ import (
 func Run(cmd string, args []string, deps *Deps) {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		switch cmd {
-		case "session", "pack", "review", "docs", "forget", "get", "gc", "compact", "purge", "sanitize", "octopus", "adr-sync", "project", "seed", "uninstall", "mcp", "hook", "update-check", "version":
+		case "session", "pack", "review", "docs", "forget", "get", "gc", "compact", "purge", "sanitize", "octopus", "socratica", "adr-sync", "project", "seed", "uninstall", "mcp", "hook", "update-check", "version":
 			if commandHelp(cmd) {
 				return
 			}
@@ -67,6 +67,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdMass(deps, args)
 	case "octopus":
 		CmdOctopus(deps, args)
+	case "socratica":
+		CmdSocratica(deps, args)
 	case "install":
 		CmdInstall(deps, args)
 	case "wrap":

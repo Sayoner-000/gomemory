@@ -113,6 +113,11 @@ func openDBFile(path string) (*sql.DB, error) {
 	// pasar una base nueva a WAL pide un bloqueo exclusivo. Con el orden inverso,
 	// dos procesos que abrían a la vez un almacén recién creado (hooks duplicados
 	// en el primer arranque) hacían fallar a uno con SQLITE_BUSY (feature 035).
+	// SQLite crea -wal y -shm con el modo del archivo principal: crearlo antes
+	// con 0600 evita que nazcan con el umask local (H-05, auditoría 2026-10-16).
+	if f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err == nil {
+		_ = f.Close()
+	}
 	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
@@ -125,7 +130,10 @@ func openDBFile(path string) (*sql.DB, error) {
 	// explícitamente a 0600 tras abrir (idempotente sobre una BD ya existente).
 	// Endurecer permisos es deseable, pero no debe impedir abrir una BD ya
 	// utilizable cuando el filesystem no permite chmod (p. ej. read-only).
-	_ = os.Chmod(path, 0o600)
+	// Las bases anteriores pueden traer -wal/-shm más abiertos.
+	for _, f := range []string{path, path + "-wal", path + "-shm"} {
+		_ = os.Chmod(f, 0o600)
+	}
 	return db, nil
 }
 
@@ -168,6 +176,9 @@ func Init(root string) (*sql.DB, error) {
 // versionar el bundle de export (ver domain.ExportVersion), no reescribir el
 // esquema de mem.db en el lugar.
 func migrate(db *sql.DB) error {
+	if _, err := db.Exec(socraticaSchema); err != nil {
+		return fmt.Errorf("migrate socratica: %w", err)
+	}
 	schema := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS memories (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

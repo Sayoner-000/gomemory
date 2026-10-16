@@ -9,6 +9,7 @@ import (
 )
 
 type Settings struct {
+	domain.SocraticaSettings
 	// Theme selecciona la apariencia TUI: dark, light, matrix o auto.
 	Theme            string   `json:"theme,omitempty"`
 	AutoApprove      bool     `json:"auto_approve"`
@@ -304,7 +305,12 @@ func WriteSettings(root string, s Settings) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	// Preferencias y rutas del proyecto: solo para su dueño (H-05). WriteFile
+	// no cambia el modo de un archivo existente, así que se endurece aparte.
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func ApplyAutoApprove(root string, s Settings) {

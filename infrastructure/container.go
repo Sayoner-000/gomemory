@@ -4,14 +4,19 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"io"
 	"path/filepath"
 	"time"
+
+	"github.com/google/uuid"
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/tui"
 	"mem/adapters/secondary/clock"
 	"mem/adapters/secondary/codegraph"
 	"mem/adapters/secondary/compression/native"
+	"mem/adapters/secondary/generator"
+	"mem/adapters/secondary/launcher"
 	"mem/adapters/secondary/persistence"
 	"mem/adapters/secondary/speckit"
 	"mem/adapters/secondary/tokens"
@@ -22,9 +27,10 @@ import (
 )
 
 type Container struct {
-	Root    string
-	Project string
-	db      *sql.DB
+	Socratica *usecases.SocraticaFlow
+	Root      string
+	Project   string
+	db        *sql.DB
 	// settings es la lectura única de settings.json hecha en NewContainer; el
 	// resto del Container la reutiliza para no ver dos versiones del archivo.
 	settings persistence.Settings
@@ -81,6 +87,11 @@ type Container struct {
 // construcción, no una autorización: un valor no reconocido se acepta igual
 // (feature 020, FR-004).
 func NewContainer(root, channel string) (*Container, error) {
+	settings := persistence.ReadSettings(root)
+	validatedSocratica, socraticaErr := persistence.ReadSocraticaSettings(root)
+	if socraticaErr != nil && channel != "mcp" && channel != "hook" {
+		return nil, socraticaErr
+	}
 	db, err := persistence.Open(root)
 	if err != nil {
 		return nil, err
@@ -95,7 +106,6 @@ func NewContainer(root, channel string) (*Container, error) {
 	consensusRepo := persistence.NewConsensusRepository(db)
 	codeGraphRepo := persistence.NewCodeGraphRepository(db)
 
-	settings := persistence.ReadSettings(root)
 	// Dedup en la fuente (feature 008): la ventana de identidad se toma de settings
 	// (singleton de proceso). <=0 desactiva el dedup por identidad.
 	persistence.SetDedupWindowDays(settings.DedupWindowDays)
@@ -261,6 +271,12 @@ func NewContainer(root, channel string) (*Container, error) {
 		SessionMemories:       sessionMemories,
 		CompactContextBuilder: &compactContextBuilder,
 	}
+	queryTimeout := domain.DefaultQueryTimeout
+	if socraticaErr == nil {
+		queryTimeout = time.Duration(*validatedSocratica.QueryTimeoutMS) * time.Millisecond
+	}
+	socraticaRepo := persistence.NewSocraticaStore(db, queryTimeout)
+	c.Socratica = &usecases.SocraticaFlow{Repo: socraticaRepo, UOW: socraticaRepo, Lock: persistence.NewSocraticaDispatchLock(root), Generator: socraticaGenerators(validatedSocratica, socraticaErr), Clock: clock.SystemClock{}, NewID: func() string { return uuid.Must(uuid.NewV7()).String() }, Settings: settings.SocraticaSettings, SettingsError: socraticaErr}
 	if dataHome, err := persistence.DataHome(); err == nil {
 		store := persistence.NewPrivacyMaintenanceStore(db)
 		c.Sanitizer = &usecases.SanitizeProject{
@@ -286,8 +302,31 @@ func (c *Container) Close() error {
 	return c.db.Close()
 }
 
+// socraticaGenerators builds the ordered list from socratica_generators
+// (research R3) with the configured timeout. OpenCode is skipped: it has no
+// mode without tools, so it cannot generate without risking the task (T066).
+func socraticaGenerators(s domain.SocraticaSettings, settingsErr error) ports.SocraticGenerator {
+	if settingsErr != nil {
+		return generator.NewFirstAvailable(nil)
+	}
+	timeout := time.Duration(*s.GeneratorTimeoutSeconds) * time.Second
+	var list []ports.SocraticGenerator
+	for _, name := range s.Generators {
+		switch name {
+		case "claude":
+			list = append(list, generator.NewClaude(timeout))
+		case "codex":
+			list = append(list, generator.NewCodex(timeout))
+		}
+	}
+	return generator.NewFirstAvailable(list)
+}
+
 func (c *Container) ToDeps() *cli.Deps {
 	return &cli.Deps{
+		Socratica:                    c.Socratica,
+		SocraticaExec:                launcher.NewExec(nil, nil, nil),
+		SocraticaPrint:               func(w io.Writer, raw bool) ports.AgentLauncher { return launcher.NewPrint(w, raw) },
 		ReleasePort:                  cli.NewReleasePort(),
 		UpdateCheckRepo:              persistence.UpdateCheckRepository{},
 		Root:                         c.Root,
@@ -365,6 +404,7 @@ func buildCodeProviders(root string, settings persistence.Settings) []ports.Code
 
 func (c *Container) RunTUI() error {
 	return tui.Run(c.MemoryRepo, c.RelationRepo, c.SettingsRepo, c.MaintenanceRepo, c.tuiProvider(), c.Root, c.Project, tui.UsageDeps{
+		Socratica:     tui.SocraticaDeps{Flow: c.Socratica, Launcher: launcher.NewExec(nil, nil, nil)},
 		CodeProviders: c.tuiProviders(),
 		SessionRepo:   c.SessionRepo,
 		UsageRepo:     c.UsageRepo,

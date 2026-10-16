@@ -21,6 +21,7 @@ func LaunchTUI(deps *Deps) {
 	project := deps.ProjectRepo.Key(root)
 
 	if err := tui.Run(deps.MemoryRepo, deps.RelationRepo, deps.SettingsRepo, deps.MaintenanceRepo, deps.TUIProvider, root, project, tui.UsageDeps{
+		Socratica:     tui.SocraticaDeps{Flow: deps.Socratica, Launcher: deps.SocraticaExec},
 		CodeProviders: deps.TUIProviders,
 		SessionRepo:   deps.SessionRepo,
 		UsageRepo:     deps.UsageRepo,
@@ -260,6 +261,12 @@ COMMANDS
   mem octopus route <objetivo> [--class C] [--files a,b] [--read-only] [--json]
                                    Enrutar una unidad de trabajo: inline o delegar
                                    Módulo opt-in: se activa en TUI → Configuración → "Octopus AAR"
+  mem socratica refine [--mode refine|scrutiny] [--client <agente>] [--print [--raw]] [texto|-]
+                                   Refinar un prompt con hasta 3 preguntas y aprobación explícita
+  mem socratica history|status|pending [--resume <id>|--cancel <id>]
+                                   Historial, estado por agente y flujos pendientes de Socratica
+  mem socratica on|off --client <agente> · mem socratica private on|off
+                                   Intercepción automática (solo con evidencia) y modo privado
   mem tui                          Abrir interfaz TUI explícitamente
   mem update [--check] [--version vX.Y.Z]
                                     Actualizar el binario y refrescar la integración del proyecto

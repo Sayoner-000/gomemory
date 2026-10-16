@@ -133,6 +133,7 @@ func newMCPServer(deps *Deps, root, project string) *mcp.Server {
 
 func registerTools(server *mcp.Server, deps *Deps, project string) {
 	registerReviewTools(server, deps, project)
+	registerSocraticaTool(server, deps, project)
 
 	addTool(server, &mcp.Tool{
 		Name: "save_memory",
