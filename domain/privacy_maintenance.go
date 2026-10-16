@@ -17,9 +17,12 @@ import (
 type SanitizeCategory string
 
 const (
-	SanitizeSession      SanitizeCategory = "session"
-	SanitizeRelation     SanitizeCategory = "relation"
-	SanitizeChannelError SanitizeCategory = "channel_error"
+	SanitizeSession SanitizeCategory = "session"
+	// SanitizeSessionPrompt: sessions.last_prompt, el origen de las memorias
+	// del turno. Se protege al escribir; las filas previas se sanean aquí.
+	SanitizeSessionPrompt SanitizeCategory = "session_prompt"
+	SanitizeRelation      SanitizeCategory = "relation"
+	SanitizeChannelError  SanitizeCategory = "channel_error"
 	// SanitizeOriginal es un original comprimido con contenido protegido:
 	// no se reescribe (prometía recuperación exacta), se elimina.
 	SanitizeOriginal SanitizeCategory = "compression_original"
@@ -35,22 +38,38 @@ const (
 	SanitizeReviewConsensus       SanitizeCategory = "review_consensus"
 	SanitizeReviewRejudgment      SanitizeCategory = "review_rejudgment"
 	SanitizeReviewFixVerification SanitizeCategory = "review_fix_verification"
+	// SanitizeReviewTargetScope: reviews.target_scope, lista libre del llamador.
+	SanitizeReviewTargetScope SanitizeCategory = "review_target_scope"
 )
 
 // sanitizeFields es la lista permitida categoría → campo. Nada fuera de ella
 // se lee ni se escribe durante el saneamiento.
 var sanitizeFields = map[SanitizeCategory]string{
-	SanitizeSession:      "summary",
-	SanitizeRelation:     "reasoning",
-	SanitizeChannelError: "last_error",
-	SanitizeOriginal:     "content",
-	SanitizeMemoryReview: "content",
+	SanitizeCategory("socratica_flow_original"):     "original_prompt",
+	SanitizeCategory("socratica_flow_proposed"):     "proposed_prompt",
+	SanitizeCategory("socratica_flow_approved"):     "approved_prompt",
+	SanitizeCategory("socratica_flow_questions"):    "questions_json",
+	SanitizeCategory("socratica_flow_answers"):      "answers_json",
+	SanitizeCategory("socratica_flow_error"):        "last_error",
+	SanitizeCategory("socratica_flow_scrutiny"):     "scrutiny_json",
+	SanitizeCategory("socratica_history_original"):  "original_prompt",
+	SanitizeCategory("socratica_history_proposed"):  "proposed_prompt",
+	SanitizeCategory("socratica_history_approved"):  "approved_prompt",
+	SanitizeCategory("socratica_history_additions"): "additions_json",
+	SanitizeCategory("socratica_history_scrutiny"):  "scrutiny_json",
+	SanitizeSession:       "summary",
+	SanitizeSessionPrompt: "last_prompt",
+	SanitizeRelation:      "reasoning",
+	SanitizeChannelError:  "last_error",
+	SanitizeOriginal:      "content",
+	SanitizeMemoryReview:  "content",
 
 	SanitizeReviewFinding:         "claim",
 	SanitizeReviewFindingEvidence: "evidence",
 	SanitizeReviewConsensus:       "claim",
 	SanitizeReviewRejudgment:      "evidence",
 	SanitizeReviewFixVerification: "verification",
+	SanitizeReviewTargetScope:     "target_scope",
 }
 
 // SanitizeCandidate es un registro que requiere saneamiento. Text vive solo

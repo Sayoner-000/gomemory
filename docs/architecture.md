@@ -847,6 +847,16 @@ lectura**: el inspector los detecta (hooks `cbm-*` en `~/.claude/settings.json`)
 los escribe ni los corrige; si el brazo extensor no está instalado, sus canales se omiten del reporte
 sin ningún aviso.
 
+## Socratica — refinamiento de prompts con aprobación (feature 039)
+
+Guía de uso: [socratica.md](socratica.md). La habilidad canónica es `infrastructure/templates/socratica/SKILL.md` (copia publicada en `skills/socratica/`, igualdad byte a byte comprobada por contrato).
+
+- **Dominio** (`domain/socratica*.go`): la máquina de estados pura `Reduce(flow, event, now, newID)`, el parser de generación con su esquema embebido, la decisión de intercepción `DecideInterception`, los ajustes `socratica_*` validados al cargar (fallan rápido) y las capacidades por agente, todas en `false` hasta tener evidencia de aceptación.
+- **Puertos** (`application/ports/`): `SocraticaRepository` y `SocraticaUnitOfWork` (persistencia y transacción), `SocraticGenerator` (preguntas y reescritura fuera del agente), `AgentLauncher` (entrega bloqueante del prompt aprobado: arrancar → `onStarted` → esperar) y `SocraticaDispatchLock` (lock de archivo por flujo).
+- **Caso de uso** (`application/usecases/socratica_flow.go`): `Apply` reduce y persiste cada evento en una transacción; con origen MCP nunca llama al generador (devuelve `next` para el agente activo), con origen local sí. `ClassifyPrompt` es la única decisión de los hooks (procedencia, captura, `>`, marca de despacho).
+- **Execute**: retiene el lock del flujo durante todo el despacho → `approve` (tx) → `ClaimDispatch` exclusivo → `Launch` fuera de transacción con el ack (condicionado al propietario) dentro de `onStarted` → espera al agente. Si el arranque falla, libera su propio reclamo; si el agente arrancó y el ack falla, reintenta tras la espera y, si vuelve a fallar, deja el flujo incierto para que la persona decida.
+- **Adaptadores**: herramienta MCP única `socratica_flow`; `mem socratica` (CLI); pantallas de la TUI (todo cambio vía caso de uso en `tea.Cmd`, Ejecutar con `tea.Exec`); generadores `claude`/`codex` sin herramientas o de solo lectura (`adapters/secondary/generator`); lanzadores `Exec` y `Print` (`adapters/secondary/launcher`); `mem hook socratica-decide` para el plugin de OpenCode, que solo aplica la decisión.
+
 ## Octopus AAR — Enrutador Adaptativo de Agentes (feature 027)
 
 Módulo **opt-in** que decide si una unidad de trabajo se ejecuta en el agente

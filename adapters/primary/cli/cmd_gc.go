@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -52,6 +53,11 @@ func CmdGC(deps *Deps, args []string) {
 	deleted, err := deps.MaintenanceRepo.Purge(filter)
 	if err != nil {
 		fail("garbage collection: %v", err)
+	}
+	if deps.Socratica != nil {
+		if err := deps.Socratica.PurgeStale(context.Background(), defaultProject); err != nil {
+			fail("garbage collection Socratica: %v", err)
+		}
 	}
 
 	if deleted == 0 {

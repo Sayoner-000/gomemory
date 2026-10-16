@@ -183,3 +183,62 @@ func InstallExistingSkillsForAgents(planMethod, constitutionBody string) ([]stri
 // ConstitutionSkillBody expone el cuerpo compartido de la constitución para que
 // el paquete cli pueda pasarlo a InstallExistingSkillsForAgents sin duplicarlo.
 func ConstitutionSkillBody() string { return constitutionWrapperBody }
+
+// socraticaSkillName coincide con el `name` del frontmatter de la habilidad.
+const socraticaSkillName = "socratica"
+
+// socraticaWrapperTarget es un envoltorio de comando fino: solo nombra la
+// habilidad y el modo, nunca copia su cuerpo (research R2). Se escribe si
+// existe dir, la raíz de configuración del agente relativa al HOME.
+type socraticaWrapperTarget struct {
+	agent   string
+	dir     []string
+	file    []string
+	wrapper string
+}
+
+// Claude Code ya invoca toda habilidad como /<name>, así que solo necesita el
+// envoltorio de /socratic-q; OpenCode necesita los dos. Codex no expone un
+// directorio de comandos verificado (research R2).
+var socraticaWrapperTargets = []socraticaWrapperTarget{
+	{agent: "claude", dir: []string{".claude"}, file: []string{"commands", "socratic-q.md"}, wrapper: "socratic-q.md"},
+	{agent: "opencode", dir: []string{".config", "opencode"}, file: []string{"commands", "socratica.md"}, wrapper: "socratica.md"},
+	{agent: "opencode", dir: []string{".config", "opencode"}, file: []string{"commands", "socratic-q.md"}, wrapper: "socratic-q.md"},
+}
+
+// InstallSocraticaSkill distribuye la habilidad socratica por el canal común y
+// sus envoltorios de comando, con las mismas garantías: solo donde el agente
+// ya tiene su directorio y solo si el contenido difiere. wrappers se indexa
+// por nombre de archivo (socratica.md, socratic-q.md).
+func InstallSocraticaSkill(body string, wrappers map[string]string) ([]string, error) {
+	written, err := InstallAgentSkill(socraticaSkillName, body)
+	if err != nil || strings.TrimSpace(body) == "" {
+		return written, err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return written, err
+	}
+	for _, t := range socraticaWrapperTargets {
+		content := wrappers[t.wrapper]
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+		base := filepath.Join(append([]string{home}, t.dir...)...)
+		if info, err := os.Stat(base); err != nil || !info.IsDir() {
+			continue
+		}
+		dest := filepath.Join(append([]string{base}, t.file...)...)
+		if previo, err := os.ReadFile(dest); err == nil && string(previo) == content {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return written, err
+		}
+		if err := os.WriteFile(dest, []byte(content), 0o644); err != nil {
+			return written, err
+		}
+		written = append(written, dest)
+	}
+	return written, nil
+}

@@ -126,7 +126,25 @@ func TestUninstall_ProyectoConservaLaMemoriaConKeep(t *testing.T) {
 // la exportación privada se puede reimportar.
 func TestUninstall_SistemaSinRastros(t *testing.T) {
 	s := newLifecycleSandbox(t)
+	// Directorios de los tres agentes: así la instalación global deposita la
+	// habilidad socratica y sus envoltorios, y la aserción final no pasa en vacío.
+	for _, d := range []string{".claude", ".codex", ".opencode", filepath.Join(".config", "opencode")} {
+		mustMkdir(t, filepath.Join(s.Home, d))
+	}
 	s.globalSetup()
+	socratica := []string{
+		filepath.Join(".claude", "skills", "socratica"),
+		filepath.Join(".codex", "skills", "socratica"),
+		filepath.Join(".opencode", "skills", "socratica"),
+		filepath.Join(".claude", "commands", "socratic-q.md"),
+		filepath.Join(".config", "opencode", "commands", "socratica.md"),
+		filepath.Join(".config", "opencode", "commands", "socratic-q.md"),
+	}
+	for _, rel := range socratica {
+		if _, err := os.Stat(filepath.Join(s.Home, rel)); err != nil {
+			t.Fatalf("la instalación global no dejó %s: %v", rel, err)
+		}
+	}
 	p1 := s.installed("p1")
 	p2 := s.installed("p2")
 	export := filepath.Join(s.Root, "export")
@@ -138,6 +156,11 @@ func TestUninstall_SistemaSinRastros(t *testing.T) {
 
 	if hits := grepGomemory(t, s.Home); len(hits) != 0 {
 		t.Errorf("quedan rastros de gomemory en HOME: %v", hits)
+	}
+	for _, rel := range socratica {
+		if _, err := os.Stat(filepath.Join(s.Home, rel)); !os.IsNotExist(err) {
+			t.Errorf("la desinstalación dejó %s (%v)", rel, err)
+		}
 	}
 	if _, err := os.Stat(s.Data); !os.IsNotExist(err) {
 		t.Errorf("el almacén global sigue existiendo (%v)", err)

@@ -1,6 +1,9 @@
 package ports
 
+import "mem/domain"
+
 type SettingsData struct {
+	domain.SocraticaSettings
 	// Theme selecciona la apariencia TUI: dark, light, matrix o auto.
 	Theme string `json:"theme,omitempty"`
 	// UpdateCheckDisabled, Agents y AgentScope (feature 034): aviso de versión

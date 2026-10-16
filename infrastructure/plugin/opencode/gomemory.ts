@@ -217,14 +217,32 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // como provenance a lo que se guarde (misma lógica en Go). El texto real
     // viene en output.parts (type "text").
     "chat.message": async (_input, output) => {
-      const prompt = (output.parts ?? [])
-        .filter((p: any) => p.type === "text")
+      const parts: any[] = output.parts ?? [];
+      const textParts = parts.filter((p: any) => p.type === "text");
+      const prompt = textParts
         .map((p: any) => p.text ?? "")
         .join("\n")
         .trim();
-      if (prompt.length > 0) {
-        await memWithStdin(["hook", "prompt"], JSON.stringify({ prompt }));
+      if (prompt.length === 0) return;
+      // Socratica (feature 039, US6): la decisión vive entera en Go; aquí solo
+      // se aplica. Una respuesta ausente o inválida no cambia el mensaje.
+      const attachments = parts.some((p: any) => p.type === "file" || p.type === "image");
+      let decision: any = null;
+      try {
+        decision = JSON.parse(await memWithStdin(["hook", "socratica-decide"], JSON.stringify({ prompt, client: "opencode", attachments })));
+      } catch {
+        decision = null;
       }
+      if (decision?.forwarded && textParts.length > 0) {
+        // El texto decidido sustituye al escrito: queda en una sola parte.
+        textParts[0].text = decision.forward ?? "";
+        output.parts = parts.filter((p: any) => p.type !== "text" || p === textParts[0]);
+      } else if (decision?.capture && decision.directive && textParts.length > 0) {
+        const first = textParts[0];
+        parts.unshift({ ...first, id: first.id ? `${first.id}-socratica` : undefined, text: decision.directive, synthetic: true });
+        output.parts = parts;
+      }
+      await memWithStdin(["hook", "prompt"], JSON.stringify({ prompt }));
     },
 
     // Inyecta el protocolo de memoria y el contexto histórico en el system
@@ -424,6 +442,11 @@ const [
   "gomemory_review_rejudge",
   "gomemory_review_promote_memory",
 ];
+
+// Socratica (feature 039): domain.MCPSocraticaTools. La habilidad la nombra;
+// el protocolo de memoria no necesita citarla.
+const T_SOCRATICA_FLOW = "gomemory_socratica_flow";
+void T_SOCRATICA_FLOW;
 
 const [
   T_EXT_SEARCH_GRAPH,
@@ -862,7 +885,14 @@ const createV2Setup = (exec: Exec, options: { closeBudgetMs?: number } = {}) => 
       await ctx.session.hook("prompt", (ev: any) =>
         track(async () => {
           if (!(await ownsSession(ev.sessionID))) return;
-          await hooks["chat.message"]({ sessionID: ev.sessionID }, { parts: [{ type: "text", text: ev.prompt?.text ?? "" }] });
+          const original = ev.prompt?.text ?? "";
+          const out = { parts: [{ type: "text", text: original }] as any[] };
+          await hooks["chat.message"]({ sessionID: ev.sessionID }, out);
+          // En 2.x el gancho recibe el prompt, no sus partes: lo que la
+          // decisión de Socratica haya cambiado (directiva o `>` retirado)
+          // se devuelve al texto del prompt (feature 039, US6).
+          const text = out.parts.filter((p: any) => p.type === "text").map((p: any) => p.text ?? "").join("\n\n");
+          if (text !== original && ev.prompt && typeof ev.prompt === "object") ev.prompt.text = text;
         }),
       ),
     );

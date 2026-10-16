@@ -7,7 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.33.1-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.33.1)
+[![Version](https://img.shields.io/badge/version-2.34.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.34.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)
@@ -208,6 +208,9 @@ See [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-r
 
 **Defensive QA audit**
 A multi-language defensive audit skill (`defensive-qa-audit`) for Go, Python, JS/TS, Java, PHP, Rust, shell, SQL, CI and HTML/CSS, focused on leaks (PII, credentials, resources, memory, XSS, exposed errors). Every finding needs a `file:line` location, a synthetic-data reproduction and a verifiable closing proposal; the report includes a coverage table. With gomemory connected, it checks prior audits, uses the code graph for blast radius, saves high-severity findings as memory, and can hand them to adversarial consensus review. Installed and kept current in `~/.claude|.codex|.opencode/skills/` by `mem install` (global scope), `mem setup-mcp --scope global` and `mem update`. See [`skills/defensive-qa-audit`](skills/defensive-qa-audit/).
+
+**Socratica: prompt refinement with explicit approval**
+A `socratica` skill that turns a rough prompt into a faithful, executable one (`/socratica`) or examines a proposal's assumptions, evidence and alternatives (`/socratic-q`), with at most three multiple-choice questions and nothing executed before you approve. With gomemory connected, the `socratica_flow` MCP tool keeps the flow, prevents duplicate dispatch (`approve` → `ack` before executing) and keeps a bounded, privacy-protected history. Also available as `mem socratica` and from the TUI (`p`). Automatic interception is opt-in and only enabled per agent with acceptance evidence. See [`docs/socratica.md`](docs/socratica.md).
 
 **Code graph integration**
 Optional integrations with external code graphs (`codebase-memory-mcp` and [`CodeGraph`](https://github.com/colbymchenry/codegraph)) enrich memory with project structure and code context. Configure both in `code_graph_providers`; `mem index` refreshes each configured graph. Non-blocking and agnostic to the agent. Controlled via `mem settings --code-graph=true|false`.
@@ -495,6 +498,7 @@ For security details and limitations, see [`docs/MANUAL.md`](docs/MANUAL.md).
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Agent-agnostic contract for the atomic plan mode — implement it for any agent gomemory doesn't know yet |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) | Machine-readable contract for measured context usage |
 | [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Console identity and TUI themes: dark, light and Matrix |
+| [`docs/socratica.md`](docs/socratica.md) | Socratica: prompt refinement and Socratic scrutiny with explicit approval |
 | [`docs/release_gomemory_notes.md`](docs/release_gomemory_notes.md) | Automated release workflow and verification |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute |
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community guidelines |

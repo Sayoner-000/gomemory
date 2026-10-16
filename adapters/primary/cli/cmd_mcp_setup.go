@@ -270,6 +270,20 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	}
 	written = append(written, auditoria...)
 
+	// Socratica: habilidad más envoltorios finos de /socratica y /socratic-q,
+	// por el mismo canal y con el mismo criterio de ámbito.
+	socratica, err := setup.InstallSocraticaSkill(embeddedTemplate("socratica/SKILL.md"), map[string]string{
+		"socratica.md":  embeddedTemplate("socratica/commands/socratica.md"),
+		"socratic-q.md": embeddedTemplate("socratica/commands/socratic-q.md"),
+	})
+	if err != nil {
+		fmt.Printf("  ⚠️  socratica (scope global): %v\n", err)
+	}
+	for _, p := range socratica {
+		fmt.Printf("  ✅ socratica: %s\n", p)
+	}
+	written = append(written, socratica...)
+
 	// Habilidades ya existentes hacia Codex y OpenCode. Cierra un hueco abierto
 	// desde las features 013/021: gomemory escribía habilidades solo en
 	// `.claude/skills/`, así que estos dos agentes nunca recibieron el método de

@@ -44,6 +44,10 @@ const (
 	// screenDocs (feature 021): administración de documentos fijados — ver,
 	// exportar, importar y restaurar las reglas de trabajo y la constitución.
 	screenDocs
+	// Socratica (feature 039, US5): lista, detalle/revisión y preguntas.
+	screenSocratica
+	screenSocraticaDetail
+	screenSocraticaQuestions
 )
 
 // editSettingField identifica cuál de los tres ajustes de huella de contexto
@@ -126,6 +130,7 @@ func listRowLines(m domain.Memory, selected bool, width int) []string {
 // ─── Model ─────────────────────────────────────────────────────────
 
 type model struct {
+	soc             socraticaState
 	viewScroll      int
 	memRepo         ports.MemoryRepository
 	relRepo         ports.RelationRepository
@@ -245,6 +250,8 @@ type model struct {
 // opcionales en su totalidad: con el valor cero, la pantalla degrada
 // mostrando lo que puede (nil-safe, mismo criterio que el resto del modelo).
 type UsageDeps struct {
+	// Socratica (feature 039): viaja con el resto de dependencias opcionales.
+	Socratica     SocraticaDeps
 	CodeProviders []ports.CodeGraphProvider
 	SessionRepo   ports.SessionRepository
 	UsageRepo     ports.UsageRepository
@@ -366,6 +373,7 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		tokenCounter:     usageDeps.TokenCounter,
 		compressor:       usageDeps.Compressor,
 		specKitReader:    usageDeps.SpecKitReader,
+		soc:              newSocraticaState(usageDeps.Socratica),
 		usageTaskInput:   ut,
 		usageBudgetInput: ub,
 	}
@@ -397,6 +405,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.viewScroll = 0
 		}
+	}
+	if next, cmd, ok := m.handleSocraticaMsg(msg); ok {
+		return next, cmd
 	}
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -447,6 +458,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusMsg = "Contenido copiado al portapapeles"
 			m.statusTimer = 40
 			return m, tea.SetClipboard(content)
+		}
+		if m.screen == screenSocratica || m.screen == screenSocraticaDetail || m.screen == screenSocraticaQuestions {
+			return m.updateSocratica(msg)
 		}
 		if m.screen == screenSave {
 			return m.updateSave(msg)
@@ -680,6 +694,11 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.dupCursor = 0
 			m.dupErr = ""
 			m.dupGroups, _ = usecases.DetectProjectDuplicates(m.memRepo, m.project)
+		}
+
+	case "p":
+		if m.ready {
+			return m.openSocratica()
 		}
 
 	case "u":
@@ -2042,6 +2061,12 @@ func (m model) renderView() string {
 		content = m.editSettingView()
 	case screenUsage:
 		content = m.usageView()
+	case screenSocratica:
+		content = m.socraticaListView()
+	case screenSocraticaDetail:
+		content = m.socraticaDetailView()
+	case screenSocraticaQuestions:
+		content = m.socraticaQuestionsView()
 	}
 	return m.fitTerminalView(content)
 }
@@ -2143,7 +2168,7 @@ func (m model) listView() string {
 	}
 
 	// Footer
-	help := "↑↓ navegar · / buscar · enter detalle · d eliminar · ctrl+y copiar · s guardar · c config · m mantenimiento · o optimizar · u uso · q salir"
+	help := "↑↓ navegar · / buscar · enter detalle · d eliminar · ctrl+y copiar · s guardar · c config · m mantenimiento · o optimizar · u uso · p socratica · q salir"
 	if m.height < 18 {
 		help = "↑↓ · / buscar · enter · q salir"
 	}

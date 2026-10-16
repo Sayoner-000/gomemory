@@ -60,7 +60,13 @@ func buildReleaseArchive(t *testing.T, bin []byte) []byte {
 // hash correcto, "-" omite checksums.txt y cualquier otro valor lo publica tal cual.
 func newReleaseServer(t *testing.T, tag string, checksum string) *releaseServer {
 	t.Helper()
-	rs := &releaseServer{newBinary: []byte("#!/bin/sh\necho 'gomemory " + strings.TrimPrefix(tag, "v") + "'\n"), asset: releaseAssetName()}
+	return newReleaseServerFor(t, tag, checksum, []byte("#!/bin/sh\necho 'gomemory "+strings.TrimPrefix(tag, "v")+"'\n"))
+}
+
+// newReleaseServerFor publica bin como binario de la release.
+func newReleaseServerFor(t *testing.T, tag, checksum string, bin []byte) *releaseServer {
+	t.Helper()
+	rs := &releaseServer{newBinary: bin, asset: releaseAssetName()}
 	archive := buildReleaseArchive(t, rs.newBinary)
 	sum := sha256.Sum256(archive)
 	if checksum == "" {
@@ -290,5 +296,44 @@ func TestDoctor_VersionYBinario(t *testing.T) {
 	text := s.Run("", p, "doctor")
 	if !strings.Contains(text.Stdout, "Versión y binario") || !strings.Contains(text.Stdout, "GOMEMORY_NO_UPDATE_CHECK") {
 		t.Errorf("sección de texto:\n%s", text.Stdout)
+	}
+}
+
+// TestUpdate_ReinstalaSocratica (T039): `mem update` refresca la integración
+// con el binario nuevo, que reinstala la habilidad socratica y sus
+// envoltorios por la misma vía que la instalación global. PATH aislado por el
+// sandbox (memoria 438).
+func TestUpdate_ReinstalaSocratica(t *testing.T) {
+	s := newLifecycleSandbox(t)
+	for _, d := range []string{".claude", filepath.Join(".config", "opencode")} {
+		mustMkdir(t, filepath.Join(s.Home, d))
+	}
+	p := s.Project("p1")
+	if r := s.Run("", p, "install", p, "--yes", "--scope", "global", "--agents", "claude"); r.ExitCode != 0 {
+		t.Fatalf("install: %s", r.Stdout+r.Stderr)
+	}
+	skill := filepath.Join(s.Home, ".claude", "skills", "socratica", "SKILL.md")
+	wrapper := filepath.Join(s.Home, ".claude", "commands", "socratic-q.md")
+	for _, f := range []string{skill, wrapper} {
+		if _, err := os.Stat(f); err != nil {
+			t.Fatalf("la instalación no dejó %s: %v", f, err)
+		}
+		if err := os.Remove(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	real, err := os.ReadFile(buildLifecycleBinary(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rs := newReleaseServerFor(t, "v9.9.9", "", real)
+	rs.apply(s)
+	if r := s.Run("", p, "update", "--version", "v9.9.9", "--yes"); r.ExitCode != 0 {
+		t.Fatalf("update: code=%d\n%s\n%s", r.ExitCode, r.Stdout, r.Stderr)
+	}
+	for _, f := range []string{skill, wrapper} {
+		if _, err := os.Stat(f); err != nil {
+			t.Errorf("mem update no reinstaló %s: %v", f, err)
+		}
 	}
 }

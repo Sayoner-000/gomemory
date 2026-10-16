@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
 
@@ -39,10 +39,18 @@ export function assetName(platform: string, arch: string): string {
   return `mem_${os}_${cpu}.${os === 'windows' ? 'zip' : 'tar.gz'}`;
 }
 
+// Mismas reglas que expected_sha256 de scripts/install.sh: exactamente una
+// entrada de dos campos para el asset y un digest de 64 hex (H-06).
 export function verifyChecksum(data: Uint8Array, manifest: string, asset: string): void {
-  const entry = manifest.split(/\r?\n/).map(line => line.trim().split(/\s+/)).find(parts => parts[1]?.replace(/^\*/, '') === asset);
-  const actual = createHash('sha256').update(data).digest('hex');
-  if (!entry || entry[0] !== actual) throw new Error(`checksum inválido o ausente para ${asset}`);
+  const digests: string[] = [];
+  for (const line of manifest.split(/\r?\n/)) {
+    const [digest, file, ...rest] = line.trim().split(/\s+/);
+    if (digest !== undefined && file !== undefined && rest.length === 0 && file.replace(/^\*/, '') === asset) digests.push(digest);
+  }
+  const only = digests.length === 1 ? digests[0] : undefined;
+  const expected = only !== undefined && /^[0-9a-f]{64}$/i.test(only) ? Buffer.from(only.toLowerCase(), 'hex') : null;
+  const actual = createHash('sha256').update(data).digest();
+  if (!expected || !timingSafeEqual(expected, actual)) throw new Error(`checksum inválido o ausente para ${asset}`);
 }
 
 export function terminalMode(input: {stdinTTY:boolean; stdoutTTY:boolean; width:number; env:NodeJS.ProcessEnv}) {

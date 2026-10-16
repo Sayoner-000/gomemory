@@ -1,3 +1,6 @@
+// Referencia actualizada a conciencia en la feature 039 (T059): chat.message
+// aplica la decisión de `mem hook socratica-decide`; con la intercepción
+// apagada (valor por defecto) el mensaje llega igual que antes.
 // gomemory — plugin de OpenCode (API real @opencode-ai/plugin).
 //
 // `import type` se borra en runtime: el plugin no tiene dependencias de módulo,
@@ -210,14 +213,32 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // como provenance a lo que se guarde (misma lógica en Go). El texto real
     // viene en output.parts (type "text").
     "chat.message": async (_input, output) => {
-      const prompt = (output.parts ?? [])
-        .filter((p: any) => p.type === "text")
+      const parts: any[] = output.parts ?? [];
+      const textParts = parts.filter((p: any) => p.type === "text");
+      const prompt = textParts
         .map((p: any) => p.text ?? "")
         .join("\n")
         .trim();
-      if (prompt.length > 0) {
-        await memWithStdin(["hook", "prompt"], JSON.stringify({ prompt }));
+      if (prompt.length === 0) return;
+      // Socratica (feature 039, US6): la decisión vive entera en Go; aquí solo
+      // se aplica. Una respuesta ausente o inválida no cambia el mensaje.
+      const attachments = parts.some((p: any) => p.type === "file" || p.type === "image");
+      let decision: any = null;
+      try {
+        decision = JSON.parse(await memWithStdin(["hook", "socratica-decide"], JSON.stringify({ prompt, client: "opencode", attachments })));
+      } catch {
+        decision = null;
       }
+      if (decision?.forwarded && textParts.length > 0) {
+        // El texto decidido sustituye al escrito: queda en una sola parte.
+        textParts[0].text = decision.forward ?? "";
+        output.parts = parts.filter((p: any) => p.type !== "text" || p === textParts[0]);
+      } else if (decision?.capture && decision.directive && textParts.length > 0) {
+        const first = textParts[0];
+        parts.unshift({ ...first, id: first.id ? `${first.id}-socratica` : undefined, text: decision.directive, synthetic: true });
+        output.parts = parts;
+      }
+      await memWithStdin(["hook", "prompt"], JSON.stringify({ prompt }));
     },
 
     // Inyecta el protocolo de memoria y el contexto histórico en el system

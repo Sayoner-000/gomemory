@@ -56,6 +56,9 @@ const (
 	ToolOctopusRoutePlan = "octopus_route_plan"
 	ToolOctopusReport    = "octopus_report"
 	ToolOctopusStatus    = "octopus_status"
+	// ToolSocraticaFlow (feature 039): una sola tool con campo action para
+	// refinar y escrutar prompts con aprobación explícita (FR-031).
+	ToolSocraticaFlow = "socratica_flow"
 )
 
 // MCPMemoryTools son las tools del núcleo de memoria.
@@ -130,17 +133,22 @@ var MCPOctopusTools = []string{
 	ToolOctopusStatus,
 }
 
+// MCPSocraticaTools (feature 039). No es destructiva: la compuerta de
+// aprobación es la conversación (approve → ack), no el permiso de la tool.
+var MCPSocraticaTools = []string{ToolSocraticaFlow}
+
 // MCPDestructiveTools nunca se pre-aprueban: son irreversibles y deben pasar
 // siempre por confirmación explícita de la persona.
 var MCPDestructiveTools = []string{ToolForgetMemory}
 
 // MCPAllTools es el conjunto completo que registra el servidor.
 func MCPAllTools() []string {
-	out := make([]string, 0, len(MCPMemoryTools)+len(MCPCodeTools)+len(MCPContextPackTools)+len(MCPReviewTools))
+	out := make([]string, 0, len(MCPMemoryTools)+len(MCPCodeTools)+len(MCPContextPackTools)+len(MCPReviewTools)+len(MCPSocraticaTools))
 	out = append(out, MCPMemoryTools...)
 	out = append(out, MCPCodeTools...)
 	out = append(out, MCPContextPackTools...)
 	out = append(out, MCPReviewTools...)
+	out = append(out, MCPSocraticaTools...)
 	return out
 }
 

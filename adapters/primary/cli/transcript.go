@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 )
 
@@ -129,19 +131,28 @@ func readTail(path string, maxBytes int64) ([]byte, error) {
 		return nil, err
 	}
 
-	size := info.Size()
+	return tailOf(f, info.Size(), maxBytes)
+}
+
+// tailOf lee los últimos maxBytes de un archivo de tamaño size. Un único Read
+// puede devolver menos bytes de los pedidos: io.ReadFull no trunca la cola en
+// silencio (H-03, auditoría 2026-10-16). Si el archivo encoge durante la
+// lectura se usa lo leído; cualquier otro error se propaga.
+func tailOf(f io.ReadSeeker, size, maxBytes int64) ([]byte, error) {
 	offset := int64(0)
 	if size > maxBytes {
 		offset = size - maxBytes
 	}
-	if _, err := f.Seek(offset, 0); err != nil {
+	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return nil, err
 	}
 
 	data := make([]byte, size-offset)
-	if _, err := f.Read(data); err != nil && len(data) == 0 {
+	n, err := io.ReadFull(f, data)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
+	data = data[:n]
 
 	if offset > 0 {
 		if idx := bytes.IndexByte(data, '\n'); idx >= 0 {

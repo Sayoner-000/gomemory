@@ -48,13 +48,16 @@ func readSanitizeCandidates(ctx context.Context, q queryer, project string) ([]d
 		out = append(out, domain.SanitizeCandidate{Category: cat, RecordID: id, Project: project, Field: field, Text: text})
 	}
 
-	err := scanRows(ctx, q, `SELECT id, COALESCE(summary,'') FROM sessions WHERE project = ?`, project, func(r *sql.Rows) error {
-		var id, text string
-		if err := r.Scan(&id, &text); err != nil {
+	err := scanRows(ctx, q, `SELECT id, COALESCE(summary,''), COALESCE(last_prompt,'') FROM sessions WHERE project = ?`, project, func(r *sql.Rows) error {
+		var id, text, prompt string
+		if err := r.Scan(&id, &text, &prompt); err != nil {
 			return err
 		}
 		if domain.NeedsSanitize(text) {
 			add(domain.SanitizeSession, "summary", id, text)
+		}
+		if domain.NeedsSanitize(prompt) {
+			add(domain.SanitizeSessionPrompt, "last_prompt", id, prompt)
 		}
 		return nil
 	})
@@ -110,6 +113,9 @@ func readSanitizeCandidates(ctx context.Context, q queryer, project string) ([]d
 		return nil, fmt.Errorf("candidatos de originales: %w", err)
 	}
 
+	if err := readSocraticaCandidates(ctx, q, project, add); err != nil {
+		return nil, err
+	}
 	if err := readLedgerCandidates(ctx, q, project, add); err != nil {
 		return nil, err
 	}
@@ -159,6 +165,8 @@ var ledgerColumns = []ledgerColumn{
 	{domain.SanitizeReviewConsensus, "consensus_findings", "claim", scopeByReview, false},
 	{domain.SanitizeReviewRejudgment, "rejudgments", "evidence", scopeByReview, true},
 	{domain.SanitizeReviewFixVerification, "fix_rounds", "verification", scopeByReview, true},
+	// El alcance de la revisión lo aporta quien llama a review_start (H-04).
+	{domain.SanitizeReviewTargetScope, "reviews", "target_scope", `project = ?`, true},
 }
 
 func ledgerColumnFor(cat domain.SanitizeCategory) (ledgerColumn, bool) {
@@ -303,12 +311,19 @@ func (t *privacyTx) Apply(ctx context.Context, c domain.SanitizeCandidate, text 
 	if err := c.Validate(t.project); err != nil {
 		return false, err
 	}
+	if col, ok := socraticaSanitizeColumn(c.Category); ok {
+		return applySocraticaCandidate(ctx, t.tx, col, c)
+	}
 	var res sql.Result
 	var err error
 	switch c.Category {
 	case domain.SanitizeSession:
 		res, err = t.tx.ExecContext(ctx,
 			`UPDATE sessions SET summary = ? WHERE id = ? AND project = ? AND COALESCE(summary,'') = ?`,
+			text, c.RecordID, c.Project, c.Text)
+	case domain.SanitizeSessionPrompt:
+		res, err = t.tx.ExecContext(ctx,
+			`UPDATE sessions SET last_prompt = ? WHERE id = ? AND project = ? AND COALESCE(last_prompt,'') = ?`,
 			text, c.RecordID, c.Project, c.Text)
 	case domain.SanitizeRelation:
 		id, perr := strconv.ParseInt(c.RecordID, 10, 64)

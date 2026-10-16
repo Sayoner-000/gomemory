@@ -188,6 +188,8 @@ func resolveRootForCommand(command string, args []string) (string, error) {
 // es correcto — la etiqueta es descriptiva, no una autorización (FR-004).
 func channelForCommand(command string) string {
 	switch command {
+	case "hook":
+		return "hook"
 	case "mcp":
 		return "mcp"
 	case "tui":

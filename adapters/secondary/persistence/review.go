@@ -26,7 +26,8 @@ func NewConsensusRepository(db *sql.DB) ports.ConsensusRepository {
 }
 
 func (r *ReviewRepository) CreateReview(review *domain.Review) error {
-	scope, err := json.Marshal(review.Target.Scope)
+	// Texto libre del llamador: se protege al escribir (H-04).
+	scope, err := json.Marshal(protectTextList(review.Target.Scope))
 	if err != nil {
 		return fmt.Errorf("encode target scope: %w", err)
 	}
@@ -996,6 +997,8 @@ func (raw *reviewRow) toDomain(project, reviewID string) (*domain.Review, error)
 	if err := json.Unmarshal([]byte(raw.scopeJSON), &scope); err != nil {
 		return nil, err
 	}
+	// Las filas anteriores a la protección al escribir se depuran al leer.
+	scope = protectTextList(scope)
 	var severities []domain.Severity
 	if err := json.Unmarshal([]byte(raw.severitiesJSON), &severities); err != nil {
 		return nil, err
@@ -1542,4 +1545,16 @@ func (r *ReviewRepository) CountPromotedMemories(project, reviewID string) (int,
 		return 0, 0, fmt.Errorf("contar memorias promovidas: %w", err)
 	}
 	return promovidas, deduplicadas, nil
+}
+
+// protectTextList aplica ProtectText a cada elemento de una lista libre.
+func protectTextList(items []string) []string {
+	if items == nil {
+		return nil
+	}
+	out := make([]string, len(items))
+	for i, item := range items {
+		out[i] = domain.ProtectText(item)
+	}
+	return out
 }

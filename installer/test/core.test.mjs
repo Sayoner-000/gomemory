@@ -18,6 +18,17 @@ test('checksum debe corresponder al asset completo antes de extraer', () => {
   assert.throws(() => verifyChecksum(data, `${digest}  otro.tar.gz`, 'mem_linux_amd64.tar.gz'), /checksum/);
 });
 
+// H-06 (auditoría 2026-10-16): mismas reglas que expected_sha256 de install.sh.
+test('checksum exige una sola entrada de 64 hex y admite mayúsculas', () => {
+  const data = Buffer.from('binario');
+  const digest = createHash('sha256').update(data).digest('hex');
+  const asset = 'mem_linux_amd64.tar.gz';
+  assert.doesNotThrow(() => verifyChecksum(data, `${digest.toUpperCase()}  *${asset}`, asset));
+  assert.throws(() => verifyChecksum(data, `${digest}  ${asset}\n${digest}  ${asset}`, asset), /checksum/);
+  assert.throws(() => verifyChecksum(data, `${digest.slice(0, 63)}g  ${asset}`, asset), /checksum/);
+  assert.throws(() => verifyChecksum(data, `${digest}  ${asset}  extra`, asset), /checksum/);
+});
+
 test('opciones conservan rutas con espacios y validan antes de escribir', () => {
   const o = parseOptions(['mi proyecto', '--yes', '--agents', 'opencode,claude', '--no-motion']);
   assert.equal(o.target, 'mi proyecto');
