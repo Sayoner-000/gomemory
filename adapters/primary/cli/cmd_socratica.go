@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/charmbracelet/x/term"
 
+	"mem/adapters/primary/console"
 	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
@@ -37,13 +39,46 @@ type socraticaIO struct {
 	in       *bufio.Reader
 	out, err io.Writer
 	tty      bool
+	// outScreen/errScreen: out/err is a terminal. Only then is text painted,
+	// and stripped of control sequences; a pipe gets the exact bytes, since
+	// the original or the approved prompt may be the deliverable (FR-016).
+	outScreen, errScreen bool
+	ui                   console.UI
+	env                  *console.Env
+	richIn               io.Reader // retain the terminal fd so Bubble Tea can enable raw mode
 }
 
 func (s socraticaIO) printf(format string, args ...any) {
-	_, _ = fmt.Fprint(s.out, domain.ProtectText(fmt.Sprintf(format, args...)))
+	_, _ = fmt.Fprint(s.out, domain.ProtectText(fmt.Sprintf(format, displayArgs(s.outScreen, args)...)))
 }
 func (s socraticaIO) errorf(format string, args ...any) {
-	_, _ = fmt.Fprint(s.err, domain.ProtectText(fmt.Sprintf(format, args...)))
+	_, _ = fmt.Fprint(s.err, domain.ProtectText(fmt.Sprintf(format, displayArgs(s.errScreen, args)...)))
+}
+
+// rendered marks text this command already styled (panels), which printf
+// passes through. Every other string or error argument is stored, generated or
+// provider text and loses its control sequences before reaching the terminal
+// (CWE-150); a panel left unmarked only loses its style.
+type rendered string
+
+func displayArgs(screen bool, args []any) []any {
+	if !screen {
+		return args
+	}
+	out := make([]any, len(args))
+	for i, a := range args {
+		switch v := a.(type) {
+		case rendered:
+			out[i] = string(v)
+		case string:
+			out[i] = domain.StripTerminalControls(v)
+		case error:
+			out[i] = domain.StripTerminalControls(v.Error())
+		default:
+			out[i] = a
+		}
+	}
+	return out
 }
 
 // readLine returns the next line without its line break; io.EOF ends input.
@@ -58,7 +93,16 @@ func (s socraticaIO) readLine() (string, error) {
 // CmdSocratica implements `mem socratica` (feature 039, US4).
 func CmdSocratica(deps *Deps, args []string) {
 	tty := term.IsTerminal(os.Stdin.Fd()) && term.IsTerminal(os.Stdout.Fd())
-	sio := socraticaIO{in: bufio.NewReader(os.Stdin), out: os.Stdout, err: os.Stderr, tty: tty}
+	sio := socraticaIO{in: bufio.NewReader(os.Stdin), out: os.Stdout, err: os.Stderr, tty: tty, richIn: os.Stdin,
+		outScreen: term.IsTerminal(os.Stdout.Fd()), errScreen: term.IsTerminal(os.Stderr.Fd())}
+	env := console.DetectEnv()
+	sio.env = &env
+	switch console.DetectMode(env, false) {
+	case console.ModeRich:
+		sio.ui = console.NewRich(os.Stdin, sio.out)
+	case console.ModePlain:
+		sio.ui = console.NewPlain(sio.in, sio.out)
+	}
 	if code := runSocratica(deps, args, sio); code != socraticaExitOK {
 		exitProcess(code)
 	}
@@ -79,6 +123,25 @@ func runSocratica(deps *Deps, args []string, sio socraticaIO) int {
 		return socraticaExitUsage
 	}
 	c := &socraticaCmd{deps: deps, u: deps.Socratica, sio: sio, ctx: context.Background()}
+	// Reuse the report panels for short human-facing actions. Streaming flows
+	// and machine output keep their own writers and terminal ownership.
+	if sio.tty && sio.env != nil && args[0] != "refine" {
+		report := true
+		for _, a := range args[1:] {
+			if a == "--json" || strings.HasPrefix(a, "--json=") || a == "--resume" || a == "--cancel" || a == "--show" || strings.HasPrefix(a, "--resume=") || strings.HasPrefix(a, "--cancel=") || strings.HasPrefix(a, "--show=") {
+				report = false
+			}
+		}
+		if report {
+			var body bytes.Buffer
+			c.sio.out = &body
+			defer func() {
+				layout := console.NewLayout(*sio.env)
+				// body was written through printf, so its content is already safe.
+				sio.printf("%s\n", rendered(layout.Panel("Socratica · "+domain.StripTerminalControls(args[0]), "", "", strings.Split(strings.TrimSpace(body.String()), "\n"))))
+			}()
+		}
+	}
 	switch args[0] {
 	case "refine":
 		return c.refine(args[1:])
@@ -103,7 +166,8 @@ type socraticaCmd struct {
 	sio  socraticaIO
 	ctx  context.Context
 	// launcher is ExecLauncher, or PrintLauncher with --print.
-	launcher ports.AgentLauncher
+	launcher  ports.AgentLauncher
+	printOnly bool
 }
 
 func (c *socraticaCmd) flags(name string) *flag.FlagSet {
@@ -115,37 +179,75 @@ func (c *socraticaCmd) flags(name string) *flag.FlagSet {
 func (c *socraticaCmd) refine(args []string) int {
 	fs := c.flags("refine")
 	mode := fs.String("mode", "refine", "refine | scrutiny")
-	client := fs.String("client", "", "agente destino: claude | codex | opencode")
+	client := fs.String("client", "", "harness para refinar y ejecutar: claude | codex | opencode")
 	printOnly := fs.Bool("print", false, "imprime el prompt aprobado en vez de lanzar el agente")
 	raw := fs.Bool("raw", false, "con --print, sin el prefijo >")
 	if fs.Parse(args) != nil {
 		return socraticaExitUsage
+	}
+	c.printOnly = *printOnly
+	if *mode != string(domain.ModeRefine) && *mode != string(domain.ModeScrutiny) {
+		c.sio.errorf("Error: --mode debe ser refine o scrutiny\n")
+		return socraticaExitUsage
+	}
+	promptOut := c.sio.out
+	if c.sio.outScreen {
+		// On a terminal the printed prompt is painted, not piped.
+		promptOut = terminalSafe{promptOut}
+	}
+	if *printOnly && c.sio.env != nil {
+		// Keep stdout exclusively for the approved prompt.
+		c.sio.out, c.sio.outScreen = c.sio.err, c.sio.errScreen
+		if c.sio.ui != nil {
+			if console.DetectMode(*c.sio.env, false) == console.ModeRich {
+				in := c.sio.richIn
+				if in == nil {
+					in = c.sio.in
+				}
+				c.sio.ui = console.NewRich(in, c.sio.out)
+			} else {
+				c.sio.ui = console.NewPlain(c.sio.in, c.sio.out)
+			}
+		}
 	}
 	text, err := c.readPrompt(fs.Args())
 	if err != nil {
 		c.sio.errorf("Error: %v\n", err)
 		return socraticaExitUsage
 	}
-	gen := c.u.Generator
-	if gen == nil || !gen.Available() {
-		c.sio.errorf("No hay ningún agente disponible para generar preguntas (claude o codex en el PATH). Tu prompt queda intacto:\n")
-		c.sio.printf("%s\n", text)
-		return socraticaExitNoGenerator
-	}
 	target := *client
 	if target == "" {
-		target = gen.Name()
+		if !c.sio.tty {
+			c.sio.errorf("Sin terminal interactiva, elige el harness con --client claude|codex|opencode. Tu prompt queda intacto.\n")
+			c.sio.printf("%s\n", text)
+			return socraticaExitNoGenerator
+		}
+		target, err = c.chooseHarness()
+		if errors.Is(err, console.ErrCanceled) {
+			c.sio.printf("Cancelado. Tu prompt original:\n%s\n", text)
+			return socraticaExitOK
+		}
+		if err != nil {
+			c.sio.errorf("%v\n", err)
+			c.sio.printf("%s\n", text)
+			return socraticaExitNoGenerator
+		}
 	}
 	if !domain.IsSocraticaClient(target) || (*mode != string(domain.ModeRefine) && *mode != string(domain.ModeScrutiny)) {
 		c.sio.errorf("Error: --client debe ser claude, codex u opencode y --mode refine o scrutiny\n")
 		return socraticaExitUsage
 	}
+	if !c.u.HarnessAvailable(target) {
+		c.sio.errorf("%s no está disponible para refinar; revisa mem socratica status. Tu prompt queda intacto:\n", target)
+		c.sio.printf("%s\n", text)
+		return socraticaExitNoGenerator
+	}
 	c.launcher = c.deps.SocraticaExec
 	if *printOnly {
-		c.launcher = c.deps.SocraticaPrint(c.sio.out, *raw)
+		c.launcher = c.deps.SocraticaPrint(promptOut, *raw)
 	}
 	// Acknowledge immediately, before the generator runs (FR-017).
-	c.sio.printf("Generando preguntas con %s…\n", gen.Name())
+	c.sio.printf("Generando preguntas con %s…\n", target)
 	r, err := c.u.Start(c.ctx, c.deps.Project, target, domain.SocraticaMode(*mode), text)
 	if err != nil {
 		c.sio.errorf("Error: %v\n", err)
@@ -155,6 +257,64 @@ func (c *socraticaCmd) refine(args []string) int {
 		c.sio.printf("Retomando el flujo pendiente %s de %s.\n", r.Flow.ID, r.Flow.Client)
 	}
 	return c.drive(r.Flow.ID, true)
+}
+
+func (c *socraticaCmd) chooseHarness(exclude ...string) (string, error) {
+	var opts []console.Option
+	for _, h := range c.u.Harnesses() {
+		skipped := false
+		for _, id := range exclude {
+			if h.ID == id {
+				skipped = true
+			}
+		}
+		if skipped {
+			continue
+		}
+		if !h.Available {
+			c.sio.printf("  − %s: %s\n", h.Label, h.Reason)
+			continue
+		}
+		opts = append(opts, console.Option{Value: h.ID, Label: h.Label, Hint: "preguntas, reescritura y ejecución"})
+	}
+	if len(opts) == 0 {
+		return "", ports.ErrNoGenerator
+	}
+	opts = append(opts, console.Option{Value: "cancel", Label: "Cancelar", Hint: "conservar el original"})
+	ui := c.sio.ui
+	if ui == nil {
+		ui = console.NewPlain(c.sio.in, c.sio.out)
+	}
+	choice, err := ui.Select("Socratica · Elige el harness para este flujo", opts)
+	if choice == "cancel" {
+		return "", console.ErrCanceled
+	}
+	return choice, err
+}
+
+// A progress panel owns the terminal only while the model is running. Stop it
+// before any prompt or child process can read/write the same terminal.
+func (c *socraticaCmd) generate(id, client string, event domain.Event) (usecases.SocraticaResult, error) {
+	label := "Generando preguntas con " + client
+	if r, err := c.u.Get(c.ctx, id); err == nil && (r.Flow.Phase == domain.PhaseRewriting || r.Flow.LastStablePhase == domain.PhaseRewriting || event.Kind == "answer" || event.Kind == "skip" || event.Kind == "skip_rest") {
+		label = "Reescribiendo con " + client
+	}
+	if !c.sio.tty || c.sio.env == nil {
+		return c.u.Apply(c.ctx, id, event, usecases.OriginLocal)
+	}
+	flow := console.NewFlow(c.sio.out, *c.sio.env, "Socratica")
+	defer flow.Stop()
+	flow.Plan(label)
+	flow.Progress(label)
+	r, err := c.u.Apply(c.ctx, id, event, usecases.OriginLocal)
+	step := console.StepResult{Name: label}
+	if err != nil {
+		step.Status = console.StepFail
+		step.Detail = "No se pudo completar la generación"
+	}
+	flow.Done(step)
+	flow.End("")
+	return r, err
 }
 
 // readPrompt takes the text from the arguments, from stdin with "-", or asks
@@ -188,10 +348,14 @@ func (c *socraticaCmd) readPrompt(rest []string) (string, error) {
 func (c *socraticaCmd) drive(id string, resume bool) int {
 	r, err := c.u.Get(c.ctx, id)
 	if err == nil && resume && (r.Flow.Phase == domain.PhaseCaptured || r.Flow.Phase == domain.PhaseRewriting) {
-		r, err = c.u.Resume(c.ctx, id, usecases.OriginLocal)
+		r, err = c.generate(id, r.Flow.Client, domain.Event{Kind: "resume"})
 	}
 	for {
 		if err != nil {
+			if errors.Is(err, console.ErrCanceled) {
+				c.sio.printf("Flujo pendiente; puedes retomarlo con mem socratica pending --resume %s\n", id)
+				return socraticaExitOK
+			}
 			current, getErr := c.u.Get(c.ctx, id)
 			if getErr != nil || current.Flow.Phase != domain.PhaseFailed {
 				c.sio.errorf("Error: %v\n", err)
@@ -211,7 +375,7 @@ func (c *socraticaCmd) drive(id string, resume bool) int {
 		case domain.PhaseQuestions:
 			r, err = c.ask(f)
 		case domain.PhaseCaptured, domain.PhaseRewriting:
-			r, err = c.u.Resume(c.ctx, id, usecases.OriginLocal)
+			r, err = c.generate(id, f.Client, domain.Event{Kind: "resume"})
 		case domain.PhaseReview, domain.PhaseApproved:
 			return c.review(f)
 		case domain.PhaseFailed:
@@ -236,6 +400,36 @@ func (c *socraticaCmd) ask(f domain.RefinementFlow) (usecases.SocraticaResult, e
 	}
 	i := len(f.Answers)
 	q := f.Questions[i]
+	if c.sio.ui != nil {
+		opts := make([]console.Option, 0, len(q.Options)+3)
+		for n, o := range q.Options {
+			opts = append(opts, console.Option{Value: fmt.Sprint(n), Label: o})
+		}
+		opts = append(opts, console.Option{Value: "other", Label: "Otra respuesta"}, console.Option{Value: "skip", Label: "Omitir pregunta"}, console.Option{Value: "skip_rest", Label: "Omitir el resto y mejorar"})
+		choice, err := c.sio.ui.Select(fmt.Sprintf("Pregunta %d de %d · %s", i+1, len(f.Questions), q.Text), opts)
+		if err != nil {
+			return usecases.SocraticaResult{}, console.ErrCanceled
+		}
+		ev := domain.Event{Kind: "answer", Answer: domain.Answer{QuestionIndex: i}}
+		switch choice {
+		case "skip", "skip_rest":
+			ev.Kind = choice
+		case "other":
+			c.sio.printf("Tu respuesta: ")
+			custom, readErr := c.sio.readLine()
+			if readErr != nil || strings.TrimSpace(custom) == "" {
+				return usecases.SocraticaResult{}, console.ErrCanceled
+			}
+			ev.Answer.Custom = custom
+		default:
+			var n int
+			if _, err := fmt.Sscanf(choice, "%d", &n); err != nil || n < 0 || n >= len(q.Options) {
+				return c.u.Get(c.ctx, f.ID)
+			}
+			ev.Answer.Choice = q.Options[n]
+		}
+		return c.answer(f, ev)
+	}
 	c.sio.printf("\nPregunta %d de %d: %s\n", i+1, len(f.Questions), q.Text)
 	for n, o := range q.Options {
 		c.sio.printf("  %d) %s\n", n+1, o)
@@ -244,31 +438,52 @@ func (c *socraticaCmd) ask(f domain.RefinementFlow) (usecases.SocraticaResult, e
 	for {
 		line, err := c.sio.readLine()
 		if err != nil {
-			return c.u.Apply(c.ctx, f.ID, domain.Event{Kind: "skip_rest"}, usecases.OriginLocal)
+			return c.answer(f, domain.Event{Kind: "skip_rest"})
 		}
 		switch line = strings.TrimSpace(line); line {
 		case "S":
-			return c.u.Apply(c.ctx, f.ID, domain.Event{Kind: "skip_rest"}, usecases.OriginLocal)
+			return c.answer(f, domain.Event{Kind: "skip_rest"})
 		case "s":
-			return c.u.Apply(c.ctx, f.ID, domain.Event{Kind: "skip"}, usecases.OriginLocal)
+			return c.answer(f, domain.Event{Kind: "skip"})
 		case "o":
 			c.sio.printf("Tu respuesta: ")
 			custom, err := c.sio.readLine()
 			if err == nil && strings.TrimSpace(custom) != "" {
-				return c.u.Apply(c.ctx, f.ID, domain.Event{Kind: "answer", Answer: domain.Answer{QuestionIndex: i, Custom: custom}}, usecases.OriginLocal)
+				return c.answer(f, domain.Event{Kind: "answer", Answer: domain.Answer{QuestionIndex: i, Custom: custom}})
 			}
 		default:
 			var n int
 			if _, err := fmt.Sscanf(line, "%d", &n); err == nil && n >= 1 && n <= len(q.Options) {
-				return c.u.Apply(c.ctx, f.ID, domain.Event{Kind: "answer", Answer: domain.Answer{QuestionIndex: i, Choice: q.Options[n-1]}}, usecases.OriginLocal)
+				return c.answer(f, domain.Event{Kind: "answer", Answer: domain.Answer{QuestionIndex: i, Choice: q.Options[n-1]}})
 			}
 		}
 		c.sio.printf("Elige un número, o, s o S: ")
 	}
 }
 
+func (c *socraticaCmd) answer(f domain.RefinementFlow, ev domain.Event) (usecases.SocraticaResult, error) {
+	if ev.Kind == "skip_rest" || len(f.Answers)+1 == len(f.Questions) {
+		return c.generate(f.ID, f.Client, ev)
+	}
+	return c.u.Apply(c.ctx, f.ID, ev, usecases.OriginLocal)
+}
+
+func (c *socraticaCmd) action(title, fallback string, opts []console.Option) (string, error) {
+	if c.sio.ui != nil {
+		return c.sio.ui.Select(title, opts)
+	}
+	c.sio.printf("%s", fallback)
+	return c.sio.readLine()
+}
+
 func (c *socraticaCmd) printReview(f domain.RefinementFlow) {
-	c.sio.printf("\n── Original ──\n%s\n\n── Propuesta ──\n%s\n\n", f.OriginalPrompt, f.ProposedPrompt)
+	if c.sio.env != nil && c.sio.tty {
+		layout := console.NewLayout(*c.sio.env)
+		c.sio.printf("\n%s\n", rendered(layout.Panel("Revisión · "+f.Client, "Original", "", strings.Split(domain.StripTerminalControls(f.OriginalPrompt), "\n"))))
+		c.sio.printf("%s\n", rendered(layout.Panel("Propuesta", "", "", strings.Split(domain.StripTerminalControls(f.ProposedPrompt), "\n"))))
+	} else {
+		c.sio.printf("\n── Original ──\n%s\n\n── Propuesta ──\n%s\n\n", f.OriginalPrompt, f.ProposedPrompt)
+	}
 	c.sio.printf("Palabras: %d → %d · adiciones: %d\n", domain.WordCount(f.OriginalPrompt), domain.WordCount(f.ProposedPrompt), len(f.Additions))
 	for _, a := range f.Additions {
 		c.sio.printf("  + %s\n", a)
@@ -299,8 +514,7 @@ func (c *socraticaCmd) review(f domain.RefinementFlow) int {
 		return socraticaExitOK
 	}
 	for {
-		c.sio.printf("\n[e]jecutar [d]itar [c]opiar [x]cancelar: ")
-		line, err := c.sio.readLine()
+		line, err := c.action("Socratica · ¿Qué quieres hacer con la propuesta?", "\n[e]jecutar [d]itar [c]opiar [x]cancelar: ", []console.Option{{Value: "e", Label: "Ejecutar en " + f.Client}, {Value: "d", Label: "Editar propuesta"}, {Value: "c", Label: "Copiar propuesta"}, {Value: "x", Label: "Cancelar", Hint: "conservar el original"}})
 		if err != nil {
 			return socraticaExitOK
 		}
@@ -345,7 +559,7 @@ func (c *socraticaCmd) readEdit() (string, bool) {
 // copy uses OSC 52 on a terminal that is not dumb; otherwise it prints a
 // delimited block to copy by hand. No system utility is invoked.
 func (c *socraticaCmd) copy(text string) {
-	text = domain.ProtectText(text)
+	text = domain.StripTerminalControls(domain.ProtectText(text))
 	if c.sio.tty && os.Getenv("TERM") != "dumb" && os.Getenv("TERM") != "" {
 		_, _ = fmt.Fprintf(c.sio.out, "\x1b]52;c;%s\x07", base64.StdEncoding.EncodeToString([]byte(text)))
 		c.sio.printf("Copiado al portapapeles (OSC 52). Si tu terminal no lo admite, cópialo de aquí:\n")
@@ -406,26 +620,56 @@ func (c *socraticaCmd) execute(f domain.RefinementFlow) int {
 // failed keeps the original byte for byte and asks for an explicit choice
 // (FR-016); "send my original" goes through Execute with send_original.
 func (c *socraticaCmd) failed(f domain.RefinementFlow) int {
-	c.sio.printf("\nNo se pudo generar: %s\nTu prompt original queda intacto:\n%s\n", f.LastError, f.OriginalPrompt)
+	info := c.u.ExplainFailure(f.LastError)
+	c.sio.printf("\nNo se pudo generar: %s\nTu prompt original queda intacto:\n%s\n", info.Message, f.OriginalPrompt)
 	if !c.sio.tty {
 		return socraticaExitUsage
 	}
 	for {
-		c.sio.printf("\n[r]eintentar [o]riginal [x]cancelar: ")
-		line, err := c.sio.readLine()
+		opts := []console.Option{{Value: "h", Label: "Cambiar harness", Hint: "conservar el prompt y volver a refinar"}, {Value: "x", Label: "Cancelar", Hint: "conservar el original"}, {Value: "o", Label: "Enviar mi original", Hint: "ejecutar sin refinamiento"}}
+		if !c.printOnly {
+			opts = append([]console.Option{{Value: "a", Label: "Continuar asistido en " + f.Client, Hint: "preguntas y propuesta dentro del harness; sin ejecutar la tarea"}}, opts...)
+		}
+		fallback := "\n[h]cambiar harness [o]riginal [x]cancelar: "
+		if info.Retryable {
+			opts = append(opts, console.Option{Value: "r", Label: "Reintentar con " + f.Client, Hint: "misma configuración"})
+			fallback = "\n[r]eintentar [o]riginal [x]cancelar [h]cambiar harness: "
+		}
+		if !c.printOnly {
+			fallback += "[a]continuar asistido: "
+		}
+		line, err := c.action("Socratica · No se pudo generar con "+f.Client, fallback, opts)
 		if err != nil {
 			return socraticaExitUsage
 		}
 		switch strings.TrimSpace(line) {
+		case "a":
+			if c.printOnly {
+				continue
+			}
+			c.sio.printf("Abriendo Socratica asistida en %s. Tu original se refina en la conversación; todavía no se ejecuta.\n", f.Client)
+			if err := c.u.Assist(c.ctx, f.ID, c.deps.SocraticaExec); err != nil {
+				c.sio.errorf("No se pudo abrir la sesión asistida: %v\n", err)
+				return socraticaExitUsage
+			}
+			c.sio.printf("Sesión asistida terminada. Consulta el flujo con mem socratica pending.\n")
+			return socraticaExitOK
+		case "h":
+			return c.changeHarness(f)
 		case "r":
-			if _, err := c.u.Apply(c.ctx, f.ID, domain.Event{Kind: "retry"}, usecases.OriginLocal); err != nil {
+			if !info.Retryable {
+				c.sio.printf("Elige otro harness o corrige su configuración antes de continuar.\n")
+				continue
+			}
+			if _, err := c.generate(f.ID, f.Client, domain.Event{Kind: "retry"}); err != nil {
 				current, getErr := c.u.Get(c.ctx, f.ID)
 				if getErr != nil {
 					c.sio.errorf("Error: %v\n", err)
 					return socraticaExitUsage
 				}
 				f = current.Flow
-				c.sio.printf("\nNo se pudo generar: %s\n", f.LastError)
+				info = c.u.ExplainFailure(f.LastError)
+				c.sio.printf("\nNo se pudo generar: %s\n", info.Message)
 				continue
 			}
 			return c.drive(f.ID, false)
@@ -437,6 +681,24 @@ func (c *socraticaCmd) failed(f domain.RefinementFlow) int {
 	}
 }
 
+func (c *socraticaCmd) changeHarness(f domain.RefinementFlow) int {
+	client, err := c.chooseHarness(f.Client)
+	if errors.Is(err, console.ErrCanceled) {
+		return socraticaExitOK
+	}
+	if err != nil {
+		c.sio.errorf("No hay otro harness disponible. El original sigue en el flujo %s.\n", f.ID)
+		return socraticaExitNoGenerator
+	}
+	r, err := c.u.ChangeHarness(c.ctx, f.ID, client)
+	if err != nil {
+		c.sio.errorf("Error: %v\n", err)
+		return socraticaExitUsage
+	}
+	c.sio.printf("Generando preguntas con %s…\n", client)
+	return c.drive(r.Flow.ID, true)
+}
+
 // reconcile handles a claim without ack: the person decides, never mem.
 func (c *socraticaCmd) reconcile(f domain.RefinementFlow) int {
 	c.sio.printf("Puede que ya se haya enviado (%s). No se relanza nada automáticamente.\n", f.DispatchID)
@@ -444,8 +706,7 @@ func (c *socraticaCmd) reconcile(f domain.RefinementFlow) int {
 		return socraticaExitUsage
 	}
 	for {
-		c.sio.printf("[m]arcar enviado [r]eenviar [x]cancelar: ")
-		line, err := c.sio.readLine()
+		line, err := c.action("Socratica · Conciliar envío", "[m]arcar enviado [r]eenviar [x]cancelar: ", []console.Option{{Value: "m", Label: "Marcar como enviado"}, {Value: "r", Label: "Reenviar", Hint: "puede duplicar una tarea ya iniciada"}, {Value: "x", Label: "Cancelar"}})
 		if err != nil {
 			return socraticaExitUsage
 		}
@@ -563,6 +824,7 @@ func (c *socraticaCmd) toggle(on bool, args []string) int {
 	}
 	if on && !domain.CapabilitiesForSocratica(*client).Interception && !unverified {
 		c.sio.errorf("Intercepción no soportada en %s (sin evidencia de aceptación). No se cambió nada.\n", *client)
+		c.sio.errorf("Para probarla y obtener esa evidencia: mem socratica on --client %s --unverified\n", *client)
 		return socraticaExitUsage
 	}
 	s := c.deps.SettingsRepo.Read(c.deps.Root)
@@ -632,11 +894,14 @@ func (c *socraticaCmd) status() int {
 		}
 		c.sio.printf("\n")
 	}
-	generatorName := "ninguno"
-	if c.u.Generator != nil && c.u.Generator.Available() {
-		generatorName = c.u.Generator.Name()
+	c.sio.printf("Modo privado: %t · harness: se elige en cada flujo\n", settings.Private)
+	for _, h := range c.u.Harnesses() {
+		state := "disponible"
+		if !h.Available {
+			state = h.Reason
+		}
+		c.sio.printf("  %s: %s\n", h.Label, state)
 	}
-	c.sio.printf("Modo privado: %t · generador: %s\n", settings.Private, generatorName)
 	return socraticaExitOK
 }
 

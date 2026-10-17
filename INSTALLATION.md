@@ -330,10 +330,13 @@ Herramientas MCP disponibles:
 | `get_plan_context` | Método de descomposición atómica + historial, para modo plan |
 | `search_code` / `get_symbol` / `list_dependencies` / `graph_status` / `index_project` | Grafo de código propio del proyecto |
 | `pack_build` / `pack_show` / `pack_compress` / `pack_stats` | Optimización de contexto (ContextPack) |
+| `pack_retrieve` / `pack_savings` | Recuperar el original de una marca `⟦mem⟧ … ref=X` e informe de ahorro por compresor |
 | `review_*` | Revisión adversarial por consenso, correcciones y veredicto final |
+| `socratica_flow` | Refinamiento de prompts con aprobación explícita (`approve` → `ack` antes de ejecutar) |
 
-El servidor publica 30 herramientas base. Si Octopus AAR está habilitado,
-añade cuatro herramientas opcionales de enrutamiento y telemetría.
+El servidor publica 31 herramientas base. Si Octopus AAR está habilitado,
+añade cuatro herramientas opcionales de enrutamiento y telemetría
+(`octopus_route_task`, `octopus_route_plan`, `octopus_report`, `octopus_status`).
 
 Configuración multi-agente automática:
 

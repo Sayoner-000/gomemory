@@ -303,8 +303,8 @@ func (c *Container) Close() error {
 }
 
 // socraticaGenerators builds the ordered list from socratica_generators
-// (research R3) with the configured timeout. OpenCode is skipped: it has no
-// mode without tools, so it cannot generate without risking the task (T066).
+// with the configured timeout. Requests route by the flow's explicit client;
+// order is retained only for compatibility with existing settings.
 func socraticaGenerators(s domain.SocraticaSettings, settingsErr error) ports.SocraticGenerator {
 	if settingsErr != nil {
 		return generator.NewFirstAvailable(nil)
@@ -317,6 +317,8 @@ func socraticaGenerators(s domain.SocraticaSettings, settingsErr error) ports.So
 			list = append(list, generator.NewClaude(timeout))
 		case "codex":
 			list = append(list, generator.NewCodex(timeout))
+		case "opencode":
+			list = append(list, generator.NewOpenCode(timeout))
 		}
 	}
 	return generator.NewFirstAvailable(list)

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -131,6 +132,34 @@ func TestHelpIndexEsCompactoYCadaComandoTieneAyuda(t *testing.T) {
 			if help := captureStdout(t, func() { commandHelp(verb) }); !strings.Contains(help, "mem "+verb) {
 				t.Errorf("mem help %s no tiene ayuda detallada", verb)
 			}
+		}
+	}
+}
+
+// El sentido inverso: un comando con ayuda detallada debe aparecer en el
+// índice, o mem help lo esconde (socratica faltó así en la v2.34.0).
+func TestHelpIndexListaCadaComandoConAyuda(t *testing.T) {
+	indexed := map[string]bool{}
+	for _, group := range helpIndex {
+		for _, entry := range group.commands {
+			indexed[strings.Fields(entry.command)[0]] = true
+		}
+	}
+	// Alias que el índice nombra en el resumen del comando principal, la
+	// propia ayuda y el chequeo interno de versión.
+	excluded := map[string]bool{"help": true, "judge": true, "log": true, "update-check": true}
+	for _, line := range strings.Split(helpReference(), "\n") {
+		trim := strings.TrimSpace(line)
+		if trim == "EJEMPLOS COMUNES" {
+			break
+		}
+		fields := strings.Fields(trim)
+		// `mem` a secas (abre la TUI) va seguido de su descripción, no de un verbo.
+		if len(fields) < 2 || fields[0] != "mem" || !regexp.MustCompile(`^[a-z][a-z-]*$`).MatchString(fields[1]) {
+			continue
+		}
+		if verb := fields[1]; !excluded[verb] && !indexed[verb] {
+			t.Errorf("mem %s tiene ayuda detallada pero no aparece en el índice de mem help", verb)
 		}
 	}
 }

@@ -75,6 +75,9 @@ var helpIndex = []struct {
 	{"REVISIÓN ADVERSARIAL", []helpEntry{
 		{"review", "Abrir y seguir revisiones ACR"},
 	}},
+	{"PROMPTS", []helpEntry{
+		{"socratica", "Refinar un prompt con aprobación: refine · pending · history · on/off"},
+	}},
 	{"CÓDIGO Y ARQUITECTURA", []helpEntry{
 		{"index", "Indexar el código y los grafos externos"},
 		{"adr-sync", "Estado de sincronización de ADR"},
@@ -262,7 +265,8 @@ COMMANDS
                                    Enrutar una unidad de trabajo: inline o delegar
                                    Módulo opt-in: se activa en TUI → Configuración → "Octopus AAR"
   mem socratica refine [--mode refine|scrutiny] [--client <agente>] [--print [--raw]] [texto|-]
-                                   Refinar un prompt con hasta 3 preguntas y aprobación explícita
+                                   Elegir harness por flujo, refinar con hasta 3 preguntas y aprobar
+                                   --client elige el mismo harness para refinar y ejecutar; obligatorio sin TTY
   mem socratica history|status|pending [--resume <id>|--cancel <id>]
                                    Historial, estado por agente y flujos pendientes de Socratica
   mem socratica on|off --client <agente> · mem socratica private on|off

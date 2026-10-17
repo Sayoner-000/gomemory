@@ -29,6 +29,8 @@ type SocraticaRepository interface {
 	ForceResend(context.Context, string, string, string) error
 	DeleteFlow(context.Context, string) error
 	FindByDispatchID(context.Context, string) (domain.RefinementFlow, bool, error)
+	// FlowExists reports whether a flow row exists; a missing row is (false, nil).
+	FlowExists(context.Context, string) (bool, error)
 	ConsumeDispatch(context.Context, string, string) (bool, error)
 	RedactFlow(context.Context, string) error
 	UpsertHistory(context.Context, domain.RefinementHistory, int) error

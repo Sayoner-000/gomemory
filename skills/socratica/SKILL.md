@@ -14,6 +14,7 @@ description: Refina un prompt en bruto hasta convertirlo en uno fiel y ejecutabl
   - `/socratic-q [texto]`: examinar supuestos, evidencia, alternativas, compromisos y criterios de decisión; no defender por defecto la hipótesis inicial.
 - Si el anfitrión tiene alias con barra, ambos se dirigen a esta habilidad con su modo. Si no, el texto literal cuenta como invocación explícita.
 - `on`, `off` e `history` requieren integración con el anfitrión. Con gomemory, `on` y `off` responden con la orden exacta `mem socratica on|off --client <agente>` y nunca cambian el estado por sí mismos; `history` usa `socratica_flow(action=history)`. Sin integración, explica la limitación en vez de afirmar que algo cambió.
+- Para `on`, consulta antes `socratica_flow(action=settings)`. Si `capabilities.Interception` es `false`, la orden sin más se rechaza: entrega `mem socratica on --client <agente> --unverified` y explica que activa la intercepción sin verificar, para probarla, y que `mem socratica status` la mostrará «sin verificar». La ejecuta la persona; si el anfitrión le permite lanzar órdenes desde la conversación (por ejemplo `! <orden>` en Claude Code), díselo.
 
 ## Seguridad y precedencia
 

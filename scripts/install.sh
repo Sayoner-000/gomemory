@@ -21,6 +21,10 @@ set -euo pipefail
 
 REPO="Sayoner-000/gomemory"
 BIN_NAME="mem"
+# Topes de descarga (un release ronda los 8 MB): curl corta antes de que un
+# archivo sobredimensionado llegue a disco y al cálculo del SHA-256.
+MAX_ARCHIVE_BYTES=134217728
+MAX_METADATA_BYTES=1048576
 VERSION="${GOMEMORY_VERSION:-latest}"
 # Global para que la trap de limpieza en EXIT lo vea (no debe ser local de main,
 # o bajo `set -u` daría "tmp: unbound variable" al salir).
@@ -121,7 +125,7 @@ resolve_tag() {
   local tag="$VERSION"
   if [ "$tag" = "latest" ]; then
     local api
-    api="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")" \
+    api="$(curl -fsSL --max-filesize "$MAX_METADATA_BYTES" "https://api.github.com/repos/${REPO}/releases/latest")" \
       || die "No se pudo consultar la última versión estable de ${REPO}."
     tag="$(printf '%s' "$api" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
   fi
@@ -192,9 +196,9 @@ main() {
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
 
-  curl -fsSL "${base}/${asset}" -o "$tmp/$asset" \
+  curl -fsSL --max-filesize "$MAX_ARCHIVE_BYTES" "${base}/${asset}" -o "$tmp/$asset" \
     || die "No se pudo descargar ${asset} de ${tag}. Revisa https://github.com/${REPO}/releases"
-  curl -fsSL "${base}/checksums.txt" -o "$tmp/checksums.txt" \
+  curl -fsSL --max-filesize "$MAX_METADATA_BYTES" "${base}/checksums.txt" -o "$tmp/checksums.txt" \
     || die "No se pudo descargar checksums.txt de ${tag}: no se instala sin verificar."
 
   want="$(expected_sha256 "$tmp/checksums.txt" "$asset")"

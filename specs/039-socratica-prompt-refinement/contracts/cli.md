@@ -1,14 +1,30 @@
 # Contrato CLI: `mem socratica`
 
+Actualización de implementación (2026-10-17): cada flujo nuevo pide elegir un
+harness, sin guardar preferencia. `--client` elige el mismo harness para generar
+y ejecutar y omite el selector; sin TTY es obligatorio (su ausencia devuelve 2
+sin crear un flujo). No hay reemplazo automático si el elegido falla. Los
+pendientes conservan su cliente. Los selectores y paneles reutilizan `console`;
+Escape sale sin ejecutar y conserva el pendiente si ya existe. `--print`
+reserva stdout para el prompt aprobado y envía la presentación a stderr.
+
+Recuperación asistida: un fallo permite abrir una conversación de refinamiento
+en el mismo harness (`a`) o cambiarlo (`h`) conservando el original. La apertura
+asistida no llama a `Execute`, no aprueba el original ni consume su autorización:
+envía una instrucción para preguntar, reescribir y esperar aprobación. Al volver
+del harness, la consola sale sin regenerar. `--print` excluye esta apertura.
+Los rechazos conocidos de proveedor/autenticación/esquema no ofrecen reintento;
+sus diagnósticos se traducen en mensajes breves, incluso en pendientes antiguos.
+
 Registro en `adapters/primary/cli/dispatcher.go` como subcomando de proyecto (igual que `review` y `octopus`). Toda salida de texto pasa por `domain.ProtectText`. Los errores se muestran en lenguaje llano por stderr. Códigos de salida: `0` éxito, `1` error de uso o validación, `2` sin generador disponible, `3` almacenamiento no disponible o proyecto no inicializado.
 
 | Uso | Comportamiento | Spec |
 |---|---|---|
-| `mem socratica refine [--mode refine\|scrutiny] [--client <agente>] [--print] [texto\|-]` | Sin texto: lo pide en la terminal. Antes de llamar al generador imprime de inmediato «Generando preguntas con <agente>…» (FR-017). `--client` es el agente **destino** y también el `client` con el que se guarda el flujo; si se omite, es el primer generador disponible. Detecta el generador (R3; OpenCode no es generador en esta iteración) y, si no hay, devuelve código 2 con el original repetido literalmente. Preguntas interactivas: número de opción, `o` = Otra, `s` = Omitir, `S` = Omitir el resto. Revisión en texto con el original, la propuesta, el resumen y las acciones `[e]jecutar [d]itar [c]opiar [x]cancelar`. En una terminal no interactiva (sin TTY) nunca ejecuta: imprime la revisión y sale con código 0. | US4-6/7, FR-032a |
+| `mem socratica refine [--mode refine\|scrutiny] [--client <agente>] [--print] [texto\|-]` | Sin texto: lo pide en la terminal. Selecciona un harness por flujo mediante el selector o `--client`; lo usa para preguntas, reescritura y ejecución aprobada. Antes de generar muestra «Generando preguntas con <agente>…» (FR-017). Si el elegido no está disponible, devuelve 2 con el original. Los selectores permiten responder, escribir Otra, omitir una pregunta o el resto, ejecutar, editar, copiar y cancelar. Sin TTY exige `--client`, omite preguntas y deja la revisión pendiente sin ejecutar. | US4-6/7, FR-032a |
 | `mem socratica history [--client <agente>] [--show <id>] [--json]` | Lista hasta `socratica_history_limit` registros (por defecto 20), del más reciente al más antiguo. `--show` muestra la revisión en texto. | US4-1 |
 | `mem socratica on --client <agente> [--unverified]` | Si `SocraticaCapabilities[agente].Interception` es falso, informa «no soportado en <agente>» y sale con código 1 sin persistir nada. Con `--unverified` (solo para obtener evidencia de aceptación) persiste la activación de ese agente, avisa «intercepción sin verificar en <agente>» y `status` la muestra como «sin verificar». Si la capacidad es verdadera, persiste solo la clave de ese agente. | US4-2/3, FR-018/019 |
 | `mem socratica off --client <agente>` | Pone a `false` solo la clave de ese agente; es idempotente. | FR-018 |
-| `mem socratica status` | Muestra, por agente, la intercepción (activa / sin verificar / desactivada), las capacidades, el flujo pendiente con su antigüedad, el modo privado (por proyecto) y el generador detectado. | US4-4 |
+| `mem socratica status` | Muestra, por agente, la intercepción (activa / sin verificar / desactivada), las capacidades, el flujo pendiente con su antigüedad, el modo privado y la disponibilidad de cada harness. | US4-4 |
 | `mem socratica pending [--resume <id>\|--cancel <id>]` | Lista el flujo no terminal de cada agente (uno como máximo) con su fase estable. `--resume` lo reanuda según la tabla `resume` de `data-model.md` (regenera solo si estaba en captured o rewriting; approved sin ack → revisión recuperable). `--cancel` pasa el flujo a CANCELLED e imprime el original literal. | US4-4, FR-014, FR-015 |
 | `mem socratica private on\|off` | Activa o desactiva `socratica_private`. | FR-027 |
 

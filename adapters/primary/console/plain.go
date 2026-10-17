@@ -21,7 +21,7 @@ func (p *plainUI) writef(format string, args ...any) error {
 // NewPlain crea la UI en texto plano: la misma información que la rica, sin
 // estilos, para NO_COLOR, TERM=dumb o terminales estrechas (FR-027).
 func NewPlain(in io.Reader, out io.Writer) UI {
-	return &plainUI{in: bufio.NewReader(in), out: out}
+	return safeUI{&plainUI{in: bufio.NewReader(in), out: out}}
 }
 
 // readLine devuelve la línea sin el salto final. Fin de entrada sin nada

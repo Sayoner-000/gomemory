@@ -7,10 +7,10 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.34.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.34.0)
+[![Version](https://img.shields.io/badge/version-2.35.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.35.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-30_core_tools-blueviolet)](https://modelcontextprotocol.io/)
+[![MCP](https://img.shields.io/badge/MCP-31_core_tools-blueviolet)](https://modelcontextprotocol.io/)
 [![TUI](https://img.shields.io/badge/TUI-bubbletea_v2-FF6B9D?logo=charmbracelet&logoColor=white)](https://github.com/charmbracelet/bubbletea)
 
 gomemory gives AI coding agents persistent memory across sessions.
@@ -30,7 +30,7 @@ Works with Claude Code, Cursor, OpenCode, Windsurf, Cline and Codex through the 
 ┌─────────────────────────────────────────────────────────┐
 │                        gomemory                         │
 │                                                         │
-│  30 core tools (+4 Octopus) · sessions · checkpoints    │
+│  31 core tools (+4 Octopus) · sessions · checkpoints    │
 │  context · decisions · learnings · safe compaction      │
 │  code graph · context packs · consensus reviews         │
 └──────────────────────────┬──────────────────────────────┘
@@ -234,7 +234,7 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 ## MCP Tools
 
-30 core tools across four groups (`domain/mcp_tools.go` is the single source of truth). Enabling Octopus AAR adds four optional tools for a total of 34.
+31 core tools across five groups (`domain/mcp_tools.go` is the single source of truth). Enabling Octopus AAR adds four optional tools for a total of 35.
 
 **Memory (11)**
 
@@ -288,6 +288,21 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 The agent proposes; gomemory validates and persists. It rejects fixing an unconfirmed finding, exceeding the round budget, or passing in a verdict as a parameter. It also rejects a partial consensus, a downgraded severity, a correction that skips the target chain, and any write to a review that already reached a terminal state — see [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/) and [`specs/028-harden-acr-review`](specs/028-harden-acr-review/).
 
+**Socratica (1)** — prompt refinement and scrutiny with explicit approval, see [`docs/socratica.md`](docs/socratica.md)
+
+| Tool | Description |
+| :--- | :--- |
+| `socratica_flow` | Single tool with an `action` field (`start`, `answer`, `rewrite`, `approve`, `ack`, `cancel`, `get`, `history`, `settings`, …). Requires explicit approval and an `ack` before executing; never turns interception on |
+
+**Octopus AAR (4, optional)** — registered only when `octopus_enabled` is `true`
+
+| Tool | Description |
+| :--- | :--- |
+| `octopus_route_task` | Route one unit of work: INLINE, DELEGATE, WAIT or REJECT, with an explainable reason and, when delegating, a context and output budget |
+| `octopus_route_plan` | Route a whole task graph (adds PARALLEL groups); always a simulation, never starts anything |
+| `octopus_report` | Report the real outcome of an executed unit (consumption, duration, quality) to compare estimate vs. actual |
+| `octopus_status` | Effective limits and telemetry aggregates: counts per route, estimated vs. actual consumption, successes and failures |
+
 **Resources:** `mem://context` · `mem://memory/{id}`
 
 ## CLI
@@ -308,6 +323,10 @@ mem
 ├── pack show         Re-render an already-built ContextPack
 ├── pack stats        Reduction stats of an already-built ContextPack
 ├── pack compress     Deterministic compression of arbitrary text
+├── pack retrieve     Print the exact original behind a `⟦mem⟧ … ref=X` marker
+├── pack savings      Compression savings per compressor, retrievals and fallbacks (--json)
+├── pack tune --reset Reset the adaptive compression tuning (all, or --type T)
+├── pack purge        Empty the compressed-originals store
 ├── mass              Memory mass ranking (--task T, --top N): centrality, not importance
 ├── project           Show current project info
 ├── index             Index the project's Go code graph (+ external graph, --skip-graph to opt out)
@@ -321,6 +340,7 @@ mem
 ├── rules             Show the project's current work rules
 ├── purge / gc         Delete memories / retention-based cleanup
 ├── consolidate        Merge redundant memories (shared topic key + duplicate activity logs)
+├── sanitize           Scrub private content from stored summaries, reasoning and diagnostics (preview; --apply to write)
 ├── get <id>           Retrieve a memory's full detail by ID
 ├── usage              Measured token benchmark: baseline/emitted/saved per session (--json, --all)
 ├── compact           Reclaim SQLite space (no data loss)
@@ -330,6 +350,7 @@ mem
 │   ├── history       List reviews (--limit N)
 │   └── show <id>     Full lineage: target, reviewers, consensus, fixes, verdict
 ├── octopus           Route, inspect and report optional delegation decisions
+├── socratica         Prompt refinement with explicit approval: refine | history | status | pending | on/off | private
 ├── adr-sync          Inspect or run opt-in ADR synchronization
 ├── install           Guided install into a project (--yes, --agents, --scope); no binary copy when `mem` is on PATH
 ├── setup <agent>     Install the hooks/plugin for opencode | claude-code
@@ -342,6 +363,7 @@ mem
 ├── hook <event>      Agent hook entrypoint (internal lifecycle integration)
 ├── wrap <cmd>        Run a command, then prompt to save a memory about it
 ├── tui               Open the interactive terminal UI explicitly
+├── version           Show the installed version
 └── help              Show help
 ```
 
@@ -389,8 +411,26 @@ Main settings (via `mem settings` or the interactive TUI):
 | `review_auto_fix_severities` | `["CRITICAL","HIGH"]` | Severities eligible for automatic correction without explicit authorization |
 | `update_check_disabled` | `false` | Turn off the new-version notice and its background check (no network calls). `GOMEMORY_NO_UPDATE_CHECK=1` does the same for every project |
 | `octopus_enabled` | `false` | Opt-in **Octopus AAR** adaptive agent router — decides inline vs. delegate. Off means zero footprint: no MCP tools, no protocol text, no telemetry |
+| `theme` | *(unset)* | TUI appearance: `dark`, `light`, `matrix` or `auto` — see [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) |
+| `auto_approve` / `auto_approve_tools` | `false` / *(derived)* | Auto-approve gomemory's MCP tools in the agent; `forget_memory` is never included |
+| `speckit_context_disabled` | `false` | Disable the memory-history summary injected into `/speckit-specify` |
+| `code_graph_command` | *(none)* | Legacy single provider binary; superseded by `code_graph_providers` |
+| `context_index_mode` | `false` | Emit context as an index (protocol + one line per memory); details on demand with `get_memory(id)` |
+| `context_compression_level` | `structural` | `none`, `structural` or `max`. `mem install` writes `max` only in projects without prior settings. The legacy `context_compression_disabled: true` means `none` when the level is unset |
+| `tool_output_compression` | `false` | Opt-in hook that compresses the agent's tool outputs (run `mem install` after changing it) |
+| `concise_output_directive` | `false` | Add a concise-answers directive to the volatile part of the context |
+| `compression_min_tokens` · `compression_originals_ttl_days` · `compression_originals_max_mb` · `compression_adaptive_threshold_pct` | `64` · `7` · `256` · `20` | Compression engine limits (`0` = factory value; the originals store never goes below 8 MB) |
+| `usage_window_tokens` | *(unset)* | Reference window for the estimated percentage in `mem usage`; you provide it, it is never inferred |
+| `review_fix_authorized` | `true` | Whether new reviews may record corrections at all; frozen into each review when it starts |
+| `octopus_max_subagents` · `octopus_max_parallel` · `octopus_max_depth` · `octopus_max_retries` | `4` · `3` · `1` · `1` | Octopus AAR limits (`0` = factory value) |
+| `octopus_main_agent_pct` · `octopus_delegation_pct` · `octopus_validation_pct` | `55` · `30` · `15` | Session budget split; if they do not add up to 100 the factory split applies |
+| `socratica_interception` / `socratica_interception_unverified` | *(none)* | Per-agent automatic interception (`claude`, `codex`, `opencode`), and whether it was enabled with `--unverified`. Changed only via `mem socratica on`/`off` or the TUI, never via MCP |
+| `socratica_private` | `false` | Private mode: no Socratica history for the project |
+| `socratica_history_limit` | `20` | Refinements kept per agent (1–1000) |
+| `socratica_generators` | `["claude","codex","opencode"]` | Enabled harnesses; each new CLI/TUI flow asks you to choose one for refinement and approved execution, without automatic fallback |
+| `socratica_generator_timeout_seconds` · `socratica_query_timeout_ms` | `120` · `5000` | Generator timeout and per-query store timeout (minimum 100 ms) |
 
-The table above lists every user-facing setting; `mem settings --show` prints the live values for your project.
+`agents` and `agent_scope` are written by `mem install` to remember your selection. The `context_default_budget`, `context_min_relevance`, `context_max_items` and `context_dedup_disabled` keys are reserved but not read yet: `mem pack build` always takes `--task`/`--max-tokens` explicitly. An invalid `socratica_*` value fails fast with the key and value instead of being replaced by a default. `mem settings --show` prints the live values for your project.
 
 ## Octopus AAR — Adaptive Agent Router
 

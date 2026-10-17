@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"mem/application/ports"
@@ -17,11 +18,52 @@ import (
 // compactSchema is the embedded generation schema on a single line, so it can
 // travel as one command-line argument.
 func compactSchema() (string, error) {
-	var b bytes.Buffer
-	if err := json.Compact(&b, []byte(domain.SocraticaGenerationSchema)); err != nil {
+	// Claude's validator does not register the 2020-12 meta-schema. Adapt only
+	// the transport copy; domain and other harnesses keep the canonical schema.
+	var schema map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(domain.SocraticaGenerationSchema), &schema); err != nil {
 		return "", err
 	}
-	return b.String(), nil
+	delete(schema, "$schema")
+	b, err := json.Marshal(schema)
+	return string(b), err
+}
+
+// Codex strict output requires every object property to be required. Optional
+// canonical properties become nullable in its transport schema.
+func codexSchema() (string, error) {
+	var schema map[string]any
+	if err := json.Unmarshal([]byte(domain.SocraticaGenerationSchema), &schema); err != nil {
+		return "", err
+	}
+	var strict func(map[string]any)
+	strict = func(node map[string]any) {
+		if props, ok := node["properties"].(map[string]any); ok {
+			required := map[string]bool{}
+			if list, ok := node["required"].([]any); ok {
+				for _, key := range list {
+					required[key.(string)] = true
+				}
+			}
+			keys := make([]string, 0, len(props))
+			for key, value := range props {
+				child := value.(map[string]any)
+				strict(child)
+				if !required[key] {
+					props[key] = map[string]any{"anyOf": []any{child, map[string]any{"type": "null"}}}
+				}
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			node["required"] = keys
+		}
+		if items, ok := node["items"].(map[string]any); ok {
+			strict(items)
+		}
+	}
+	strict(schema)
+	raw, err := json.Marshal(schema)
+	return string(raw), err
 }
 
 // instructions builds the generation request. It mirrors the skill's steps 2
@@ -81,8 +123,16 @@ func parseOutput(raw []byte) (domain.GenerationResult, error) {
 	var envelope struct {
 		Result           *string         `json:"result"`
 		StructuredOutput json.RawMessage `json:"structured_output"`
+		IsError          bool            `json:"is_error"`
 	}
 	if json.Unmarshal(bytes.TrimSpace(raw), &envelope) == nil {
+		if envelope.IsError {
+			message := "el harness devolvió un error"
+			if envelope.Result != nil {
+				message = domain.ProtectText(*envelope.Result)
+			}
+			return domain.GenerationResult{}, fmt.Errorf("generación: %s", message)
+		}
 		if len(envelope.StructuredOutput) > 0 && string(envelope.StructuredOutput) != "null" {
 			return domain.ParseGeneration(envelope.StructuredOutput)
 		}

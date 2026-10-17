@@ -58,6 +58,10 @@ func (r *countingSocraticaRepo) ForceResend(ctx context.Context, id, o, n string
 	r.c()
 	return r.inner.ForceResend(ctx, id, o, n)
 }
+func (r *countingSocraticaRepo) FlowExists(ctx context.Context, id string) (bool, error) {
+	r.c()
+	return r.inner.FlowExists(ctx, id)
+}
 func (r *countingSocraticaRepo) DeleteFlow(ctx context.Context, id string) error {
 	r.c()
 	return r.inner.DeleteFlow(ctx, id)
