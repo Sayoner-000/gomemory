@@ -13,5 +13,5 @@ Cada celda se rellena solo con una prueba ejecutada: la orden y la salida quedan
 | Portapapeles | no | no | no | bloque delimitado |
 | Devolver el original al campo de entrada | no | no | pendiente | original repetido literalmente |
 | Historial en interfaz | TUI `mem` | TUI `mem` | TUI `mem` | `mem socratica history` |
-| Generador no interactivo (CLI/TUI) | pendiente (`claude -p --json-schema --tools ""`) | pendiente (`codex exec --sandbox read-only --output-schema`) | **no soportado**: `run` no tiene modo sin herramientas; `--agent` existe pero no se demostró un agente de solo lectura (T066, `evidence/opencode.md`) | error código 2 |
+| Generador no interactivo (CLI/TUI) | preguntas y reescritura verificadas en **2.1.302**, omitiendo `$schema` del payload | preguntas y reescritura verificadas en **0.163.0**, con opcionales anulables requeridas | adaptador V2 con agente temporal sin herramientas; generación real **pendiente por 403 del proveedor** | conservar el original; ver `evidence/generator-harnesses-2026-10-17.md` |
 | Marca de origen al lanzar desde CLI/TUI | pendiente (`GOMEMORY_SOCRATICA_DISPATCH`) | pendiente | pendiente | — |

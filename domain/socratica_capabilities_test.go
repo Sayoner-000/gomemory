@@ -19,7 +19,7 @@ func TestSocraticaCapabilities(t *testing.T) {
 
 func TestValidateSocraticaSettings(t *testing.T) {
 	s, err := ValidateSocraticaSettings(SocraticaSettings{})
-	if err != nil || *s.HistoryLimit != 20 || *s.GeneratorTimeoutSeconds != 120 || *s.QueryTimeoutMS != 5000 || len(s.Generators) != 2 {
+	if err != nil || *s.HistoryLimit != 20 || *s.GeneratorTimeoutSeconds != 120 || *s.QueryTimeoutMS != 5000 || len(s.Generators) != 3 {
 		t.Fatal(s, err)
 	}
 	for _, n := range []int{-1, 0, 1001} {

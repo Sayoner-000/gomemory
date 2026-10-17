@@ -3,6 +3,7 @@ package generator
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -23,7 +24,9 @@ type cliGenerator struct {
 	timeout time.Duration
 	// args returns the command-line arguments and a cleanup for any
 	// temporary file they reference.
-	args func() ([]string, func(), error)
+	args  func() ([]string, func(), error)
+	dir   string
+	parse func([]byte) (domain.GenerationResult, error)
 }
 
 func (g *cliGenerator) Name() string { return g.name }
@@ -52,6 +55,7 @@ func (g *cliGenerator) run(ctx context.Context, prompt string) (domain.Generatio
 	ctx, cancel := context.WithTimeout(ctx, g.timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, g.name, args...)
+	cmd.Dir = g.dir
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.WaitDelay = waitDelay
 	var stdout, stderr bytes.Buffer
@@ -59,9 +63,17 @@ func (g *cliGenerator) run(ctx context.Context, prompt string) (domain.Generatio
 	cmd.Stderr = &stderr
 	if err = cmd.Run(); err != nil {
 		if ctx.Err() != nil {
-			return domain.GenerationResult{}, fmt.Errorf("%s: tiempo de generación agotado (%s)", g.name, g.timeout)
+			return domain.GenerationResult{}, fmt.Errorf("%s: %w (%s)", g.name, domain.ErrGenerationTimeout, g.timeout)
+		}
+		if g.parse != nil && stderr.Len() == 0 {
+			if _, parseErr := g.parse(stdout.Bytes()); parseErr != nil && !errors.Is(parseErr, domain.ErrInvalidGeneration) {
+				return domain.GenerationResult{}, fmt.Errorf("%s: %w: %v", g.name, err, parseErr)
+			}
 		}
 		return domain.GenerationResult{}, fmt.Errorf("%s: %w: %s", g.name, err, domain.ProtectText(strings.TrimSpace(stderr.String())))
+	}
+	if g.parse != nil {
+		return g.parse(stdout.Bytes())
 	}
 	return parseOutput(stdout.Bytes())
 }
@@ -80,13 +92,17 @@ func NewClaude(timeout time.Duration) ports.SocraticGenerator {
 // removed after the run.
 func NewCodex(timeout time.Duration) ports.SocraticGenerator {
 	return &cliGenerator{name: "codex", timeout: timeout, args: func() ([]string, func(), error) {
+		schema, err := codexSchema()
+		if err != nil {
+			return nil, func() {}, err
+		}
 		f, err := os.CreateTemp("", "socratica-schema-*.json")
 		if err != nil {
 			return nil, func() {}, err
 		}
 		path := f.Name()
 		cleanup := func() { _ = os.Remove(path) }
-		if _, err = f.WriteString(domain.SocraticaGenerationSchema); err != nil {
+		if _, err = f.WriteString(schema); err != nil {
 			_ = f.Close()
 			cleanup()
 			return nil, func() {}, err

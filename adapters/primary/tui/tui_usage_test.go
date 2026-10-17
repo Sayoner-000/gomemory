@@ -38,6 +38,10 @@ func keyMsg(key string) tea.KeyMsg {
 		return tea.KeyPressMsg{Code: tea.KeyEnter}
 	case "tab":
 		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "up":
+		return tea.KeyPressMsg{Code: tea.KeyUp}
+	case "down":
+		return tea.KeyPressMsg{Code: tea.KeyDown}
 	case "space":
 		return tea.KeyPressMsg{Code: tea.KeySpace}
 	default:

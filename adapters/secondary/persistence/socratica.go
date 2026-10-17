@@ -361,6 +361,16 @@ func (s *SocraticaStore) ForceResend(ctx context.Context, id, oldID, newID strin
 func (s *SocraticaStore) DeleteFlow(ctx context.Context, id string) error {
 	return s.execOne(ctx, `DELETE FROM socratica_flows WHERE id=?`, id)
 }
+func (s *SocraticaStore) FlowExists(ctx context.Context, id string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	var one int
+	err := s.q.QueryRowContext(ctx, `SELECT 1 FROM socratica_flows WHERE id=?`, id).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
 func (s *SocraticaStore) FindByDispatchID(ctx context.Context, id string) (domain.RefinementFlow, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()

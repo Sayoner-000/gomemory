@@ -5,6 +5,39 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.35.0] - 2026-10-17
+
+### Added
+
+- Socratica can select Claude, Codex or OpenCode per flow in the CLI and TUI.
+  OpenCode runs in an isolated, tool-less temporary workspace; Claude and Codex
+  use schema-adapted, bounded subprocesses. Failed generations now offer an
+  explicit retry, harness switch, assisted continuation, original prompt or
+  cancellation path.
+- Interactive console panels and safe selections for Socratica commands, plus
+  terminal-control filtering for generated and stored text rendered on screen.
+- `socratica_flow` to the MCP core surface (31 tools; 35 when Octopus is
+  enabled), with persisted flow recovery, dispatch acknowledgement and
+  project-scoped operations.
+- Defensive-audit evidence and four read-only multilingual defensive audit
+  reports for the current release scope.
+
+### Changed
+
+- The TypeScript installer limits streamed downloads even when `Content-Length`
+  is absent, verifies checksums before extraction and replaces the binary
+  atomically; the Unix installer applies the same bounded-download policy.
+- Socratica privacy maintenance protects scalar and JSON flow/history fields,
+  and dispatch uses a per-flow file lock with orphan cleanup.
+
+### Fixed
+
+- Terminal output from review, session and Socratica paths no longer permits
+  stored or model-supplied control sequences to affect an interactive terminal.
+- Generator timeouts, OpenCode availability checks and CLI/TUI hand-off paths
+  fail predictably without leaving progress rendering or temporary workspaces
+  behind.
+
 ## [v2.34.0] - 2026-10-16
 
 ### Added

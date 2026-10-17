@@ -80,6 +80,29 @@ func (l *SocraticaFileLock) Remove(id string) error {
 	return nil
 }
 
+// List returns the flow ids with a lock file. Entries that are not a valid
+// "<id>.lock" name are ignored, never removed.
+func (l *SocraticaFileLock) List() ([]string, error) {
+	entries, err := os.ReadDir(filepath.Join(l.root, ".memory", "socratica", "locks"))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, e := range entries {
+		id, ok := strings.CutSuffix(e.Name(), ".lock")
+		if !ok || !e.Type().IsRegular() {
+			continue
+		}
+		if _, err := l.path(id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
 func (l *SocraticaFileLock) TryAcquire(id string) (func(), bool, error) {
 	path, err := l.path(id)
 	if err != nil {

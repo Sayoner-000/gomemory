@@ -22,6 +22,18 @@ type RewriteResult = GenerationResult
 
 var ErrInvalidGeneration = errors.New("invalid socratica generation")
 
+// ErrGenerationTimeout marks a generation that ran out of time. With
+// ErrInvalidGeneration it is the only transient kind the adapters emit.
+var ErrGenerationTimeout = errors.New("tiempo de generación agotado")
+
+// RetryableGenerationFailure reports whether a persisted generation error is
+// one of the transient kinds the adapters emit with these stable texts. Any
+// other failure, including a provider message phrased in a new way, fails
+// closed: retrying it unchanged would only repeat the same failure (H-03).
+func RetryableGenerationFailure(raw string) bool {
+	return strings.Contains(raw, ErrGenerationTimeout.Error()) || strings.Contains(raw, ErrInvalidGeneration.Error())
+}
+
 func ParseGeneration(raw []byte) (GenerationResult, error) {
 	var result GenerationResult
 	// Decoder identifies the first balanced object, including braces inside strings.

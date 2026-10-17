@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -37,11 +36,16 @@ func fakeAgent(t *testing.T, dir, name, out string, sleep time.Duration) {
 
 func compactSchemaForTest(t *testing.T) string {
 	t.Helper()
-	var b bytes.Buffer
-	if err := json.Compact(&b, []byte(domain.SocraticaGenerationSchema)); err != nil {
+	var schema map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(domain.SocraticaGenerationSchema), &schema); err != nil {
 		t.Fatal(err)
 	}
-	return b.String()
+	delete(schema, "$schema")
+	b, err := json.Marshal(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 func readLines(t *testing.T, path string) []string {

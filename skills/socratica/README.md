@@ -52,5 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/skills/so
 ## Intercepción automática
 
 Está desactivada por defecto y solo se activa desde la línea de comandos o la TUI
-(`mem socratica on --client <agente>`), nunca desde el propio agente. Consulta
+(`mem socratica on --client <agente>`), nunca desde el propio agente. Mientras
+un agente no tenga evidencia de aceptación, `on` se rechaza; para probarla usa
+`mem socratica on --client <agente> --unverified`. Consulta
 `docs/socratica.md` para la matriz de compatibilidad por agente.

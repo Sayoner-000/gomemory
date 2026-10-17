@@ -98,7 +98,7 @@ func cmdSessionEnd(deps *Deps, args []string) {
 	humanf("✓ Sesión %s finalizada\n", sess.ID[:8])
 	// Se muestra lo que quedó guardado, no el argumento crudo (spec 037,
 	// FR-002): la respuesta no puede revelar lo que la persistencia elimina.
-	if shown := strings.TrimSpace(domain.ProtectText(finalSummary)); shown != "" {
+	if shown := strings.TrimSpace(domain.StripTerminalControls(domain.ProtectText(finalSummary))); shown != "" {
 		humanf("  Resumen: %s\n", shown)
 	}
 }
@@ -132,8 +132,8 @@ func cmdSessionList(deps *Deps, args []string) {
 		if s.EndedAt != nil {
 			endStr = *s.EndedAt
 		}
-		summary := s.Summary
-		summary = ansi.Truncate(summary, 50, "...")
+		// Truncate keeps escape sequences; the summary is agent text.
+		summary := ansi.Truncate(domain.StripTerminalControls(s.Summary), 50, "...")
 		rows = append(rows, []string{s.ID[:8], s.CreatedAt, endStr, summary})
 	}
 	if printListPanel("", "Sesiones", fmt.Sprint(len(rows)), []string{"ID", "Inicio", "Fin", "Resumen"}, rows) {

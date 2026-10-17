@@ -107,6 +107,7 @@ func (s *socTUI) refine(prompt string) {
 	s.t.Helper()
 	s.press("p")
 	s.press("r")
+	s.press("enter") // explicit harness selection, even with a single option
 	s.typeText(prompt)
 	s.press("enter")
 }
@@ -114,7 +115,7 @@ func (s *socTUI) refine(prompt string) {
 func TestSocraticaScreens(t *testing.T) {
 	t.Run("acknowledgement before the generator", func(t *testing.T) {
 		s := newSocTUI(t)
-		s.press("p", "r")
+		s.press("p", "r", "enter")
 		s.typeText("envía el informe")
 		next, cmd := s.m.Update(keyMsg("enter"))
 		s.m = next.(model)
@@ -246,7 +247,7 @@ func TestSocraticaScreens(t *testing.T) {
 		s := newSocTUI(t)
 		s.gen.fail = errors.New("timeout")
 		s.refine("envía  el informe")
-		if v := s.view(); s.m.screen != screenSocraticaDetail || !strings.Contains(v, "r Reintentar · o Enviar mi original · x Cancelar") || !strings.Contains(v, "envía  el informe") {
+		if v := s.view(); s.m.screen != screenSocraticaDetail || !strings.Contains(v, "Continuar asistido") || !strings.Contains(v, "Cambiar harness") || !strings.Contains(v, "envía  el informe") {
 			t.Fatal(v)
 		}
 	})
@@ -281,6 +282,9 @@ func TestSocraticaScreens(t *testing.T) {
 		s.press("i")
 		if s.m.settingsRepo.Read(s.root).Interception["codex"] || !strings.Contains(s.view(), "no soportada en codex") {
 			t.Fatal("activó la intercepción sin capacidad", s.view())
+		}
+		if !strings.Contains(s.m.statusMsg, "mem socratica on --client codex --unverified") {
+			t.Fatalf("el rechazo no indica cómo probarla: %q", s.m.statusMsg)
 		}
 		s.press("p")
 		if !s.m.settingsRepo.Read(s.root).Private || !s.m.soc.deps.Flow.Settings.Private {

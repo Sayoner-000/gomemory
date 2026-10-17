@@ -285,6 +285,20 @@ func TestSocraticaFlowUseCase(t *testing.T) {
 			t.Fatal(got)
 		}
 	})
+	t.Run("PurgeStale recovers locks orphaned by an earlier purge", func(t *testing.T) {
+		u, r := socraticaFixture()
+		if _, err := u.Start(ctx, "p", "claude", domain.ModeRefine, "prompt"); err != nil {
+			t.Fatal(err)
+		}
+		lock := u.Lock.(*socraticaFakeLock)
+		lock.files = []string{"orphan", r.flow.ID}
+		if err := u.PurgeStale(ctx, "p"); err != nil {
+			t.Fatal(err)
+		}
+		if got := lock.removed; len(got) != 1 || got[0] != "orphan" {
+			t.Fatalf("removed %v, want only the orphan", got)
+		}
+	})
 	t.Run("foreign ack is rejected", func(t *testing.T) {
 		u, _ := socraticaFixture()
 		res, err := u.Apply(ctx, "f", domain.Event{Kind: "approve"}, OriginMCP)

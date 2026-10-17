@@ -22,6 +22,8 @@ Guía para instalar, configurar y usar gomemory con los agentes compatibles.
 16. [Benchmark de tokens (mem usage)](#16-benchmark-de-tokens-mem-usage)
 17. [Revisión adversarial por consenso](#17-revisión-adversarial-por-consenso-mem-review)
 18. [Octopus AAR](#18-octopus-aar)
+19. [Compresión nativa de contexto](#19-compresión-nativa-de-contexto)
+20. [Socratica: refinamiento de prompts](#20-socratica-refinamiento-de-prompts-mem-socratica)
 
 ---
 
@@ -202,10 +204,11 @@ paralelo a los hooks de Claude Code (misma lógica, resuelta en Go):
 | `session.idle` | `mem hook turn-end` (stdin) | Checkpoint de actividad del turno (archivos/comandos) |
 | `session.compacted` | `mem hook compact-summary` + `mem hook post-compact` | Guarda el resumen disponible y prepara la recuperación posterior |
 | `session.deleted` | — | Libera el estado temporal que el plugin mantenía para esa sesión |
-| `chat.message` | `mem hook prompt` (stdin) | Persiste el prompt del turno como provenance (`origin_prompt`) |
+| `chat.message` | `mem hook socratica-decide` + `mem hook prompt` (stdin) | Aplica la decisión de Socratica tomada en Go (añadir la directiva o reenviar el texto aprobado; sin respuesta válida no toca el mensaje) y persiste el prompt del turno como provenance (`origin_prompt`) |
 | `experimental.chat.system.transform` | `mem context` + hooks de recordatorio | Inyecta protocolo, contexto, recuperación pendiente y avisos del turno |
 | `experimental.session.compacting` | `mem hook compaction-context` | Entrega al compresor la memoria de la sesión activa antes de compactar |
 | `tool.execute.after` (`task`) | `mem hook subagent-stop` | Captura aprendizajes estructurados del resultado de un subagente |
+| `tool.execute.after` (resto) | `mem hook tool-output opencode` | Solo con `tool_output_compression` activo: comprime la salida con ganancia recuperable (best-effort, §19) |
 | `dispose` | `mem session end` | Cierra la sesión al descargarse el plugin |
 
 ---
@@ -236,13 +239,14 @@ Esto:
 | `SessionStart` (`compact`) | `post-compact` | Después de compactar, reinyecta recuperación + memoria de sesión + contexto indexado y reactiva las tools MCP diferidas. |
 | `PostCompact` | `compact-summary` | Persiste el resumen producido por la compactación sin cerrar la sesión. |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. |
-| `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. En **cada** prompt persiste el texto del turno como provenance (`origin_prompt`) de lo que se guarde. En OpenCode el equivalente es `chat.message` → `mem hook prompt`. |
+| `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. En **cada** prompt persiste el texto del turno como provenance (`origin_prompt`) de lo que se guarde y, si la intercepción de Socratica está activa para el agente, añade la directiva para refinarlo (§20); la procedencia de los textos de Socratica se limpia. En OpenCode el equivalente es `chat.message` → `mem hook prompt`, y el plugin aplica la decisión de `mem hook socratica-decide`. |
 | `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para preservar su trazabilidad. |
 | `SubagentStop` | `subagent-stop` | Registra la actividad del subagente y captura los ítems válidos de su sección de aprendizajes. |
 | `Stop` | `turn-end` | Al terminar cada turno, registra automáticamente (sin gastar tokens del agente) qué archivos se editaron y qué comandos corrieron, como memoria tipo `checkpoint`. Turnos de puro chat no generan nada. En OpenCode el equivalente es el evento `session.idle`. |
 | `PreToolUse` (`ExitPlanMode`) | `plan-guard` | Valida la forma del plan antes de presentarlo. |
 | `PostToolUse` (`ExitPlanMode`) | `plan-approved` | Al **aprobar un plan**, guarda el plan como memoria `decision` de forma determinista, sin depender de que el modelo lo recuerde. Cubre el hueco de `turn-end` (un turno de plan mode no toca archivos ni corre comandos). Cada aprobación (incluidos planes revisados) se acumula. En OpenCode el plugin lo activa al detectar un turno en modo `plan`. |
 | `PostToolUse` (`EnterPlanMode`) | `plan-entered` | Inyecta el método de descomposición y el historial antes de redactar el plan. |
+| `PostToolUse` (`Bash\|Grep\|Glob\|WebFetch\|WebSearch\|mcp__.*`) | `tool-output claude` | Solo con `tool_output_compression` activo: comprime la salida de esas herramientas con ganancia recuperable (§19). Con el ajuste apagado no se registra. |
 
 > Regla de oro: un hook nunca aborta el arranque del agente — ante error sale con
 > código 0. Los hooks son lo que hace que la memoria "tome todo bien": sin ellos,
@@ -940,10 +944,11 @@ el comportamiento es exactamente el de antes de esta señal.
 
 > `.memory/settings.json` ya reserva claves para esta feature
 > (`context_default_budget`, `context_min_relevance`, `context_max_items`,
-> `context_compression_disabled`, `context_dedup_disabled`), pero hoy la CLI y
-> el MCP no las leen — `--task`/`--max-tokens` son siempre explícitos por
-> invocación. Editarlas a mano en el JSON no cambia el comportamiento
-> todavía.
+> `context_dedup_disabled`), pero hoy la CLI y el MCP no las leen —
+> `--task`/`--max-tokens` son siempre explícitos por invocación. Editarlas a
+> mano en el JSON no cambia el comportamiento todavía. La excepción es
+> `context_compression_disabled`: sí se lee, como valor heredado, y con
+> `context_compression_level` sin fijar equivale a `none` (ver §19).
 
 ## Referencia Rápida
 
@@ -967,6 +972,10 @@ mem import backup.json              # Importarlas en otro proyecto/máquina (ded
 # Optimización de contexto
 mem pack build --task "..." --max-tokens 4000   # Paquete de contexto acotado a una tarea
 mem pack compress < texto.txt                   # Comprimir un texto suelto
+
+# Socratica
+mem socratica refine "texto"    # Refinar un prompt (hasta 3 preguntas, aprobación explícita)
+mem socratica pending           # Flujos pendientes por agente
 
 # Mantenimiento de memoria
 mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
@@ -1044,7 +1053,7 @@ la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
 
 Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
 en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
-30 tools base y cuatro adicionales cuando Octopus AAR está activado.
+31 tools base y cuatro adicionales cuando Octopus AAR está activado (35).
 
 > Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
 > con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado
@@ -1485,6 +1494,45 @@ y repetitivas; el hook solo reescribe con ganancia recuperable):
 `mem doctor` muestra el nivel efectivo, el uso del almacén de originales, el
 estado por runtime y los ajustes adaptativos. Con `--strict`, un nivel `max`
 sin almacén escribible produce un código de salida distinto de cero.
+
+---
+
+## 20. Socratica: refinamiento de prompts (`mem socratica`)
+
+Socratica convierte un prompt en bruto en uno fiel y ejecutable (`refine`) o
+examina los supuestos, la evidencia y las alternativas de una propuesta
+(`scrutiny`). Hace como máximo tres preguntas con opciones y **no ejecuta nada
+sin aprobación explícita**; al cancelar se conserva el original intacto.
+
+| Dónde | Cómo |
+|---|---|
+| Dentro del agente | `/socratica <texto>` o `/socratic-q <texto>` (habilidad instalada en `~/.claude`, `~/.codex` y `~/.opencode/skills/` por `mem install` global, `mem setup-mcp --scope global` y `mem update`) |
+| Terminal | `mem socratica refine [--mode refine\|scrutiny] [--client <agente>] [--print] [texto\|-]` |
+| TUI | Tecla `p` en la lista principal; `r` abre el selector de harness y después el prompt |
+| MCP | Herramienta única `socratica_flow` con campo `action`; exige `approve` y después `ack` antes de ejecutar |
+
+```bash
+mem socratica history [--client <agente>] [--show <id>] [--json]
+mem socratica pending [--resume <id> | --cancel <id>]
+mem socratica status                       # intercepción y capacidades por agente
+mem socratica on|off --client <agente>     # intercepción automática (opt-in, solo con evidencia)
+mem socratica private on|off               # sin historial para el proyecto
+```
+
+Cada flujo nuevo pide elegir Claude Code, Codex u OpenCode. El mismo harness
+genera las preguntas, reescribe y recibe la tarea aprobada. La selección no se
+recuerda para el siguiente flujo y no hay reemplazo automático ante un error.
+`--client` omite el selector y es obligatorio sin TTY. La consola comparte los
+paneles, selectores y progreso de `mem index`; `--print` reserva stdout para el
+prompt aprobado. La disponibilidad del binario no garantiza autenticación o
+cuota: un error del proveedor se muestra conservando el original.
+
+Códigos de salida de `mem socratica`: 0 éxito, 1 uso o validación, 2 sin harness
+disponible o sin `--client` cuando no hay TTY, 3 memoria no inicializada.
+La intercepción nunca se activa por MCP.
+
+Guía completa (prevención de duplicados, privacidad, ajustes `socratica_*` y
+limitaciones): [socratica.md](socratica.md).
 
 
 ## Temas de la terminal (v2.29.0)

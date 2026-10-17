@@ -13,6 +13,8 @@ La invocación exacta depende del agente (habilidad nativa, comando con nombre o
 
 La habilidad se instala en `~/.claude/skills/`, `~/.codex/skills/` y `~/.opencode/skills/` con `mem setup-mcp --scope global`, `mem install` (alcance global) y `mem update`, solo en los agentes que ya existen en tu equipo. También puedes copiarla a mano desde [`skills/socratica`](../skills/socratica/).
 
+Junto a la habilidad se escriben envoltorios de comando finos, que solo nombran la habilidad y el modo: `~/.claude/commands/socratic-q.md` (Claude ya expone `/socratica` como habilidad) y `~/.config/opencode/commands/socratica.md` y `socratic-q.md`. Codex no tiene un directorio de comandos verificado, así que no recibe ninguno. Igual que la habilidad, se escriben solo si existe el directorio del agente y el contenido ha cambiado.
+
 ## La aprobación es la compuerta
 
 Antes de que pulses Ejecutar no se hace ningún trabajo: Socratica solo lee contexto para aclarar la petición. Al aprobar:
@@ -65,6 +67,13 @@ Un refinamiento añade la generación de hasta tres preguntas y una reescritura,
 
 ## Uso desde la CLI
 
+Cada flujo nuevo muestra un selector de harness: Claude Code, Codex u OpenCode.
+La elección sirve para preguntas, reescritura y ejecución aprobada. No se guarda
+como preferencia ni cambia automáticamente ante un fallo. Las opciones no
+disponibles muestran su motivo. Los paneles de progreso y los selectores
+reutilizan la presentación de `mem index`; la animación termina antes de pedir
+entrada o entregar la terminal al harness.
+
 ```sh
 mem socratica refine "envía el informe al cliente"         # preguntas y revisión interactivas
 mem socratica refine --client codex --mode scrutiny -      # texto por stdin
@@ -74,14 +83,44 @@ mem socratica history [--client <agente>] [--show <id>] [--json]
 mem socratica private on|off
 ```
 
-En la revisión: `e` ejecutar, `d` editar, `c` copiar (OSC 52, o un bloque delimitado), `x` cancelar. Sin terminal interactiva nunca se ejecuta nada: se imprime la revisión y el flujo queda pendiente. Códigos de salida: 0 éxito, 1 error de uso o validación, 2 sin generador disponible (se repite tu original), 3 memoria no inicializada.
+`--client claude|codex|opencode` selecciona el mismo harness para refinar y ejecutar, y omite el selector. Es obligatorio sin TTY; en ese caso nunca se ejecuta nada: se imprime la revisión y el flujo queda pendiente. En la revisión puedes ejecutar, editar, copiar (OSC 52, o un bloque delimitado) o cancelar. Escape sale de un selector sin ejecutar; si el flujo ya existe, queda pendiente. Con `--print`, stdout contiene solo el prompt aprobado y los paneles van a stderr. Códigos de salida: 0 éxito, 1 error de uso o validación, 2 harness no disponible o sin elección explícita cuando no hay TTY, 3 memoria no inicializada.
+
+Si falla la generación externa, **Continuar asistido** abre el harness elegido
+con tu original y las instrucciones para hacer preguntas, proponer y esperar
+aprobación en la conversación. No le entrega el diagnóstico como tarea ni
+aprueba la ejecución del original. Al salir del harness, la consola termina sin
+reiniciar la generación fallida. Con `--print` esta acción no se ofrece.
+
+También puedes **Cambiar harness** para iniciar otro refinamiento con el mismo
+original; no se reemplaza un pendiente ajeno del harness elegido. Los rechazos
+de proveedor, autenticación o esquema no ofrecen un reintento idéntico. Solo
+los fallos transitorios (tiempo de generación agotado o respuesta mal formada)
+permiten reintentar explícitamente; cualquier otro fallo, aunque su redacción
+sea nueva, no ofrece reintento. En la TUI, `a` abre
+el refinamiento asistido y `h` cambia de harness desde un flujo fallido.
 
 ## Uso desde la TUI
 
-Pulsa `p` en la lista principal. La pantalla muestra el seguimiento «Tu prompt · Preguntas · Reescritura · Revisión», el pendiente de cada agente y el historial. `r` inicia un refinamiento (verás «Generando preguntas con <agente>…» al instante), `enter` abre el detalle, `i` alterna la intercepción del agente seleccionado (respetando la evidencia) y `p` el modo privado. Ejecutar cede la terminal al agente y la TUI vuelve al terminar.
+Pulsa `p` en la lista principal. La pantalla muestra el seguimiento «Tu prompt · Preguntas · Reescritura · Revisión», los pendientes y el historial. `r` abre el selector de harness: flechas para elegir, Enter para confirmar y Escape para cancelar. Después escribe el prompt. La selección se pide incluso si solo hay un harness disponible; aparece en la cabecera y se conserva al retomar un pendiente. `enter` abre un detalle, `i` alterna la intercepción del agente seleccionado (respetando la evidencia) y `p` el modo privado. Ejecutar cede la terminal al agente y la TUI vuelve al terminar.
+
+## Ajustes
+
+Viven en `.memory/settings.json` del proyecto y se validan al cargar: un valor inválido falla con la clave y el valor, sin sustituirlo por el de fábrica.
+
+| Clave | Defecto | Efecto |
+|---|---|---|
+| `socratica_interception` | *(ninguno)* | Intercepción por agente (`claude`, `codex`, `opencode`). Solo se cambia con `mem socratica on`/`off` o la TUI, nunca por MCP |
+| `socratica_interception_unverified` | *(ninguno)* | Marca los agentes activados con `--unverified`; `status` los muestra «sin verificar» |
+| `socratica_private` | `false` | Modo privado: sin historial (`mem socratica private on`/`off`) |
+| `socratica_history_limit` | `20` | Refinamientos que se conservan por agente (1–1000) |
+| `socratica_generators` | `["claude","codex","opencode"]` | Harnesses habilitados para refinar; el orden no establece prioridad ni reemplazo automático |
+| `socratica_generator_timeout_seconds` | `120` | Tiempo máximo del generador |
+| `socratica_query_timeout_ms` | `5000` | Tiempo máximo de cada consulta al almacén (mínimo 100) |
+
+`mem socratica status` muestra por agente la intercepción y las capacidades, el modo privado y la disponibilidad de los harnesses; `socratica_flow(action=settings)` devuelve por MCP la intercepción, las capacidades y el modo privado del cliente. Los pendientes conservan su cliente; retomar uno no abre un selector nuevo.
 
 ## Limitaciones
 
 - Ningún agente ofrece paneles nativos para Socratica: la revisión es texto (o la TUI de `mem`).
-- OpenCode no es generador fuera del agente: `opencode run` no tiene un modo sin herramientas verificado.
+- El adaptador OpenCode requiere V2. Usa un agente temporal con todas las herramientas denegadas y conserva la autenticación y el modelo configurados en OpenCode. La aceptación de generación real sigue pendiente: el proveedor configurado respondió `403` (`FreeTierError`) en la prueba local. El error se muestra sin cambiar de modelo ni de harness.
 - Las capacidades por agente (comando con nombre, intercepción, portapapeles, devolver el original al campo de entrada) se habilitan solo con evidencia de aceptación en sesión real; consulta la matriz.

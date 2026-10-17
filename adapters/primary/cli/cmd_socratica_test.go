@@ -29,6 +29,7 @@ import (
 // cliGen is a generator double that records what the person had already seen
 // when it was called (FR-017).
 type cliGen struct {
+	name      string
 	mu        sync.Mutex
 	out       *syncBuffer
 	seen      []string
@@ -38,7 +39,12 @@ type cliGen struct {
 	available bool
 }
 
-func (g *cliGen) Name() string    { return "claude" }
+func (g *cliGen) Name() string {
+	if g.name != "" {
+		return g.name
+	}
+	return "claude"
+}
 func (g *cliGen) Available() bool { return g.available }
 func (g *cliGen) record() {
 	g.mu.Lock()
@@ -118,6 +124,19 @@ func newCLIEnv(t *testing.T) *cliEnv {
 
 func (e *cliEnv) run(tty bool, input string, args ...string) (int, string, string) {
 	e.t.Helper()
+	// Existing flow tests specify the harness; picker behavior is tested below
+	// through runSocratica with its actual input sequence.
+	if len(args) > 0 && args[0] == "refine" {
+		explicit := false
+		for _, arg := range args {
+			if arg == "--client" || strings.HasPrefix(arg, "--client=") {
+				explicit = true
+			}
+		}
+		if !explicit {
+			args = append([]string{"refine", "--client", "claude"}, args[1:]...)
+		}
+	}
 	before := len(e.out.String())
 	var errOut bytes.Buffer
 	code := runSocratica(e.deps, args, socraticaIO{in: bufio.NewReader(strings.NewReader(input)), out: e.out, err: &errOut, tty: tty})
@@ -231,6 +250,7 @@ func TestCmdSocratica(t *testing.T) {
 	})
 	t.Run("execute with a fake agent", func(t *testing.T) {
 		e := newCLIEnv(t)
+		e.gen.name = "codex"
 		e.gen.questions = nil
 		e.fakeAgent("codex")
 		done := make(chan int, 1)
@@ -333,7 +353,7 @@ func TestCmdSocratica(t *testing.T) {
 	})
 	t.Run("generator failure keeps the original", func(t *testing.T) {
 		e := newCLIEnv(t)
-		e.gen.fail = errors.New("timeout")
+		e.gen.fail = fmt.Errorf("claude: %w (1s)", domain.ErrGenerationTimeout)
 		code, out, _ := e.run(true, "o\n", "refine", "--print", "envía  el informe\n")
 		if code != 0 || !strings.Contains(out, "Tu prompt original queda intacto:\nenvía  el informe\n") || !strings.Contains(out, "[r]eintentar [o]riginal [x]cancelar") || !strings.Contains(out, ">envía  el informe\n") {
 			t.Fatalf("code=%d\n%s", code, out)
@@ -364,8 +384,10 @@ func TestCmdSocratica(t *testing.T) {
 			t.Fatal(out)
 		}
 
-		if code, _, _ := e.run(false, "", "on", "--client", "codex"); code != 1 || e.deps.SettingsRepo.Read(e.root).Interception["codex"] {
+		if code, _, errOut := e.run(false, "", "on", "--client", "codex"); code != 1 || e.deps.SettingsRepo.Read(e.root).Interception["codex"] {
 			t.Fatal("activó una intercepción sin capacidad", code)
+		} else if !strings.Contains(errOut, "mem socratica on --client codex --unverified") {
+			t.Fatalf("el rechazo no indica cómo probarla: %q", errOut)
 		}
 		if code, out, _ := e.run(false, "", "on", "--client", "codex", "--unverified"); code != 0 || !strings.Contains(out, "sin verificar") {
 			t.Fatal(code, out)
@@ -379,6 +401,7 @@ func TestCmdSocratica(t *testing.T) {
 			t.Fatal("on/off de un agente alteró a otro", s.Interception)
 		}
 
+		e.gen.name = "codex"
 		e.run(false, "", "refine", "--client", "codex", "pendiente")
 		pending := e.flow("codex")
 		if _, out, _ = e.run(false, "", "pending"); !strings.Contains(out, pending.ID) {
@@ -390,6 +413,7 @@ func TestCmdSocratica(t *testing.T) {
 
 		e.run(false, "", "private", "on")
 		before, _ := e.u.History(context.Background(), "p", "opencode")
+		e.gen.name = "opencode"
 		e.run(true, "x\n", "refine", "--client", "opencode", "secreto")
 		after, _ := e.u.History(context.Background(), "p", "opencode")
 		if len(after) != len(before) {

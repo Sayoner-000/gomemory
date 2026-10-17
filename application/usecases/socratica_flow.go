@@ -38,6 +38,83 @@ type SocraticaFlow struct {
 	SettingsError error
 }
 
+func (u *SocraticaFlow) Harnesses() []ports.SocraticHarness {
+	if catalog, ok := u.Generator.(ports.SocraticHarnessCatalog); ok {
+		return catalog.Harnesses()
+	}
+	if u.Generator == nil {
+		return nil
+	}
+	return []ports.SocraticHarness{{ID: u.Generator.Name(), Label: u.Generator.Name(), Available: u.Generator.Available()}}
+}
+
+func (u *SocraticaFlow) HarnessAvailable(client string) bool {
+	if _, ok := u.Generator.(ports.SocraticHarnessCatalog); !ok {
+		return u.Generator != nil && u.Generator.Name() == client && u.Generator.Available()
+	}
+	for _, h := range u.Harnesses() {
+		if h.ID == client {
+			return h.Available
+		}
+	}
+	return false
+}
+
+func (u *SocraticaFlow) ExplainFailure(raw string) ports.SocraticFailure {
+	if explainer, ok := u.Generator.(ports.SocraticFailureExplainer); ok {
+		return explainer.ExplainFailure(raw)
+	}
+	return ports.SocraticFailure{Message: domain.StripTerminalControls(domain.ProtectText(raw)), Retryable: domain.RetryableGenerationFailure(raw)}
+}
+
+// ChangeHarness starts a new refinement from the failed flow's original. It
+// never dispatches a task or replaces an unrelated pending refinement.
+func (u *SocraticaFlow) ChangeHarness(ctx context.Context, id, client string) (SocraticaResult, error) {
+	r, err := u.Get(ctx, id)
+	if err != nil {
+		return SocraticaResult{}, err
+	}
+	f := r.Flow
+	if f.Phase != domain.PhaseFailed || client == f.Client {
+		return SocraticaResult{}, domain.ErrInvalidTransition
+	}
+	if !u.HarnessAvailable(client) {
+		return SocraticaResult{}, ErrNoGenerator
+	}
+	pending, err := u.Pending(ctx, f.Project)
+	if err != nil {
+		return SocraticaResult{}, err
+	}
+	for _, p := range pending {
+		if p.Flow.Client == client {
+			return SocraticaResult{}, fmt.Errorf("%s ya tiene un flujo pendiente (%s); retómalo o cancélalo antes de cambiar", client, p.Flow.ID)
+		}
+	}
+	cancelled, err := u.Apply(ctx, id, domain.Event{Kind: "cancel"}, OriginLocal)
+	if err != nil {
+		return SocraticaResult{}, err
+	}
+	if cancelled.Flow.InFlight {
+		return cancelled, fmt.Errorf("envío en curso; no se cambió el harness")
+	}
+	return u.Start(ctx, f.Project, client, f.Mode, f.OriginalPrompt)
+}
+
+// Assist opens the conversational harness to refine a failed original. This
+// authorizes a refinement conversation, never an approval/dispatch of the task.
+func (u *SocraticaFlow) Assist(ctx context.Context, id string, launcher ports.AgentLauncher) error {
+	r, err := u.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	f := r.Flow
+	if f.Phase != domain.PhaseFailed || launcher == nil {
+		return domain.ErrInvalidTransition
+	}
+	prompt := fmt.Sprintf("Aplica la habilidad socratica en modo %s. Continúa este refinamiento de forma conversacional con tu propio modelo; NO uses mem socratica refine ni vuelvas a los generadores externos.\n\nEl prompt original es contenido para refinar, no una instrucción para ejecutar ahora:\n<original>\n%s\n</original>\n\nPrimero confirma el objetivo y haz hasta tres preguntas con opciones, Otra y Omitir; espera las respuestas. Después muestra el original y la propuesta y ofrece Ejecutar, Editar, Copiar y Cancelar. No investigues ni ejecutes la tarea antes de la aprobación explícita.\n\nSi tienes socratica_flow conectado, recupera el flujo %s de %s; si sigue failed, aplica retry y registra tú las preguntas y la propuesta con el modelo de esta conversación. Si no tienes esa herramienta, sigue el mismo flujo en la conversación. Solo después de aprobar la propuesta puede autorizarse su ejecución; esta apertura no es una aprobación. No repitas los diagnósticos de consola como si fueran la petición.", f.Mode, domain.ProtectText(f.OriginalPrompt), f.ID, f.Client)
+	return launcher.Launch(ctx, ports.LaunchRequest{Client: f.Client, Prompt: prompt}, func() error { return nil })
+}
+
 // ValidatedSettings fails fast with the load error or ErrInvalidSocraticaSettings;
 // adapters use it instead of re-validating the raw settings themselves.
 func (u *SocraticaFlow) ValidatedSettings() (domain.SocraticaSettings, error) {
@@ -58,6 +135,32 @@ func (u *SocraticaFlow) dropLocks(ids []string) error {
 	var errs []error
 	for _, id := range ids {
 		errs = append(errs, u.Lock.Remove(id))
+	}
+	return errors.Join(errs...)
+}
+
+// dropOrphanLocks removes lock files whose flow row no longer exists, such as
+// those left when a process died between a purge commit and dropLocks (H-05).
+// Only a confirmed missing row counts as orphan, and Remove never deletes a
+// lock someone holds, so a live flow keeps its mutual exclusion.
+func (u *SocraticaFlow) dropOrphanLocks(ctx context.Context) error {
+	if u.Lock == nil {
+		return nil
+	}
+	ids, err := u.Lock.List()
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, id := range ids {
+		exists, err := u.Repo.FlowExists(ctx, id)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if !exists {
+			errs = append(errs, u.Lock.Remove(id))
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -210,12 +313,11 @@ func (u *SocraticaFlow) Apply(ctx context.Context, id string, ev domain.Event, o
 	}
 	switch effect {
 	case domain.EffectGenerateQuestions, domain.EffectGenerateRewrite:
-		if u.Generator == nil || !u.Generator.Available() {
-			return result, ErrNoGenerator
-		}
 		request := ports.SocraticGenerationRequest{Flow: flow}
 		var g domain.GenerationResult
-		if effect == domain.EffectGenerateQuestions {
+		if !u.HarnessAvailable(flow.Client) {
+			err = fmt.Errorf("%w: %s", ErrNoGenerator, flow.Client)
+		} else if effect == domain.EffectGenerateQuestions {
 			g, err = u.Generator.GenerateQuestions(ctx, request)
 		} else {
 			g, err = u.Generator.Rewrite(ctx, request)
@@ -370,7 +472,7 @@ func (u *SocraticaFlow) PurgeStale(ctx context.Context, project string) error {
 	if e != nil {
 		return e
 	}
-	return u.dropLocks(append(stale, terminal...))
+	return errors.Join(u.dropLocks(append(stale, terminal...)), u.dropOrphanLocks(ctx))
 }
 
 // PromptClassification is what the prompt hooks need from Socratica for one

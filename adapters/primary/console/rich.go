@@ -46,7 +46,7 @@ type richUI struct {
 
 // NewRich crea la UI con la interfaz de terminal completa.
 func NewRich(in io.Reader, out io.Writer) UI {
-	return &richUI{in: in, out: out}
+	return safeUI{&richUI{in: in, out: out}}
 }
 
 func (r *richUI) run(m tea.Model) (tea.Model, error) {

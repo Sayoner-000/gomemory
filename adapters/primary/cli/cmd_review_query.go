@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -28,7 +29,7 @@ func cmdReviewStatus(deps *Deps, args []string) {
 		}
 	}
 
-	fmt.Printf("%s  ·  %s %s\n", review.ID, review.Target.Type, review.Target.Revision)
+	fmt.Printf("%s  ·  %s %s\n", review.ID, review.Target.Type, domain.StripTerminalControls(review.Target.Revision))
 	if review.Status.Terminal() {
 		fmt.Printf("veredicto: %s\n", review.Verdict)
 	} else {
@@ -65,7 +66,7 @@ func cmdReviewHistory(deps *Deps, args []string) {
 		if review.Status.Terminal() {
 			estado = string(review.Verdict)
 		}
-		rows = append(rows, []string{review.ID, string(review.Target.Type), estado, review.Target.Revision})
+		rows = append(rows, []string{review.ID, string(review.Target.Type), estado, domain.StripTerminalControls(review.Target.Revision)})
 	}
 	if printListPanel("review history", "Revisiones", fmt.Sprint(len(rows)), []string{"ID", "Target", "Estado", "Revisión"}, rows) {
 		return
@@ -83,27 +84,30 @@ func cmdReviewShow(deps *Deps, args []string) {
 		fail("uso: mem review show <review-id>")
 	}
 	review := mustGetReview(deps, args[0])
+	// Claims, reasons, revisions and paths come from agents: the report is
+	// plain text, so the whole of it is written without control sequences.
+	out := terminalSafe{os.Stdout}
 
-	fmt.Printf("# Revisión %s\n\n", review.ID)
-	fmt.Println("## Target")
-	fmt.Printf("- tipo: %s\n- revisión: %s\n- digest original: %s\n",
+	fmt.Fprintf(out, "# Revisión %s\n\n", review.ID)
+	fmt.Fprintln(out, "## Target")
+	fmt.Fprintf(out, "- tipo: %s\n- revisión: %s\n- digest original: %s\n",
 		review.Target.Type, review.Target.Revision, review.Target.Digest())
 	if vigente := review.ActiveTargetDigest(); vigente != review.Target.Digest() {
-		fmt.Printf("- digest vigente: %s (ronda %d)\n", vigente, review.Round)
+		fmt.Fprintf(out, "- digest vigente: %s (ronda %d)\n", vigente, review.Round)
 	}
 	if len(review.Target.Scope) > 0 {
-		fmt.Printf("- alcance: %s\n", strings.Join(review.Target.Scope, ", "))
+		fmt.Fprintf(out, "- alcance: %s\n", strings.Join(review.Target.Scope, ", "))
 	}
-	fmt.Printf("- independencia: %s", review.IndependenceLevel)
+	fmt.Fprintf(out, "- independencia: %s", review.IndependenceLevel)
 	if review.IndependenceReason != "" {
-		fmt.Printf(" (%s)", review.IndependenceReason)
+		fmt.Fprintf(out, " (%s)", review.IndependenceReason)
 	}
-	fmt.Println()
-	fmt.Printf("\n## Política\n- alcance: %s\n- rondas máximas: %d\n- severidades corregibles: %s\n",
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "\n## Política\n- alcance: %s\n- rondas máximas: %d\n- severidades corregibles: %s\n",
 		alcanceDeRevision(review.FixAuthorized), review.MaxFixRounds,
 		severidadesLegibles(review.AutoFixSeverities))
 
-	fmt.Println("\n## Revisores")
+	fmt.Fprintln(out, "\n## Revisores")
 	huboAlguno := false
 	for ronda := 0; ronda <= review.Round; ronda++ {
 		results, err := deps.ReviewRepo.ListReviewerResults(deps.Project, review.ID, ronda)
@@ -112,21 +116,21 @@ func cmdReviewShow(deps *Deps, args []string) {
 		}
 		for _, result := range results {
 			huboAlguno = true
-			fmt.Printf("- ronda %d · revisor %s · %s · %d hallazgo(s)\n",
+			fmt.Fprintf(out, "- ronda %d · revisor %s · %s · %d hallazgo(s)\n",
 				ronda, result.Reviewer, result.Status, len(result.Findings))
 		}
 	}
 	if !huboAlguno {
-		fmt.Println("- (ningún resultado de revisor todavía)")
+		fmt.Fprintln(out, "- (ningún resultado de revisor todavía)")
 	}
 
-	fmt.Println("\n## Consenso")
+	fmt.Fprintln(out, "\n## Consenso")
 	findings, err := deps.ConsensusRepo.ListAllConsensusFindings(deps.Project, review.ID)
 	if err != nil {
 		fail("listar consenso: %v", err)
 	}
 	if len(findings) == 0 {
-		fmt.Println("- (sin consenso calculado)")
+		fmt.Fprintln(out, "- (sin consenso calculado)")
 	}
 	fixesPorHallazgo := map[string]int{}
 	deltas, err := deps.ConsensusRepo.ListFixDeltas(deps.Project, review.ID)
@@ -139,16 +143,16 @@ func cmdReviewShow(deps *Deps, args []string) {
 		}
 	}
 	for _, finding := range findings {
-		fmt.Printf("- %s · %s · %s", finding.ConsensusLocalID, finding.Status, finding.Severity)
+		fmt.Fprintf(out, "- %s · %s · %s", finding.ConsensusLocalID, finding.Status, finding.Severity)
 		if len(finding.SourceFindingIDs) > 0 {
-			fmt.Printf(" · fuentes %s", idsLegibles(finding.SourceFindingIDs))
+			fmt.Fprintf(out, " · fuentes %s", idsLegibles(finding.SourceFindingIDs))
 		}
 		if ronda, ok := fixesPorHallazgo[finding.ConsensusLocalID]; ok {
-			fmt.Printf(" · corregido en ronda %d", ronda)
+			fmt.Fprintf(out, " · corregido en ronda %d", ronda)
 		} else if finding.Status == domain.ConsensusConfirmed {
-			fmt.Print(" · sin corregir")
+			fmt.Fprint(out, " · sin corregir")
 		}
-		fmt.Println()
+		fmt.Fprintln(out)
 		// El linaje por revisor es la mitad de la auditoría: sin él no se puede
 		// saber si un RESOLVED lo respaldan dos revisores o uno solo (FR-023).
 		porRevisor, err := usecases.ReJudgmentsByReviewer(
@@ -160,39 +164,39 @@ func cmdReviewShow(deps *Deps, args []string) {
 			// Con el MISMO criterio de vigencia que el veredicto: mostrar la columna a
 			// secas anunciaba como resuelto lo que la finalización cuenta como pendiente.
 			vigente := finding.EstadoVigente(review.Round)
-			fmt.Printf("  re-juicio  A=%s  B=%s  ·  agregado: %s\n",
+			fmt.Fprintf(out, "  re-juicio  A=%s  B=%s  ·  agregado: %s\n",
 				estadoOGuion(porRevisor[domain.ReviewerA]),
 				estadoOGuion(porRevisor[domain.ReviewerB]),
 				estadoOGuion(vigente))
 			if vigente == "" && finding.RejudgmentState != "" {
-				fmt.Printf("             verificado en la ronda %d; la ronda vigente es la %d y exige volver a verificarlo\n",
+				fmt.Fprintf(out, "             verificado en la ronda %d; la ronda vigente es la %d y exige volver a verificarlo\n",
 					finding.RejudgmentRound, review.Round)
 			}
 		}
 		if finding.Claim != "" {
-			fmt.Printf("  %s\n", finding.Claim)
+			fmt.Fprintf(out, "  %s\n", finding.Claim)
 		}
 	}
 
-	fmt.Println("\n## Correcciones")
+	fmt.Fprintln(out, "\n## Correcciones")
 	fixes := deltas
 	if len(fixes) == 0 {
-		fmt.Println("- (ninguna)")
+		fmt.Fprintln(out, "- (ninguna)")
 	}
 	for _, fix := range fixes {
-		fmt.Printf("- ronda %d · %s → %s · aborda %s\n",
+		fmt.Fprintf(out, "- ronda %d · %s → %s · aborda %s\n",
 			fix.Round, fix.BaseTargetDigest, fix.FixedTargetDigest,
 			strings.Join(fix.AddressedConsensusIDs, ", "))
 		if len(fix.ModifiedPaths) > 0 {
-			fmt.Printf("  rutas: %s\n", strings.Join(fix.ModifiedPaths, ", "))
+			fmt.Fprintf(out, "  rutas: %s\n", strings.Join(fix.ModifiedPaths, ", "))
 		}
 	}
 
-	fmt.Println("\n## Veredicto")
+	fmt.Fprintln(out, "\n## Veredicto")
 	if review.Status.Terminal() {
-		fmt.Printf("%s\n", review.Verdict)
+		fmt.Fprintf(out, "%s\n", review.Verdict)
 	} else {
-		fmt.Printf("(sin veredicto: la revisión está en %s)\n", review.Status)
+		fmt.Fprintf(out, "(sin veredicto: la revisión está en %s)\n", review.Status)
 	}
 }
 

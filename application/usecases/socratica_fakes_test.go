@@ -149,6 +149,10 @@ func (r *socraticaFakeRepo) RedactFlow(context.Context, string) error {
 	r.flow.ApprovedPrompt = ""
 	return nil
 }
+func (r *socraticaFakeRepo) FlowExists(_ context.Context, id string) (bool, error) {
+	r.touch()
+	return r.flow.ID != "" && r.flow.ID == id, nil
+}
 func (r *socraticaFakeRepo) DeleteFlow(context.Context, string) error {
 	r.touch()
 	r.deleted++
@@ -205,6 +209,7 @@ type socraticaFakeLock struct {
 	mu      sync.Mutex
 	held    bool
 	removed []string
+	files   []string
 }
 
 func (l *socraticaFakeLock) TryAcquire(string) (func(), bool, error) {
@@ -222,10 +227,15 @@ func (l *socraticaFakeLock) Remove(id string) error {
 	l.removed = append(l.removed, id)
 	return nil
 }
+func (l *socraticaFakeLock) List() ([]string, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.files...), nil
+}
 
 type socraticaFakeGenerator struct{ calls int }
 
-func (g *socraticaFakeGenerator) Name() string    { return "fake" }
+func (g *socraticaFakeGenerator) Name() string    { return "claude" }
 func (g *socraticaFakeGenerator) Available() bool { return true }
 func (g *socraticaFakeGenerator) GenerateQuestions(context.Context, ports.SocraticGenerationRequest) (domain.GenerationResult, error) {
 	g.calls++

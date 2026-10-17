@@ -40,9 +40,14 @@ type socraticaState struct {
 	err   string
 	input textinput.Model
 	// inputMode: "" sin caja, "prompt", "edit" o "custom".
-	inputMode     string
-	confirmResend bool
-	scroll        int
+	inputMode       string
+	confirmResend   bool
+	scroll          int
+	choosingHarness bool
+	harnessCursor   int
+	harnesses       []ports.SocraticHarness
+	harness         string
+	switchFlow      *domain.RefinementFlow
 }
 
 func newSocraticaState(deps SocraticaDeps) socraticaState {
@@ -57,6 +62,8 @@ type socraticaLoadedMsg struct {
 	history []domain.RefinementHistory
 	err     error
 }
+
+type socraticaHarnessesMsg struct{ choices []ports.SocraticHarness }
 
 type socraticaFlowMsg struct {
 	id     string
@@ -79,6 +86,8 @@ type socraticaExecDoneMsg struct {
 	result usecases.SocraticaResult
 	err    error
 }
+
+type socraticaAssistDoneMsg struct{ err error }
 
 // ─── Comandos: único camino hacia el caso de uso ────────────────────
 
@@ -135,9 +144,13 @@ type socraticaExecCommand struct {
 	id       string
 	client   string
 	result   usecases.SocraticaResult
+	assisted bool
 }
 
 func (c *socraticaExecCommand) Run() error {
+	if c.assisted {
+		return c.flow.Assist(context.Background(), c.id, c.launcher)
+	}
 	r, err := c.flow.Execute(context.Background(), c.id, c.client, c.launcher)
 	c.result = r
 	return err
@@ -155,6 +168,12 @@ func (m model) socExecute(f domain.RefinementFlow) tea.Cmd {
 	return tea.Exec(c, func(err error) tea.Msg { return socraticaExecDoneMsg{id: c.id, result: c.result, err: err} })
 }
 
+func (m model) socAssist(f domain.RefinementFlow) tea.Cmd {
+	c := m.socExecCommand(f)
+	c.assisted = true
+	return tea.Exec(c, func(err error) tea.Msg { return socraticaAssistDoneMsg{err: err} })
+}
+
 // ─── Update ─────────────────────────────────────────────────────────
 
 func (m model) openSocratica() (tea.Model, tea.Cmd) {
@@ -169,18 +188,41 @@ func (m model) openSocratica() (tea.Model, tea.Cmd) {
 }
 
 func (m model) generatorName() string {
-	if g := m.soc.deps.Flow.Generator; g != nil && g.Available() {
-		return g.Name()
+	if m.soc.harness != "" {
+		return m.soc.harness
 	}
-	return ""
+	return m.soc.current.Flow.Client
 }
 
 func (m model) handleSocraticaMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
+	case socraticaAssistDoneMsg:
+		m.soc.busy, m.soc.err = "", ""
+		m.screen = screenSocratica
+		m.statusMsg = "Sesión asistida terminada; revisa los pendientes"
+		if msg.err != nil {
+			m.soc.err = m.soc.deps.Flow.ExplainFailure(msg.err.Error()).Message
+		}
+		m.statusTimer = 40
+		return m, m.socLoad(), true
+	case socraticaHarnessesMsg:
+		if m.soc.choosingHarness {
+			m.soc.harnesses = msg.choices
+			if m.soc.switchFlow != nil {
+				for i := range m.soc.harnesses {
+					if m.soc.harnesses[i].ID == m.soc.switchFlow.Client {
+						m.soc.harnesses[i].Available = false
+						m.soc.harnesses[i].Reason = "falló en este flujo; elige otro"
+					}
+				}
+			}
+			m.soc.busy = ""
+		}
+		return m, nil, true
 	case socraticaLoadedMsg:
 		m.soc.pending, m.soc.history = msg.pending, msg.history
 		if msg.err != nil {
-			m.soc.err = msg.err.Error()
+			m.soc.err = m.soc.deps.Flow.ExplainFailure(msg.err.Error()).Message
 		}
 		m.soc.cursor = min(m.soc.cursor, max(0, len(m.soc.pending)+len(m.soc.history)-1))
 		return m, nil, true
@@ -201,6 +243,10 @@ func (m model) handleSocraticaMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 			return m, nil, true
 		}
 		m.soc.current = msg.result
+		m.soc.harness = msg.result.Flow.Client
+		if msg.result.Flow.Phase == domain.PhaseFailed {
+			m.soc.err = ""
+		}
 		m.soc.confirmResend = false
 		switch msg.result.Flow.Phase {
 		case domain.PhaseQuestions:
@@ -245,6 +291,54 @@ func (m model) socRows() int { return len(m.soc.pending) + len(m.soc.history) }
 
 func (m model) updateSocratica(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
+	if m.soc.choosingHarness {
+		if key != "esc" && len(m.soc.harnesses) == 0 {
+			return m, nil
+		}
+		switch key {
+		case "esc":
+			m.soc.choosingHarness = false
+			m.soc.switchFlow = nil
+			m.soc.err = ""
+			m.soc.busy = ""
+		case "up", "k":
+			m.soc.harnessCursor = max(0, m.soc.harnessCursor-1)
+		case "down", "j":
+			m.soc.harnessCursor = min(len(m.soc.harnesses)-1, m.soc.harnessCursor+1)
+		case "enter":
+			if len(m.soc.harnesses) == 0 {
+				return m, nil
+			}
+			h := m.soc.harnesses[m.soc.harnessCursor]
+			if !h.Available {
+				m.soc.err = h.Label + ": " + h.Reason
+				return m, nil
+			}
+			m.soc.harness = h.ID
+			m.soc.choosingHarness = false
+			m.soc.err = ""
+			if m.soc.switchFlow != nil {
+				old := *m.soc.switchFlow
+				m.soc.switchFlow = nil
+				m.soc.busy = "Generando preguntas con " + h.ID + "…"
+				flow := m.soc.deps.Flow
+				return m, func() tea.Msg {
+					r, err := flow.ChangeHarness(context.Background(), old.ID, h.ID)
+					if err != nil {
+						return socraticaFlowMsg{id: old.ID, err: err}
+					}
+					id := r.Flow.ID
+					r, err = flow.Resume(context.Background(), id, usecases.OriginLocal)
+					return socraticaFlowMsg{id: id, result: r, err: err}
+				}
+			}
+			m.soc.inputMode = "prompt"
+			m.soc.input.SetValue("")
+			m.soc.input.Placeholder = "tu prompt"
+			return m, m.soc.input.Focus()
+		}
+		return m, nil
+	}
 	if m.soc.inputMode != "" {
 		return m.updateSocraticaInput(msg)
 	}
@@ -260,14 +354,15 @@ func (m model) updateSocratica(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			return m.openSocraticaRow()
 		case "r":
-			if m.generatorName() == "" {
-				m.soc.err = "No hay ningún agente disponible para generar preguntas (claude o codex en el PATH)"
-				return m, nil
-			}
-			m.soc.inputMode = "prompt"
-			m.soc.input.SetValue("")
-			m.soc.input.Placeholder = "tu prompt"
-			return m, m.soc.input.Focus()
+			m.soc.switchFlow = nil
+			m.soc.harnesses = nil
+			m.soc.harnessCursor = 0
+			m.soc.harness = ""
+			m.soc.err = ""
+			m.soc.choosingHarness = true
+			m.soc.busy = "Detectando harnesses…"
+			flow := m.soc.deps.Flow
+			return m, func() tea.Msg { return socraticaHarnessesMsg{choices: flow.Harnesses()} }
 		case "i":
 			return m.toggleSocraticaInterception()
 		case "p":
@@ -284,6 +379,7 @@ func (m model) updateSocratica(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) openSocraticaRow() (tea.Model, tea.Cmd) {
 	m.soc.entry = nil
 	m.soc.err = ""
+	m.soc.harness = ""
 	if m.soc.cursor < len(m.soc.pending) {
 		r := m.soc.pending[m.soc.cursor]
 		m.soc.current = r
@@ -427,18 +523,34 @@ func (m model) updateSocraticaDetail(key string) (tea.Model, tea.Cmd) {
 			return m, m.socExecute(f)
 		case "d":
 			m.soc.inputMode = "edit"
-			m.soc.input.SetValue(f.ProposedPrompt)
+			m.soc.input.SetValue(domain.StripTerminalControls(f.ProposedPrompt))
 			return m, m.soc.input.Focus()
 		case "c":
 			m.statusMsg = "Propuesta copiada al portapapeles"
 			m.statusTimer = 40
-			return m, tea.SetClipboard(domain.ProtectText(f.ProposedPrompt))
+			return m, tea.SetClipboard(domain.StripTerminalControls(domain.ProtectText(f.ProposedPrompt)))
 		case "x":
 			return m, m.socApply(f.ID, domain.Event{Kind: "cancel"})
 		}
 	case domain.PhaseFailed:
 		switch key {
+		case "a":
+			m.soc.busy = "Abriendo Socratica asistida en " + f.Client + "…"
+			return m, m.socAssist(f)
+		case "h":
+			m.soc.switchFlow = &f
+			m.soc.harnesses = nil
+			m.soc.harnessCursor = 0
+			m.soc.choosingHarness = true
+			m.soc.busy = "Detectando harnesses…"
+			flow := m.soc.deps.Flow
+			return m, func() tea.Msg { return socraticaHarnessesMsg{choices: flow.Harnesses()} }
 		case "r":
+			if info := m.soc.deps.Flow.ExplainFailure(f.LastError); !info.Retryable {
+				m.statusMsg = "a continúa asistido · h cambia de harness"
+				m.statusTimer = 40
+				return m, nil
+			}
 			m.soc.busy = "Generando con " + m.generatorName() + "…"
 			return m, m.socApply(f.ID, domain.Event{Kind: "retry"})
 		case "o":
@@ -473,7 +585,7 @@ func (m model) toggleSocraticaInterception() (tea.Model, tea.Cmd) {
 	on := !s.Interception[client]
 	// FR-019: sin evidencia de aceptación no se activa desde la TUI.
 	if on && !domain.CapabilitiesForSocratica(client).Interception {
-		m.statusMsg = "Intercepción no soportada en " + client
+		m.statusMsg = "Intercepción no soportada en " + client + " · para probarla: mem socratica on --client " + client + " --unverified"
 		m.statusTimer = 40
 		return m, nil
 	}
@@ -512,7 +624,11 @@ func (m model) writeSocraticaSettings(s ports.SettingsData, ok string) (tea.Mode
 // ─── View (solo lee el modelo) ──────────────────────────────────────
 
 func (m model) socTitle(width int) string {
-	title := lipgloss.NewStyle().Foreground(socCurrent).Bold(true).Underline(true).Render("SOCRATICA")
+	label := "SOCRATICA"
+	if client := m.generatorName(); client != "" && !m.soc.choosingHarness {
+		label += " · " + client
+	}
+	title := lipgloss.NewStyle().Foreground(socCurrent).Bold(true).Underline(true).Render(socTrunc(label, width))
 	rest := max(0, width-lipgloss.Width(title)-1)
 	return title + " " + lipgloss.NewStyle().Foreground(socLabel).Render(strings.Repeat("─", rest))
 }
@@ -560,9 +676,11 @@ func ago(t time.Time) string {
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
+// firstLine is the one-line summary of a stored prompt, safe to paint: the
+// flow keeps its exact bytes, only what is shown loses control sequences.
 func firstLine(s string) string {
 	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
-	return line
+	return domain.StripTerminalControls(line)
 }
 
 func (m model) socFooter(help string, width int) string {
@@ -571,7 +689,7 @@ func (m model) socFooter(help string, width int) string {
 		b.WriteString(lipgloss.NewStyle().Foreground(socCurrent).Render(socTrunc(m.soc.busy, width)) + "\n")
 	}
 	if m.soc.err != "" {
-		b.WriteString(lipgloss.NewStyle().Foreground(socWarn).Render(socTrunc(m.soc.err, width)) + "\n")
+		b.WriteString(lipgloss.NewStyle().Foreground(socWarn).Render(socTrunc(domain.StripTerminalControls(m.soc.err), width)) + "\n")
 	}
 	if status := m.statusLine(); status != "" {
 		b.WriteString(socTrunc(status, width) + "\n")
@@ -588,6 +706,24 @@ func (m model) socraticaListView() string {
 	width := max(1, m.width-2)
 	var b strings.Builder
 	b.WriteString(m.socTitle(width) + "\n")
+	if m.soc.choosingHarness {
+		b.WriteString(lipgloss.NewStyle().Foreground(socFg).Bold(true).Render(socTrunc("Elige el harness para este flujo", width)) + "\n\n")
+		b.WriteString(socTrunc("La misma elección refina y ejecuta tras tu aprobación.", width) + "\n\n")
+		for i, h := range m.soc.harnesses {
+			cursor, state := "  ", "disponible"
+			if i == m.soc.harnessCursor {
+				cursor = "▸ "
+			}
+			if !h.Available {
+				state = h.Reason
+			}
+			b.WriteString(socTrunc(cursor+h.Label+" · "+state, width) + "\n")
+		}
+		if len(m.soc.harnesses) == 0 && m.soc.busy == "" {
+			b.WriteString("No hay harnesses disponibles.\n")
+		}
+		return b.String() + m.socFooter("↑↓ elegir · enter confirmar · esc cancelar", width)
+	}
 	settings := m.settingsRepo.Read(m.root).SocraticaSettings
 	var states []string
 	for _, c := range []string{"claude", "codex", "opencode"} {
@@ -649,13 +785,13 @@ func (m model) socraticaQuestionsView() string {
 	b.WriteString(lipgloss.NewStyle().Foreground(socLabel).Render(fmt.Sprintf("%d/%d respondidas", len(f.Answers), len(f.Questions))) + "\n")
 	frame := lipgloss.NewStyle().Border(lipgloss.ThickBorder()).BorderForeground(socLabel).Padding(0, 1).Width(max(10, min(width, 100)))
 	for i, q := range f.Questions {
-		head := lipgloss.NewStyle().Foreground(socFg).Bold(true).Render(fmt.Sprintf("%d. %s", i+1, q.Text))
+		head := lipgloss.NewStyle().Foreground(socFg).Bold(true).Render(fmt.Sprintf("%d. %s", i+1, domain.StripTerminalControls(q.Text)))
 		if i < len(f.Answers) {
 			head = lipgloss.NewStyle().Foreground(socDone).Render("✓ ") + head
 		}
 		var chips []string
 		for n, o := range q.Options {
-			chips = append(chips, lipgloss.NewStyle().Background(socControl).Foreground(socFg).Padding(0, 1).Render(fmt.Sprintf("%d %s", n+1, o)))
+			chips = append(chips, lipgloss.NewStyle().Background(socControl).Foreground(socFg).Padding(0, 1).Render(fmt.Sprintf("%d %s", n+1, domain.StripTerminalControls(o))))
 		}
 		inner := max(1, frame.GetWidth()-frame.GetHorizontalFrameSize())
 		body := socTrunc(head, inner) + "\n" + ansi.Truncate(strings.Join(chips, " "), inner, "…")
@@ -671,7 +807,7 @@ func (m model) socraticaCard(title, text string, accent bool, width int) string 
 	}
 	style := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).Padding(0, 1).Width(max(8, width))
 	inner := max(1, width-style.GetHorizontalFrameSize())
-	lines := strings.Split(ansi.Hardwrap(ansi.Wrap(domain.ProtectText(text), inner, ""), inner, false), "\n")
+	lines := strings.Split(ansi.Hardwrap(ansi.Wrap(domain.StripTerminalControls(domain.ProtectText(text)), inner, ""), inner, false), "\n")
 	return style.Render(lipgloss.NewStyle().Foreground(socLabel).Render(title) + "\n" + lipgloss.NewStyle().Foreground(socFg).Render(strings.Join(lines, "\n")))
 }
 
@@ -706,6 +842,9 @@ func socraticaSynthesis(s *domain.ScrutinySynthesis) string {
 }
 
 func (m model) socraticaDetailView() string {
+	if m.soc.choosingHarness {
+		return m.socraticaListView()
+	}
 	width := max(1, m.width-2)
 	f := m.soc.current.Flow
 	hasFlow := f.ID != ""
@@ -717,6 +856,14 @@ func (m model) socraticaDetailView() string {
 	var b strings.Builder
 	b.WriteString(m.socTitle(width) + "\n")
 	label, keys := socraticaActions(f, hasFlow)
+	if f.Phase == domain.PhaseFailed {
+		info := m.soc.deps.Flow.ExplainFailure(f.LastError)
+		keys = "a Continuar asistido · h Cambiar harness · o Enviar original · x Cancelar"
+		if info.Retryable {
+			keys += " · r Reintentar"
+		}
+		label = ansi.Hardwrap(ansi.Wrap(info.Message, width, ""), width, false)
+	}
 	if label != "" {
 		b.WriteString(lipgloss.NewStyle().Foreground(socWarn).Bold(true).Render(label) + "\n")
 	}
@@ -724,12 +871,12 @@ func (m model) socraticaDetailView() string {
 		keys = "y confirmar reenvío (autorización nueva) · cualquier otra tecla cancela"
 	}
 	if keys != "" {
-		b.WriteString(lipgloss.NewStyle().Foreground(socFg).Background(socControl).Render(socTrunc(" "+keys+" ", width)) + "\n")
+		b.WriteString(lipgloss.NewStyle().Foreground(socFg).Background(socControl).Render(ansi.Hardwrap(ansi.Wrap(" "+keys+" ", width, ""), width, false)) + "\n")
 	}
 	b.WriteString("\n")
 	if width < 60 {
 		b.WriteString(lipgloss.NewStyle().Foreground(socWarn).Render(socTrunc("Ventana demasiado estrecha: original conservado", width)) + "\n")
-		line := strings.ReplaceAll(domain.ProtectText(original), "\n", " ")
+		line := strings.ReplaceAll(domain.StripTerminalControls(domain.ProtectText(original)), "\n", " ")
 		runes := []rune(line)
 		start := min(m.soc.scroll, max(0, len(runes)-1))
 		b.WriteString(socTrunc(string(runes[start:]), width) + "\n")

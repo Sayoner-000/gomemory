@@ -513,7 +513,7 @@ func GetMemoryByID(db *sql.DB, project string, id int64) (*domain.Memory, error)
 	if err != nil {
 		return nil, fmt.Errorf("get memory by id: %w", err)
 	}
-	m.Type = domain.MemoryType(memType)
+	finishScannedMemory(&m, memType)
 	return &m, nil
 }
 
@@ -553,7 +553,7 @@ func GetMemoryByTopicKey(db *sql.DB, project, topicKey string) (*domain.Memory, 
 	if err != nil {
 		return nil, fmt.Errorf("get memory by topic key: %w", err)
 	}
-	m.Type = domain.MemoryType(memType)
+	finishScannedMemory(&m, memType)
 	return &m, nil
 }
 
@@ -609,7 +609,7 @@ func ListMemories(db *sql.DB, project string, limit int) ([]domain.Memory, error
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
-		m.Type = domain.MemoryType(memType)
+		finishScannedMemory(&m, memType)
 		mems = append(mems, m)
 	}
 	if mems == nil {
@@ -650,7 +650,7 @@ func ListMemoriesBySession(db *sql.DB, project, sessionID string, limit int) ([]
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
-		m.Type = domain.MemoryType(memType)
+		finishScannedMemory(&m, memType)
 		mems = append(mems, m)
 	}
 	if mems == nil {
@@ -682,7 +682,7 @@ func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 			&m.Content, &m.Filepath, &m.OriginPrompt, &m.TopicKey, &m.SourceReviewID, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
-		m.Type = domain.MemoryType(memType)
+		finishScannedMemory(&m, memType)
 		mems = append(mems, m)
 	}
 	if mems == nil {
@@ -828,6 +828,19 @@ func searchMemoriesLike(db *sql.DB, project, query string, limit int) ([]domain.
 // searchMemoriesFTS y searchMemoriesLike (id, project, session_id, type,
 // title, content, filepath, origin_prompt, topic_key, source_review_id,
 // created_at, updated_at).
+// finishScannedMemory completes a scanned row: its typed kind and text that
+// cannot drive the terminal that shows it (H-01, auditoría 2026-10-17 ronda 2).
+// It runs on read, so rows stored before the guard are covered as well, for
+// every consumer: CLI, TUI and MCP.
+func finishScannedMemory(m *domain.Memory, memType string) {
+	m.Type = domain.MemoryType(memType)
+	m.Title = domain.StripTerminalControls(m.Title)
+	m.Content = domain.StripTerminalControls(m.Content)
+	m.Filepath = domain.StripTerminalControls(m.Filepath)
+	m.OriginPrompt = domain.StripTerminalControls(m.OriginPrompt)
+	m.TopicKey = domain.StripTerminalControls(m.TopicKey)
+}
+
 func scanMemories(rows *sql.Rows) ([]domain.Memory, error) {
 	var mems []domain.Memory
 	for rows.Next() {
@@ -838,7 +851,7 @@ func scanMemories(rows *sql.Rows) ([]domain.Memory, error) {
 		if err != nil {
 			return nil, fmt.Errorf("scan memory: %w", err)
 		}
-		m.Type = domain.MemoryType(memType)
+		finishScannedMemory(&m, memType)
 		mems = append(mems, m)
 	}
 	if mems == nil {

@@ -44,7 +44,7 @@ func ValidateSocraticaSettings(s SocraticaSettings) (SocraticaSettings, error) {
 		return s, err
 	}
 	if s.Generators == nil {
-		s.Generators = []string{"claude", "codex"}
+		s.Generators = []string{"claude", "codex", "opencode"}
 	}
 	for _, g := range s.Generators {
 		if !IsSocraticaClient(g) {

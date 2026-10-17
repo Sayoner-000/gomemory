@@ -63,7 +63,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
 | `install` | `adapters/primary/cli/cmd_install.go` | Instala el binario y la integración por proyecto; inicializa reglas y constitución en memoria y retira artefactos antiguos |
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 30 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 31 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable del ciclo de sesión, compactación, turnos, subagentes y modo plan |
@@ -73,7 +73,24 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `compact` | `adapters/primary/cli/cmd_compact.go` | `VACUUM` del almacén global del proyecto (recupera espacio, no borra nada) |
 | `gc` | `adapters/primary/cli/cmd_gc.go` | Garbage collection por antigüedad a demanda (90 días por defecto) |
 | `uninstall` | `adapters/primary/cli/cmd_uninstall.go` | Revierte la instalación del proyecto y limpia los artefactos antiguos que todavía encuentre |
-| `pack` | `adapters/primary/cli/cmd_pack.go` | `build`/`show`/`compress`/`stats` — arma un paquete de contexto acotado a una tarea y a un presupuesto de tokens (ver sección 16) |
+| `pack` | `adapters/primary/cli/cmd_pack.go`, `cmd_pack_compression.go` | `build`/`show`/`compress`/`stats` — arma un paquete de contexto acotado a una tarea y a un presupuesto de tokens (ver sección 16); `retrieve`/`savings`/`tune`/`purge` operan sobre la compresión nativa y su almacén de originales |
+| `migrate` | `adapters/primary/cli/cmd_migrate.go` | Mueve una base legada `.memory/mem.db` al almacén global |
+| `forget` / `get` | `adapters/primary/cli/cmd_forget.go`, `cmd_get.go` | Borra una memoria por ID (irreversible) / muestra su detalle completo |
+| `plan-context` | `adapters/primary/cli/cmd_plan_context.go` | Método de descomposición atómica más historial, para modo plan |
+| `mass` | `adapters/primary/cli/cmd_mass.go` | Ranking de masa (centralidad en el grafo de memorias) |
+| `index` | `adapters/primary/cli/cmd_index.go` | Indexa el grafo de código propio y refresca los grafos externos configurados |
+| `review` | `adapters/primary/cli/cmd_review.go`, `cmd_review_query.go` | Revisión adversarial por consenso: abrir, `status`, `history`, `show` |
+| `octopus` | `adapters/primary/cli/cmd_octopus*.go` | Enrutamiento Octopus AAR: `route`, `plan`, `status`, `usage`, `history` |
+| `socratica` | `adapters/primary/cli/cmd_socratica.go` | Refinamiento de prompts: `refine`, `history`, `status`, `pending`, `on`/`off`, `private` |
+| `doctor` | `adapters/primary/cli/cmd_doctor*.go` | Diagnóstico de canales, binario, compresión y guard de plan (`--json`, `--strict`) |
+| `update` / `update-check` | `adapters/primary/cli/cmd_update.go`, `cmd_update_check.go` | Actualiza binario e integración con verificación SHA-256 / comprobación de versión en segundo plano (interno) |
+| `docs` / `seed` / `constitution` / `rules` | `adapters/primary/cli/cmd_docs.go`, `seeds.go`, `cmd_constitution.go` | Documentos fijados en memoria: listar, ver, exportar, importar, restablecer y sembrar los que falten |
+| `export` / `import` | `adapters/primary/cli/cmd_export.go`, `cmd_import.go` | Bundle JSON portable de memorias y relaciones (import con dedup) |
+| `usage` | `adapters/primary/cli/cmd_usage.go` | Benchmark medido de tokens emitidos frente a la línea base |
+| `adr-sync` | `adapters/primary/cli/cmd_adr_sync.go` | Estado y ejecución de la sincronización opt-in de ADR |
+| `consolidate` | `adapters/primary/cli/cmd_consolidate.go` | Funde memorias redundantes (mismo `topic_key` y registros de actividad duplicados) |
+| `sanitize` | `adapters/primary/cli/cmd_sanitize.go` | Sanea contenido privado histórico (previsualiza; `--apply` escribe) |
+| `version` | `adapters/primary/cli/dispatcher.go` | Imprime la versión instalada |
 | `tui` | `adapters/primary/cli/cli.go:LaunchTUI()` | Abre interfaz TUI explícitamente |
 | *(sin args)* | `adapters/primary/cli/dispatcher.go` | Abre TUI automáticamente |
 
@@ -133,12 +150,15 @@ model
 | `m` | Ir a Mantenimiento (purge/gc, requiere `maintenanceRepo`) |
 | `c` | Ir a Configuración |
 | `o` | Ir a Optimizar (detección de duplicados) |
+| `d` | Borrar la memoria seleccionada (pide confirmación) |
+| `p` | Ir a Socratica (refinamiento de prompts, pendientes e historial) |
+| `u` | Ir a Uso (benchmark de tokens y snapshot de optimización) |
 | `Tab` / `↑↓` | Cambiar campo en formularios |
 | `Esc` | Volver / cancelar / salir de búsqueda |
 | `q` / `Ctrl+C` | Salir |
 
 Cada pantalla adicional (Mantenimiento, Configuración, Optimizar, Importar,
-Editar ajuste) tiene sus propios atajos contextuales — no repetidos aquí; ver
+Editar ajuste, Uso, Socratica) tiene sus propios atajos contextuales — no repetidos aquí; ver
 sus respectivas `*View()` en `tui.go` para el detalle exacto.
 
 **Visual:**
@@ -495,9 +515,10 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `pack_retrieve` | ref | Devuelve íntegro, byte a byte, el original de una marca `⟦mem⟧ … ref=X` |
 | `pack_savings` | — | Informe de ahorro por compresor, recuperación, degradaciones, ajustes adaptativos y almacén de originales |
 
-El servidor registra además ocho tools de revisión adversarial. Cuando
+El servidor registra además ocho tools de revisión adversarial y la tool única
+de Socratica (`socratica_flow`, ver la sección Socratica). Cuando
 `octopus_enabled` está activo, agrega cuatro tools de enrutamiento y telemetría
-local. La superficie es de 30 tools base o 34 con Octopus AAR; las listas se
+local. La superficie es de 31 tools base o 35 con Octopus AAR; las listas se
 derivan de `domain/mcp_tools.go`.
 
 **Recursos:**
@@ -707,7 +728,7 @@ mem pack compress < texto.txt       # comprime un texto suelto, sin retrieval ni
 
 Salida: Markdown con los items del paquete y un bloque de estadísticas (tokens antes/después, % de reducción, cuántos items quedaron en cada categoría). `--json` emite el `ContextPack` completo, el mismo formato que `pack show`/`pack stats` esperan como entrada.
 
-**Tools MCP (6, incluidas en las 30 tools base):**
+**Tools MCP (6, incluidas en las 31 tools base):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -855,7 +876,9 @@ Guía de uso: [socratica.md](socratica.md). La habilidad canónica es `infrastru
 - **Puertos** (`application/ports/`): `SocraticaRepository` y `SocraticaUnitOfWork` (persistencia y transacción), `SocraticGenerator` (preguntas y reescritura fuera del agente), `AgentLauncher` (entrega bloqueante del prompt aprobado: arrancar → `onStarted` → esperar) y `SocraticaDispatchLock` (lock de archivo por flujo).
 - **Caso de uso** (`application/usecases/socratica_flow.go`): `Apply` reduce y persiste cada evento en una transacción; con origen MCP nunca llama al generador (devuelve `next` para el agente activo), con origen local sí. `ClassifyPrompt` es la única decisión de los hooks (procedencia, captura, `>`, marca de despacho).
 - **Execute**: retiene el lock del flujo durante todo el despacho → `approve` (tx) → `ClaimDispatch` exclusivo → `Launch` fuera de transacción con el ack (condicionado al propietario) dentro de `onStarted` → espera al agente. Si el arranque falla, libera su propio reclamo; si el agente arrancó y el ack falla, reintenta tras la espera y, si vuelve a fallar, deja el flujo incierto para que la persona decida.
-- **Adaptadores**: herramienta MCP única `socratica_flow`; `mem socratica` (CLI); pantallas de la TUI (todo cambio vía caso de uso en `tea.Cmd`, Ejecutar con `tea.Exec`); generadores `claude`/`codex` sin herramientas o de solo lectura (`adapters/secondary/generator`); lanzadores `Exec` y `Print` (`adapters/secondary/launcher`); `mem hook socratica-decide` para el plugin de OpenCode, que solo aplica la decisión.
+- **Adaptadores**: herramienta MCP única `socratica_flow`; `mem socratica` (CLI, con `console.Flow` y selectores compartidos); pantallas de la TUI (detección y cambios de estado en `tea.Cmd`, Ejecutar con `tea.Exec`); generadores `claude`/`codex`/`opencode` (`adapters/secondary/generator`); lanzadores `Exec` y `Print` (`adapters/secondary/launcher`); `mem hook socratica-decide` para el plugin de OpenCode, que solo aplica la decisión.
+- **Selección local**: `SocraticHarnessCatalog` informa disponibilidad; cada flujo fija `Flow.Client` para preguntas, reescritura y ejecución. El registro conserva el nombre histórico `FirstAvailable`, pero enruta por cliente sin reemplazo automático. El esquema canónico se adapta en el límite del harness: Claude omite `$schema`; Codex requiere las propiedades opcionales como anulables. OpenCode V2 usa un directorio temporal con un agente que deniega todas las herramientas y un parser de eventos JSON. Su generación real está pendiente de aceptación por un error 403 del proveedor local.
+- **Recuperación**: `SocraticFailureExplainer` traduce los rechazos del proveedor y distingue reintentos útiles. `ChangeHarness` conserva el original e impide reemplazar otro pendiente. `Assist` abre el harness para refinar conversacionalmente sin llamar a `Execute` ni aprobar o confirmar el despacho de la tarea; la TUI entrega la terminal mediante `tea.Exec`.
 
 ## Octopus AAR — Enrutador Adaptativo de Agentes (feature 027)
 
