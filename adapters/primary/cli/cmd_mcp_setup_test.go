@@ -74,6 +74,7 @@ func TestSetupClaudeGlobalDetectsNameCollision(t *testing.T) {
 func TestSetupCodexGlobalWritesSingleTableWithoutCwd(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	ref := BinRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}
 	if !setupCodexGlobal(ref) {
@@ -99,6 +100,7 @@ func TestSetupCodexGlobalWritesSingleTableWithoutCwd(t *testing.T) {
 func TestSetupCodexGlobalIsIdempotent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	ref := BinRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}
 	setupCodexGlobal(ref)
@@ -148,6 +150,7 @@ web_search = true
 func TestSetupCodexGlobalMigratesLegacyTablesWithBackup(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	codexDir := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(codexDir, 0755); err != nil {
 		t.Fatal(err)
@@ -202,6 +205,7 @@ command = "foreign"
 func TestSetupCodexGlobalMigratesEvenWhenGlobalTableExists(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	codexDir := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(codexDir, 0755); err != nil {
 		t.Fatal(err)
@@ -236,6 +240,7 @@ cwd = "/missing"
 func TestSetupCodexGlobalSerializesConcurrentCalls(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	ref := BinRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}
 
 	var wg sync.WaitGroup

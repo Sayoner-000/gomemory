@@ -52,7 +52,7 @@ func TestInstallRegistersPlanGuardOnExitPlanMode(t *testing.T) {
 	bin := buildPlanGuardBinary(t)
 	target := t.TempDir()
 
-	cmd := exec.Command(bin, "install", target)
+	cmd := exec.Command(bin, "install", "--agents", "claude", "--scope", "project", target)
 	cmd.Dir = target
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("mem install: %v\n%s", err, out)
@@ -159,7 +159,7 @@ func TestInstallRegistersPlanEnteredOnEnterPlanMode(t *testing.T) {
 	bin := buildPlanGuardBinary(t)
 	target := t.TempDir()
 
-	cmd := exec.Command(bin, "install", target)
+	cmd := exec.Command(bin, "install", "--agents", "claude", "--scope", "project", target)
 	cmd.Dir = target
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("mem install: %v\n%s", err, out)

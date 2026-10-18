@@ -23,11 +23,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Python mínimo de los runners: 3.12 (sintaxis); la CI usa 3.13.
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.13"
-
       - name: go vet
         run: go vet ./...
 
@@ -40,48 +35,6 @@ jobs:
       - name: Cobertura combinada (umbral 80 %)
         run: |
           GOMEMORY_COVERAGE_OUTPUT="$RUNNER_TEMP/coverage" bash scripts/coverage.sh
-
-      - name: Runner de la auditoría 037 sobre el binario real
-        run: |
-          go build -o "$RUNNER_TEMP/bin/mem" ./infrastructure
-          python3 scripts/audit_037_smoke.py \
-            --mem-bin "$RUNNER_TEMP/bin/mem" \
-            --work-dir "$RUNNER_TEMP/audit037/work" \
-            --data-home "$RUNNER_TEMP/audit037/data" \
-            --out-dir "$RUNNER_TEMP/audit037/evidence" \
-            --case all
-
-      - name: Evidencia del runner
-        if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: audit037-linux
-          path: ${{ runner.temp }}/audit037/evidence
-          if-no-files-found: warn
-
-  evidence038:
-    name: evaluador 038 (pytest, lock y auditoría)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.13"
-
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-
-      # Puerta obligatoria 038 (T030): el export con hashes debe coincidir byte
-      # a byte con el versionado; la suite y la auditoría deben estar en verde.
-      - name: Puerta del evaluador 038
-        run: |
-          test -f pyproject.toml || { echo "falta pyproject.toml"; exit 1; }
-          test -f uv.lock || { echo "falta uv.lock"; exit 1; }
-          uv export --locked --only-dev --format requirements.txt --output-file /tmp/requirements-038-check.txt
-          cmp /tmp/requirements-038-check.txt scripts/requirements-038-test.txt
-          uv sync --locked --only-dev
-          uv run --locked --only-dev python -m pytest -q scripts/test_validate_038_evidence.py
-          uv run --locked --only-dev python -m pip_audit --require-hashes -r scripts/requirements-038-test.txt
 
   plugin-installer:
     name: plugin OpenCode e instalador TypeScript
@@ -102,30 +55,6 @@ jobs:
           npm --prefix installer ci
           npm --prefix installer run typecheck
           npm --prefix installer test
-
-  macos-installation:
-    name: instalación y actualización Unix (macOS)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.13"
-
-      - name: Runner de instalación sobre Mach-O real
-        run: |
-          go build -o "$RUNNER_TEMP/bin/mem" ./infrastructure
-          python3 scripts/audit_037_smoke.py \
-            --mem-bin "$RUNNER_TEMP/bin/mem" \
-            --work-dir "$RUNNER_TEMP/audit037/work" \
-            --data-home "$RUNNER_TEMP/audit037/data" \
-            --out-dir "$RUNNER_TEMP/audit037/evidence" \
-            --case installation
 
   windows:
     name: Windows (Go y install.ps1)

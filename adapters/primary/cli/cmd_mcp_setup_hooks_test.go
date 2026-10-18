@@ -93,6 +93,7 @@ func TestRunGlobalScopeSetup_AgenteSinDirectorioSeOmiteSinError(t *testing.T) {
 func TestRunGlobalScopeSetup_WritesClaudeHooksInHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0755); err != nil {
 		t.Fatalf("mkdir ~/.claude: %v", err)
 	}
@@ -125,6 +126,7 @@ func TestRunGlobalScopeSetup_WritesClaudeHooksInHome(t *testing.T) {
 func TestRunGlobalScopeSetup_PreservesForeignHooksAndIsIdempotent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	claudeDir := filepath.Join(home, ".claude")
 	if err := os.MkdirAll(claudeDir, 0755); err != nil {
 		t.Fatalf("mkdir: %v", err)

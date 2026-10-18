@@ -91,7 +91,7 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	}
 
 	// --- Transacción: INSERT/UPDATE + FTS index como unidad atómica ---
-	tx, err := db.Begin()
+	tx, err := beginMemoryTx(db)
 	if err != nil {
 		return 0, fmt.Errorf("begin tx: %w", err)
 	}
@@ -152,6 +152,26 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 		exportToADR(m.Project, m.Type, title, content, id)
 	}
 	return id, nil
+}
+
+// beginMemoryTx reintenta solo al adquirir el lock de escritura. Con
+// _txlock=immediate, SQLite puede rechazar BEGIN de forma inmediata bajo una
+// ráfaga concurrente, antes de que busy_timeout tenga oportunidad de esperar.
+// Aún no hay efectos que deshacer, por lo que reintentar es seguro.
+func beginMemoryTx(db *sql.DB) (*sql.Tx, error) {
+	var err error
+	for attempt := 0; attempt < 50; attempt++ {
+		var tx *sql.Tx
+		tx, err = db.Begin()
+		if err == nil {
+			return tx, nil
+		}
+		if !isSQLiteBusy(err) {
+			break
+		}
+		time.Sleep(time.Duration(10+attempt*5) * time.Millisecond)
+	}
+	return nil, err
 }
 
 // upsertMemorySearch mantiene memory_search (FTS5, specs/009-mitigacion-riesgos

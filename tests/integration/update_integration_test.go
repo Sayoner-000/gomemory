@@ -96,7 +96,7 @@ func TestUpdateIntegration(t *testing.T) {
 	// de API/descarga apuntando a los servidores fake vía variables de entorno
 	// que cmd_update.go debe leer como override para tests.
 	target := t.TempDir()
-	dummyBin := filepath.Join(target, "mem")
+	dummyBin := filepath.Join(target, filepath.Base(bin))
 	if err := copyFileForTest(bin, dummyBin); err != nil {
 		t.Fatalf("copiar binario dummy: %v", err)
 	}
