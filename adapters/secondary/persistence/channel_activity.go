@@ -82,9 +82,9 @@ func LastChannelActivity(db *sql.DB, project, agent, scope, kind string) (Channe
 		return ChannelActivity{}, false
 	}
 	return ChannelActivity{
-		FiredAt:     parseStoredTime(firedAt),
+		FiredAt:     parseNowTime(firedAt),
 		LastError:   domain.ProtectText(lastErr),
-		LastErrorAt: parseStoredTime(errAt),
+		LastErrorAt: parseNowTime(errAt),
 	}, true
 }
 
@@ -100,7 +100,7 @@ func SessionsSince(db *sql.DB, project string, since time.Time) int {
 	var n int
 	err := db.QueryRow(
 		`SELECT COUNT(*) FROM sessions WHERE project = ? AND created_at >= ?`,
-		project, since.Format("2006-01-02 15:04:05")).Scan(&n)
+		project, formatNowTime(since)).Scan(&n)
 	if err != nil {
 		return -1
 	}

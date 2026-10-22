@@ -25,6 +25,19 @@ func TestChannelActivity_RegistraYRecupera(t *testing.T) {
 	}
 }
 
+// La marca se escribe con Now (UTC−5): leída en otra zona, el canal parecía
+// ejercido horas antes o después de lo real.
+func TestChannelActivity_FechaEsElInstanteReal(t *testing.T) {
+	db := openTestDB(t)
+	if err := RecordChannelActivity(db, "p", "claude", "user", "plan_entry"); err != nil {
+		t.Fatalf("registrar: %v", err)
+	}
+	a, _ := LastChannelActivity(db, "p", "claude", "user", "plan_entry")
+	if d := time.Since(a.FiredAt); d < -time.Minute || d > time.Minute {
+		t.Errorf("FiredAt se desvía %v del instante real", d)
+	}
+}
+
 // TestChannelActivity_RegistraElFallo cubre FR-012: las rutas de error dejan
 // rastro donde el informe pueda leerlo, en vez de absorberlo en silencio.
 func TestChannelActivity_RegistraElFallo(t *testing.T) {
