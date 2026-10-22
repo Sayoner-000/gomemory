@@ -7,6 +7,16 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.36.1] - 2026-10-22
+
+### Seguridad
+
+- Los binarios se compilan con Go 1.27.3, que corrige GO-2026-6809 (certificados intermedios comprometidos en `crypto/x509`). El toolchain se fija en `go.mod`, y el análisis `govulncheck` y GoReleaser leen esa misma versión en el workflow de release.
+
+### Notas
+
+- `v2.36.0` no publicó binarios: su release se detuvo en `govulncheck`. Instala `v2.36.1`, que incluye todos los cambios de `v2.36.0`.
+
 ## [v2.36.0] - 2026-10-22
 
 ### Añadido
