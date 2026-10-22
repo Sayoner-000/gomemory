@@ -99,7 +99,7 @@ func TestInstallPreservesForeignPreToolUseEntries(t *testing.T) {
 		t.Fatalf("seed settings.json: %v", err)
 	}
 
-	cmd := exec.Command(bin, "install", target)
+	cmd := exec.Command(bin, "install", "--agents", "claude", "--scope", "project", target)
 	cmd.Dir = target
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("mem install: %v\n%s", err, out)
@@ -126,7 +126,7 @@ func TestInstallTwiceDoesNotDuplicatePlanGuard(t *testing.T) {
 	target := t.TempDir()
 
 	for i := 0; i < 2; i++ {
-		cmd := exec.Command(bin, "install", target)
+		cmd := exec.Command(bin, "install", "--agents", "claude", "--scope", "project", target)
 		cmd.Dir = target
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("mem install (corrida %d): %v\n%s", i+1, err, out)
