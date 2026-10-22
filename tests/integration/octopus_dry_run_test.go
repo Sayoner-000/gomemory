@@ -12,7 +12,7 @@ import (
 // "no llamamos a exec.Command" es una afirmación sobre el código, y lo que la
 // especificación promete es una afirmación sobre el comportamiento.
 func TestOctopusPlan_NoIniciaNingunProceso(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "mem-dryrun-test")
+	bin := filepath.Join(t.TempDir(), exeName("mem-dryrun-test"))
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
 	build.Dir = repoRootIntegration(t)
 	if out, err := build.CombinedOutput(); err != nil {

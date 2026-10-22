@@ -35,7 +35,7 @@ func buildMemBinary(t *testing.T) string {
 			memBinErr = err
 			return
 		}
-		memBinPath = filepath.Join(dir, "mem-test-bin")
+		memBinPath = filepath.Join(dir, exeName("mem-test-bin"))
 		cmd := exec.Command("go", "build", "-o", memBinPath, "./infrastructure")
 		cmd.Dir = repoRoot(t)
 		out, err := cmd.CombinedOutput()

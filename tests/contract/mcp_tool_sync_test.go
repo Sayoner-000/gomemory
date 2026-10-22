@@ -42,7 +42,7 @@ func toolsRegistradasEnElServidor(t *testing.T) []string {
 func toolsRegistradasEnProyecto(t *testing.T, projectDir string) []string {
 	t.Helper()
 
-	bin := filepath.Join(t.TempDir(), "mem-tools-test")
+	bin := filepath.Join(t.TempDir(), exeName("mem-tools-test"))
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
 	build.Dir = repoRootContract(t)
 	if out, err := build.CombinedOutput(); err != nil {
@@ -363,7 +363,7 @@ func TestBootstrapDeToolSearch_SigueAlEstadoDelModulo(t *testing.T) {
 // mencionar Octopus en ninguna parte (SC-001). Se comprueba contra el BINARIO
 // REAL, no contra una función interna: lo que importa es lo que llega al agente.
 func TestProtocolo_NoMencionaOctopusConElModuloApagado(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "mem-protocolo-test")
+	bin := filepath.Join(t.TempDir(), exeName("mem-protocolo-test"))
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
 	build.Dir = repoRootContract(t)
 	if out, err := build.CombinedOutput(); err != nil {
