@@ -318,6 +318,14 @@ func destructiveLine(cmd string, depth int, vars map[string]string) (RuleAction,
 	}
 	worst, detail := RuleAllow, ""
 	cmds := splitShell(cmd, 0)
+	// Una sustitución demasiado anidada bloquea la línea pase lo que pase.
+	// Decidirlo antes de evaluar los demás comandos evita volver a recorrer
+	// cada nivel: con 20 000 niveles, eso tardaba segundos.
+	for _, c := range cmds {
+		if len(c.Tokens) > 0 && c.Tokens[0] == deepSubstitution {
+			return destructiveVerdict(c.Tokens)
+		}
+	}
 	for i, c := range cmds {
 		if recordAssignments(c.Tokens, vars) {
 			continue
