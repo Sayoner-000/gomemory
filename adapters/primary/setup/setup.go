@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -61,7 +62,9 @@ func GenerateConfig(path string, data map[string]interface{}) error {
 }
 
 func copyFileOrDir(fsys fs.FS, baseDir string, entry os.DirEntry, targetDir string, ctx *PluginContext) (int, error) {
-	srcPath := filepath.Join(baseDir, entry.Name())
+	// fs.FS exige "/" en todo sistema: filepath.Join usaría "\" en Windows y
+	// ningún archivo embebido se encontraría.
+	srcPath := path.Join(baseDir, entry.Name())
 	dstPath := filepath.Join(targetDir, entry.Name())
 
 	if entry.IsDir() {
