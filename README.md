@@ -7,7 +7,7 @@
 </p>
 
 [![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Version](https://img.shields.io/badge/version-2.35.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.35.0)
+[![Version](https://img.shields.io/badge/version-2.36.0-blue)](https://github.com/Sayoner-000/gomemory/releases/tag/v2.36.0)
 [![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-31_core_tools-blueviolet)](https://modelcontextprotocol.io/)
@@ -553,6 +553,9 @@ For security details and limitations, see [`docs/MANUAL.md`](docs/MANUAL.md).
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) | Machine-readable contract for measured context usage |
 | [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Console identity and TUI themes: dark, light and Matrix |
 | [`docs/socratica.md`](docs/socratica.md) | Socratica: prompt refinement and Socratic scrutiny with explicit approval |
+| [`docs/expand.md`](docs/expand.md) | Expand supertools: protection rules, shield, flow skills and instincts |
+| [`docs/Guia-SDD_GOMEMERY-v2.36.html`](docs/Guia-SDD_GOMEMERY-v2.36.html) | SDD harness guide (Spec Kit + gomemory + code graphs), printable to PDF |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.36.html`](docs/Guia-Tecnica_GOMEMORY-v2.36.html) | Technical guide: architecture, data, protocols and guarantees; previous editions in `docs/editions/` |
 | [`docs/release_gomemory_notes.md`](docs/release_gomemory_notes.md) | Automated release workflow and verification |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute |
 | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community guidelines |

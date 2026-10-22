@@ -7,6 +7,8 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.36.0] - 2026-10-22
+
 ### Añadido
 
 - `mem expand`: reglas de protección, shield de configuración, cinco skills de flujo e instincts con confianza, promoción global y confirmación como preferencia.
@@ -34,7 +36,15 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 - Una propuesta global de instincts puede confirmarse o rechazarse en un proyecto nuevo.
 - Las claves de instincts se derivan del comando protegido; `mem sanitize` reduce y fusiona los slugs antiguos con credenciales en la cola, el proyecto y el registro global.
 - El saneamiento de `instincts.db` informa `SANITIZE_BUSY` cuando el checkpoint no puede vaciar el WAL, en vez de declarar éxito.
+- `destructive-shell`: una redirección al inicio (`>/dev/null rm -rf x`) ya no oculta el ejecutable, y las sustituciones `$(…)` y `` `…` `` del cuerpo de un heredoc con delimitador sin citar se analizan (auditoría defensiva 2026-10-22, H-01 y H-02).
+- `destructive-shell` calcula la salida real de `printf` (formatos y escapes) y de `echo` en sustituciones y tuberías: `$(printf '%s%s' r m) -rf x` se reconoce como `rm`, y un `printf` no resoluble que acabaría como comando se bloquea (ACR acr_1a0a68c0, B-001).
+- `destructive-shell` evalúa las sustituciones antes de su comando y con las asignaciones vigentes en ese momento, resuelve las pegadas a otro texto (`r$(printf m)`), no analiza los comentarios `# …` y no toma una sustitución desconocida (`sh $(true)`) por un archivo de script; un pre-tool de más de 8 MB cuya herramienta no puede identificarse antes del corte se bloquea, con independencia del orden de las claves JSON (ACR acr_a635820b, C-001 a C-004).
 - `mem expand --help` muestra la ayuda; el contador de herramientas de expand no pierde incrementos con hooks en paralelo; suprimir un bloqueo repetido de `stop` conserva el registro de los avisos.
+
+### Documentación
+
+- Guía SDD, edición 3 (Spec Kit 1.2.2, gomemory 2.36), y nueva guía técnica con la misma plantilla; las ediciones anteriores se archivan en `docs/editions/` y cada release versiona las dos.
+- `expand.md`, `architecture.md` y `MANUAL.md` describen las supertools y los nuevos límites del guardarraíl de shell.
 
 ## [v2.35.0] - 2026-10-17
 
