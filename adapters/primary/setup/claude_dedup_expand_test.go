@@ -62,6 +62,7 @@ func TestDedupClaudeProjectHooks_ExpandSeComparaPorSubcomando(t *testing.T) {
 func TestWriteClaudeHooks_GlobalParcialDeExpandNoOcultaElResto(t *testing.T) {
 	home, root := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	writeClaudeSettingsFile(t, home, `{"hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"mem hook expand stop --emit=claude"}]}]}}`)
 
 	if err := writeClaudeHooksSkipping(root, AgentRef{HookCommand: "mem"}, globalClaudeHookSubs(root)); err != nil {
