@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"mem/adapters/secondary/persistence"
@@ -52,7 +53,7 @@ func TestExportProjects_IndicePrivadoYFallosPorClave(t *testing.T) {
 		if info.IsDir() {
 			want = 0o700
 		}
-		if info.Mode().Perm() != want {
+		if runtime.GOOS != "windows" && info.Mode().Perm() != want {
 			t.Errorf("%s: permisos %04o; quiero %04o", path, info.Mode().Perm(), want)
 		}
 	}

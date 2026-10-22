@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -99,7 +100,7 @@ func TestSnapshot_EsIndependienteYNoBloquea(t *testing.T) {
 	if !snap.Available || snap.Architecture.TotalNodes != 9 || snap.ProjectArg != "projectPath" {
 		t.Fatalf("snapshot = %#v", snap)
 	}
-	if info, err := os.Stat(p.snapshotPath()); err != nil || info.Mode().Perm() != 0o600 {
+	if info, err := os.Stat(p.snapshotPath()); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("permisos del snapshot: %v, %v", info, err)
 	}
 	other := New(root, memDir, "/usr/local/bin/codegraph")
