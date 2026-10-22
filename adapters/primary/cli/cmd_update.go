@@ -87,6 +87,11 @@ func CmdUpdate(deps *Deps, args []string) {
 		// El aviso de hooks duplicados recomienda `mem update`: también al día
 		// tiene que corregirlos (feature 035, FR-001).
 		if root, err := deps.ProjectRepo.FindRoot(); err == nil {
+			if self, e := os.Executable(); e == nil {
+				if e := runIn(root, self, "install", root, "--yes"); e != nil {
+					fmt.Printf("  ⚠️ No se pudo refrescar la integración: %v\n", e)
+				}
+			}
 			dedupProjectHooksReport(root)
 		}
 		return

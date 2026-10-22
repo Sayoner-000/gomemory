@@ -117,7 +117,9 @@ func TestOpenCodeV2_EventosTraducidos(t *testing.T) {
 // registrando exactamente los mismos ganchos que antes de la feature 032.
 func TestOpenCodeV2_RamaV1ConservaGanchos(t *testing.T) {
 	got := strings.Join(hooksQueRegistraElComplemento(t), ",")
-	want := "chat.message,experimental.chat.system.transform,experimental.session.compacting,tool.execute.after"
+	// La feature 040 añade tool.execute.before (reglas de expand antes de cada
+	// herramienta) también en 1.x, de forma deliberada.
+	want := "chat.message,experimental.chat.system.transform,experimental.session.compacting,tool.execute.after,tool.execute.before"
 	if got != want {
 		t.Errorf("ganchos v1 = %s; want %s", got, want)
 	}

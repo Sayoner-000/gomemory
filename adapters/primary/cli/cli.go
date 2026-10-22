@@ -87,6 +87,7 @@ var helpIndex = []struct {
 		{"uninstall", "Desinstalar gomemory"},
 		{"update", "Actualizar el binario y la integración"},
 		{"doctor", "Diagnóstico de la integración"},
+		{"expand", "Supertools: status · on/off · rules · instincts"},
 		{"settings", "Ver o cambiar la configuración"},
 		{"setup-mcp", "Registrar el servidor MCP en agentes"},
 		{"setup", "Instalar el plugin de un agente"},
@@ -216,7 +217,16 @@ COMMANDS
   mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
   mem settings [--auto-approve=true|false] [--show]
                                    Ver o cambiar auto-approve de las tools MCP
-  mem doctor                       Diagnóstico del estado de la integración
+  mem expand [status] [--json]     Estado, cableado y activaciones de supertools
+  mem expand on|off [rules|shield|flow|instincts]
+                                   Activar o desactivar todas o una supertool
+  mem expand rules [--json]        Listar reglas y errores
+  mem expand rules --check [--event bash|file|prompt|stop] [--json]
+                                   Evaluar stdin o diff (0 allow, 1 warn, 2 block, 3 ilegible)
+  mem expand instincts list [--json] [--all]
+  mem expand instincts confirm|reject|evolve <slug>
+                                   Revisar, confirmar, rechazar o convertir en skill
+  mem doctor [--shield] [--json]    Diagnóstico del estado de la integración
 
   Documentos y portabilidad
   mem docs [list]                  Documentos fijados del proyecto (reglas de trabajo, constitución)

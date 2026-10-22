@@ -45,6 +45,14 @@ const (
 // sanitizeFields es la lista permitida categoría → campo. Nada fuera de ella
 // se lee ni se escribe durante el saneamiento.
 var sanitizeFields = map[SanitizeCategory]string{
+	SanitizeCategory("instinct_stats"):  "description",
+	SanitizeCategory("instinct_global"): "description",
+	SanitizeCategory("instinct_queue"):  "sample",
+	// Claves y slugs (B-001 de 040): se reducen con ProtectObservationKey y,
+	// si chocan con uno existente, se fusionan.
+	SanitizeCategory("instinct_queue_key"):          "key",
+	SanitizeCategory("instinct_stats_slug"):         "slug",
+	SanitizeCategory("instinct_global_slug"):        "slug",
 	SanitizeCategory("socratica_flow_original"):     "original_prompt",
 	SanitizeCategory("socratica_flow_proposed"):     "proposed_prompt",
 	SanitizeCategory("socratica_flow_approved"):     "approved_prompt",
@@ -114,7 +122,7 @@ func NeedsSanitize(s string) bool { return ProtectText(s) != s }
 func ContainsProtected(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] == '<' {
-			if kind, _ := matchPrivateTag(s[i:]); kind == privateOpen {
+			if kind, _ := matchPrivateTag(s[i:]); kind == privateOpen || kind == privateOpenLoose {
 				return true
 			}
 		}
@@ -130,7 +138,7 @@ func HasOrphanPrivateClose(s string) bool {
 			continue
 		}
 		switch kind, _ := matchPrivateTag(s[i:]); kind {
-		case privateOpen:
+		case privateOpen, privateOpenLoose:
 			depth++
 		case privateClose:
 			if depth == 0 {

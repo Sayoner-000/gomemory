@@ -20,6 +20,9 @@ const (
 	notPrivateTag privateTag = iota
 	privateOpen
 	privateClose
+	// privateOpenLoose es una apertura con atributo sin '>' (R2-03): al
+	// persistir cuenta como apertura; al escanear, no (R3-03).
+	privateOpenLoose
 )
 
 // matchPrivateTag reconoce una etiqueta privada al inicio de s y devuelve su
@@ -48,14 +51,30 @@ func matchPrivateTag(s string) (privateTag, int) {
 		if i >= len(s) || !isTagSpace(s[i]) {
 			return notPrivateTag, 0
 		}
-		for ; i < len(s) && i < maxPrivateTagLen; i++ {
-			switch s[i] {
+		for j := i; j < len(s) && j < maxPrivateTagLen; j++ {
+			switch s[j] {
 			case '>':
-				return privateOpen, i + 1
+				return privateOpen, j + 1
 			case '<':
-				return notPrivateTag, 0
+				return malformedPrivateOpen(s, i)
 			}
 		}
+		return malformedPrivateOpen(s, i)
+	}
+	return notPrivateTag, 0
+}
+
+// privateAttr reconoce un atributo (`nombre=`) tras el espacio de la
+// apertura.
+var privateAttr = regexp.MustCompile(`^[ \t\r\n\f]+[A-Za-z_][A-Za-z0-9_.:-]*[ \t]*=`)
+
+// malformedPrivateOpen decide una apertura sin '>': si lleva un atributo
+// (`<private token=…`) quien escribe quiso marcar un secreto y la etiqueta
+// falla cerrada, privada hasta su cierre o el final del texto (R2-03). Un
+// "<private" suelto en prosa, sin atributo, sigue sin ser etiqueta.
+func malformedPrivateOpen(s string, attrs int) (privateTag, int) {
+	if privateAttr.MatchString(s[attrs:]) {
+		return privateOpenLoose, attrs
 	}
 	return notPrivateTag, 0
 }
@@ -72,11 +91,76 @@ func isTagSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c ==
 // público que le sigue. Las etiquetas se comparan en ASCII sin distinguir
 // mayúsculas sobre el texto original, así los índices no se desplazan con
 // Unicode; admiten espacios y atributos (ver matchPrivateTag). Es idempotente.
-func RedactPrivate(s string) string {
+func RedactPrivate(s string) string { return redactPrivate(s, false) }
+
+// redactPrivateKeepLines es RedactPrivate pero deja en lugar de cada región
+// eliminada tantos saltos de línea como tenía, para que los números de línea
+// calculados después coincidan con el texto original (H-05 de 040).
+func redactPrivateKeepLines(s string) string { return redactPrivate(s, true) }
+
+// redactClosedPrivateKeepLines es la variante para detectar secretos (shield):
+// solo quita regiones privadas bien formadas y cerradas. Una apertura mal
+// formada o sin cierre no oculta el resto del texto al escáner (R3-03); el
+// informe nunca incluye valores, así que escanearlo no los expone.
+func redactClosedPrivateKeepLines(s string) string {
 	if !strings.Contains(s, "<") {
 		return s
 	}
 	var b strings.Builder
+	last := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] != '<' {
+			continue
+		}
+		if kind, _ := matchPrivateTag(s[i:]); kind != privateOpen {
+			continue
+		}
+		end := closedPrivateEnd(s, i)
+		if end < 0 {
+			continue
+		}
+		b.WriteString(s[last:i])
+		b.WriteString(strings.Repeat("\n", strings.Count(s[i:end], "\n")))
+		last = end
+		i = end - 1
+	}
+	b.WriteString(s[last:])
+	return b.String()
+}
+
+// closedPrivateEnd devuelve el final del cierre que equilibra la apertura
+// bien formada de la posición i, o -1 si no se cierra.
+func closedPrivateEnd(s string, i int) int {
+	depth := 0
+	for j := i; j < len(s); j++ {
+		if s[j] != '<' {
+			continue
+		}
+		switch kind, n := matchPrivateTag(s[j:]); kind {
+		case privateOpen:
+			depth++
+			j += n - 1
+		case privateClose:
+			depth--
+			if depth == 0 {
+				return j + n
+			}
+			j += n - 1
+		}
+	}
+	return -1
+}
+
+func redactPrivate(s string, keepLines bool) string {
+	if !strings.Contains(s, "<") {
+		return s
+	}
+	var b strings.Builder
+	drop := func(seg string) {
+		if keepLines {
+			b.WriteString(strings.Repeat("\n", strings.Count(seg, "\n")))
+		}
+	}
 	depth, last := 0, 0
 	for i := 0; i < len(s); {
 		if s[i] != '<' {
@@ -84,10 +168,13 @@ func RedactPrivate(s string) string {
 			continue
 		}
 		switch kind, n := matchPrivateTag(s[i:]); kind {
-		case privateOpen:
+		case privateOpen, privateOpenLoose:
 			if depth == 0 {
 				b.WriteString(s[last:i])
+			} else {
+				drop(s[last:i])
 			}
+			drop(s[i : i+n])
 			depth++
 			i += n
 			last = i
@@ -95,8 +182,10 @@ func RedactPrivate(s string) string {
 			if depth == 0 {
 				b.WriteString(s[last:i])
 			} else {
+				drop(s[last:i])
 				depth--
 			}
+			drop(s[i : i+n])
 			i += n
 			last = i
 		default:
@@ -105,6 +194,8 @@ func RedactPrivate(s string) string {
 	}
 	if depth == 0 {
 		b.WriteString(s[last:])
+	} else {
+		drop(s[last:])
 	}
 	return b.String()
 }
@@ -157,6 +248,23 @@ func RedactSecrets(s string) string {
 		s = p.pattern.ReplaceAllString(s, "[REDACTED:"+p.label+"]")
 	}
 	return s
+}
+
+// SecretHit identifies a secret without retaining its value.
+type SecretHit struct {
+	Category string
+	Line     int
+}
+
+func FindSecrets(s string) []SecretHit {
+	s = redactClosedPrivateKeepLines(s)
+	var hits []SecretHit
+	for _, p := range secretPatterns {
+		for _, loc := range p.pattern.FindAllStringIndex(s, -1) {
+			hits = append(hits, SecretHit{p.label, 1 + strings.Count(s[:loc[0]], "\n")})
+		}
+	}
+	return hits
 }
 
 // ProtectText es la protección única de texto (spec 037, FR-001/FR-002):

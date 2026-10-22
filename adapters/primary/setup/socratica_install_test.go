@@ -43,7 +43,7 @@ func TestInstallSocraticaSkill(t *testing.T) {
 		filepath.Join(".codex", "skills", "socratica", "SKILL.md"),
 		filepath.Join(".config", "opencode", "commands", "socratic-q.md"),
 		filepath.Join(".config", "opencode", "commands", "socratica.md"),
-		filepath.Join(".opencode", "skills", "socratica", "SKILL.md"),
+		filepath.Join(".config", "opencode", "skills", "socratica", "SKILL.md"),
 	}
 	// El instalador no escribe nada más que la habilidad y los envoltorios.
 	if got := listarArchivos(t, home); strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -87,6 +87,8 @@ func TestGlobalGeneratedArtifacts_IncluyeSocratica(t *testing.T) {
 	for _, want := range []string{
 		filepath.Join(".claude", "skills", "socratica"),
 		filepath.Join(".codex", "skills", "socratica"),
+		filepath.Join(".config", "opencode", "skills", "socratica"),
+		// Destino de versiones anteriores: la desinstalación lo sigue limpiando.
 		filepath.Join(".opencode", "skills", "socratica"),
 		filepath.Join(".claude", "commands", "socratic-q.md"),
 		filepath.Join(".config", "opencode", "commands", "socratica.md"),

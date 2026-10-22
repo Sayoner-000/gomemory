@@ -28,6 +28,7 @@ type SessionDelta struct {
 // deltaSections son las secciones de get_context cuyas entradas son memorias.
 var deltaSections = []string{
 	"## Preferencias del Usuario",
+	"## Instincts",
 	"## Decisiones de Arquitectura",
 	"## Decisiones Técnicas",
 	"## Patrones y Convenciones",

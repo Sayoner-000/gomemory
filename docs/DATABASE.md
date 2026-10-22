@@ -26,3 +26,11 @@ Las transiciones de despacho son sentencias condicionales: `approve` solo afecta
 Retención: historial podado a `socratica_history_limit` (20) por `(project, client)` en la misma transacción; `mem gc` borra los pendientes con más de 7 días (nunca un `approved` sin ack) y los terminados con más de 24 horas, y poda los terminados por encima del límite.
 
 Privacidad: todas las columnas de texto y los strings dentro de los JSON pasan por `ProtectText` al escribir y al leer. `mem sanitize` las recorre por columna (categorías `socratica_flow_*` y `socratica_history_*`), respetando el proyecto. En modo privado no se escribe historial y un flujo enviado se redacta conservando solo `dispatch_id`, `approved_hash` y `dispatch_consumed`.
+
+## Expand: estadísticas, idempotencia y registro global (040)
+
+`instinct_stats` vive en el mem.db del proyecto. Su clave primaria `(project, slug)` identifica el patrón; conserva tipo, descripción redactada, observaciones, correcciones, confianza, alcance, estado y fechas. `instinct_folded`, con clave `(project, obs_id)`, registra los UUID ya contados en la misma transacción que actualiza las estadísticas. Se purga después de siete días.
+
+`instinct_global` vive en `DataHome()/instincts.db`, con permisos 0600 y WAL. La clave es `slug`; guarda tipo, descripción, conjunto JSON de proyectos, confianza y fecha de actualización. Dos proyectos con confianza mínima de 0,5 permiten promoción global. Las tres tablas se crean de forma aditiva.
+
+La cola transitoria `.memory/expand-observations.ndjson` tiene límite de 256 KiB. El plegado confirma hasta 500 observaciones y luego retira sus UUID de la cola; repetir un lote no incrementa los contadores. La reconciliación global ocurre después del commit y se reintenta por estado. `mem sanitize` informa por separado `instinct_stats`, `instinct_global` e `instinct_queue`.

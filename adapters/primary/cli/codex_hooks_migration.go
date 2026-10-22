@@ -339,7 +339,7 @@ func replaceLegacyCodexHook(groups []any, h setup.CodexHook, memCommand string) 
 				continue
 			}
 			command, _ := action["command"].(string)
-			indice := strings.Index(command, "hook "+h.Sub)
+			indice := setup.GomemoryHookIndex(command, h.Sub)
 			if indice < 0 {
 				continue
 			}
@@ -428,12 +428,32 @@ func syncCodexToolOutputHook(config []byte, memCommand string, enabled bool) ([]
 	grupos, _ := anySlice(hooks[h.Event])
 	kept := make([]any, 0, len(grupos)+1)
 	present := false
+	// Solo cuenta como propia la acción cuyo command invoca `mem hook
+	// tool-output`; un hook ajeno con ese literal (en su comando, su matcher o
+	// junto a la nuestra en el mismo grupo) se conserva (R4-02).
 	for _, g := range grupos {
-		if strings.Contains(fmt.Sprint(g), "hook tool-output") {
-			present = true
+		grupo, ok := stringMap(g)
+		if !ok {
+			kept = append(kept, g)
 			continue
 		}
-		kept = append(kept, g)
+		acciones, _ := anySlice(grupo["hooks"])
+		ajenas := make([]any, 0, len(acciones))
+		for _, a := range acciones {
+			accion, _ := stringMap(a)
+			cmd, _ := accion["command"].(string)
+			if setup.GomemoryHookIndex(cmd, "tool-output") >= 0 {
+				present = true
+				continue
+			}
+			ajenas = append(ajenas, a)
+		}
+		if len(ajenas) == len(acciones) {
+			kept = append(kept, g)
+		} else if len(ajenas) > 0 {
+			grupo["hooks"] = ajenas
+			kept = append(kept, grupo)
+		}
 	}
 	if present == enabled && (!enabled || setup.CodexHookPresente(hooks, h)) {
 		return config, false, nil

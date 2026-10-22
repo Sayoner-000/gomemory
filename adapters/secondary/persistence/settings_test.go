@@ -542,3 +542,37 @@ func TestWriteReadSettings_OctopusEnabled_Roundtrip(t *testing.T) {
 		t.Error("octopus_enabled=true no sobrevivió al roundtrip")
 	}
 }
+
+// Feature 040: un settings.json previo sin las claves de expand deja el
+// módulo encendido y el umbral en el default; un umbral fuera de rango se
+// normaliza, y el interruptor sobrevive a una ida y vuelta.
+func TestReadSettings_ExpandDefaultsAndRange(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{"auto_approve": false})
+	s := ReadSettings(root)
+	if s.ExpandDisabled || len(s.ExpandOff) != 0 {
+		t.Fatalf("expand debe quedar activo en una base previa: %+v", s)
+	}
+	if s.ExpandCompactThreshold != domain.ExpandDefaultCompactThreshold {
+		t.Fatalf("umbral = %d, want %d", s.ExpandCompactThreshold, domain.ExpandDefaultCompactThreshold)
+	}
+	for _, v := range []int{-1, 5, 1001} {
+		writeRawSettings(t, root, map[string]any{"expand_compact_threshold": v})
+		if got := ReadSettings(root).ExpandCompactThreshold; got != domain.ExpandDefaultCompactThreshold {
+			t.Errorf("umbral %d → %d, want default", v, got)
+		}
+	}
+	writeRawSettings(t, root, map[string]any{"expand_compact_threshold": 80, "expand_disabled": true, "expand_off": []string{"rules"}})
+	repo := NewSettingsRepository()
+	data := repo.Read(root)
+	if data.ExpandCompactThreshold != 80 || !data.ExpandDisabled || !reflect.DeepEqual(data.ExpandOff, []string{"rules"}) {
+		t.Fatalf("lectura por el puerto: %+v", data)
+	}
+	data.ExpandDisabled = false
+	if err := repo.Write(root, data); err != nil {
+		t.Fatal(err)
+	}
+	if again := repo.Read(root); again.ExpandDisabled || !reflect.DeepEqual(again.ExpandOff, []string{"rules"}) {
+		t.Fatalf("ida y vuelta: %+v", again)
+	}
+}

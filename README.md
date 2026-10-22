@@ -207,7 +207,7 @@ mem review show <review-id>    # target → reviewers → consensus → fixes �
 See [`specs/027-adversarial-consensus-review`](specs/027-adversarial-consensus-review/) for the full protocol.
 
 **Defensive QA audit**
-A multi-language defensive audit skill (`defensive-qa-audit`) for Go, Python, JS/TS, Java, PHP, Rust, shell, SQL, CI and HTML/CSS, focused on leaks (PII, credentials, resources, memory, XSS, exposed errors). Every finding needs a `file:line` location, a synthetic-data reproduction and a verifiable closing proposal; the report includes a coverage table. With gomemory connected, it checks prior audits, uses the code graph for blast radius, saves high-severity findings as memory, and can hand them to adversarial consensus review. Installed and kept current in `~/.claude|.codex|.opencode/skills/` by `mem install` (global scope), `mem setup-mcp --scope global` and `mem update`. See [`skills/defensive-qa-audit`](skills/defensive-qa-audit/).
+A multi-language defensive audit skill (`defensive-qa-audit`) for Go, Python, JS/TS, Java, PHP, Rust, shell, SQL, CI and HTML/CSS, focused on leaks (PII, credentials, resources, memory, XSS, exposed errors). Every finding needs a `file:line` location, a synthetic-data reproduction and a verifiable closing proposal; the report includes a coverage table. With gomemory connected, it checks prior audits, uses the code graph for blast radius, saves high-severity findings as memory, and can hand them to adversarial consensus review. Installed and kept current in `~/.claude/skills/`, `~/.codex/skills/` and `~/.config/opencode/skills/` by `mem install` (global scope), `mem setup-mcp --scope global` and `mem update`. See [`skills/defensive-qa-audit`](skills/defensive-qa-audit/).
 
 **Socratica: prompt refinement with explicit approval**
 A `socratica` skill that turns a rough prompt into a faithful, executable one (`/socratica`) or examines a proposal's assumptions, evidence and alternatives (`/socratic-q`), with at most three multiple-choice questions and nothing executed before you approve. With gomemory connected, the `socratica_flow` MCP tool keeps the flow, prevents duplicate dispatch (`approve` → `ack` before executing) and keeps a bounded, privacy-protected history. Also available as `mem socratica` and from the TUI (`p`). Automatic interception is opt-in and only enabled per agent with acceptance evidence. See [`docs/socratica.md`](docs/socratica.md).
@@ -231,6 +231,20 @@ Local snapshots are created at session end. Do not synchronize `mem.db` directly
 
 **Measured token usage**
 `mem usage` reports how many tokens a session's emissions actually cost versus what they would have cost unoptimized — baseline, emitted, and the saved delta, broken down by operation and by channel (MCP, CLI, TUI). Figures are measured with a neutral approximate counter, comparable against themselves (before/after, percentages), never against any provider's billing. An optional reference-window setting (off by default) adds an estimated "footprint avoided" percentage, clearly labeled as an estimate. The same report is available from the interactive UI (`u` key), alongside an on-demand context-optimization snapshot for a specific task. See [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) for the machine-readable contract (`mem usage --json`).
+
+## Supertools expand
+
+Protección por reglas, inspección de la configuración de agentes, sugerencias de flujo y aprendizaje de patrones, activados por los hooks desde la instalación.
+
+```sh
+mem expand status
+mem expand off rules
+mem expand on
+mem doctor --shield --json
+mem expand instincts list
+```
+
+Las reglas de `.gomemory/rules/` se versionan con el proyecto. El estado local vive en `.memory/`. Las cinco skills de flujo se distribuyen desde una fuente canónica; `evolve` muestra su propuesta y exige aprobación antes de instalarla. Consulta la [guía de expand](docs/expand.md) para formatos, interruptores y compatibilidad.
 
 ## MCP Tools
 

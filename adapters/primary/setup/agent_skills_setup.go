@@ -7,6 +7,24 @@ import (
 	"strings"
 )
 
+// InstallExpandSkills has one owner per canonical skill and no agent filter.
+func InstallExpandSkills(bodies map[string]string) ([]string, error) {
+	names := make([]string, 0, len(bodies))
+	for name := range bodies {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	var written []string
+	for _, name := range names {
+		paths, err := InstallAgentSkill(name, bodies[name])
+		written = append(written, paths...)
+		if err != nil {
+			return written, err
+		}
+	}
+	return written, nil
+}
+
 // skillTarget describe dónde vive el directorio de habilidades de nivel USUARIO
 // de un agente, relativo al HOME.
 //
@@ -17,8 +35,11 @@ import (
 // acepta este agente una habilidad completa"— y sus rutas no coinciden.
 //
 // Las tres rutas están verificadas contra los binarios reales, no contra
-// documentación: el binario de Codex contiene `.codex/skills` y `SKILL.md`, y
-// el de OpenCode contiene literalmente `.opencode/skills/my-skill/SKILL.md`.
+// documentación: el binario de Codex contiene `.codex/skills` y `SKILL.md`.
+// OpenCode 2.0.32 lee `<dir>/skills` de cada directorio de configuración que
+// lista `opencode debug config`: `~/.config/opencode` siempre, y `~/.opencode`
+// solo por el walk-up de un proyecto situado bajo el HOME (C-002 del ACR de
+// 040). Por eso el destino global es `~/.config/opencode/skills`.
 type skillTarget struct {
 	agent string
 	// dir es la raíz de configuración de usuario del agente, relativa al HOME.
@@ -30,6 +51,14 @@ type skillTarget struct {
 var skillTargets = []skillTarget{
 	{agent: "claude", dir: []string{".claude"}, skills: []string{"skills"}},
 	{agent: "codex", dir: []string{".codex"}, skills: []string{"skills"}},
+	{agent: "opencode", dir: []string{".config", "opencode"}, skills: []string{"skills"}},
+}
+
+// legacySkillTargets son destinos que versiones anteriores usaron. La
+// instalación retira de ahí las habilidades que ya escribe en su destino
+// actual (evita que OpenCode descubra dos copias bajo el HOME) y la
+// desinstalación los sigue limpiando.
+var legacySkillTargets = []skillTarget{
 	{agent: "opencode", dir: []string{".opencode"}, skills: []string{"skills"}},
 }
 
@@ -82,18 +111,50 @@ func InstallAgentSkill(name, body string, agents ...string) ([]string, error) {
 		}
 
 		dest := filepath.Join(append(append([]string{base}, t.skills...), name, "SKILL.md")...)
-		if previo, err := os.ReadFile(dest); err == nil && string(previo) == string(content) {
-			continue
+		if previo, err := os.ReadFile(dest); err != nil || string(previo) != string(content) {
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				return written, err
+			}
+			if err := os.WriteFile(dest, content, 0o644); err != nil {
+				return written, err
+			}
+			written = append(written, dest)
 		}
-		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		// Solo con el destino ya completo se retira la copia antigua.
+		if err := removeLegacySkill(home, t.agent, name, content); err != nil {
 			return written, err
 		}
-		if err := os.WriteFile(dest, content, 0o644); err != nil {
-			return written, err
-		}
-		written = append(written, dest)
 	}
 	return written, nil
+}
+
+// removeLegacySkill retira la copia de una habilidad en el destino antiguo
+// del agente solo si es, byte a byte, la que gomemory instala y el directorio
+// no contiene nada más. Una copia modificada o con archivos auxiliares es de
+// la persona y se conserva (B-002 del ACR de 040); nunca se borra en
+// recursivo.
+func removeLegacySkill(home, agent, name string, content []byte) error {
+	for _, t := range legacySkillTargets {
+		if t.agent != agent {
+			continue
+		}
+		dir := filepath.Join(append(append(append([]string{home}, t.dir...), t.skills...), name)...)
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) != 1 || entries[0].Name() != "SKILL.md" || !entries[0].Type().IsRegular() {
+			continue
+		}
+		file := filepath.Join(dir, "SKILL.md")
+		if previo, err := os.ReadFile(file); err != nil || string(previo) != string(content) {
+			continue
+		}
+		if err := os.Remove(file); err != nil {
+			return err
+		}
+		if err := os.Remove(dir); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // InstallAdversarialReviewSkill distribuye la guía de participación en el

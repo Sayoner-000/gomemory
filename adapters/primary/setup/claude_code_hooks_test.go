@@ -3,7 +3,10 @@ package setup
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"mem/domain"
 )
 
 // sessionStartEntries extrae las entradas (matcher → comando) del hook
@@ -61,9 +64,10 @@ func TestWriteClaudeHooksIsIdempotent(t *testing.T) {
 		t.Fatalf("writeClaudeHooks (2): %v", err)
 	}
 
+	// session-start, post-compact y expand session-start (feature 040).
 	entries := sessionStartEntries(t, readSettings(t, root))
-	if len(entries) != 2 {
-		t.Errorf("tras dos corridas esperaba exactamente 2 entradas SessionStart, got %d: %v", len(entries), entries)
+	if len(entries) != 3 {
+		t.Errorf("tras dos corridas esperaba exactamente 3 entradas SessionStart, got %d: %v", len(entries), entries)
 	}
 }
 
@@ -122,6 +126,9 @@ func TestHookCommandIsGomemoryRecognizesAllSubcommands(t *testing.T) {
 			subs = append(subs, r.sub)
 		}
 	}
+	// Y el registro único entero (feature 040, R2), incluido `expand`.
+	subs = append(subs, domain.GomemoryHookSubcommands...)
+	subs = append(subs, "expand pre-tool", "tool-output claude")
 	for _, sub := range subs {
 		if !hookCommandIsGomemory("mem hook " + sub) {
 			t.Errorf("hookCommandIsGomemory no reconoce %q", "mem hook "+sub)
@@ -129,5 +136,75 @@ func TestHookCommandIsGomemoryRecognizesAllSubcommands(t *testing.T) {
 	}
 	if hookCommandIsGomemory("some-other-tool hook whatever") {
 		t.Error("no debe reconocer comandos de terceros como de gomemory")
+	}
+}
+
+// Feature 040 (T028): hook expand en los 5 eventos, una sola vez tras dos
+// escrituras, sin perder plan-guard ni los hooks de terceros.
+func TestWriteClaudeHooks_ExpandWiredIdempotentAndPreservesThirdParty(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	third := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"my-linter check"}]}]}}`
+	if err := os.WriteFile(filepath.Join(root, ".claude", "settings.json"), []byte(third), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ref := AgentRef{HookCommand: "mem"}
+	for i := 0; i < 2; i++ {
+		if err := writeClaudeHooks(root, ref); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hooks, _ := readSettings(t, root)["hooks"].(map[string]interface{})
+	count := func(event, needle string) int {
+		n := 0
+		entries, _ := hooks[event].([]interface{})
+		for _, e := range entries {
+			for _, c := range hookEntryCommands(e) {
+				if strings.Contains(c, needle) {
+					n++
+				}
+			}
+		}
+		return n
+	}
+	for event, reg := range claudeExpandHooks {
+		if got := count(event, "mem hook "+reg.sub); got != 1 {
+			t.Errorf("%s: %d entradas de %q, want 1", event, got, reg.sub)
+		}
+	}
+	if count("PreToolUse", "hook plan-guard") != 1 {
+		t.Error("plan-guard debe seguir registrado")
+	}
+	if count("PreToolUse", "my-linter check") != 1 {
+		t.Error("el hook de terceros debe conservarse")
+	}
+}
+
+// R2-04: la invocación debe ser del binario de gomemory, no solo contener
+// `hook <sub>`.
+func TestHookCommandIsGomemoryRequiresMemBinary(t *testing.T) {
+	cases := map[string]bool{
+		"mem hook user-prompt-submit":                                  true,
+		"${CLAUDE_PROJECT_DIR}/mem hook expand pre-tool --emit=claude": true,
+		"/usr/local/bin/mem hook turn-end":                             true,
+		`"C:\Program Files\gomemory\mem.exe" hook session-start`:       true,
+		`C:\tools\mem.exe hook turn-end`:                               true,
+		`'/Users/a b/mem' hook session-end`:                            true,
+		"bash /opt/acme/hooks/entry.sh hook user-prompt-submit":        false,
+		"acme-mem hook turn-end":                                       false,
+		"memo hook turn-end":                                           false,
+		"mem hook desconocido":                                         false,
+	}
+	for cmd, want := range cases {
+		if got := hookCommandIsGomemory(cmd); got != want {
+			t.Errorf("hookCommandIsGomemory(%q) = %v, want %v", cmd, got, want)
+		}
+	}
+	if GomemoryHookIndex("mem hook expand pre-tool --emit=json", "expand pre-tool") != 4 ||
+		GomemoryHookIndex("mem hook expand pre-tool-x", "expand pre-tool") != -1 ||
+		GomemoryHookIndex("bash x.sh hook expand pre-tool", "expand pre-tool") != -1 {
+		t.Error("GomemoryHookIndex")
 	}
 }

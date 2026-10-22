@@ -284,6 +284,15 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	}
 	written = append(written, socratica...)
 
+	expanded, err := setup.InstallExpandSkills(expandSkillBodies())
+	if err != nil {
+		fmt.Printf("  ⚠️ expand skills: %v\n", err)
+	}
+	for _, p := range expanded {
+		fmt.Printf("  ✅ expand: %s\n", p)
+	}
+	written = append(written, expanded...)
+
 	// Habilidades ya existentes hacia Codex y OpenCode. Cierra un hueco abierto
 	// desde las features 013/021: gomemory escribía habilidades solo en
 	// `.claude/skills/`, así que estos dos agentes nunca recibieron el método de
@@ -886,3 +895,13 @@ func setupCodex(root string) bool {
 // contratos de tests/contract, que viven fuera del paquete. No añade
 // comportamiento: solo hace verificable el contrato C8.
 func RunGlobalScopeSetupForTest(agents []string) { runGlobalScopeSetup(agents) }
+
+// expandSkillBodies devuelve las cinco skills de expand (feature 040,
+// FR-019) desde la plantilla embebida.
+func expandSkillBodies() map[string]string {
+	bodies := map[string]string{}
+	for _, name := range []string{"verify-loop", "search-first", "iterative-retrieval", "strategic-compact", "instincts"} {
+		bodies[name] = embeddedTemplate("expand/" + name + "/SKILL.md")
+	}
+	return bodies
+}

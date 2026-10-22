@@ -82,3 +82,52 @@ func TestSetupCodexGlobalRetiraElHookDeSalidas(t *testing.T) {
 		t.Errorf("debe conservar los permisos: %v", info.Mode().Perm())
 	}
 }
+
+// R4-02: solo la acción `mem hook tool-output` es propia. Un hook ajeno con
+// ese literal en su comando o su matcher, o agrupado con la nuestra, se
+// conserva; nuestra acción se retira igual que antes.
+func TestSyncCodexToolOutputHookKeepsThirdParty(t *testing.T) {
+	base := []byte(`[[hooks.PostToolUse]]
+matcher = "read"
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "bash /opt/acme/hooks/entry.sh hook tool-output"
+
+[[hooks.PostToolUse]]
+matcher = "hook tool-output"
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "acme-audit"
+
+[[hooks.PostToolUse]]
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "mem hook tool-output codex"
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "acme-junto"
+
+[[hooks.PreToolUse]]
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "bash /opt/acme/hooks/entry.sh hook tool-output"
+`)
+	off, changed, err := syncCodexToolOutputHook(base, "mem", false)
+	if err != nil || !changed {
+		t.Fatalf("desactivar: changed=%v err=%v", changed, err)
+	}
+	if strings.Contains(string(off), "mem hook tool-output") {
+		t.Errorf("la acción de gomemory debe retirarse:\n%s", off)
+	}
+	for _, want := range []string{`matcher = 'read'`, "acme-audit", "acme-junto"} {
+		if !strings.Contains(string(off), want) && !strings.Contains(string(off), strings.ReplaceAll(want, "'", `"`)) {
+			t.Errorf("se pierde %q:\n%s", want, off)
+		}
+	}
+	if strings.Count(string(off), "entry.sh hook tool-output") != 2 {
+		t.Errorf("los dos hooks ajenos con el literal deben conservarse:\n%s", off)
+	}
+	if _, changed, _ := syncCodexToolOutputHook(off, "mem", false); changed {
+		t.Error("sin acción propia, desactivar no debe escribir")
+	}
+}

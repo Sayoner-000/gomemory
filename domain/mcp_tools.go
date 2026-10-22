@@ -165,6 +165,19 @@ func MCPToolsFor(octopusEnabled bool) []string {
 	return append(base, MCPOctopusTools...)
 }
 
+// AllMCPTools includes optional tools for validating skill references.
+func AllMCPTools() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, name := range MCPToolsFor(true) {
+		if !seen[name] {
+			seen[name] = true
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // MCPAutoApprovableTools es el conjunto completo menos las destructivas: lo que
 // puede pre-aprobarse sin riesgo por ser de solo lectura o de escritura acotada
 // y reversible.

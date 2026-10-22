@@ -16,17 +16,18 @@ import (
 // uno: el proyecto solo añade lo que el global no cubre (tool-output).
 
 // gomemorySubsGlobales es el juego que escribe `setup-mcp --scope global`: sin
-// tool-output, porque lee los ajustes del HOME y no los del proyecto.
+// tool-output, porque lee los ajustes del HOME y no los del proyecto. Incluye
+// expand (feature 040), que se instala siempre.
 var gomemorySubsGlobales = map[string][]string{
-	"SessionStart":     {"session-start", "post-compact"},
+	"SessionStart":     {"session-start", "post-compact", "expand"},
 	"SessionEnd":       {"session-end"},
 	"PostCompact":      {"compact-summary"},
-	"UserPromptSubmit": {"user-prompt-submit"},
-	"Stop":             {"turn-end"},
+	"UserPromptSubmit": {"user-prompt-submit", "expand"},
+	"Stop":             {"turn-end", "expand"},
 	"SubagentStart":    {"subagent-start"},
 	"SubagentStop":     {"subagent-stop"},
-	"PreToolUse":       {"plan-guard"},
-	"PostToolUse":      {"plan-approved", "plan-entered"},
+	"PreToolUse":       {"plan-guard", "expand"},
+	"PostToolUse":      {"plan-approved", "plan-entered", "expand"},
 }
 
 var hookSubRe = regexp.MustCompile(`mem hook ([a-z-]+)`)

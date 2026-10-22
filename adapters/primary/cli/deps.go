@@ -101,4 +101,20 @@ type Deps struct {
 	// Sanitizer sanea la información histórica protegida del proyecto
 	// (spec 037, US2). nil = comando no disponible.
 	Sanitizer ports.PrivacySanitizer
+
+	// Expand (feature 040). ExpandQueue y ShieldState guardan en archivos el
+	// estado de los casos de uso de expand, sin base de datos. ExpandFull abre
+	// de forma perezosa el Deps completo cuando `hook expand` arrancó por la
+	// ruta ligera y necesita la base (registrar una activación, plegar
+	// instincts); es nil cuando este Deps ya es el completo. Devuelve el
+	// error de apertura para que quien lo necesite lo registre (H-01).
+	ExpandQueue ports.ObservationQueueRepository
+	ShieldState ports.ShieldStateRepository
+	ExpandFull  func() (*Deps, error)
+	// RuleSource carga las reglas de expand (US1).
+	RuleSource  ports.RuleSourcePort
+	AgentConfig ports.AgentConfigReaderPort
+	Instincts   *usecases.Instincts
+	// InstinctGlobalErr: instincts.db no abrió y el contenedor siguió sin él (H-04).
+	InstinctGlobalErr error
 }

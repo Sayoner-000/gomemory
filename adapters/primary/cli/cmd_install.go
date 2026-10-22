@@ -341,6 +341,13 @@ func CmdInstall(deps *Deps, args []string) {
 			addStep("Integración Cline", fmt.Errorf("no se pudo configurar Cline"), "repite mem install --yes --agents cline")
 		}
 	}
+	// FR-019 (040): las cinco skills de expand se instalan siempre en los
+	// harness presentes, también con alcance proyecto; en global ya las
+	// instala runGlobalScopeSetup (C-006).
+	if sel.scope == "project" {
+		_, err := setup.InstallExpandSkills(expandSkillBodies())
+		addStep("Skills de expand", err, "repite mem install --yes")
+	}
 	// windsurf y cline se retiraron de la instalación automática (feature 021):
 	// creaban .windsurf/ y .cline/ en la raíz de TODO proyecto para alojar un
 	// único JSON de configuración. Siguen soportados por la vía explícita:
@@ -676,6 +683,11 @@ func buildIntegrationBlock() string {
 		"",
 		"Este proyecto tiene el servidor MCP " + bt + "gomemory" + bt + " conectado. Este protocolo es OBLIGATORIO",
 		"y SIEMPRE ACTIVO — no esperes a que el usuario lo pida explícitamente.",
+		"",
+		"### Supertools expand",
+		"Rules activas en .gomemory/rules. Skills: verify-loop, search-first,",
+		"iterative-retrieval, strategic-compact e instincts.",
+		"Interruptor de emergencia: mem expand off; reactivar: mem expand on.",
 		"",
 		"### Herramientas MCP disponibles",
 		"- " + bt + "save_memory(title, type, content, filepath?)" + bt + " — guarda una memoria",

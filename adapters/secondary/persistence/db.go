@@ -176,6 +176,9 @@ func Init(root string) (*sql.DB, error) {
 // versionar el bundle de export (ver domain.ExportVersion), no reescribir el
 // esquema de mem.db en el lugar.
 func migrate(db *sql.DB) error {
+	if _, err := db.Exec(instinctSchema); err != nil {
+		return fmt.Errorf("migrate instincts: %w", err)
+	}
 	if _, err := db.Exec(socraticaSchema); err != nil {
 		return fmt.Errorf("migrate socratica: %w", err)
 	}

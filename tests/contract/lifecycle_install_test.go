@@ -205,3 +205,21 @@ func TestInstall_NoInteractivoUsaLosDetectados(t *testing.T) {
 		t.Errorf("agentes detectados guardados = %v; quiero [codex]", settings.Agents)
 	}
 }
+
+// C-006 (FR-019 de 040): con el alcance proyecto por defecto, mem install
+// también entrega las cinco skills de expand al harness presente.
+func TestInstall_AlcanceProyectoEntregaSkillsDeExpand(t *testing.T) {
+	s := newLifecycleSandbox(t)
+	if err := os.MkdirAll(filepath.Join(s.Home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := s.Project("expand-skills")
+	if r := s.Run("", p, "install", "--yes", "--agents", "claude", p); r.ExitCode != 0 {
+		t.Fatalf("install: %d\n%s\n%s", r.ExitCode, r.Stdout, r.Stderr)
+	}
+	for _, name := range []string{"verify-loop", "search-first", "iterative-retrieval", "strategic-compact", "instincts"} {
+		if _, err := os.Stat(filepath.Join(s.Home, ".claude", "skills", name, "SKILL.md")); err != nil {
+			t.Errorf("falta la skill %s: %v", name, err)
+		}
+	}
+}

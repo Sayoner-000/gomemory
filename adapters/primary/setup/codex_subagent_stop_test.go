@@ -18,9 +18,17 @@ func TestCodexGomemoryHooks_SubagentStopAlFinalDeLaTabla(t *testing.T) {
 	if len(hooks) == 0 {
 		t.Fatal("codexGomemoryHooks está vacía")
 	}
-	last := hooks[len(hooks)-1]
-	if last.Event != "SubagentStop" || last.Sub != "subagent-stop" || last.Emit != "json" {
-		t.Errorf("el último elemento debía ser SubagentStop→subagent-stop (Emit=json), got %+v", last)
+	// Tras SubagentStop la feature 040 añadió los hooks de expand, también
+	// al final; lo que importa es que SubagentStop siga presente y que el
+	// índice [2] no se haya desplazado.
+	var sub *CodexHook
+	for i := range hooks {
+		if hooks[i].Event == "SubagentStop" {
+			sub = &hooks[i]
+		}
+	}
+	if sub == nil || sub.Sub != "subagent-stop" || sub.Emit != "json" {
+		t.Errorf("falta SubagentStop→subagent-stop (Emit=json), got %+v", sub)
 	}
 	if hooks[2].Event != "Stop" {
 		t.Fatalf("el índice [2] debía seguir siendo Stop (codex_gomemory_hooks_test.go depende de esto), got %+v", hooks[2])

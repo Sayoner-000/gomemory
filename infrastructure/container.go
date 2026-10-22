@@ -4,7 +4,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"io"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -12,12 +14,15 @@ import (
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/tui"
+	"mem/adapters/secondary/agentconfig"
 	"mem/adapters/secondary/clock"
 	"mem/adapters/secondary/codegraph"
 	"mem/adapters/secondary/compression/native"
+	"mem/adapters/secondary/expandstate"
 	"mem/adapters/secondary/generator"
 	"mem/adapters/secondary/launcher"
 	"mem/adapters/secondary/persistence"
+	"mem/adapters/secondary/rulesfs"
 	"mem/adapters/secondary/speckit"
 	"mem/adapters/secondary/tokens"
 	"mem/adapters/secondary/usage"
@@ -27,10 +32,15 @@ import (
 )
 
 type Container struct {
-	Socratica *usecases.SocraticaFlow
-	Root      string
-	Project   string
-	db        *sql.DB
+	Instincts *usecases.Instincts
+	// InstinctGlobalErr es el motivo por el que instincts.db no abrió; nil
+	// si el store global está disponible. mem doctor lo informa.
+	InstinctGlobalErr error
+	instinctGlobal    *persistence.InstinctGlobalStore
+	Socratica         *usecases.SocraticaFlow
+	Root              string
+	Project           string
+	db                *sql.DB
 	// settings es la lectura única de settings.json hecha en NewContainer; el
 	// resto del Container la reutiliza para no ver dos versiones del archivo.
 	settings persistence.Settings
@@ -80,6 +90,12 @@ type Container struct {
 	CompactContextBuilder ports.ContextBuilder
 	// Sanitizer (spec 037, US2): saneamiento histórico del proyecto actual.
 	Sanitizer ports.PrivacySanitizer
+
+	// Estado de expand en archivos (feature 040, research R16).
+	ExpandQueue ports.ObservationQueueRepository
+	ShieldState ports.ShieldStateRepository
+	RuleSource  ports.RuleSourcePort
+	AgentConfig ports.AgentConfigReaderPort
 }
 
 // NewContainer construye el composition root. channel es la etiqueta del
@@ -112,7 +128,22 @@ func NewContainer(root, channel string) (*Container, error) {
 	// Sinapsis (aristas de co-activación): ON por defecto; se desactiva con
 	// synapse_disabled en settings.json para reducir queries por save.
 	persistence.SetSynapseEnabled(!settings.SynapseDisabled)
+	instinctRepo := persistence.NewInstinctRepository(db, project)
+	// El store global de instincts es auxiliar: si no abre, el contenedor
+	// sigue sin él (H-04). La interfaz se asigna solo con un store real para
+	// no crear un nil tipado.
+	instinctGlobal, instinctGlobalErr := openInstinctGlobal()
+	var instinctGlobalPort ports.InstinctGlobalRepository = persistence.UnavailableInstinctGlobal{Err: instinctGlobalErr}
+	if instinctGlobalErr == nil {
+		instinctGlobalPort = instinctGlobal
+	}
+	instinctUC := &usecases.Instincts{Queue: expandstate.NewQueue(filepath.Join(root, persistence.MemDir)), Repo: instinctRepo, Global: instinctGlobalPort, Project: project, Memories: memRepo}
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
+	contextBuilder.Instincts = instinctRepo
+	if instinctGlobalErr == nil {
+		contextBuilder.InstinctGlobal = instinctGlobal
+	}
+	contextBuilder.ExpandSettings = persistence.NewSettingsRepository()
 	contextBuilder.Graph = codeGraphRepo
 	contextBuilder.Files = codeGraphRepo
 	// Resolución por clave de tópico (feature 021): habilita la sección de
@@ -234,10 +265,13 @@ func NewContainer(root, channel string) (*Container, error) {
 	}
 
 	c := &Container{
-		Root:     root,
-		Project:  project,
-		db:       db,
-		settings: settings,
+		Instincts:         instinctUC,
+		InstinctGlobalErr: instinctGlobalErr,
+		instinctGlobal:    instinctGlobal,
+		Root:              root,
+		Project:           project,
+		db:                db,
+		settings:          settings,
 
 		MemoryRepo:                   memRepo,
 		SessionRepo:                  sessRepo,
@@ -245,6 +279,10 @@ func NewContainer(root, channel string) (*Container, error) {
 		ReviewRepo:                   reviewRepo,
 		ConsensusRepo:                consensusRepo,
 		SettingsRepo:                 persistence.NewSettingsRepository(),
+		ExpandQueue:                  expandstate.NewQueue(filepath.Join(root, persistence.MemDir)),
+		ShieldState:                  expandstate.NewShieldState(filepath.Join(root, persistence.MemDir)),
+		RuleSource:                   rulesfs.New(),
+		AgentConfig:                  agentconfig.New(agentHome(), root),
 		ProjectRepo:                  persistence.NewProjectRepository(),
 		ContextBuilder:               contextBuilder,
 		DeliveryLog:                  persistence.NewDeliveryLogRepository(db, project),
@@ -280,12 +318,14 @@ func NewContainer(root, channel string) (*Container, error) {
 	if dataHome, err := persistence.DataHome(); err == nil {
 		store := persistence.NewPrivacyMaintenanceStore(db)
 		c.Sanitizer = &usecases.SanitizeProject{
-			Repo:      store,
-			UoW:       store,
-			Artifacts: persistence.NewPrivacyArtifacts(dataHome, project, filepath.Join(root, persistence.MemDir, "context.md")),
-			Context:   contextBuilder,
-			Clock:     clock.SystemClock{},
-			NewRunID:  newSanitizeRunID,
+			InstinctQueue:  c.ExpandQueue,
+			InstinctGlobal: instinctGlobalPort,
+			Repo:           store,
+			UoW:            store,
+			Artifacts:      persistence.NewPrivacyArtifacts(dataHome, project, filepath.Join(root, persistence.MemDir, "context.md")),
+			Context:        contextBuilder,
+			Clock:          clock.SystemClock{},
+			NewRunID:       newSanitizeRunID,
 		}
 	}
 	if settings.AdrSyncEnabled {
@@ -295,11 +335,24 @@ func NewContainer(root, channel string) (*Container, error) {
 	return c, nil
 }
 
+// openInstinctGlobal abre instincts.db en el directorio de datos del usuario.
+func openInstinctGlobal() (*persistence.InstinctGlobalStore, error) {
+	dataHome, err := persistence.DataHome()
+	if err != nil {
+		return nil, err
+	}
+	return persistence.OpenInstinctGlobal(dataHome)
+}
+
 func (c *Container) Close() error {
 	if c.db == nil {
 		return nil
 	}
-	return c.db.Close()
+	var globalErr error
+	if c.instinctGlobal != nil {
+		globalErr = c.instinctGlobal.Close()
+	}
+	return errors.Join(c.db.Close(), globalErr)
 }
 
 // socraticaGenerators builds the ordered list from socratica_generators
@@ -367,6 +420,12 @@ func (c *Container) ToDeps() *cli.Deps {
 		SessionMemories:       c.SessionMemories,
 		CompactContextBuilder: c.CompactContextBuilder,
 		Sanitizer:             c.Sanitizer,
+		ExpandQueue:           c.ExpandQueue,
+		ShieldState:           c.ShieldState,
+		RuleSource:            c.RuleSource,
+		AgentConfig:           c.AgentConfig,
+		Instincts:             c.Instincts,
+		InstinctGlobalErr:     c.InstinctGlobalErr,
 	}
 }
 
@@ -423,3 +482,5 @@ func newSanitizeRunID() string {
 	_, _ = rand.Read(b[:])
 	return time.Now().UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b[:])
 }
+
+func agentHome() string { home, _ := os.UserHomeDir(); return home }

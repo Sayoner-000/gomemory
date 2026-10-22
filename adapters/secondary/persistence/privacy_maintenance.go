@@ -47,6 +47,21 @@ func readSanitizeCandidates(ctx context.Context, q queryer, project string) ([]d
 	add := func(cat domain.SanitizeCategory, field, id, text string) {
 		out = append(out, domain.SanitizeCandidate{Category: cat, RecordID: id, Project: project, Field: field, Text: text})
 	}
+	if err := scanRows(ctx, q, `SELECT slug,description FROM instinct_stats WHERE project=?`, project, func(r *sql.Rows) error {
+		var slug, text string
+		if err := r.Scan(&slug, &text); err != nil {
+			return err
+		}
+		if domain.NeedsSanitize(text) {
+			add(domain.SanitizeCategory("instinct_stats"), "description", slug, text)
+		}
+		if domain.ProtectObservationKey(slug) != slug {
+			add(domain.SanitizeCategory("instinct_stats_slug"), "slug", slug, slug)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 
 	err := scanRows(ctx, q, `SELECT id, COALESCE(summary,''), COALESCE(last_prompt,'') FROM sessions WHERE project = ?`, project, func(r *sql.Rows) error {
 		var id, text, prompt string
@@ -317,6 +332,10 @@ func (t *privacyTx) Apply(ctx context.Context, c domain.SanitizeCandidate, text 
 	var res sql.Result
 	var err error
 	switch c.Category {
+	case domain.SanitizeCategory("instinct_stats_slug"):
+		return renameInstinctSlug(ctx, t.tx, c.Project, c.RecordID, domain.ProtectObservationKey(c.RecordID))
+	case domain.SanitizeCategory("instinct_stats"):
+		res, err = t.tx.ExecContext(ctx, `UPDATE instinct_stats SET description=? WHERE project=? AND slug=? AND description=?`, text, c.Project, c.RecordID, c.Text)
 	case domain.SanitizeSession:
 		res, err = t.tx.ExecContext(ctx,
 			`UPDATE sessions SET summary = ? WHERE id = ? AND project = ? AND COALESCE(summary,'') = ?`,
@@ -401,4 +420,39 @@ func classifySQLite(err error) error {
 		return domain.NewSanitizeError(domain.SanitizeCodeBusy, err)
 	}
 	return err
+}
+
+// renameInstinctSlug sustituye un slug que contiene una credencial por su
+// forma protegida. Si ya existe una fila con ese slug, ambas se fusionan:
+// se suman observaciones y correcciones, se conservan las fechas extremas y
+// el estado de la fila destino, y se recalcula la confianza (B-001).
+func renameInstinctSlug(ctx context.Context, tx *sql.Tx, project, from, to string) (bool, error) {
+	if from == to {
+		return false, nil
+	}
+	var obs, corr int
+	var first, last string
+	err := tx.QueryRowContext(ctx, `SELECT observations,corrections,first_seen,last_seen FROM instinct_stats WHERE project=? AND slug=?`, project, from).Scan(&obs, &corr, &first, &last)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var tObs, tCorr int
+	err = tx.QueryRowContext(ctx, `SELECT observations,corrections FROM instinct_stats WHERE project=? AND slug=?`, project, to).Scan(&tObs, &tCorr)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		_, err = tx.ExecContext(ctx, `UPDATE instinct_stats SET slug=? WHERE project=? AND slug=?`, to, project, from)
+		return err == nil, err
+	case err != nil:
+		return false, err
+	}
+	total, corrections := tObs+obs, tCorr+corr
+	if _, err := tx.ExecContext(ctx, `UPDATE instinct_stats SET observations=?,corrections=?,confidence=?,first_seen=MIN(first_seen,?),last_seen=MAX(last_seen,?) WHERE project=? AND slug=?`,
+		total, corrections, domain.InstinctConfidence(total, corrections), first, last, project, to); err != nil {
+		return false, err
+	}
+	_, err = tx.ExecContext(ctx, `DELETE FROM instinct_stats WHERE project=? AND slug=?`, project, from)
+	return err == nil, err
 }

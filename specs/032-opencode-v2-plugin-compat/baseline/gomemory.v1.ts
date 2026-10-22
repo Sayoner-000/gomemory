@@ -1,6 +1,8 @@
 // Referencia actualizada a conciencia en la feature 039 (T059): chat.message
 // aplica la decisión de `mem hook socratica-decide`; con la intercepción
 // apagada (valor por defecto) el mensaje llega igual que antes.
+// Actualizada también en la feature 040 (A-002 del ACR): session.idle envía a
+// `mem hook expand stop` el texto de la última respuesta del asistente.
 // gomemory — plugin de OpenCode (API real @opencode-ai/plugin).
 //
 // `import type` se borra en runtime: el plugin no tiene dependencias de módulo,
@@ -53,6 +55,25 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     } catch {
       return "";
     }
+  };
+
+  // mem expand (feature 040): una sola entrada por evento; la decisión vive
+  // entera en Go (`mem hook expand <evento> --emit=text`). La salida es vacía
+  // (permitir), `BLOCK: <motivo>` o texto de contexto. Un fallo del proceso
+  // devuelve "" y por tanto permite: el plugin nunca bloquea por su cuenta.
+  const expand = (event: string, payload: Record<string, unknown>): Promise<string> =>
+    memWithStdin(["hook", "expand", event, "--emit=text"], JSON.stringify(payload));
+  const EXPAND_BLOCK = "BLOCK: ";
+
+  // Contexto de expand pendiente de entregarse en el próximo system.transform
+  // de la sesión: los eventos de sesión y de herramienta no pueden inyectar
+  // texto en el mismo turno (excepción de paridad declarada en docs/expand.md).
+  const pendingExpand = new Map<string, string[]>();
+  const queueExpand = (sessionID: string | undefined, text: string) => {
+    if (!sessionID || !text) return;
+    const list = pendingExpand.get(sessionID) ?? [];
+    list.push(text.startsWith(EXPAND_BLOCK) ? text.slice(EXPAND_BLOCK.length) : text);
+    pendingExpand.set(sessionID, list);
   };
 
   // Ajuste tool_output_compression (feature 033), leído una vez por proceso.
@@ -138,6 +159,25 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     }
   };
 
+  // Texto de la última respuesta del asistente, para que las reglas stop de
+  // expand tengan sobre qué evaluar (A-002): session.idle solo trae el id.
+  // Mejor esfuerzo: sin mensajes, viaja vacío y ninguna regla coincide.
+  const lastAssistantText = async (sessionID: string): Promise<string> => {
+    try {
+      const res = await client.session.messages({ path: { id: sessionID } });
+      const messages: Array<{ info: any; parts: any[] }> = (res as any)?.data ?? [];
+      const last = [...messages].reverse().find((m) => m.info?.role === "assistant");
+      return (last?.parts ?? [])
+        .filter((p: any) => p.type === "text")
+        .map((p: any) => p.text ?? "")
+        .join("\n")
+        .trim()
+        .slice(-16384);
+    } catch {
+      return "";
+    }
+  };
+
   return {
     // Arranca una sesión de gomemory cuando OpenCode crea una sesión nueva;
     // dispara el checkpoint de turno cuando la sesión queda idle.
@@ -148,14 +188,21 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         // (feature 035, FR-017) y un aviso pendiente nunca cruza de una a otra.
         const conversationID = (event as any).properties?.info?.id ?? "";
         await mem(["session", "start", `--conversation=${conversationID}`]);
+        queueExpand(conversationID, await expand("session-start", { source: "startup", session_id: conversationID }));
       }
       if (event.type === "session.deleted") {
         const sessionID = event.properties.info.id;
         lastCheckpointedMessage.delete(sessionID);
         pendingRecovery.delete(sessionID);
+        pendingExpand.delete(sessionID);
       }
       if (event.type === "session.idle") {
         await handleTurnEnd(event.properties.sessionID);
+        // OpenCode no puede impedir el fin de turno: un bloqueo en stop llega
+        // como aviso en el turno siguiente (excepción de paridad declarada).
+        const sessionID = event.properties.sessionID;
+        const lastMessage = await lastAssistantText(sessionID);
+        queueExpand(sessionID, await expand("stop", { session_id: sessionID, last_assistant_message: lastMessage }));
       }
       // Feature 030 (US1/US2): DESPUÉS de compactar (no antes — esta base de
       // código llamaba post-compact desde session.compacting por error, lo
@@ -197,6 +244,8 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
           // Cada recuperación es una instantánea completa: la más reciente reemplaza la anterior.
           pendingRecovery.set(sessionID, recovery);
         }
+        // source "compact" reinicia el contador y el episodio de expand.
+        queueExpand(sessionID, await expand("session-start", { source: "compact", session_id: sessionID }));
       }
     },
 
@@ -204,6 +253,7 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     dispose: async () => {
       lastCheckpointedMessage.clear();
       pendingRecovery.clear();
+      pendingExpand.clear();
       await mem(["session", "end"]);
     },
 
@@ -220,6 +270,15 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         .join("\n")
         .trim();
       if (prompt.length === 0) return;
+      // Reglas de expand (feature 040) sobre el texto original. Un bloqueo
+      // sustituye el mensaje por el motivo, por el mismo mecanismo con que
+      // Socratica reescribe el texto: el prompt original no llega al modelo.
+      const expandOut = await expand("prompt", { prompt, session_id: (_input as any)?.sessionID ?? "" });
+      if (expandOut.startsWith(EXPAND_BLOCK) && textParts.length > 0) {
+        textParts[0].text = `[gomemory expand] Una regla detuvo el prompt de la persona y NO se envió. Motivo: ${expandOut.slice(EXPAND_BLOCK.length)} No ejecutes ninguna herramienta ni investigues: responde solo con una línea que diga que el prompt se detuvo y su motivo.`;
+        output.parts = parts.filter((p: any) => p.type !== "text" || p === textParts[0]);
+        return;
+      }
       // Socratica (feature 039, US6): la decisión vive entera en Go; aquí solo
       // se aplica. Una respuesta ausente o inválida no cambia el mensaje.
       const attachments = parts.some((p: any) => p.type === "file" || p.type === "image");
@@ -238,6 +297,12 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         parts.unshift({ ...first, id: first.id ? `${first.id}-socratica` : undefined, text: decision.directive, synthetic: true });
         output.parts = parts;
       }
+      if (expandOut && textParts.length > 0) {
+        const first = textParts[0];
+        const all: any[] = output.parts ?? parts;
+        all.unshift({ ...first, id: first.id ? `${first.id}-expand` : undefined, text: expandOut, synthetic: true });
+        output.parts = all;
+      }
       await memWithStdin(["hook", "prompt"], JSON.stringify({ prompt }));
     },
 
@@ -255,6 +320,11 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         if (recovery) {
           output.system.push(recovery);
           pendingRecovery.delete(sessionID);
+        }
+        const expandNotes = pendingExpand.get(sessionID);
+        if (expandNotes?.length) {
+          output.system.push(expandNotes.join("\n"));
+          pendingExpand.delete(sessionID);
         }
       }
       // Deja rastro de que este canal se ejerció. Sin él, un renombre de la
@@ -313,6 +383,10 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // "task" está definido en packages/opencode/src/tool/task.ts del upstream.
     // La validación interactiva de extremo a extremo sigue en quickstart.md Q0.
     "tool.execute.after": async (input, output) => {
+      // Observación de instincts (feature 040): sin salida, sin esperar.
+      if (input.tool === "bash") {
+        void expand("post-tool", { tool: input.tool, args: (input as any)?.args ?? {}, session_id: input.sessionID });
+      }
       // Compresión de salidas de herramientas (feature 033, opt-in). El ajuste
       // se consulta una sola vez por proceso: con el ajuste apagado no se
       // lanza ningún proceso por herramienta. read/edit/write y las tools de
@@ -358,6 +432,19 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // marcadores y garantiza una sesión activa, efectos que deben ocurrir
     // DESPUÉS de que la compactación exista (ver session.compacted arriba),
     // no antes.
+    // Reglas de expand antes de ejecutar una herramienta (feature 040). Lanzar
+    // un Error es como OpenCode deniega la herramienta; el motivo llega al
+    // modelo. El filtrado por tipo de herramienta lo hace Go. Un aviso o una
+    // sugerencia no puede inyectarse en esta misma herramienta: se entrega en
+    // el próximo system.transform (excepción de paridad declarada).
+    "tool.execute.before": async (input, output) => {
+      const res = await expand("pre-tool", { tool: input.tool, args: output?.args ?? {}, session_id: input.sessionID });
+      if (res.startsWith(EXPAND_BLOCK)) {
+        throw new Error(res.slice(EXPAND_BLOCK.length));
+      }
+      queueExpand(input.sessionID, res);
+    },
+
     "experimental.session.compacting": async (_input, output) => {
       const compaction = await mem(["hook", "compaction-context"]);
       if (compaction) {

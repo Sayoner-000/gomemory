@@ -59,6 +59,20 @@ var codexGomemoryHooks = []CodexHook{
 	// quickstart.md, Q0). Emit=json: SubagentStop exige salida JSON válida
 	// aunque no haya nada que inyectar al modelo.
 	{Event: "SubagentStop", Sub: "subagent-stop", Emit: "json"},
+	// mem expand (feature 040). Añadidas AL FINAL por el mismo motivo que
+	// SubagentStop. SessionStart, UserPromptSubmit y Stop son eventos que esta
+	// tabla ya verificó en sesión interactiva; si bloquean en prompt y stop se
+	// verifica de extremo a extremo en T032.
+	{Event: "SessionStart", Matcher: "startup|resume|clear|compact", Sub: "expand session-start", Emit: "json"},
+	{Event: "UserPromptSubmit", Sub: "expand prompt", Emit: "json"},
+	// PreToolUse y PostToolUse verificados en sesión interactiva real con
+	// codex-cli 0.163.0 el 2026-10-21 (specs/040-expand-supertools/evidence/
+	// codex-probe.md): disparan con Bash, apply_patch y
+	// collaborationspawn_agent, y la respuesta hookSpecificOutput con
+	// permissionDecision "deny" bloquea Bash y apply_patch.
+	{Event: "PreToolUse", Matcher: "Bash|apply_patch|collaborationspawn_agent", Sub: "expand pre-tool", Emit: "json"},
+	{Event: "PostToolUse", Matcher: "Bash", Sub: "expand post-tool", Emit: "json"},
+	{Event: "Stop", Sub: "expand stop", Emit: "json"},
 }
 
 // CodexGomemoryHooks expone la tabla para quien tenga que escribirla. Vive en
@@ -104,7 +118,11 @@ func CodexGlobalRegistrationExists() bool {
 // la tabla, para que el diagnóstico compruebe EL MISMO artefacto que el
 // instalador escribe: mientras esta correspondencia vivió solo en un comentario,
 // el inspector no supo qué mirar y reportó el canal como desconocido.
-func (h CodexHook) SostieneEntradaDePlan() bool { return h.Event == "UserPromptSubmit" }
+// Solo el de inyección por turno: `expand prompt` (feature 040) también va en
+// UserPromptSubmit, pero no sostiene la entrada al modo plan.
+func (h CodexHook) SostieneEntradaDePlan() bool {
+	return h.Event == "UserPromptSubmit" && h.Sub == "user-prompt-submit"
+}
 
 // CodexPlanEntryHook devuelve el hook que sostiene la entrada al modo plan.
 // ok=false significa que la tabla dejó de declararlo: el diagnóstico lo reporta
@@ -236,7 +254,7 @@ func CodexHookPresente(hooks map[string]any, h CodexHook) bool {
 				continue
 			}
 			cmd, _ := accion["command"].(string)
-			if !strings.Contains(cmd, "hook "+h.Sub) {
+			if GomemoryHookIndex(cmd, h.Sub) < 0 {
 				continue
 			}
 			if h.Emit == "" && !strings.Contains(cmd, "--emit") {

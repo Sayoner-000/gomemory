@@ -23,6 +23,15 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Archivos sin gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
       - name: go vet
         run: go vet ./...
 

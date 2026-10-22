@@ -136,7 +136,7 @@ func TestInstallMensajeFinal(t *testing.T) {
 // respaldo de archivos legados se conserva y el hook incompatible de Codex
 // sigue declarado solo para su retirada.
 func TestInstall038_BloqueV9SinAgentsYRetiradaCodex(t *testing.T) {
-	if domain.ProtocolVersionMarker != "<!-- gomemory-protocol-v9 -->" {
+	if domain.ProtocolVersionMarker != "<!-- gomemory-protocol-v10 -->" {
 		t.Fatalf("ProtocolVersionMarker = %q, se esperaba la v9", domain.ProtocolVersionMarker)
 	}
 	retirado := setup.CodexToolOutputHook.Sub

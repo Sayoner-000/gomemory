@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -99,9 +100,12 @@ func displayTitle(m domain.Memory) string {
 }
 
 type Builder struct {
-	Lister    ports.MemoryLister
-	Session   ports.SessionQuerier
-	Relations ports.RelationLister
+	Instincts      ports.InstinctRepository
+	InstinctGlobal ports.InstinctGlobalRepository
+	ExpandSettings ports.SettingsRepository
+	Lister         ports.MemoryLister
+	Session        ports.SessionQuerier
+	Relations      ports.RelationLister
 	// Graph es opcional: si está seteado (ver infrastructure/container.go) y
 	// el proyecto tiene código indexado, Build() agrega un resumen del grafo.
 	// nil-checked para no romper wiring/tests existentes que no lo setean.
@@ -435,6 +439,7 @@ func (b *Builder) build() (string, error) {
 		sb.WriteString("\n")
 	}
 
+	b.writeInstincts(&sb)
 	if arch, ok := byType[domain.Architecture]; ok && b.fits(&sb, 40) {
 		sb.WriteString("## Decisiones de Arquitectura\n\n")
 		for i, m := range arch {
@@ -879,4 +884,31 @@ func (b *Builder) WriteFile() error {
 	}
 	path := filepath.Join(b.Root, memDir, "context.md")
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+func (b *Builder) writeInstincts(sb *strings.Builder) {
+	if b.ExpandSettings != nil {
+		s := b.ExpandSettings.Read(b.Root)
+		if s.ExpandDisabled {
+			return
+		}
+		for _, off := range s.ExpandOff {
+			if off == "instincts" {
+				return
+			}
+		}
+	}
+	list, err := InstinctContext(context.Background(), b.Instincts, b.InstinctGlobal)
+	if err != nil || len(list) == 0 {
+		return
+	}
+	sb.WriteString("## Instincts\n\n")
+	for _, i := range list {
+		line := fmt.Sprintf("- **%s**: %s (%.1f, %s)\n", i.Slug, i.Description, i.Confidence, i.Scope)
+		if !b.fits(sb, len(line)) {
+			break
+		}
+		sb.WriteString(line)
+	}
+	sb.WriteString("\n")
 }

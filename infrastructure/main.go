@@ -7,12 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/primary/setup"
 	"mem/adapters/primary/tui"
+	"mem/adapters/secondary/agentconfig"
 	"mem/adapters/secondary/codegraph"
+	"mem/adapters/secondary/expandstate"
 	"mem/adapters/secondary/persistence"
+	"mem/adapters/secondary/rulesfs"
 	"mem/domain"
 )
 
@@ -110,6 +114,18 @@ func main() {
 		os.Exit(0)
 	}
 
+	// hook expand (feature 040, research R5): corre antes de cada herramienta,
+	// así que arranca sin abrir la base. Solo la abre, de forma perezosa,
+	// cuando tiene algo que registrar o que plegar.
+	if len(os.Args) >= 3 && os.Args[1] == "hook" && os.Args[2] == "expand" {
+		root, err := persistence.FindRoot()
+		if err != nil {
+			os.Exit(0)
+		}
+		cli.Run("hook", os.Args[2:], expandHookDeps(root))
+		return
+	}
+
 	if len(os.Args) >= 2 && rootIndependentCommands[os.Args[1]] {
 		cli.Run(os.Args[1], os.Args[2:], bootstrapDeps())
 		return
@@ -150,6 +166,42 @@ func main() {
 	defer closeContainer(container)
 
 	cli.Run(os.Args[1], os.Args[2:], container.ToDeps())
+}
+
+// expandHookDeps construye las dependencias de la ruta ligera de
+// `mem hook expand`: todo lo que vive en archivos, más ExpandFull para abrir
+// el container completo solo si hace falta. El proceso del hook termina con
+// os.Exit, que cierra la base al salir.
+func expandHookDeps(root string) *cli.Deps {
+	deps := bootstrapDeps()
+	memDir := filepath.Join(root, persistence.MemDir)
+	deps.Root = root
+	deps.Project = persistence.ProjectKey(root)
+	deps.ExpandQueue = expandstate.NewQueue(memDir)
+	deps.ShieldState = expandstate.NewShieldState(memDir)
+	deps.RuleSource = rulesfs.New()
+	deps.AgentConfig = agentconfig.New(agentHome(), root)
+	// El plegado diferido puede seguir vivo en su goroutine cuando el
+	// registrador lo pide: la apertura se hace una sola vez y bajo candado.
+	var (
+		mu      sync.Mutex
+		full    *cli.Deps
+		fullErr error
+	)
+	deps.ExpandFull = func() (*cli.Deps, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if full == nil && fullErr == nil {
+			c, err := NewContainer(root, "hook")
+			if err != nil {
+				fullErr = err
+			} else {
+				full = c.ToDeps()
+			}
+		}
+		return full, fullErr
+	}
+	return deps
 }
 
 // closeContainer cierra la base de datos y deja constancia en stderr si falla:

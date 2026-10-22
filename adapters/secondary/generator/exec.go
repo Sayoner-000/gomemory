@@ -65,8 +65,12 @@ func (g *cliGenerator) run(ctx context.Context, prompt string) (domain.Generatio
 		if ctx.Err() != nil {
 			return domain.GenerationResult{}, fmt.Errorf("%s: %w (%s)", g.name, domain.ErrGenerationTimeout, g.timeout)
 		}
-		if g.parse != nil && stderr.Len() == 0 {
-			if _, parseErr := g.parse(stdout.Bytes()); parseErr != nil && !errors.Is(parseErr, domain.ErrInvalidGeneration) {
+		if stderr.Len() == 0 {
+			parse := g.parse
+			if parse == nil {
+				parse = parseOutput
+			}
+			if _, parseErr := parse(stdout.Bytes()); parseErr != nil && !errors.Is(parseErr, domain.ErrInvalidGeneration) {
 				return domain.GenerationResult{}, fmt.Errorf("%s: %w: %v", g.name, err, parseErr)
 			}
 		}

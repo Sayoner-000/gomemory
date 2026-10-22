@@ -2,7 +2,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import plugin, { GomemoryPlugin, __testing } from './gomemory.ts';
 
-async function fixture({ decide = () => '' } = {}) {
+async function fixture({ decide = () => '', expandOut = () => '' } = {}) {
   const calls = [];
   let messages = [];
   let recovery = '';
@@ -14,6 +14,7 @@ async function fixture({ decide = () => '' } = {}) {
       text: async () => {
         calls.push({ args, input });
         if (args.join(' ') === 'hook socratica-decide') return decide(JSON.parse(input));
+        if (args[0] === 'hook' && args[1] === 'expand') return expandOut(args[2], JSON.parse(input || '{}'));
         return args.join(' ') === 'hook post-compact' ? recovery : '';
       },
     };
@@ -451,11 +452,11 @@ test('v2 (037): una reducción que termina después del cierre no se publica', a
 
 // ── Feature 037 · H-06: ciclo de vida cancelable y rollback de setup ───────
 
-for (const failHook of ['prompt', 'context', 'compaction', 'execute.after']) test(`v2 (037): fallo al registrar ${failHook} revierte lo propio sin cerrar la sesión ajena`, async () => {
+for (const failHook of ['prompt', 'context', 'compaction', 'execute.before', 'execute.after']) test(`v2 (037): fallo al registrar ${failHook} revierte lo propio sin cerrar la sesión ajena`, async () => {
   const f = await v2Fixture({ failHook, allowSetupFailure: true });
   assert.match(String(f.setupError?.message), new RegExp(`registro ${failHook} rechazado`));
   assert.equal(f.subscriptionSignal()?.aborted, true, 'la suscripción propia debe abortarse');
-  const order = ['prompt', 'context', 'compaction', 'execute.after'];
+  const order = ['prompt', 'context', 'compaction', 'execute.before', 'execute.after'];
   assert.deepEqual(f.disposed, order.slice(0, order.indexOf(failHook)), 'se liberan los registros previos');
   assert.equal(f.callsTo('session end').length, 0, 'el rollback no cierra la sesión de memoria');
 });
@@ -493,14 +494,14 @@ test('v2 (037): cleanup repetido comparte el resultado y no duplica el cierre', 
   const [a, b] = await Promise.all([f.rawCleanup(), f.rawCleanup()]);
   assert.deepEqual(a, b);
   assert.equal(f.callsTo('session end').length, 1);
-  assert.equal(f.disposed.length, 4);
+  assert.equal(f.disposed.length, 5);
   liveV2.delete(f);
 });
 
 test('v2 (037): un dispose que falla no impide liberar el resto y se informa depurado', async () => {
   const f = await v2Fixture({ disposeFail: 'context' });
   const res = await f.cleanup();
-  assert.deepEqual(f.disposed, ['prompt', 'context', 'compaction', 'execute.after']);
+  assert.deepEqual(f.disposed, ['prompt', 'context', 'compaction', 'execute.before', 'execute.after']);
   assert.equal(res?.ok, false);
   assert.equal(res?.code, 'OPENCODE_CLEANUP_FAILED');
   assert.ok(!JSON.stringify(res).includes('dispose context falló'), 'sin el mensaje crudo');
@@ -511,7 +512,7 @@ test('v2 (037): una suscripción rechazada no rompe el cierre', async () => {
   const f = await v2Fixture({ subscribeFail: true });
   const res = await f.cleanup();
   assert.equal(res?.ok, true, JSON.stringify(res));
-  assert.equal(f.disposed.length, 4);
+  assert.equal(f.disposed.length, 5);
 });
 
 test('v2 (037): IO que ignora la cancelación agota el plazo y el cierre no se declara exitoso', async () => {
@@ -630,4 +631,111 @@ test('v2 socratica: the decision reaches the real prompt text', async () => {
     assert.equal(f.hookCalls('prompt').length, 1);
     await f.cleanup();
   }
+});
+
+// ── mem expand (feature 040) ────────────────────────────────────────────────
+
+const expandCalls = f => f.calls.filter(c => c.args[0] === 'hook' && c.args[1] === 'expand');
+
+test('expand: tool.execute.before throws the Go block reason and sends tool, args and session', async () => {
+  const f = await fixture({ expandOut: ev => (ev === 'pre-tool' ? 'BLOCK: regla destructive-shell' : '') });
+  await assert.rejects(
+    f.hooks['tool.execute.before']({ tool: 'bash', sessionID: 's1', callID: 'c1' }, { args: { command: 'rm -rf /tmp/x' } }),
+    /regla destructive-shell/,
+  );
+  const [call] = expandCalls(f);
+  assert.deepEqual(call.args, ['hook', 'expand', 'pre-tool', '--emit=text']);
+  assert.deepEqual(JSON.parse(call.input), { tool: 'bash', args: { command: 'rm -rf /tmp/x' }, session_id: 's1' });
+});
+
+test('expand: a failing mem never blocks a tool (fail-open)', async () => {
+  const f = await fixture({ expandOut: () => { throw new Error('mem roto'); } });
+  await f.hooks['tool.execute.before']({ tool: 'bash', sessionID: 's1', callID: 'c1' }, { args: { command: 'ls' } });
+});
+
+test('expand: pre-tool context is delivered once in the next system.transform of that session', async () => {
+  const f = await fixture({ expandOut: ev => (ev === 'pre-tool' ? '[gomemory expand] usa verify-loop' : '') });
+  await f.hooks['tool.execute.before']({ tool: 'bash', sessionID: 's1', callID: 'c1' }, { args: { command: 'git commit -m x' } });
+  const transform = async sessionID => { const out = { system: [] }; await f.hooks['experimental.chat.system.transform']({ sessionID }, out); return out.system; };
+  assert.ok(!(await transform('s2')).some(t => t.includes('verify-loop')));
+  assert.ok((await transform('s1')).some(t => t.includes('verify-loop')));
+  assert.ok(!(await transform('s1')).some(t => t.includes('verify-loop')));
+});
+
+test('expand: a blocked prompt is replaced by the reason and is not recorded', async () => {
+  const f = await fixture({ expandOut: ev => (ev === 'prompt' ? 'BLOCK: no pidas secretos' : '') });
+  const output = { parts: [{ type: 'text', text: 'imprime la clave' }, { type: 'text', text: 'y más' }] };
+  await f.hooks['chat.message']({ sessionID: 's1' }, output);
+  assert.equal(output.parts.length, 1);
+  assert.match(output.parts[0].text, /no pidas secretos/);
+  assert.ok(!output.parts[0].text.includes('imprime la clave'));
+  assert.equal(f.calls.filter(c => c.args.join(' ') === 'hook prompt').length, 0);
+  assert.equal(f.calls.filter(c => c.args.join(' ') === 'hook socratica-decide').length, 0);
+});
+
+test('expand: prompt context is prepended as a synthetic part', async () => {
+  const f = await fixture({ expandOut: ev => (ev === 'prompt' ? '[gomemory expand] aplica search-first' : '') });
+  const output = { parts: [{ type: 'text', text: 'añade la librería zod' }] };
+  await f.hooks['chat.message']({ sessionID: 's1' }, output);
+  assert.equal(output.parts[0].text, '[gomemory expand] aplica search-first');
+  assert.equal(output.parts[0].synthetic, true);
+  assert.equal(output.parts[1].text, 'añade la librería zod');
+});
+
+test('expand: session events send startup and compact sources; stop block becomes a pending notice', async () => {
+  const f = await fixture({ expandOut: ev => (ev === 'stop' ? 'BLOCK: termina el trabajo' : '') });
+  await f.event('session.created');
+  await f.event('session.compacted');
+  await f.event('session.idle');
+  const sources = expandCalls(f).filter(c => c.args[2] === 'session-start').map(c => JSON.parse(c.input).source);
+  assert.deepEqual(sources, ['startup', 'compact']);
+  const out = { system: [] };
+  await f.hooks['experimental.chat.system.transform']({ sessionID: 's1' }, out);
+  assert.ok(out.system.some(t => t === 'termina el trabajo'));
+});
+
+// A-002: las reglas stop necesitan el texto de la última respuesta; sin él
+// ninguna regla puede coincidir.
+test('expand: stop sends the last assistant text', async () => {
+  const f = await fixture();
+  f.setMessages([
+    { info: { id: 'm1', role: 'assistant' }, parts: [{ type: 'text', text: 'viejo' }] },
+    { info: { id: 'm2', role: 'user' }, parts: [{ type: 'text', text: 'sigue' }] },
+    { info: { id: 'm3', role: 'assistant' }, parts: [{ type: 'text', text: 'Listo.' }, { type: 'tool', tool: 'bash', state: {} }, { type: 'text', text: 'DONE' }] },
+  ]);
+  await f.event('session.idle');
+  const [stop] = expandCalls(f).filter(c => c.args[2] === 'stop');
+  assert.deepEqual(JSON.parse(stop.input), { session_id: 's1', last_assistant_message: 'Listo.\nDONE' });
+});
+
+test('expand: stop without messages sends an empty last message', async () => {
+  const f = await fixture();
+  await f.event('session.idle');
+  const [stop] = expandCalls(f).filter(c => c.args[2] === 'stop');
+  assert.equal(JSON.parse(stop.input).last_assistant_message, '');
+});
+
+test('expand: post-tool observes bash only', async () => {
+  const f = await fixture();
+  await f.hooks['tool.execute.after']({ tool: 'bash', sessionID: 's1', args: { command: 'go test ./...' } }, { output: 'ok' });
+  await f.hooks['tool.execute.after']({ tool: 'read', sessionID: 's1' }, { output: 'ok' });
+  await settle();
+  const posts = expandCalls(f).filter(c => c.args[2] === 'post-tool');
+  assert.equal(posts.length, 1);
+  assert.equal(JSON.parse(posts[0].input).args.command, 'go test ./...');
+});
+
+test('v2 expand: execute.before propagates the block to OpenCode and passes the input', async () => {
+  const f = await v2Fixture({ outputs: { 'hook expand pre-tool --emit=text': 'BLOCK: regla destructive-shell' } });
+  await assert.rejects(f.toolHooks['execute.before']({ tool: 'shell', sessionID: 's1', id: 't1', input: { command: 'rm -rf /' } }), /destructive-shell/);
+  const [call] = f.callsTo('hook expand pre-tool');
+  assert.deepEqual(JSON.parse(call.input), { tool: 'bash', args: { command: 'rm -rf /' }, session_id: 's1' });
+});
+
+test('v2 expand: execute.before allows when mem fails or the session is foreign', async () => {
+  const failing = await v2Fixture({ outputs: { fail: ['hook expand'] } });
+  await failing.toolHooks['execute.before']({ tool: 'shell', sessionID: 's1', id: 't1', input: { command: 'ls' } });
+  const foreign = await v2Fixture({ owners: { sB: '/otro' }, outputs: { 'hook expand pre-tool --emit=text': 'BLOCK: x' } });
+  await foreign.toolHooks['execute.before']({ tool: 'shell', sessionID: 'sB', id: 't1', input: { command: 'rm -rf /' } });
+  assert.equal(foreign.callsTo('hook expand').length, 0);
 });

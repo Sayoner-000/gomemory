@@ -11,7 +11,7 @@ Socratica convierte un prompt en bruto en uno fiel y ejecutable, o examina una p
 
 La invocación exacta depende del agente (habilidad nativa, comando con nombre o `$socratica` en Codex). La tabla vigente está en la [matriz de compatibilidad](../specs/039-socratica-prompt-refinement/contracts/compatibility-matrix.md). Si un agente no reconoce el comando, pídelo en lenguaje natural («aplica socratica a: …»).
 
-La habilidad se instala en `~/.claude/skills/`, `~/.codex/skills/` y `~/.opencode/skills/` con `mem setup-mcp --scope global`, `mem install` (alcance global) y `mem update`, solo en los agentes que ya existen en tu equipo. También puedes copiarla a mano desde [`skills/socratica`](../skills/socratica/).
+La habilidad se instala en `~/.claude/skills/`, `~/.codex/skills/` y `~/.config/opencode/skills/` con `mem setup-mcp --scope global`, `mem install` (alcance global) y `mem update`, solo en los agentes que ya existen en tu equipo. También puedes copiarla a mano desde [`skills/socratica`](../skills/socratica/).
 
 Junto a la habilidad se escriben envoltorios de comando finos, que solo nombran la habilidad y el modo: `~/.claude/commands/socratic-q.md` (Claude ya expone `/socratica` como habilidad) y `~/.config/opencode/commands/socratica.md` y `socratic-q.md`. Codex no tiene un directorio de comandos verificado, así que no recibe ninguno. Igual que la habilidad, se escriben solo si existe el directorio del agente y el contenido ha cambiado.
 

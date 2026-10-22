@@ -18,9 +18,11 @@ import (
 // un rastro conservador que obliga a reintentar. Cada paso es idempotente,
 // así que reintentar repite la transformación sin restaurar nada crudo.
 type SanitizeProject struct {
-	Repo      ports.PrivacyMaintenanceRepository
-	UoW       ports.PrivacyMaintenanceUnitOfWork
-	Artifacts ports.PrivacyArtifactsPort
+	InstinctGlobal ports.InstinctGlobalRepository
+	InstinctQueue  ports.ObservationQueueRepository
+	Repo           ports.PrivacyMaintenanceRepository
+	UoW            ports.PrivacyMaintenanceUnitOfWork
+	Artifacts      ports.PrivacyArtifactsPort
 	// Context regenera .memory/context.md si contiene contenido protegido.
 	// Opcional: nil omite ese paso.
 	Context  ports.ContextBuilder
@@ -108,6 +110,26 @@ func (u *SanitizeProject) Apply(ctx context.Context, project string) (domain.San
 			"No se confirmó ningún cambio: corrige la causa y repite mem sanitize --apply.")
 	}
 	report.RowsChanged = changed
+	if u.InstinctGlobal != nil {
+		n, err := u.InstinctGlobal.Sanitize(ctx, domain.ProtectText)
+		if err != nil {
+			return u.leavePending(ctx, report, err, "Repite mem sanitize --apply para completar instincts globales.")
+		}
+		if n > 0 {
+			report.Categories = append(report.Categories, domain.SanitizeCategoryCount{Category: domain.SanitizeCategory("instinct_global"), AffectedCount: n})
+			report.RowsChanged += n
+		}
+	}
+	if u.InstinctQueue != nil {
+		n, err := u.InstinctQueue.Sanitize(ctx, domain.ProtectText)
+		if err != nil {
+			return u.leavePending(ctx, report, err, "Repite mem sanitize --apply para completar la cola de instincts.")
+		}
+		if n > 0 {
+			report.Categories = append(report.Categories, domain.SanitizeCategoryCount{Category: domain.SanitizeCategory("instinct_queue"), AffectedCount: n})
+			report.RowsChanged += n
+		}
+	}
 
 	if errs := u.cleanArtifacts(ctx, project, &report); errs != nil {
 		return u.leavePending(ctx, report, classifySanitize(errs, domain.SanitizeCodePendingCleanup),
@@ -153,12 +175,43 @@ func (u *SanitizeProject) candidates(ctx context.Context, project string) ([]dom
 	if err != nil {
 		return nil, err
 	}
+	external, err := u.instinctCandidates(ctx, project)
+	if err != nil {
+		return nil, err
+	}
+	cands = append(cands, external...)
 	for _, c := range cands {
 		if err := c.Validate(project); err != nil {
 			return nil, err
 		}
 	}
 	return cands, nil
+}
+
+func (u *SanitizeProject) instinctCandidates(ctx context.Context, project string) ([]domain.SanitizeCandidate, error) {
+	var out []domain.SanitizeCandidate
+	if u.InstinctGlobal != nil {
+		c, err := u.InstinctGlobal.SanitizeCandidates(ctx, project)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c...)
+	}
+	if u.InstinctQueue != nil {
+		batch, err := u.InstinctQueue.ReadBatch(ctx, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, obs := range batch {
+			if domain.NeedsSanitize(obs.Sample) {
+				out = append(out, domain.SanitizeCandidate{Category: domain.SanitizeCategory("instinct_queue"), RecordID: obs.ID, Project: project, Field: "sample", Text: obs.Sample})
+			}
+			if domain.ProtectObservationKey(obs.Key) != obs.Key {
+				out = append(out, domain.SanitizeCandidate{Category: domain.SanitizeCategory("instinct_queue_key"), RecordID: obs.ID, Project: project, Field: "key", Text: obs.Key})
+			}
+		}
+	}
+	return out, nil
 }
 
 // cleanArtifacts depura snapshots y regenera el contexto generado.
@@ -194,7 +247,7 @@ func (u *SanitizeProject) cleanArtifacts(ctx context.Context, project string, re
 // verify relee la base y los artefactos: solo se declara completed si no
 // queda nada escribible por sanear ni residuos en archivos controlados.
 func (u *SanitizeProject) verify(ctx context.Context, project string, report *domain.SanitizeReport) error {
-	left, err := u.Repo.Candidates(ctx, project)
+	left, err := u.candidates(ctx, project)
 	if err != nil {
 		return err
 	}

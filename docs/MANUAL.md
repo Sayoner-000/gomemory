@@ -1506,7 +1506,7 @@ sin aprobación explícita**; al cancelar se conserva el original intacto.
 
 | Dónde | Cómo |
 |---|---|
-| Dentro del agente | `/socratica <texto>` o `/socratic-q <texto>` (habilidad instalada en `~/.claude`, `~/.codex` y `~/.opencode/skills/` por `mem install` global, `mem setup-mcp --scope global` y `mem update`) |
+| Dentro del agente | `/socratica <texto>` o `/socratic-q <texto>` (habilidad instalada en `~/.claude/skills/`, `~/.codex/skills/` y `~/.config/opencode/skills/` por `mem install` global, `mem setup-mcp --scope global` y `mem update`) |
 | Terminal | `mem socratica refine [--mode refine\|scrutiny] [--client <agente>] [--print] [texto\|-]` |
 | TUI | Tecla `p` en la lista principal; `r` abre el selector de harness y después el prompt |
 | MCP | Herramienta única `socratica_flow` con campo `action`; exige `approve` y después `ack` antes de ejecutar |

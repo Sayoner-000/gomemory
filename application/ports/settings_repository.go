@@ -59,6 +59,14 @@ type SettingsData struct {
 	// forma de árbol, permitiendo siempre. Ausente/false = activada, mismo
 	// patrón opt-out que AtomicPlanDisabled.
 	PlanGuardDisabled bool `json:"plan_guard_disabled,omitempty"`
+	// ExpandDisabled es el interruptor de emergencia del módulo expand (feature
+	// 040): con true, `mem hook expand` permite siempre sin emitir nada.
+	// ExpandOff apaga supertools concretas (rules, shield, flow, instincts).
+	// ExpandCompactThreshold es el número de herramientas interceptadas tras el
+	// que se sugiere strategic-compact; fuera de 10–1000 se usa el default.
+	ExpandDisabled         bool     `json:"expand_disabled,omitempty"`
+	ExpandOff              []string `json:"expand_off,omitempty"`
+	ExpandCompactThreshold int      `json:"expand_compact_threshold,omitempty"`
 	// ContextDefaultBudget es el presupuesto de tokens por defecto para
 	// `mem pack build` cuando el ajuste se consulta programáticamente (el CLI
 	// exige --max-tokens explícito). Ausente/0 = default de fábrica; negativo

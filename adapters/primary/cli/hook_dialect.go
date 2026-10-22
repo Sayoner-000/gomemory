@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+
+	"mem/domain"
 )
 
 // hookDialect es la traducción de salida del contrato neutral
@@ -206,13 +208,94 @@ func renderPromptContext(d hookDialect, texto string) hookRenderedOutput {
 }
 
 func promptHookJSON(texto string) hookRenderedOutput {
+	return contextHookJSON("UserPromptSubmit", texto)
+}
+
+// contextHookJSON es el sobre hookSpecificOutput/additionalContext que
+// aceptan Claude Code y Codex para inyectar texto en el evento dado.
+func contextHookJSON(hookEventName, texto string) hookRenderedOutput {
 	out, _ := json.Marshal(map[string]any{
 		"hookSpecificOutput": map[string]any{
-			"hookEventName":     "UserPromptSubmit",
+			"hookEventName":     hookEventName,
 			"additionalContext": texto,
 		},
 	})
 	return hookRenderedOutput{stdout: string(out)}
+}
+
+// expandContextMaxRunes es el tope del texto que `mem hook expand` inyecta
+// por evento (contracts/hook-expand.md): las sugerencias son recordatorios
+// breves, no contexto que compita con el de la tarea.
+const expandContextMaxRunes = 600
+
+// expandHookEventNames traduce un evento de expand al nombre nativo que
+// esperan los sobres de Claude Code y Codex.
+var expandHookEventNames = map[domain.ExpandEvent]string{
+	domain.ExpandSessionStart: "SessionStart",
+	domain.ExpandPrompt:       "UserPromptSubmit",
+	domain.ExpandPreTool:      "PreToolUse",
+	domain.ExpandStop:         "Stop",
+}
+
+// renderExpandOutput traduce el resultado de `mem hook expand` al dialecto d
+// (feature 040, research R4). No toca renderGuardDecision: plan-guard sigue
+// con su contrato. Dos invariantes de seguridad:
+//   - post-tool es siempre silencioso (G2).
+//   - pre-tool nunca emite permissionDecision "allow" (G6): en Claude Code
+//     eso aprobaría la herramienta saltándose la confirmación de permisos,
+//     así que un aviso o una sugerencia viajan solo como additionalContext.
+func renderExpandOutput(d hookDialect, event domain.ExpandEvent, out domain.ExpandOutcome) hookRenderedOutput {
+	if event == domain.ExpandPostTool {
+		return hookRenderedOutput{}
+	}
+	if out.Decision == domain.DecisionBlock {
+		switch d {
+		case dialectClaude, dialectJSON:
+			if event == domain.ExpandPreTool {
+				return renderGuardDecision(dialectClaude, planGuardDecision{deny: true, reason: out.Reason})
+			}
+			raw, _ := json.Marshal(map[string]any{"decision": "block", "reason": out.Reason})
+			return hookRenderedOutput{stdout: string(raw)}
+		case dialectText:
+			return hookRenderedOutput{stdout: "BLOCK: " + out.Reason}
+		default:
+			return hookRenderedOutput{stderr: out.Reason, exitCode: 1}
+		}
+	}
+
+	texto := expandContextText(out.Context)
+	switch d {
+	case dialectClaude, dialectJSON:
+		if texto == "" {
+			return hookRenderedOutput{stdout: "{}"}
+		}
+		if event == domain.ExpandStop {
+			raw, _ := json.Marshal(map[string]any{"systemMessage": texto})
+			return hookRenderedOutput{stdout: string(raw)}
+		}
+		return contextHookJSON(expandHookEventNames[event], texto)
+	default:
+		return hookRenderedOutput{stdout: texto}
+	}
+}
+
+// expandContextText une las líneas de contexto con su prefijo y las recorta
+// al tope sin partir un carácter UTF-8.
+func expandContextText(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(lines))
+	for _, l := range lines {
+		if l = strings.TrimSpace(l); l != "" {
+			parts = append(parts, "[gomemory expand] "+l)
+		}
+	}
+	texto := strings.Join(parts, "\n")
+	if r := []rune(texto); len(r) > expandContextMaxRunes {
+		texto = string(r[:expandContextMaxRunes])
+	}
+	return texto
 }
 
 // renderTurnEnd traduce la salida del hook de fin de turno al dialecto d.

@@ -176,6 +176,13 @@ func TestRedactPrivate_VariantesDeEtiqueta(t *testing.T) {
 		{"a </private  > b", "a  b"},
 		{"a <privateX>no</privateX> b", "a <privateX>no</privateX> b"},
 		{"a <private sin cerrar la etiqueta", "a <private sin cerrar la etiqueta"},
+		// R2-03: una apertura con atributo sin '>' falla cerrada.
+		{"token <private token=SYNTH-SECRET-0001", "token "},
+		{"a <private key = SYNTH-SECRET-0002\nfin", "a "},
+		{"a <private token=SYNTH-SECRET-0003 <b> resto", "a "},
+		{"a <private token=SYNTH-SECRET-0004 x</private> b", "a  b"},
+		{"x <private y = z sin igual?", "x "},
+		{"si a<private b", "si a<private b"},
 	}
 	for _, tt := range tests {
 		got := RedactPrivate(tt.in)

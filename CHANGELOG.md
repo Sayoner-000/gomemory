@@ -5,6 +5,37 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Añadido
+
+- `mem expand`: reglas de protección, shield de configuración, cinco skills de flujo e instincts con confianza, promoción global y confirmación como preferencia.
+- `mem doctor --shield` con informe redactado, archivos omitidos y códigos por severidad; `evolve` con selector de harness y aprobación previa a la instalación.
+- Hooks de expand en Claude Code, Codex y OpenCode, con router determinista, interruptores, fallo abierto y observación silenciosa.
+
+### Cambiado
+
+- Protocolo de integración v10 con instrucciones de expand; actualización idempotente y limpieza de sus hooks y skills al desinstalar.
+- `mem sanitize` cubre también estadísticas de instincts, registro global y cola transitoria.
+- Skills reinterpretadas de ECC (affaan-m/ECC, MIT), con atribución en NOTICE y sin nuevas dependencias de ejecución.
+- Las skills de usuario para OpenCode se instalan en `~/.config/opencode/skills`, el directorio global que OpenCode 2.x descubre siempre; al reinstalar se retira la copia de `~/.opencode/skills` solo si es idéntica y está sola en su directorio (una personalizada se conserva), y la desinstalación limpia ambas rutas.
+- `mem install` entrega las cinco skills de expand también con alcance proyecto.
+
+### Corregido
+
+- `destructive-shell` reconoce rutas absolutas (`/bin/rm`), `sudo`/`env`/`command`/`nohup`/`nice` con sus opciones y comandos anidados en `sh|bash|zsh -c`; `git restore --staged .` ya no se bloquea.
+- El plegado de instincts se ejecuta tras escribir la decisión del hook, con plazo propio, y registra `expand.timeout` o `expand.error` en vez de fallar en silencio.
+- Un `instincts.db` que no abre ya no impide guardar ni leer memorias: `mem doctor` informa la degradación.
+- `mem expand status|rules` y `mem doctor --shield` depuran controles de terminal en nombres de regla e informes de shield (también al leer el informe guardado); `status` muestra solo un resumen del shield.
+- Shield no marca como credencial `{env:VAR}`, `{file:…}`, `%VAR%` ni `${VAR}`, y sus números de línea corresponden al archivo original.
+- `destructive-shell` evalúa también el comando que sigue a un `&` de segundo plano.
+- La cola de observaciones serializa inserciones, retiradas, rotación y saneamiento con un candado entre procesos: un hook concurrente ya no pierde observaciones.
+- En OpenCode, las reglas `stop` reciben el texto de la última respuesta del asistente.
+- Una propuesta global de instincts puede confirmarse o rechazarse en un proyecto nuevo.
+- Las claves de instincts se derivan del comando protegido; `mem sanitize` reduce y fusiona los slugs antiguos con credenciales en la cola, el proyecto y el registro global.
+- El saneamiento de `instincts.db` informa `SANITIZE_BUSY` cuando el checkpoint no puede vaciar el WAL, en vez de declarar éxito.
+- `mem expand --help` muestra la ayuda; el contador de herramientas de expand no pierde incrementos con hooks en paralelo; suprimir un bloqueo repetido de `stop` conserva el registro de los avisos.
+
 ## [v2.35.0] - 2026-10-17
 
 ### Added

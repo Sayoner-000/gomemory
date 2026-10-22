@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -35,11 +36,12 @@ type doctorChannelJSON struct {
 }
 
 type doctorReportJSON struct {
-	Version      string              `json:"version"`
-	Problems     int                 `json:"problems"`
-	Channels     []doctorChannelJSON `json:"channels"`
-	Degradations []string            `json:"degradations"`
-	OpenCode     *doctorOpenCodeJSON `json:"opencode,omitempty"`
+	Shield       *domain.ShieldReport `json:"shield,omitempty"`
+	Version      string               `json:"version"`
+	Problems     int                  `json:"problems"`
+	Channels     []doctorChannelJSON  `json:"channels"`
+	Degradations []string             `json:"degradations"`
+	OpenCode     *doctorOpenCodeJSON  `json:"opencode,omitempty"`
 	// Compression (feature 033, FR-029): estado del motor nativo.
 	Compression doctorCompressionJSON `json:"compression"`
 	// Binary (feature 034, FR-033): binario global, copias locales y aviso de
@@ -55,6 +57,7 @@ func CmdDoctor(deps *Deps, args []string) {
 	fs := newFlagSet("doctor", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "Salida JSON estable, para scripts")
 	strict := fs.Bool("strict", false, "Terminar con código != 0 si hay problemas")
+	shield := fs.Bool("shield", false, "Escanear configuración de agentes en solo lectura")
 	if err := fs.Parse(args); err != nil {
 		return
 	}
@@ -69,12 +72,24 @@ func CmdDoctor(deps *Deps, args []string) {
 	// Un plugin de OpenCode que no carga ya cuenta en report.Problems(): el
 	// inspector marca outdated los canales que sostiene (contrato 019).
 	problems := report.Problems()
+	if deps.InstinctGlobalErr != nil {
+		report.Degradations = append(report.Degradations, "instincts globales no disponibles ("+
+			domain.StripTerminalControls(deps.InstinctGlobalErr.Error())+"): mem expand instincts y mem sanitize fallarán hasta reparar instincts.db")
+	}
 	compressionState := buildDoctorCompression(deps, root)
 	problems += len(compressionState.Problems)
 	binaryState := buildDoctorBinary(deps, root)
+	var shieldReport *domain.ShieldReport
+	if *shield {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		r := usecases.ShieldScan(ctx, deps.AgentConfig, deps.ShieldState)
+		cancel()
+		shieldReport = &r
+	}
 
 	if *asJSON {
 		out := doctorReportJSON{
+			Shield:       shieldReport,
 			Version:      version.Version,
 			Problems:     problems,
 			Degradations: report.Degradations,
@@ -111,6 +126,15 @@ func CmdDoctor(deps *Deps, args []string) {
 		printDoctorOpenCode(openCode)
 		printDoctorCompression(compressionState)
 		printDoctorBinary(binaryState)
+		if shieldReport != nil {
+			humanln("\nShield")
+			for _, f := range shieldReport.Findings {
+				humanf("  %s %s:%d %s — %s\n", f.Severity, f.File, f.Line, f.Category, f.Detail)
+			}
+			for _, p := range shieldReport.Skipped {
+				humanf("  skipped: %s\n", p)
+			}
+		}
 		if deps.SettingsRepo != nil {
 			printDoctorCodeGraphMCP(deps.SettingsRepo.Read(root), root)
 		}
@@ -118,9 +142,27 @@ func CmdDoctor(deps *Deps, args []string) {
 		console.EndPage()
 	}
 
+	if shieldReport != nil {
+		if code := shieldExitCode(*shieldReport); code > 0 {
+			os.Exit(code)
+		}
+	}
 	if *strict && problems > 0 {
 		os.Exit(1)
 	}
+}
+
+func shieldExitCode(r domain.ShieldReport) int {
+	code := 0
+	for _, f := range r.Findings {
+		if f.Severity == "critical" {
+			return 2
+		}
+		if f.Severity == "high" {
+			code = 1
+		}
+	}
+	return code
 }
 
 func printDoctorHuman(report domain.CoverageReport, deps *Deps) {

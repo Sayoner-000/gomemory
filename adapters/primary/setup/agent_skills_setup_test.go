@@ -21,11 +21,38 @@ description: Revisión adversarial por consenso.
 Cuerpo del protocolo.
 `
 
+func TestInstallExpandSkills(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	for _, agent := range []string{".claude", ".codex", filepath.Join(".config", "opencode")} {
+		if err := os.MkdirAll(filepath.Join(home, agent), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bodies := map[string]string{"verify-loop": "body", "search-first": "search"}
+	paths, err := InstallExpandSkills(bodies)
+	if err != nil || len(paths) != 6 {
+		t.Fatalf("%v %v", paths, err)
+	}
+	paths, err = InstallExpandSkills(bodies)
+	if err != nil || len(paths) != 0 {
+		t.Fatalf("not idempotent: %v %v", paths, err)
+	}
+	fresh := t.TempDir()
+	t.Setenv("HOME", fresh)
+	t.Setenv("USERPROFILE", fresh)
+	paths, err = InstallExpandSkills(bodies)
+	if err != nil || len(paths) != 0 {
+		t.Fatalf("created absent agents: %v %v", paths, err)
+	}
+}
+
 // TestInstallAdversarialReviewSkill_AlcanzaLosTresAgentes cubre FR-044: la guía
 // de participación debe llegar a los tres agentes que exponen un directorio de
 // habilidades, no solo a Claude Code.
 func TestInstallAdversarialReviewSkill_AlcanzaLosTresAgentes(t *testing.T) {
-	home := homeFalso(t, ".claude", ".codex", ".opencode")
+	home := homeFalso(t, ".claude", ".codex", filepath.Join(".config", "opencode"))
 
 	escritos, err := InstallAdversarialReviewSkill(skillDePrueba)
 	if err != nil {
@@ -35,7 +62,7 @@ func TestInstallAdversarialReviewSkill_AlcanzaLosTresAgentes(t *testing.T) {
 	esperados := []string{
 		filepath.Join(home, ".claude", "skills", "adversarial-consensus-review", "SKILL.md"),
 		filepath.Join(home, ".codex", "skills", "adversarial-consensus-review", "SKILL.md"),
-		filepath.Join(home, ".opencode", "skills", "adversarial-consensus-review", "SKILL.md"),
+		filepath.Join(home, filepath.Join(".config", "opencode"), "skills", "adversarial-consensus-review", "SKILL.md"),
 	}
 	for _, p := range esperados {
 		data, err := os.ReadFile(p)
@@ -66,7 +93,7 @@ func TestInstallAdversarialReviewSkill_NoCreaConfigDeAgentesNoUsados(t *testing.
 	if _, err := os.Stat(presente); err != nil {
 		t.Errorf("no se escribió la skill del agente que sí existe: %v", err)
 	}
-	for _, ausente := range []string{".codex", ".opencode"} {
+	for _, ausente := range []string{".codex", filepath.Join(".config", "opencode")} {
 		if _, err := os.Stat(filepath.Join(home, ausente)); err == nil {
 			t.Errorf("se creó %s para un agente que la persona no usa", ausente)
 		}
@@ -76,7 +103,7 @@ func TestInstallAdversarialReviewSkill_NoCreaConfigDeAgentesNoUsados(t *testing.
 // TestInstallAdversarialReviewSkill_Idempotente: reinstalar no debe reescribir
 // un archivo ya al día. El segundo paso no reporta ninguna ruta escrita.
 func TestInstallAdversarialReviewSkill_Idempotente(t *testing.T) {
-	homeFalso(t, ".claude", ".codex", ".opencode")
+	homeFalso(t, ".claude", ".codex", filepath.Join(".config", "opencode"))
 
 	if _, err := InstallAdversarialReviewSkill(skillDePrueba); err != nil {
 		t.Fatalf("primera instalación: %v", err)
@@ -121,7 +148,7 @@ func TestInstallAdversarialReviewSkill_ActualizaVersionPrevia(t *testing.T) {
 // embebida faltara, el instalador degrada sin crear un archivo vacío que el
 // agente cargaría como una skill rota.
 func TestInstallAdversarialReviewSkill_SinCuerpoNoEscribe(t *testing.T) {
-	home := homeFalso(t, ".claude", ".codex", ".opencode")
+	home := homeFalso(t, ".claude", ".codex", filepath.Join(".config", "opencode"))
 
 	escritos, err := InstallAdversarialReviewSkill("   \n  ")
 	if err != nil {
@@ -141,7 +168,7 @@ func TestInstallAdversarialReviewSkill_SinCuerpoNoEscribe(t *testing.T) {
 // mismo archivo, que es como empiezan las divergencias. El filtro permite que
 // cada artefacto tenga un solo dueño por agente.
 func TestInstallAgentSkill_RespetaElFiltroDeAgentes(t *testing.T) {
-	home := homeFalso(t, ".claude", ".codex", ".opencode")
+	home := homeFalso(t, ".claude", ".codex", filepath.Join(".config", "opencode"))
 
 	escritos, err := InstallAgentSkill("atomic-decomposition", skillDePrueba, "codex", "opencode")
 	if err != nil {
@@ -151,7 +178,7 @@ func TestInstallAgentSkill_RespetaElFiltroDeAgentes(t *testing.T) {
 		t.Errorf("escribió %d rutas, se esperaban 2: %v", len(escritos), escritos)
 	}
 
-	for _, esperado := range []string{".codex", ".opencode"} {
+	for _, esperado := range []string{".codex", filepath.Join(".config", "opencode")} {
 		p := filepath.Join(home, esperado, "skills", "atomic-decomposition", "SKILL.md")
 		if _, err := os.Stat(p); err != nil {
 			t.Errorf("falta %s: %v", p, err)
@@ -166,7 +193,7 @@ func TestInstallAgentSkill_RespetaElFiltroDeAgentes(t *testing.T) {
 // TestInstallAgentSkill_SinFiltroAlcanzaTodos: omitir el filtro mantiene el
 // comportamiento de la guía adversarial, que sí es dueña única en los tres.
 func TestInstallAgentSkill_SinFiltroAlcanzaTodos(t *testing.T) {
-	homeFalso(t, ".claude", ".codex", ".opencode")
+	homeFalso(t, ".claude", ".codex", filepath.Join(".config", "opencode"))
 
 	escritos, err := InstallAgentSkill("cualquiera", skillDePrueba)
 	if err != nil {
@@ -183,7 +210,7 @@ func TestInstallAgentSkill_SinFiltroAlcanzaTodos(t *testing.T) {
 // constitución sí lo incluye porque su instalador es de ámbito de proyecto y
 // deja la ruta global de Claude sin dueño.
 func TestInstallExistingSkillsForAgents_CierraElHuecoSinDuplicarDueño(t *testing.T) {
-	home := homeFalso(t, ".claude", ".codex", ".opencode")
+	home := homeFalso(t, ".claude", ".codex", filepath.Join(".config", "opencode"))
 
 	if _, err := InstallExistingSkillsForAgents("MÉTODO ATÓMICO", "CONSTITUCIÓN"); err != nil {
 		t.Fatalf("InstallExistingSkillsForAgents: %v", err)
@@ -191,10 +218,10 @@ func TestInstallExistingSkillsForAgents_CierraElHuecoSinDuplicarDueño(t *testin
 
 	debenExistir := []string{
 		filepath.Join(home, ".codex", "skills", "atomic-decomposition", "SKILL.md"),
-		filepath.Join(home, ".opencode", "skills", "atomic-decomposition", "SKILL.md"),
+		filepath.Join(home, filepath.Join(".config", "opencode"), "skills", "atomic-decomposition", "SKILL.md"),
 		filepath.Join(home, ".claude", "skills", "constitution", "SKILL.md"),
 		filepath.Join(home, ".codex", "skills", "constitution", "SKILL.md"),
-		filepath.Join(home, ".opencode", "skills", "constitution", "SKILL.md"),
+		filepath.Join(home, filepath.Join(".config", "opencode"), "skills", "constitution", "SKILL.md"),
 	}
 	for _, p := range debenExistir {
 		if _, err := os.Stat(p); err != nil {
@@ -256,14 +283,14 @@ func TestSkillEmbebida_EsAgnosticaDeProveedor(t *testing.T) {
 // cumplir sus mismas garantías: llega a los tres agentes y reinstalar no
 // reescribe lo que ya está al día.
 func TestInstallDefensiveQASkill_AlcanzaLosTresAgentesSinReescribir(t *testing.T) {
-	home := homeFalso(t, ".claude", ".codex", ".opencode")
+	home := homeFalso(t, ".claude", ".codex", filepath.Join(".config", "opencode"))
 	cuerpo := "---\nname: defensive-qa-audit\ndescription: Auditoría defensiva.\n---\n\n# QA\n"
 
 	escritos, err := InstallDefensiveQASkill(cuerpo)
 	if err != nil {
 		t.Fatalf("InstallDefensiveQASkill: %v", err)
 	}
-	for _, agente := range []string{".claude", ".codex", ".opencode"} {
+	for _, agente := range []string{".claude", ".codex", filepath.Join(".config", "opencode")} {
 		p := filepath.Join(home, agente, "skills", "defensive-qa-audit", "SKILL.md")
 		if data, err := os.ReadFile(p); err != nil || string(data) != cuerpo {
 			t.Errorf("%s: falta o no es la skill verbatim (err=%v)", p, err)
@@ -308,4 +335,85 @@ func TestSkillsEmbebidas_FrontmatterYCopiaDescargable(t *testing.T) {
 			t.Errorf("%s: el frontmatter no empieza con name: %s", nombre, nombre)
 		}
 	}
+}
+
+// C-002 (ACR 040): OpenCode 2.x descubre las skills globales en
+// ~/.config/opencode/skills; ~/.opencode solo entra por el walk-up de un
+// proyecto bajo el HOME. Una instalación solo-OpenCode recibe la skill.
+//
+// B-002: la copia antigua solo se retira si es idéntica a la instalada y no
+// hay nada más en su directorio, y siempre después de escribir el destino.
+func TestInstallAgentSkill_OpenCodeDestinoGlobalYMigracion(t *testing.T) {
+	const body = "---\nname: verify-loop\n---\ncuerpo\n"
+	legacyDir := func(home, name string) string { return filepath.Join(home, ".opencode", "skills", name) }
+	seed := func(t *testing.T, dir string, files map[string]string) {
+		t.Helper()
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for n, c := range files {
+			if err := os.WriteFile(filepath.Join(dir, n), []byte(c), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	t.Run("copia idéntica se retira", func(t *testing.T) {
+		home := homeFalso(t, filepath.Join(".config", "opencode"))
+		seed(t, legacyDir(home, "verify-loop"), map[string]string{"SKILL.md": body})
+		written, err := InstallAgentSkill("verify-loop", body)
+		want := filepath.Join(home, ".config", "opencode", "skills", "verify-loop", "SKILL.md")
+		if err != nil || len(written) != 1 || written[0] != want {
+			t.Fatalf("escritos = %v, err = %v; se esperaba %s", written, err, want)
+		}
+		if _, err := os.Stat(legacyDir(home, "verify-loop")); !os.IsNotExist(err) {
+			t.Errorf("la copia idéntica debe retirarse: %v", err)
+		}
+	})
+	t.Run("copia modificada se conserva", func(t *testing.T) {
+		home := homeFalso(t, filepath.Join(".config", "opencode"))
+		seed(t, legacyDir(home, "verify-loop"), map[string]string{"SKILL.md": "mi versión"})
+		if _, err := InstallAgentSkill("verify-loop", body); err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := os.ReadFile(filepath.Join(legacyDir(home, "verify-loop"), "SKILL.md")); string(got) != "mi versión" {
+			t.Errorf("la copia personalizada debe conservarse: %q", got)
+		}
+	})
+	t.Run("auxiliares se conservan", func(t *testing.T) {
+		home := homeFalso(t, filepath.Join(".config", "opencode"))
+		seed(t, legacyDir(home, "verify-loop"), map[string]string{"SKILL.md": body, "run.sh": "#!/bin/sh\n"})
+		if _, err := InstallAgentSkill("verify-loop", body); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range []string{"SKILL.md", "run.sh"} {
+			if _, err := os.Stat(filepath.Join(legacyDir(home, "verify-loop"), f)); err != nil {
+				t.Errorf("%s debe conservarse: %v", f, err)
+			}
+		}
+	})
+	t.Run("fallo al escribir el destino conserva el origen", func(t *testing.T) {
+		home := homeFalso(t, filepath.Join(".config", "opencode"))
+		seed(t, legacyDir(home, "verify-loop"), map[string]string{"SKILL.md": body})
+		// skills como archivo: el destino no puede crearse.
+		if err := os.WriteFile(filepath.Join(home, ".config", "opencode", "skills"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := InstallAgentSkill("verify-loop", body); err == nil {
+			t.Fatal("se esperaba error al escribir el destino")
+		}
+		if _, err := os.Stat(filepath.Join(legacyDir(home, "verify-loop"), "SKILL.md")); err != nil {
+			t.Errorf("sin destino completo el origen no se toca: %v", err)
+		}
+	})
+	t.Run("skill ajena no se toca", func(t *testing.T) {
+		home := homeFalso(t, filepath.Join(".config", "opencode"))
+		seed(t, legacyDir(home, "mia"), map[string]string{"SKILL.md": body})
+		if _, err := InstallAgentSkill("verify-loop", body); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(legacyDir(home, "mia"), "SKILL.md")); err != nil {
+			t.Errorf("otra skill no se toca: %v", err)
+		}
+	})
 }

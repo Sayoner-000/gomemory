@@ -106,7 +106,9 @@ func dialectoDePrompt(args []string) hookDialect {
 func TestCodexHooks_IncluyenInyeccionPorTurno(t *testing.T) {
 	var encontrado *setup.CodexHook
 	for _, h := range setup.CodexGomemoryHooks() {
-		if h.Event == "UserPromptSubmit" {
+		// La feature 040 añade otro UserPromptSubmit (expand prompt): aquí
+		// interesa el de inyección por turno.
+		if h.Event == "UserPromptSubmit" && h.Sub == "user-prompt-submit" {
 			hook := h
 			encontrado = &hook
 		}

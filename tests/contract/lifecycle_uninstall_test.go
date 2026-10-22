@@ -135,7 +135,7 @@ func TestUninstall_SistemaSinRastros(t *testing.T) {
 	socratica := []string{
 		filepath.Join(".claude", "skills", "socratica"),
 		filepath.Join(".codex", "skills", "socratica"),
-		filepath.Join(".opencode", "skills", "socratica"),
+		filepath.Join(".config", "opencode", "skills", "socratica"),
 		filepath.Join(".claude", "commands", "socratic-q.md"),
 		filepath.Join(".config", "opencode", "commands", "socratica.md"),
 		filepath.Join(".config", "opencode", "commands", "socratic-q.md"),

@@ -100,6 +100,14 @@ type Settings struct {
 	// árbol, permitiendo siempre. Ausente/false = activada, mismo patrón
 	// opt-out que AtomicPlanDisabled.
 	PlanGuardDisabled bool `json:"plan_guard_disabled,omitempty"`
+	// ExpandDisabled es el interruptor de emergencia del módulo expand (feature
+	// 040): con true, `mem hook expand` permite siempre sin emitir nada.
+	// ExpandOff apaga supertools concretas (rules, shield, flow, instincts).
+	// ExpandCompactThreshold es el número de herramientas interceptadas tras el
+	// que se sugiere strategic-compact; fuera de 10–1000 se usa el default.
+	ExpandDisabled         bool     `json:"expand_disabled,omitempty"`
+	ExpandOff              []string `json:"expand_off,omitempty"`
+	ExpandCompactThreshold int      `json:"expand_compact_threshold,omitempty"`
 	// ContextDefaultBudget/ContextMinRelevance/ContextMaxItems/
 	// ContextCompressionDisabled/ContextDedupDisabled: ajustes de
 	// BuildContextPack (feature 015). Mismo patrón que Budget/CompactThreshold
@@ -199,6 +207,8 @@ func DefaultSettings() Settings {
 		ContextMinRelevance:  DefaultContextMinRelevance,
 		ContextMaxItems:      DefaultContextMaxItems,
 
+		ExpandCompactThreshold: domain.ExpandDefaultCompactThreshold,
+
 		ReviewMaxFixRounds:      domain.DefaultMaxFixRounds,
 		ReviewAutoFixSeverities: defaultReviewAutoFixSeverities(),
 	}
@@ -283,7 +293,17 @@ func ReadSettings(root string) Settings {
 	applyCodeGraphProvidersDefault(&s)
 	applyContextDefaults(&s)
 	applyReviewDefaults(&s)
+	applyExpandDefaults(&s)
 	return s
+}
+
+// applyExpandDefaults normaliza el umbral de strategic-compact (feature 040):
+// ausente o fuera de 10–1000 toma el default, para que un valor absurdo no
+// convierta la sugerencia en ruido ni la anule.
+func applyExpandDefaults(s *Settings) {
+	if s.ExpandCompactThreshold < domain.ExpandMinCompactThreshold || s.ExpandCompactThreshold > domain.ExpandMaxCompactThreshold {
+		s.ExpandCompactThreshold = domain.ExpandDefaultCompactThreshold
+	}
 }
 
 // applyCodeGraphProvidersDefault normaliza el campo legado CodeGraphCommand

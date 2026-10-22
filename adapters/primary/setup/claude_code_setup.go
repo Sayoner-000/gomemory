@@ -114,7 +114,26 @@ func buildClaudeHookEvents() map[string][]hookReg {
 			hookReg{matcher: "EnterPlanMode", sub: "plan-entered"})
 	}
 
+	// mem expand (feature 040, research R3): activo desde la instalación, sin
+	// opt-in. Un único subcomando por evento; el dialecto va explícito porque
+	// los payloads de SessionStart, UserPromptSubmit y Stop no traen
+	// tool_name y la detección los tomaría por neutrales. PreToolUse solo
+	// intercepta las herramientas sobre las que actúan las reglas (shell,
+	// escritura y delegación); Read/Grep/Glob no pagan el proceso.
+	for event, reg := range claudeExpandHooks {
+		events[event] = append(events[event], reg)
+	}
+
 	return events
+}
+
+// claudeExpandHooks son las entradas de `mem hook expand` en Claude Code.
+var claudeExpandHooks = map[string]hookReg{
+	"SessionStart":     {matcher: "startup|resume|clear|compact", sub: "expand session-start --emit=claude"},
+	"UserPromptSubmit": {matcher: "", sub: "expand prompt --emit=claude"},
+	"PreToolUse":       {matcher: "Bash|Write|Edit|MultiEdit|NotebookEdit|Task|Agent", sub: "expand pre-tool --emit=claude"},
+	"PostToolUse":      {matcher: "Bash", sub: "expand post-tool --emit=claude"},
+	"Stop":             {matcher: "", sub: "expand stop --emit=claude"},
 }
 
 func InstallClaudeCode(root string, ref AgentRef) error {
@@ -495,22 +514,30 @@ func IsGomemoryHookEntry(e interface{}) bool {
 	return false
 }
 
+// hookCommandIsGomemory reconoce un comando de hook de gomemory por su
+// subcomando, consultando el registro único domain.GomemoryHookSubcommands
+// (feature 040, research R2), o por las rutas legadas del plugin.
 func hookCommandIsGomemory(cmd string) bool {
-	return strings.Contains(cmd, "hook session-start") ||
-		strings.Contains(cmd, "hook session-end") ||
-		strings.Contains(cmd, "hook pre-compact") ||
-		strings.Contains(cmd, "hook post-compact") ||
-		strings.Contains(cmd, "hook compact-summary") ||
-		strings.Contains(cmd, "hook user-prompt-submit") ||
-		strings.Contains(cmd, "hook turn-end") ||
-		strings.Contains(cmd, "hook subagent-start") ||
-		strings.Contains(cmd, "hook subagent-stop") ||
-		strings.Contains(cmd, "hook plan-approved") ||
-		strings.Contains(cmd, "hook plan-guard") ||
-		strings.Contains(cmd, "hook plan-entered") ||
-		strings.Contains(cmd, "hook tool-output") ||
-		strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
+	for _, m := range gomemoryHookSubRe.FindAllStringSubmatch(cmd, -1) {
+		if domain.IsGomemoryHookSubcommand(m[2]) {
+			return true
+		}
+	}
+	return strings.Contains(cmd, filepath.Join("plugins", "gomemory")) ||
 		strings.Contains(cmd, "plugins/gomemory")
+}
+
+// ClaudeHookSubs devuelve los subcomandos de `mem hook` que instala Claude
+// Code (sin argumentos), incluido el opt-in de tool-output. Lo consume la
+// prueba de contrato del registro único (feature 040, research R2).
+func ClaudeHookSubs() []string {
+	var subs []string
+	for _, regs := range claudeHookEventsFor(true) {
+		for _, r := range regs {
+			subs = append(subs, hookSubName(r.sub))
+		}
+	}
+	return subs
 }
 
 // hookSubName devuelve el subcomando de `mem hook` de un registro
@@ -522,7 +549,25 @@ func hookSubName(sub string) string {
 	return sub
 }
 
-var gomemoryHookSubRe = regexp.MustCompile(`hook ([a-z-]+)`)
+// gomemoryHookSubRe exige que `hook <sub>` lo invoque el binario de
+// gomemory: el token anterior es `mem` o `mem.exe`, por nombre, con ruta
+// (`/usr/local/bin/mem`, `${CLAUDE_PROJECT_DIR}/mem`, `C:\…\mem.exe`) o
+// entre comillas. Un hook de terceros que pase `hook prompt` a su propio
+// script no es de gomemory (R2-04).
+var gomemoryHookSubRe = regexp.MustCompile(`(?:^|[\s"'/\\])mem(?:\.exe)?["']?[ \t]+(hook)[ \t]+([a-z-]+)`)
+
+// GomemoryHookIndex devuelve la posición de `hook` en la invocación
+// `mem hook <sub>` de cmd, o -1 si cmd no invoca ese subcomando de gomemory.
+// sub puede tener varias palabras ("expand pre-tool").
+func GomemoryHookIndex(cmd, sub string) int {
+	for _, m := range gomemoryHookSubRe.FindAllStringSubmatchIndex(cmd, -1) {
+		rest, ok := strings.CutPrefix(cmd[m[4]:], sub)
+		if ok && (rest == "" || rest[0] == ' ' || rest[0] == '\t') {
+			return m[2]
+		}
+	}
+	return -1
+}
 
 // GomemoryHookSubs devuelve los subcomandos de gomemory registrados en un
 // settings.json de Claude Code (vacío si no existe o no se puede leer).
@@ -545,7 +590,7 @@ func GomemoryHookSubs(settingsPath string) map[string]bool {
 			}
 			for _, cmd := range hookEntryCommands(e) {
 				if m := gomemoryHookSubRe.FindStringSubmatch(cmd); m != nil {
-					subs[m[1]] = true
+					subs[m[2]] = true
 				}
 			}
 		}
@@ -656,7 +701,7 @@ func DedupClaudeProjectHooks(home, root string) ([]string, error) {
 func withoutDuplicateCommands(e interface{}, drop map[string]bool) interface{} {
 	isDup := func(cmd string) bool {
 		m := gomemoryHookSubRe.FindStringSubmatch(cmd)
-		return m != nil && drop[m[1]] && hookCommandIsGomemory(cmd)
+		return m != nil && drop[m[2]] && hookCommandIsGomemory(cmd)
 	}
 	switch v := e.(type) {
 	case string:

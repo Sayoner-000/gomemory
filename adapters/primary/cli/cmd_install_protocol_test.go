@@ -62,7 +62,7 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 // la directiva condicional por capacidad (feature 038): al próximo bump,
 // renombrar este test y su mensaje.
 func TestProtocolVersionMarker_SubioAV9(t *testing.T) {
-	if integrationVersionMarker != "<!-- gomemory-protocol-v9 -->" {
+	if integrationVersionMarker != "<!-- gomemory-protocol-v10 -->" {
 		t.Errorf("integrationVersionMarker = %q, se esperaba la v9 (feature 038)", integrationVersionMarker)
 	}
 }
@@ -166,7 +166,7 @@ func TestComposeAgentFile_InstalaYActualizaBaselineUniversal(t *testing.T) {
 // ajenos antes/después y sin duplicar en la segunda composición. Carga el
 // fixture T004. En rojo hasta T015: el marcador vigente sigue en v8.
 func TestComposeAgentFile_MigraV8AV9SinDejarRestos(t *testing.T) {
-	const v9 = "<!-- gomemory-protocol-v9 -->"
+	const v9 = "<!-- gomemory-protocol-v10 -->"
 	raw, err := os.ReadFile("../../../tests/fixtures/038/protocol-v8.md")
 	if err != nil {
 		t.Fatalf("falta el fixture T004: %v", err)

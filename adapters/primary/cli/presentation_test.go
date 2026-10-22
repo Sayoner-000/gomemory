@@ -4,6 +4,7 @@ import (
 	"flag"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -211,5 +212,37 @@ func TestComandosSinOpcionesRechazanArgumentos(t *testing.T) {
 	}
 	if err := runDocs(nil, []string{"--bogus"}, io.Discard, io.Discard); err == nil || !strings.Contains(err.Error(), "--bogus") {
 		t.Fatalf("docs --bogus debe fallar: %v", err)
+	}
+}
+
+// R2-02: ningún literal de producción lleva U+FFFD (mojibake de una
+// conversión de codificación); el saneado de terminal no lo detecta porque
+// es un carácter válido.
+func TestProductionSourcesHaveNoReplacementChar(t *testing.T) {
+	root := filepath.Join("..", "..", "..")
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if name := d.Name(); path != root && (strings.HasPrefix(name, ".") || name == "specs" || name == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.ContainsRune(string(data), '\uFFFD') {
+			t.Errorf("%s contiene U+FFFD", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
