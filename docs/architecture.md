@@ -989,6 +989,33 @@ Eso convierte INV-AAR-013 en una propiedad verificable con `.schema`, en vez de
 una promesa de quien escribe el código. `tests/contract/octopus_schema_test.go`
 falla en cuanto alguien añada una columna de contenido.
 
+## Expand — supertools (feature 040)
+
+Guía de uso: [expand.md](expand.md). `mem hook expand <evento>` atiende cinco
+eventos (inicio de sesión, prompt, antes y después de una herramienta, fin de
+turno) en Claude Code, Codex y OpenCode.
+
+- **Router puro**: el adaptador convierte el payload en `ExpandSignals` y consulta
+  una vez `domain.RouteSupertools`; `usecases.ExpandHook` ejecuta sus acciones.
+  Las reglas se evalúan primero; después, contexto y observación silenciosa.
+- **Ruta ligera**: permitir una herramienta u observar un comando no abre SQLite.
+  La decisión tiene 150 ms y fallo abierto; registro y plegado ocurren después
+  de emitirla, con su propio plazo (2 s). Si el hook agota su plazo, la regla de
+  serie sigue decidiendo sobre los comandos de shell.
+- **Reglas** (`domain/rules.go`): propias en `.gomemory/rules/*.md` (adaptador
+  `rulesfs`) más `destructive-shell`. Esta se apoya en `domain/shell_lexer.go`,
+  que tokeniza sin ejecutar: saca las redirecciones del argv (el texto de un
+  `<<<` pasa a la entrada estándar del comando), analiza las sustituciones de
+  los heredocs con delimitador sin citar y devuelve el contenido de `$(…)`,
+  backticks y sustituciones de proceso como subcomandos. `domain/shell_output.go`
+  calcula la salida de `echo` y `printf`; la que no se puede calcular se marca
+  con un centinela que la regla bloquea si acabaría como comando.
+- **Shield** (`domain/shield.go`, puerto `AgentConfigReaderPort`): lectura de
+  configuraciones de agentes con límites de archivos y tamaño, sin modificarlas.
+- **Instincts**: cola NDJSON (`adapters/secondary/expandstate`) con candado entre
+  procesos; `InstinctRepository` en el mem.db del proyecto e
+  `InstinctGlobalRepository` en `instincts.db`, auxiliar y degradable.
+
 ---
 
 ## Modelo de Datos

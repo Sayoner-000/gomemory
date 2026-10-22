@@ -24,6 +24,7 @@ Guía para instalar, configurar y usar gomemory con los agentes compatibles.
 18. [Octopus AAR](#18-octopus-aar)
 19. [Compresión nativa de contexto](#19-compresión-nativa-de-contexto)
 20. [Socratica: refinamiento de prompts](#20-socratica-refinamiento-de-prompts-mem-socratica)
+21. [Supertools expand](#21-supertools-expand-mem-expand)
 
 ---
 
@@ -1533,6 +1534,30 @@ La intercepción nunca se activa por MCP.
 
 Guía completa (prevención de duplicados, privacidad, ajustes `socratica_*` y
 limitaciones): [socratica.md](socratica.md).
+
+
+## 21. Supertools expand (`mem expand`)
+
+`mem install` activa en Claude Code, Codex y OpenCode cuatro supertools que
+actúan en los hooks del agente: **rules** (reglas de protección, incluida la de
+serie `destructive-shell`), **shield** (inspección de configuraciones de
+agentes), **flow** (sugerencias de las skills `verify-loop`, `search-first`,
+`iterative-retrieval` y `strategic-compact`) e **instincts** (patrones
+aprendidos con confianza).
+
+```bash
+mem expand status                       # cableado, reglas, errores y activaciones
+mem expand off|on [rules|shield|flow|instincts]
+mem expand rules --check --event bash   # evalúa stdin: 0 allow, 1 warn, 2 block, 3 ilegible
+mem doctor --shield                     # 2 con hallazgos critical, 1 con high
+mem expand instincts list|confirm|reject|evolve <slug>
+```
+
+Las reglas propias viven en `.gomemory/rules/*.md` y se versionan con el
+proyecto. Un bloqueo de `destructive-shell` es una pausa: si el comando era
+intencionado, ejecútalo en tu terminal o desactiva la regla. Es un guardarraíl,
+no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
+[expand.md](expand.md).
 
 
 ## Temas de la terminal (v2.29.0)
