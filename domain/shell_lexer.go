@@ -7,12 +7,17 @@ import (
 )
 
 // shellCommand es un subcomando con lo que recibe por la entrada estándar:
-// los cuerpos de sus heredocs y si le llega una tubería del anterior. Es lo
-// que hace falta para ver el script de `bash <<EOF` o `echo … | sh` (C-005).
+// los cuerpos de sus heredocs y, si le llega una tubería, a cuántas
+// posiciones atrás está el comando que la alimenta (0: ninguna). Es lo que
+// hace falta para ver el script de `bash <<EOF` o `echo … | sh` (C-005). La
+// distancia es relativa porque las sustituciones de un comando van justo
+// antes que él y el resultado se anida dentro de otros sin reindexar.
 type shellCommand struct {
-	Tokens []string
-	Stdin  []string
-	PipeIn bool
+	Tokens   []string
+	Stdin    []string
+	PipeBack int
+	// Nested: sale de una sustitución, no es un comando de la línea.
+	Nested bool
 }
 
 // SplitShellCommands parte una línea de shell en subcomandos tokenizados
@@ -26,17 +31,30 @@ type shellCommand struct {
 // heredoc es dato, no comandos (A-002). `$'…'` (ANSI-C, con sus escapes
 // decodificados) y `$"…"` (localizado) son literales como cualquier otra
 // comilla (R3-01). El contenido de `$(…)`, “ `…` “, `<(…)` y `>(…)` se
-// ejecuta: se devuelve como subcomandos propios (C-004), también dentro del
+// ejecuta: se devuelve como subcomandos propios, antes del comando que los
+// contiene porque el shell los ejecuta primero (C-004; C-003 del ACR
+// acr_a635820b: `X=rm; echo $($X …); X=echo`), también dentro del
 // cuerpo de un heredoc cuyo delimitador no va citado (H-02). Las
 // redirecciones (`>/dev/null`, `2>&1`, `< in`, `<<EOF`) no son argumentos:
 // el shell las quita del comando esté donde esté, así que no aparecen entre
-// los tokens (H-01); el texto de un `<<<` es entrada estándar.
+// los tokens (H-01); el texto de un `<<<` es entrada estándar. Un `#` al
+// principio de una palabra abre un comentario hasta el final de la línea
+// (C-002 del ACR acr_a635820b).
+//
+// Devuelve primero los comandos de la línea y después los de sus
+// sustituciones, para que quien mira el primero (la clave de un instinct) vea
+// `git` en `git commit -m "$(cat msg)"`; el orden de ejecución solo lo
+// necesita destructive-shell, que usa splitShell.
 func SplitShellCommands(cmd string) [][]string {
-	var out [][]string
+	var top, nested [][]string
 	for _, c := range splitShell(cmd, 0) {
-		out = append(out, c.Tokens)
+		if c.Nested {
+			nested = append(nested, c.Tokens)
+		} else {
+			top = append(top, c.Tokens)
+		}
 	}
-	return out
+	return append(top, nested...)
 }
 
 // maxSubstitutionNesting acota las sustituciones anidadas: cada nivel
@@ -70,6 +88,9 @@ func splitShell(cmd string, depth int) []shellCommand {
 		pendingOp string
 		quoted    bool
 		herestr   []string
+		// prevCmd es el índice en out del último comando de este nivel, el
+		// que alimenta una tubería.
+		prevCmd = -1
 	)
 	flushToken := func() {
 		if !inToken {
@@ -99,8 +120,21 @@ func splitShell(cmd string, depth int) []shellCommand {
 	}
 	flushCommand := func(pipeNext bool) {
 		flushToken()
+		out = append(out, nested...)
+		nested = nil
 		if len(current) > 0 {
-			out = append(out, shellCommand{Tokens: current, Stdin: herestr, PipeIn: pipeIn})
+			idx := len(out)
+			for k := range heredocs {
+				if heredocs[k].owner < 0 {
+					heredocs[k].owner = idx
+				}
+			}
+			back := 0
+			if pipeIn && prevCmd >= 0 {
+				back = idx - prevCmd
+			}
+			out = append(out, shellCommand{Tokens: current, Stdin: herestr, PipeBack: back})
+			prevCmd = idx
 			current = nil
 		}
 		herestr, pendingOp = nil, ""
@@ -115,7 +149,7 @@ func splitShell(cmd string, depth int) []shellCommand {
 		if closer == '`' {
 			inner = unescapeBackticks(inner)
 		}
-		nested = append(nested, splitShell(inner, depth+1)...)
+		nested = append(nested, markNested(splitShell(inner, depth+1))...)
 		token.WriteString(string(runes[i:min(end+1, len(runes))]))
 		inToken, quoted = true, true
 		return end
@@ -179,11 +213,11 @@ func splitShell(cmd string, depth int) []shellCommand {
 			var bodies []string
 			i, bodies = skipHeredocBodies(runes, i, heredocs)
 			for k, body := range bodies {
-				if owner := heredocs[k].owner; owner < len(out) {
+				if owner := heredocs[k].owner; owner >= 0 && owner < len(out) {
 					out[owner].Stdin = append(out[owner].Stdin, body)
 				}
 				if !heredocs[k].quoted {
-					nested = append(nested, heredocSubstitutions(body, depth)...)
+					out = append(out, heredocSubstitutions(body, depth)...)
 				}
 			}
 			heredocs = nil
@@ -197,6 +231,10 @@ func splitShell(cmd string, depth int) []shellCommand {
 			flushCommand(false)
 		case r == '|' && redirect && runes[i-1] == '>':
 			token.WriteRune(r) // `>|`: redirección que sobrescribe, no tubería.
+		case r == '#' && !inToken:
+			for i+1 < len(runes) && runes[i+1] != '\n' {
+				i++
+			}
 		case r == '|':
 			pipe := next != '|'
 			if !pipe {
@@ -213,14 +251,14 @@ func splitShell(cmd string, depth int) []shellCommand {
 				redirect = true
 			}
 			if h, ok := parseHeredoc(runes, i); ok {
-				heredocs = append(heredocs, pendingHeredoc{heredoc: h, owner: len(out)})
+				heredocs = append(heredocs, pendingHeredoc{heredoc: h, owner: -1})
 			}
 			token.WriteRune(r)
 			inToken = true
 		}
 	}
 	flushCommand(false)
-	return append(out, nested...)
+	return out
 }
 
 // matchClose devuelve la posición del cierre de la sustitución que se abre
@@ -255,6 +293,8 @@ func matchClose(runes []rune, open int, closer rune) int {
 	return len(runes)
 }
 
+// pendingHeredoc es un heredoc cuyo cuerpo empieza en la línea siguiente;
+// owner es el índice en out de su comando (-1 hasta que el comando se cierra).
 type pendingHeredoc struct {
 	heredoc
 	owner int
@@ -346,15 +386,23 @@ func heredocSubstitutions(body string, depth int) []shellCommand {
 			i++
 		case runes[i] == '$' && i+1 < len(runes) && runes[i+1] == '(':
 			end := matchClose(runes, i+1, ')')
-			out = append(out, splitShell(string(runes[i+2:min(end, len(runes))]), depth+1)...)
+			out = append(out, markNested(splitShell(string(runes[i+2:min(end, len(runes))]), depth+1))...)
 			i = end
 		case runes[i] == '`':
 			end := matchClose(runes, i, '`')
-			out = append(out, splitShell(unescapeBackticks(string(runes[i+1:min(end, len(runes))])), depth+1)...)
+			out = append(out, markNested(splitShell(unescapeBackticks(string(runes[i+1:min(end, len(runes))])), depth+1))...)
 			i = end
 		}
 	}
 	return out
+}
+
+// markNested marca los comandos de una sustitución.
+func markNested(cmds []shellCommand) []shellCommand {
+	for k := range cmds {
+		cmds[k].Nested = true
+	}
+	return cmds
 }
 
 // redirectFD reconoce el descriptor que precede a una redirección: `2` en

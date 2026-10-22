@@ -62,6 +62,12 @@ func TestSplitShellCommands(t *testing.T) {
 		{`echo ">" "2>x" \> a`, [][]string{{"echo", ">", "2>x", ">", "a"}}},
 		{`echo "2">x`, [][]string{{"echo", "2"}}},
 		{"ls >$(rm -rf x)", [][]string{{"ls"}, {"rm", "-rf", "x"}}},
+		// C-002 (ACR acr_a635820b): `#` al principio de palabra es comentario.
+		{"ls # $(rm -rf x)", [][]string{{"ls"}}},
+		{"# rm -rf x\nls", [][]string{{"ls"}}},
+		{"echo a#b '#' \\#c", [][]string{{"echo", "a#b", "#", "#c"}}},
+		// La API pública pone primero los comandos de la línea.
+		{`git commit -m "$(cat msg)"`, [][]string{{"git", "commit", "-m", "$(cat msg)"}, {"cat", "msg"}}},
 		// H-02: un heredoc sin delimitador citado ejecuta sus sustituciones;
 		// citado o escapado, es texto.
 		{"cat <<EOF\n$(rm -rf x)\nEOF", [][]string{{"cat"}, {"rm", "-rf", "x"}}},
@@ -101,5 +107,25 @@ func TestSplitShellHerestringIsStdin(t *testing.T) {
 		if len(cmds) != 1 || !reflect.DeepEqual(cmds[0].Tokens, []string{"bash"}) || !reflect.DeepEqual(cmds[0].Stdin, want) {
 			t.Errorf("splitShell(%q) = %#v, want bash con Stdin %q", in, cmds, want)
 		}
+	}
+}
+
+// splitShell devuelve las sustituciones antes de su comando, como las
+// ejecuta el shell, y la tubería apunta al comando que la alimenta aunque
+// haya sustituciones en medio (C-003 del ACR acr_a635820b).
+func TestSplitShellTemporalOrder(t *testing.T) {
+	cmds := splitShell("X=rm; echo $($X -rf x); X=echo", 0)
+	var got [][]string
+	for _, c := range cmds {
+		got = append(got, c.Tokens)
+	}
+	want := [][]string{{"X=rm"}, {"$X", "-rf", "x"}, {"echo", "$($X -rf x)"}, {"X=echo"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("orden = %q, want %q", got, want)
+	}
+	cmds = splitShell("echo rm | sh $(true)", 0)
+	last := cmds[len(cmds)-1]
+	if last.Tokens[0] != "sh" || last.PipeBack < 1 || cmds[len(cmds)-1-last.PipeBack].Tokens[0] != "echo" {
+		t.Fatalf("la tubería debe venir de echo: %#v", cmds)
 	}
 }

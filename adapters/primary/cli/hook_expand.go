@@ -509,14 +509,17 @@ func multiEditContent(toolInput map[string]any) string {
 // oversizedShellPayload dice si un payload truncado por expandStdinMax es
 // de una herramienta de shell. Lee el JSON incompleto por tokens hasta dar
 // con tool_name/tool en el primer nivel: el comando que no se pudo leer
-// entero no se puede analizar, así que no debe pasar sin más (B-11).
+// entero no se puede analizar, así que no debe pasar sin más (B-11). Si el
+// corte llega antes de saber la herramienta (`tool_input` primero y
+// `tool_name` después), no se puede clasificar y se trata como shell: el
+// orden de las claves no decide la seguridad (C-004 del ACR acr_a635820b).
 func oversizedShellPayload(raw []byte) bool {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	depth, key := 0, ""
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			return false
+			return true
 		}
 		if d, ok := tok.(json.Delim); ok {
 			if d == '{' || d == '[' {

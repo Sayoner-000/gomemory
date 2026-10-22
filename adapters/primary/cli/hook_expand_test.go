@@ -131,6 +131,15 @@ func TestRunHookExpand_LongAndOversizedPayloads(t *testing.T) {
 	if !oversizedShellPayload([]byte(`{"sessionID":"x","args":{"command":"a"},"tool":"bash","z":"aaa`)) {
 		t.Fatal("forma OpenCode")
 	}
+	// C-004 (ACR acr_a635820b): sin tool_name antes del corte no se puede
+	// clasificar; el orden de las claves no decide.
+	late := []byte(`{"hook_event_name":"PreToolUse","session_id":"s","tool_input":{"command":"rm -rf /tmp/x; echo aaaa`)
+	if out := runHookExpand(context.Background(), d, "pre-tool", "claude", late); !strings.Contains(out.stdout, `"permissionDecision":"deny"`) {
+		t.Fatalf("tool_input antes de tool_name debe bloquearse: %+v", out)
+	}
+	if !oversizedShellPayload([]byte(`{"tool_input":{"tool_name":"Bash"},"x":"aaaa`)) {
+		t.Fatal("sin tool_name de primer nivel no se puede clasificar")
+	}
 }
 
 type failingObserver struct{ queued int }

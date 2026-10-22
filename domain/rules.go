@@ -323,8 +323,8 @@ func destructiveLine(cmd string, depth int, vars map[string]string) (RuleAction,
 			continue
 		}
 		var stdin []string
-		if c.PipeIn && i > 0 {
-			stdin = pipedText(cmds[i-1])
+		if c.PipeBack > 0 && i >= c.PipeBack {
+			stdin = pipedText(cmds[i-c.PipeBack])
 		}
 		a, d := destructiveCommand(c.Tokens, append(stdin, c.Stdin...), depth, vars)
 		if rank(a) > rank(worst) {
@@ -448,8 +448,9 @@ var (
 
 // expandKnown sustituye lo que se conoce sin ejecutar nada: las variables
 // asignadas en la propia línea y `$(echo …)`/“ `printf …` “, cuya salida
-// son sus argumentos. Un token que era solo una expansión se divide en
-// palabras como haría el shell. Lo desconocido queda tal cual.
+// se calcula, también pegadas a otro texto (`r$(printf m)`, C-001 del ACR
+// acr_a635820b). Un token que era solo una expansión se divide en palabras
+// como haría el shell. Lo desconocido queda tal cual.
 func expandKnown(toks []string, vars map[string]string, depth int, split bool) []string {
 	if depth > maxShellNesting {
 		return toks
@@ -468,6 +469,13 @@ func expandKnown(toks []string, vars map[string]string, depth int, split bool) [
 			out = append(out, t)
 			continue
 		}
+		inline := false
+		if strings.Contains(t, "$(") || strings.Contains(t, "`") {
+			if t, inline = expandInlineSubstitutions(t, vars, depth); t == unresolvedOutput {
+				out = append(out, t)
+				continue
+			}
+		}
 		whole := t != "" && shellVarRef.FindString(t) == t
 		known := true
 		expanded := shellVarRef.ReplaceAllStringFunc(t, func(ref string) string {
@@ -478,13 +486,61 @@ func expandKnown(toks []string, vars map[string]string, depth int, split bool) [
 			known = false
 			return ref
 		})
-		if whole && known && split {
+		if (whole && known || inline) && split {
 			out = append(out, strings.Fields(expanded)...)
 		} else {
 			out = append(out, expanded)
 		}
 	}
 	return out
+}
+
+// expandInlineSubstitutions reemplaza dentro de t cada `$(…)` o “ `…` “
+// cuya salida se conoce y dice si reemplazó alguna. Si una no se puede
+// calcular (un printf no resoluble), el token entero lo es.
+func expandInlineSubstitutions(t string, vars map[string]string, depth int) (string, bool) {
+	runes := []rune(t)
+	var b strings.Builder
+	changed := false
+	for i := 0; i < len(runes); i++ {
+		open, closer, skip := -1, rune(0), 0
+		switch {
+		case runes[i] == '$' && i+1 < len(runes) && runes[i+1] == '(' && (i+2 >= len(runes) || runes[i+2] != '('):
+			open, closer, skip = i+1, ')', 2
+		case runes[i] == '`':
+			open, closer, skip = i, '`', 1
+		}
+		if open < 0 {
+			b.WriteRune(runes[i])
+			continue
+		}
+		end := matchClose(runes, open, closer)
+		if end >= len(runes) {
+			b.WriteString(string(runes[i:]))
+			break
+		}
+		inner := string(runes[i+skip : end])
+		if closer == '`' {
+			inner = unescapeBackticks(inner)
+		}
+		text, ok := echoOutput(inner, vars, depth+1)
+		switch {
+		case ok && text == unresolvedOutput:
+			return unresolvedOutput, true
+		case ok:
+			b.WriteString(text)
+			changed = true
+		default:
+			b.WriteString(string(runes[i : end+1]))
+		}
+		i = end
+	}
+	return b.String(), changed
+}
+
+func isWholeSubstitution(t string) bool {
+	_, ok := wholeSubstitution(t)
+	return ok
 }
 
 // wholeSubstitution devuelve el contenido de un token que es entero una
@@ -522,14 +578,14 @@ func pipedText(c shellCommand) []string {
 		return nil
 	}
 	args := toks[1:]
-	for len(args) > 0 && isShortFlags(args[0]) && toks[0] == "echo" {
-		args = args[1:]
-	}
 	switch toks[0] {
 	case "echo":
-		return []string{strings.Join(args, " ")}
+		return []string{echoText(args)}
 	case "printf":
-		return []string{strings.NewReplacer(`\n`, "\n", `\t`, "\t").Replace(strings.Join(args, " "))}
+		if out, ok := printfOutput(args); ok {
+			return []string{out}
+		}
+		return []string{unresolvedOutput}
 	case "cat":
 		if len(args) == 0 {
 			return c.Stdin
@@ -777,6 +833,10 @@ func shellReadsStdin(toks []string) bool {
 			if strings.ContainsAny(a[1:], "oO") && i+1 < len(args) {
 				i++
 			}
+		case isWholeSubstitution(a):
+			// `sh $(true)`: una sustitución desconocida puede quedar vacía, y
+			// entonces el shell lee su script de la entrada; no cuenta como
+			// archivo de script.
 		default:
 			// Un archivo de script: la entrada estándar es suya, no del shell.
 			return dashS
@@ -830,6 +890,8 @@ func destructiveVerdict(toks []string) (RuleAction, string) {
 	switch toks[0] {
 	case deepSubstitution:
 		return RuleBlock, "sustituciones demasiado anidadas para analizarlas"
+	case unresolvedOutput:
+		return RuleBlock, "la salida de printf que se ejecuta no se puede calcular sin ejecutarla"
 	case "rm":
 		if hasFlag(toks[1:], 'r', "--recursive") && hasFlag(toks[1:], 'f', "--force") {
 			return RuleBlock, "borrado recursivo forzado (rm -rf)"

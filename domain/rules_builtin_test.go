@@ -238,6 +238,37 @@ func TestDestructiveShellBuiltin(t *testing.T) {
 		"cat <<\\EOF\n$(rm -rf /tmp/x)\nEOF":    RuleAllow,
 		"cat <<EOF\n\\$(rm -rf /tmp/x)\nEOF":    RuleAllow,
 		"cat <<EOF\nrm -rf /tmp/x $(date)\nEOF": RuleAllow,
+		// B-001 (ACR acr_1a0a68c0): la salida de printf/echo se calcula.
+		`$(printf '%s%s' r m) -rf /tmp/x`:       RuleBlock,
+		`$(printf '%c%c' rr mm) -rf /tmp/x`:     RuleBlock,
+		`$(printf 'r\x6d') -rf /tmp/x`:          RuleBlock,
+		"`printf '%b' 'r\\0155'` -rf /tmp/x":    RuleBlock,
+		`$(echo -e 'r\x6d') -rf /tmp/x`:         RuleBlock,
+		`$(printf '%q' rm) -rf /tmp/x`:          RuleBlock,
+		`printf '%s -rf /tmp/x' rm | bash`:      RuleBlock,
+		`printf '%s\n' ls 'rm -rf /tmp/x' | sh`: RuleBlock,
+		`printf '%q' x | bash`:                  RuleBlock,
+		`printf '%s %s' rm -rf | tee notes.md`:  RuleAllow,
+		`ls $(printf '%q' x)`:                   RuleAllow,
+		`$(printf '%s' ls) -la`:                 RuleAllow,
+		`echo $(printf '%05d' 42)`:              RuleAllow,
+		// ACR acr_a635820b: orden temporal (C-003), sustituciones pegadas
+		// (C-001) y comentarios (C-002), contrastados con bash.
+		"X=rm; echo $($X -rf /tmp/x); X=echo": RuleBlock,
+		"r$(printf m) -rf /tmp/x":             RuleBlock,
+		"r$(echo m) -rf /tmp/x":               RuleBlock,
+		"$(echo r)m -rf /tmp/x":               RuleBlock,
+		"`echo r`m -rf /tmp/x":                RuleBlock,
+		"r$(printf '%q' m) -rf /tmp/x":        RuleBlock,
+		"echo rm -rf /tmp/x | sh $(true)":     RuleBlock,
+		"echo 'rm -rf /tmp/x' $(date) | sh":   RuleBlock,
+		"ls # $(rm -rf /tmp/x)":               RuleAllow,
+		"# rm -rf /tmp/x":                     RuleAllow,
+		"ls #\nrm -rf /tmp/x":                 RuleBlock,
+		"echo a#$(rm -rf /tmp/x)":             RuleBlock,
+		`echo '#' $(rm -rf /tmp/x)`:           RuleBlock,
+		`echo "# $(rm -rf /tmp/x)"`:           RuleBlock,
+		"l$(echo s) -la":                      RuleAllow,
 	}
 	for cmd, want := range cases {
 		v := EvaluateRules(RuleEventBash, RuleInput{Command: cmd}, BuiltinRules())
