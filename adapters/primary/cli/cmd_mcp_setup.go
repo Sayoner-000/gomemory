@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mem/adapters/primary/setup"
+	"mem/adapters/secondary/persistence"
 	"mem/domain"
 )
 
@@ -218,6 +219,15 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 				fmt.Printf("  ⚠️  hooks de modo plan (scope global, %s): %v\n", agent.Name, err)
 			} else {
 				fmt.Printf("  ✅ hooks de modo plan: %s\n", filepath.Join(home, ".claude", "settings.json"))
+				// Un proyecto instalado cuando el global no tenía estos hooks
+				// los registró él mismo; ahora correrían dos veces. Solo se
+				// conoce el proyecto del cwd: los demás los corrige su
+				// `mem update` (feature 035, FR-001).
+				if agent.Name == "claude" {
+					if root, err := persistence.FindRoot(); err == nil {
+						dedupProjectHooksReport(root)
+					}
+				}
 			}
 		}
 	}

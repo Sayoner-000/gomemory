@@ -435,7 +435,7 @@ func writeClaudeHooksSkipping(root string, ref AgentRef, skip map[string]bool) e
 	for event, regs := range claudeHookEventsFor(persistence.ReadSettings(root).ToolOutputCompression) {
 		kept := filterOutGomemoryHooks(hooks[event])
 		for _, r := range regs {
-			if skip[hookSubName(r.sub)] {
+			if skip[hookSubKey(r.sub)] {
 				continue
 			}
 			command := ref.HookCommand + " hook " + r.sub
@@ -549,6 +549,36 @@ func hookSubName(sub string) string {
 	return sub
 }
 
+// hookSubKeyRe separa las dos primeras palabras de un subcomando; los flags
+// (`--emit=claude`) no cuentan como palabra.
+var hookSubKeyRe = regexp.MustCompile(`^([a-z-]+)(?:[ \t]+([a-z][a-z-]*))?`)
+
+// hookSubKey identifica un subcomando para deduplicar entre ámbitos. Es
+// hookSubName salvo en `expand`, que agrupa un subcomando por evento: sin la
+// segunda palabra, un global con solo `expand stop` haría que el proyecto
+// omitiera también `expand pre-tool` ("expand pre-tool --emit=claude" →
+// "expand pre-tool", "tool-output claude" → "tool-output").
+func hookSubKey(sub string) string {
+	m := hookSubKeyRe.FindStringSubmatch(sub)
+	if m == nil {
+		return hookSubName(sub)
+	}
+	if m[1] == "expand" && m[2] != "" {
+		return m[1] + " " + m[2]
+	}
+	return m[1]
+}
+
+// gomemoryHookKey devuelve la clave (hookSubKey) del primer `mem hook <sub>`
+// de cmd, o false si cmd no invoca a gomemory.
+func gomemoryHookKey(cmd string) (string, bool) {
+	m := gomemoryHookSubRe.FindStringSubmatchIndex(cmd)
+	if m == nil {
+		return "", false
+	}
+	return hookSubKey(cmd[m[4]:]), true
+}
+
 // gomemoryHookSubRe exige que `hook <sub>` lo invoque el binario de
 // gomemory: el token anterior es `mem` o `mem.exe`, por nombre, con ruta
 // (`/usr/local/bin/mem`, `${CLAUDE_PROJECT_DIR}/mem`, `C:\…\mem.exe`) o
@@ -572,6 +602,21 @@ func GomemoryHookIndex(cmd, sub string) int {
 // GomemoryHookSubs devuelve los subcomandos de gomemory registrados en un
 // settings.json de Claude Code (vacío si no existe o no se puede leer).
 func GomemoryHookSubs(settingsPath string) map[string]bool {
+	return gomemoryHookSet(settingsPath, func(cmd string) (string, bool) {
+		if m := gomemoryHookSubRe.FindStringSubmatch(cmd); m != nil {
+			return m[2], true
+		}
+		return "", false
+	})
+}
+
+// GomemoryHookKeys es GomemoryHookSubs con la clave de deduplicación
+// (hookSubKey): distingue cada subcomando de `expand`.
+func GomemoryHookKeys(settingsPath string) map[string]bool {
+	return gomemoryHookSet(settingsPath, gomemoryHookKey)
+}
+
+func gomemoryHookSet(settingsPath string, keyOf func(cmd string) (string, bool)) map[string]bool {
 	subs := map[string]bool{}
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
@@ -589,8 +634,8 @@ func GomemoryHookSubs(settingsPath string) map[string]bool {
 				continue
 			}
 			for _, cmd := range hookEntryCommands(e) {
-				if m := gomemoryHookSubRe.FindStringSubmatch(cmd); m != nil {
-					subs[m[2]] = true
+				if key, ok := keyOf(cmd); ok {
+					subs[key] = true
 				}
 			}
 		}
@@ -624,7 +669,7 @@ func globalClaudeHookSubs(root string) map[string]bool {
 	if err != nil || home == "" || sameDir(home, root) {
 		return nil
 	}
-	return GomemoryHookSubs(filepath.Join(home, ".claude", "settings.json"))
+	return GomemoryHookKeys(filepath.Join(home, ".claude", "settings.json"))
 }
 
 func sameDir(a, b string) bool {
@@ -640,9 +685,9 @@ func DuplicateClaudeHookSubs(home, root string) []string {
 	if home == "" || sameDir(home, root) {
 		return nil
 	}
-	global := GomemoryHookSubs(filepath.Join(home, ".claude", "settings.json"))
+	global := GomemoryHookKeys(filepath.Join(home, ".claude", "settings.json"))
 	var dups []string
-	for sub := range GomemoryHookSubs(filepath.Join(root, ".claude", "settings.json")) {
+	for sub := range GomemoryHookKeys(filepath.Join(root, ".claude", "settings.json")) {
 		if global[sub] {
 			dups = append(dups, sub)
 		}
@@ -700,8 +745,8 @@ func DedupClaudeProjectHooks(home, root string) ([]string, error) {
 // acr_715249c3). Devuelve nil si la entrada queda vacía.
 func withoutDuplicateCommands(e interface{}, drop map[string]bool) interface{} {
 	isDup := func(cmd string) bool {
-		m := gomemoryHookSubRe.FindStringSubmatch(cmd)
-		return m != nil && drop[m[2]] && hookCommandIsGomemory(cmd)
+		key, ok := gomemoryHookKey(cmd)
+		return ok && drop[key] && hookCommandIsGomemory(cmd)
 	}
 	switch v := e.(type) {
 	case string:

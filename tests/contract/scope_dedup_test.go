@@ -17,17 +17,17 @@ import (
 
 // gomemorySubsGlobales es el juego que escribe `setup-mcp --scope global`: sin
 // tool-output, porque lee los ajustes del HOME y no los del proyecto. Incluye
-// expand (feature 040), que se instala siempre.
+// expand (feature 040), que se instala siempre, con un subcomando por evento.
 var gomemorySubsGlobales = map[string][]string{
-	"SessionStart":     {"session-start", "post-compact", "expand"},
+	"SessionStart":     {"session-start", "post-compact", "expand session-start --emit=claude"},
 	"SessionEnd":       {"session-end"},
 	"PostCompact":      {"compact-summary"},
-	"UserPromptSubmit": {"user-prompt-submit", "expand"},
-	"Stop":             {"turn-end", "expand"},
+	"UserPromptSubmit": {"user-prompt-submit", "expand prompt --emit=claude"},
+	"Stop":             {"turn-end", "expand stop --emit=claude"},
 	"SubagentStart":    {"subagent-start"},
 	"SubagentStop":     {"subagent-stop"},
-	"PreToolUse":       {"plan-guard", "expand"},
-	"PostToolUse":      {"plan-approved", "plan-entered", "expand"},
+	"PreToolUse":       {"plan-guard", "expand pre-tool --emit=claude"},
+	"PostToolUse":      {"plan-approved", "plan-entered", "expand post-tool --emit=claude"},
 }
 
 var hookSubRe = regexp.MustCompile(`mem hook ([a-z-]+)`)
@@ -138,6 +138,30 @@ func TestScopeDedup_UpdateYaActualizadoRetiraDuplicados(t *testing.T) {
 	}
 	if c := readAll(t, proyecto); !strings.Contains(c, "cbm-augment") || !strings.Contains(c, "herdr-agent-state") {
 		t.Error("los hooks ajenos del proyecto deben quedar intactos")
+	}
+}
+
+// Un proyecto instalado antes que el global registró todos los hooks; al
+// activar el global desde ese proyecto, setup-mcp retira los que ahora duplica.
+func TestScopeDedup_SetupGlobalRetiraDuplicadosDelProyecto(t *testing.T) {
+	s := newLifecycleSandbox(t)
+	p := s.Project("dedup-setup-global")
+	if r := s.Run("", p, "install", "--yes", "--agents", "claude", "--scope", "project", p); r.ExitCode != 0 {
+		t.Fatalf("install: %d\n%s\n%s", r.ExitCode, r.Stdout, r.Stderr)
+	}
+	proyecto := filepath.Join(p, ".claude", "settings.json")
+	if !strings.Contains(readAll(t, proyecto), "hook expand pre-tool") {
+		t.Fatal("sin global, el proyecto debe registrar los hooks de expand")
+	}
+
+	if r := s.Run("", p, "setup-mcp", "--scope", "global", "--agents", "claude"); r.ExitCode != 0 {
+		t.Fatalf("setup-mcp global: %d\n%s\n%s", r.ExitCode, r.Stdout, r.Stderr)
+	}
+	if got := gomemorySubsIn(t, proyecto); len(got) != 0 {
+		t.Errorf("tras activar el global, el proyecto no debe repetir sus hooks; quedan %v", got)
+	}
+	if !strings.Contains(readAll(t, filepath.Join(s.Home, ".claude", "settings.json")), "hook expand pre-tool") {
+		t.Error("el global debe conservar los hooks de expand")
 	}
 }
 
