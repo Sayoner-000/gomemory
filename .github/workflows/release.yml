@@ -17,7 +17,8 @@ jobs:
       - name: Verificar vulnerabilidades alcanzables
         uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
         with:
-          go-version-input: "1.27.2"
+          # La misma versión que compila los binarios: la de go.mod (toolchain).
+          go-version-file: go.mod
           go-package: ./...
 
   goreleaser:
@@ -32,7 +33,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: "1.27"
+          # Fijada por go.mod: un parche de seguridad del toolchain llega a los
+          # binarios publicados, no solo al análisis.
+          go-version-file: go.mod
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
