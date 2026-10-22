@@ -22,7 +22,9 @@ var (
 	normSpace     = regexp.MustCompile(`\s+`)
 
 	// protectedLine: nunca se colapsa (errores, pánicos, fallos de prueba).
-	protectedLine = regexp.MustCompile(`(?i)(\b(ERROR|FATAL|PANIC|CRITICAL)\b|panic:|^\s*--- FAIL|^FAIL\b|Exception\b|Error:)`)
+	// FAIL en mayúsculas cuenta en cualquier posición: en los logs con prefijo
+	// (`gh run view --log`, `docker compose logs`) la línea no empieza por él.
+	protectedLine = regexp.MustCompile(`(?i)(\b(ERROR|FATAL|PANIC|CRITICAL)\b|panic:|^\s*--- FAIL|^FAIL\b|(?-i:\bFAIL\b)|Exception\b|Error:)`)
 	warnLine      = regexp.MustCompile(`(?i)\bWARN(ING)?\b`)
 	// traceStart abre una traza de pila; traceFrame es una línea de marco.
 	traceStart = regexp.MustCompile(`^(goroutine \d+ \[|Traceback \(most recent call last\):|Exception in thread |panic: )`)

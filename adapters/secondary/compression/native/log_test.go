@@ -68,3 +68,26 @@ func TestCompressDiffAndTable(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// En un log con prefijo (`gh run view --log`: job, paso y hora separados por
+// tabuladores) el router ve una tabla; los fallos de prueba no empiezan la
+// línea y aun así deben conservarse.
+func TestCompressTable_ConservaFallosConPrefijo(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 40; i++ {
+		fmt.Fprintf(&b, "Linux\tgo test\t2026-10-22T12:00:%02dZ ok  \tmem/pkg%d\t0.1s\n", i, i)
+		if i == 20 {
+			b.WriteString("Linux\tgo test\t2026-10-22T12:00:20Z --- FAIL: TestX (0.01s)\n")
+			b.WriteString("Linux\tgo test\t2026-10-22T12:00:20Z FAIL\tmem/pkg20\t0.2s\n")
+		}
+	}
+	out, n := compressTable(b.String(), "r", maxTh)
+	if n == 0 {
+		t.Fatal("las filas repetidas deben omitirse")
+	}
+	for _, want := range []string{"--- FAIL: TestX", "FAIL\tmem/pkg20"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("falta %q en la salida:\n%s", want, out)
+		}
+	}
+}
