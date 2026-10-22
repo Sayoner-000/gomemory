@@ -666,6 +666,14 @@ duplicados, recortes y exclusiones de compresión quedan disponibles en
 `mem doctor`. La compresión segura de salidas se documenta en
 [MANUAL.md](./MANUAL.md#compresión-de-salidas-de-herramientas).
 
+Entre ámbitos, cada subcomando de gomemory se registra una sola vez: el
+`settings.json` del proyecto solo añade lo que no cubre `~/.claude/settings.json`.
+La comparación usa el subcomando completo; en `expand` incluye el evento
+(`expand pre-tool`, `expand stop`), para que un global con parte de esos hooks
+no oculte los demás. Si el global se activa después que el proyecto,
+`mem setup-mcp --scope global` retira los duplicados del proyecto del `cwd`, y
+`mem update` hace lo mismo en cada proyecto donde se ejecute.
+
 Los hooks son el mecanismo que hace que la memoria "tome todo bien" en Claude Code: sin ellos, las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto automáticamente. El campo `{"tools": true}` que se usaba antes en `user-prompt-submit` NO es soportado por Claude Code (era un no-op silencioso que dejaba las tools diferidas sin cargar); se reemplazó por el `systemMessage` con `ToolSearch`.
 
 ### 12. Transporte MCP y hooks
