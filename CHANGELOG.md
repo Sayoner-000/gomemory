@@ -7,6 +7,13 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.36.2] - 2026-10-22
+
+### Corregido
+
+- `mem setup-mcp --scope global` ahora retira del proyecto del directorio actual los hooks de Claude Code que el global pasa a cubrir. Si un proyecto se instalaba antes que el global, sus hooks quedaban registrados en los dos ámbitos y Claude Code los ejecutaba dos veces por evento. Los demás proyectos se corrigen con `mem update`.
+- La deduplicación de hooks entre ámbitos compara el subcomando completo. Antes, todos los hooks de `mem hook expand` compartían la clave `expand`, y un global con solo parte de ellos (por ejemplo, `expand stop`) hacía que el proyecto omitiera también los demás, como `expand pre-tool`, y perdiera sus protecciones.
+
 ## [v2.36.1] - 2026-10-22
 
 ### Seguridad
