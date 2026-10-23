@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -222,7 +221,7 @@ func installGlobalBinary(self string) error {
 		return err
 	}
 	humanf("  ✅ Binario global instalado en %s\n", dest)
-	if found, err := exec.LookPath(memBinaryName()); err != nil || !sameFilePath(found, dest) {
+	if found, err := lookPathGlobal(); err != nil || !sameFilePath(found, dest) {
 		humanf("  ⚠️  %s no está en el PATH: añádelo para usar la instalación global\n", dir)
 	}
 	return nil

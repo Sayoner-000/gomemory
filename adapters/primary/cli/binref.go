@@ -73,12 +73,28 @@ func memBinaryName() string {
 	return "mem"
 }
 
+// lookPathGlobal busca mem solo en los directorios del PATH. En Windows,
+// exec.LookPath prueba antes el directorio actual y, si encuentra ahí la copia
+// del proyecto, devuelve exec.ErrDot aunque el global esté en el PATH: desde
+// una copia local, update e install no veían el binario global.
+func lookPathGlobal() (string, error) {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		if dir == "" || dir == "." {
+			continue
+		}
+		if p, err := exec.LookPath(filepath.Join(dir, memBinaryName())); err == nil {
+			return p, nil
+		}
+	}
+	return "", exec.ErrNotFound
+}
+
 // resolveGlobalBinary es la única regla para decidir si hay un binario global
 // (R1 de la feature 034): `mem` se resuelve por el PATH y no es el mismo
 // archivo que la copia del proyecto. Install, update, la retirada de copias y
 // doctor la comparten para no discrepar sobre qué binario manda.
 func resolveGlobalBinary(projectRoot string) (string, bool) {
-	path, err := exec.LookPath(memBinaryName())
+	path, err := lookPathGlobal()
 	if err != nil {
 		return "", false
 	}
