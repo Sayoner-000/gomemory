@@ -40,7 +40,10 @@ func InstallSpeckitExtension(root string, templatesFS fs.FS) error {
 		return nil
 	}
 
-	extDir := filepath.Join(root, ".specify", "extensions", "gomemory-context")
+	extDir, err := ProjectConfigPath(root, ".specify", "extensions", "gomemory-context")
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(extDir, 0o755); err != nil {
 		return err
 	}
@@ -48,7 +51,10 @@ func InstallSpeckitExtension(root string, templatesFS fs.FS) error {
 		return err
 	}
 
-	claudeSkillsDir := filepath.Join(root, ".claude", "skills")
+	claudeSkillsDir, err := ProjectConfigPath(root, ".claude", "skills")
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(claudeSkillsDir, 0o755); err != nil {
 		return err
 	}
@@ -56,7 +62,10 @@ func InstallSpeckitExtension(root string, templatesFS fs.FS) error {
 		return err
 	}
 
-	opencodeCommandsDir := filepath.Join(root, ".opencode", "commands")
+	opencodeCommandsDir, err := ProjectConfigPath(root, ".opencode", "commands")
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(opencodeCommandsDir, 0o755); err != nil {
 		return err
 	}

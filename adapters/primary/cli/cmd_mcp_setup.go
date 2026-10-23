@@ -706,7 +706,11 @@ func setupOpenCode(root string) bool {
 
 func setupClaude(root string) bool {
 	ref := binRefFor(root)
-	mcpPath := filepath.Join(root, ".mcp.json")
+	mcpPath, err := setup.ProjectConfigPath(root, ".mcp.json")
+	if err != nil {
+		fmt.Printf("  ⚠️  claude: %v\n", err)
+		return false
+	}
 	if data, err := os.ReadFile(mcpPath); err == nil {
 		var existing map[string]interface{}
 		if json.Unmarshal(data, &existing) == nil {
@@ -728,7 +732,7 @@ func setupClaude(root string) bool {
 		},
 	}
 	data, _ := json.MarshalIndent(mcpCfg, "", "  ")
-	if err := os.WriteFile(mcpPath, data, 0644); err != nil {
+	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
 		fmt.Printf("  ⚠️  claude: error al escribir .mcp.json: %v\n", err)
 		return false
 	}
@@ -739,12 +743,15 @@ func setupClaude(root string) bool {
 
 func setupCursor(root string) bool {
 	ref := binRefFor(root)
-	cursorDir := filepath.Join(root, ".cursor")
-	if err := os.MkdirAll(cursorDir, 0755); err != nil {
+	mcpPath, err := setup.ProjectConfigPath(root, ".cursor", "mcp.json")
+	if err != nil {
+		fmt.Printf("  ⚠️  cursor: %v\n", err)
+		return false
+	}
+	if err := os.MkdirAll(filepath.Dir(mcpPath), 0755); err != nil {
 		fmt.Printf("  ⚠️  cursor: error al crear directorio: %v\n", err)
 		return false
 	}
-	mcpPath := filepath.Join(cursorDir, "mcp.json")
 
 	mcpCfg := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
@@ -781,7 +788,7 @@ func setupCursor(root string) bool {
 	}
 
 	data, _ := json.MarshalIndent(existing, "", "  ")
-	if err := os.WriteFile(mcpPath, data, 0644); err != nil {
+	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
 		fmt.Printf("  ⚠️  cursor: error al escribir .cursor/mcp.json: %v\n", err)
 		return false
 	}
@@ -791,12 +798,15 @@ func setupCursor(root string) bool {
 
 func setupWindsurf(root string) bool {
 	ref := binRefFor(root)
-	windsufDir := filepath.Join(root, ".windsurf")
-	if err := os.MkdirAll(windsufDir, 0755); err != nil {
+	mcpPath, err := setup.ProjectConfigPath(root, ".windsurf", "mcp_config.json")
+	if err != nil {
+		fmt.Printf("  ⚠️  windsurf: %v\n", err)
+		return false
+	}
+	if err := os.MkdirAll(filepath.Dir(mcpPath), 0755); err != nil {
 		fmt.Printf("  ⚠️  windsurf: error al crear directorio: %v\n", err)
 		return false
 	}
-	mcpPath := filepath.Join(windsufDir, "mcp_config.json")
 
 	mcpCfg := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
@@ -833,7 +843,7 @@ func setupWindsurf(root string) bool {
 	}
 
 	data, _ := json.MarshalIndent(existing, "", "  ")
-	if err := os.WriteFile(mcpPath, data, 0644); err != nil {
+	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
 		fmt.Printf("  ⚠️  windsurf: error al escribir .windsurf/mcp_config.json: %v\n", err)
 		return false
 	}
@@ -843,12 +853,15 @@ func setupWindsurf(root string) bool {
 
 func setupCline(root string) bool {
 	ref := binRefFor(root)
-	clineDir := filepath.Join(root, ".cline")
-	if err := os.MkdirAll(clineDir, 0755); err != nil {
+	mcpPath, err := setup.ProjectConfigPath(root, ".cline", "mcp_settings.json")
+	if err != nil {
+		fmt.Printf("  ⚠️  cline: %v\n", err)
+		return false
+	}
+	if err := os.MkdirAll(filepath.Dir(mcpPath), 0755); err != nil {
 		fmt.Printf("  ⚠️  cline: error al crear directorio: %v\n", err)
 		return false
 	}
-	mcpPath := filepath.Join(clineDir, "mcp_settings.json")
 
 	mcpCfg := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
@@ -889,7 +902,7 @@ func setupCline(root string) bool {
 	}
 
 	data, _ := json.MarshalIndent(existing, "", "  ")
-	if err := os.WriteFile(mcpPath, data, 0644); err != nil {
+	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
 		fmt.Printf("  ⚠️  cline: error al escribir .cline/mcp_settings.json: %v\n", err)
 		return false
 	}

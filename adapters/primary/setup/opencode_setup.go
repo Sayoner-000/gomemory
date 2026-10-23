@@ -93,7 +93,10 @@ func OpenCodeGlobalRegistrationExists() bool {
 // nada más allá del $schema, se elimina; si conserva configuración propia de la
 // persona, se reescribe sin nuestras claves.
 func cleanupProjectOpenCodeRegistration(root string) {
-	cfgPath := filepath.Join(root, "opencode.json")
+	cfgPath, err := ProjectConfigPath(root, "opencode.json")
+	if err != nil {
+		return
+	}
 	data, _ := os.ReadFile(cfgPath)
 	if len(data) == 0 {
 		return // sin archivo, nada que limpiar
@@ -141,7 +144,7 @@ func cleanupProjectOpenCodeRegistration(root string) {
 		if err != nil {
 			return
 		}
-		_ = os.WriteFile(cfgPath, out, 0644)
+		_ = WriteConfigFile(cfgPath, out)
 		fmt.Println("  🧹 opencode: registro de proyecto retirado de opencode.json (conserva configuración ajena)")
 		return
 	}
@@ -208,7 +211,7 @@ func writeOpenCodePermissions(cfgPath string) error {
 	if string(previo) == string(data) {
 		return nil
 	}
-	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+	if err := WriteConfigFile(cfgPath, data); err != nil {
 		return fmt.Errorf("write %s: %w", cfgPath, err)
 	}
 	return nil
@@ -223,7 +226,7 @@ func openCodeGlobalConfigPath() (string, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", fmt.Errorf("create opencode config dir: %w", err)
 	}
-	return filepath.Join(dir, "opencode.json"), nil
+	return GlobalConfigPath(filepath.Join(dir, "opencode.json")), nil
 }
 
 // installOpenCodePlugin copia el plugin gomemory.ts a
@@ -272,14 +275,19 @@ func installOpenCodePlugin(root string, ref AgentRef) error {
 // que OpenCode ignora por completo (de ahí que las tools nunca aparecieran).
 // Es idempotente y preserva el resto de la config.
 func WriteOpenCodeMCP(root string, ref AgentRef) error {
-	cfgPath := filepath.Join(root, "opencode.json")
+	cfgPath, err := ProjectConfigPath(root, "opencode.json")
+	if err != nil {
+		return err
+	}
 	if err := writeOpenCodeMCPFile(cfgPath, ref); err != nil {
 		return err
 	}
 
 	// Limpiar el .opencode.json legado si era nuestro artefacto (tenía la entrada
 	// gomemory en mcpServers), para no dejar config muerta que confunda.
-	cleanupLegacyOpenCodeConfig(filepath.Join(root, ".opencode.json"))
+	if legacy, err := ProjectConfigPath(root, ".opencode.json"); err == nil {
+		cleanupLegacyOpenCodeConfig(legacy)
+	}
 	return nil
 }
 
@@ -310,7 +318,7 @@ func writeOpenCodeMCPFile(cfgPath string, ref AgentRef) error {
 	cfg["mcp"] = mcp
 
 	data, _ := json.MarshalIndent(cfg, "", "  ")
-	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+	if err := WriteConfigFile(cfgPath, data); err != nil {
 		return fmt.Errorf("write %s: %w", cfgPath, err)
 	}
 	return nil
@@ -344,7 +352,7 @@ func cleanupLegacyOpenCodeConfig(legacyPath string) {
 		return
 	}
 	out, _ := json.MarshalIndent(legacy, "", "  ")
-	_ = os.WriteFile(legacyPath, out, 0644)
+	_ = WriteConfigFile(legacyPath, out)
 }
 
 // RemoveOpenCodePermissions retira del opencode.json indicado los permisos que
@@ -358,7 +366,10 @@ func cleanupLegacyOpenCodeConfig(legacyPath string) {
 // Conservadora con lo ajeno: los permisos que la persona haya declarado por su
 // cuenta se conservan, y la clave "permission" solo desaparece si queda vacía.
 func RemoveOpenCodePermissions(root string) (changed bool, err error) {
-	cfgPath := filepath.Join(root, "opencode.json")
+	cfgPath, err := ProjectConfigPath(root, "opencode.json")
+	if err != nil {
+		return false, err
+	}
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return false, nil // sin opencode.json, nada que limpiar
@@ -392,7 +403,7 @@ func RemoveOpenCodePermissions(root string) (changed bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("serializar %s: %w", cfgPath, err)
 	}
-	if err := os.WriteFile(cfgPath, salida, 0644); err != nil {
+	if err := WriteConfigFile(cfgPath, salida); err != nil {
 		return false, fmt.Errorf("write %s: %w", cfgPath, err)
 	}
 	return true, nil

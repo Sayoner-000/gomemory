@@ -56,7 +56,10 @@ func InstallAtomicPlanWrappers(root, method string, agents ...string) error {
 		if !wrapperForAgents(w.path, agents) {
 			continue
 		}
-		dest := filepath.Join(append([]string{root}, w.path...)...)
+		dest, err := ProjectConfigPath(root, w.path...)
+		if err != nil {
+			return err
+		}
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err
 		}
@@ -65,7 +68,7 @@ func InstallAtomicPlanWrappers(root, method string, agents ...string) error {
 		if previo, err := os.ReadFile(dest); err == nil && string(previo) == string(content) {
 			continue
 		}
-		if err := os.WriteFile(dest, content, 0o644); err != nil {
+		if err := WriteConfigFile(dest, content); err != nil {
 			return err
 		}
 	}

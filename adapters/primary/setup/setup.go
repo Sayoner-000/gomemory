@@ -68,6 +68,9 @@ func copyFileOrDir(fsys fs.FS, baseDir string, entry os.DirEntry, targetDir stri
 	dstPath := filepath.Join(targetDir, entry.Name())
 
 	if entry.IsDir() {
+		if info, err := os.Lstat(dstPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return 0, fmt.Errorf("%s es un enlace simbólico: gomemory no escribe a través de él", dstPath)
+		}
 		if err := os.MkdirAll(dstPath, 0755); err != nil {
 			return 0, fmt.Errorf("create dir %s: %w", dstPath, err)
 		}
@@ -110,7 +113,7 @@ func copyFileOrDir(fsys fs.FS, baseDir string, entry os.DirEntry, targetDir stri
 		return 0, nil
 	}
 
-	if err := os.WriteFile(dstPath, data, 0644); err != nil {
+	if err := WriteConfigFile(dstPath, data); err != nil {
 		return 0, fmt.Errorf("write file %s: %w", dstPath, err)
 	}
 	return 1, nil
