@@ -51,6 +51,7 @@ command = "otro-hook"
 func TestSetupCodexGlobalRetiraElHookDeSalidas(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	cfgDir := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
 		t.Fatal(err)

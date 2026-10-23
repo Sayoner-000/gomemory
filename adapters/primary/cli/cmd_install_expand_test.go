@@ -13,6 +13,7 @@ import (
 func TestExpandInstallUpgradeUninstall(t *testing.T) {
 	home, root := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	t.Setenv("GOMEMORY_DATA_HOME", t.TempDir())
 	if err := os.MkdirAll(filepath.Join(home, ".codex"), 0700); err != nil {
 		t.Fatal(err)

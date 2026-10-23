@@ -120,6 +120,7 @@ func TestRemoveMCPEntries_SigueLimpiandoElEsquemaLegado(t *testing.T) {
 func TestRemoveOpenCodeArtifacts_LimpiaPermisosDelProyecto(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	ruta := escribirOpenCodeJSON(t, dir, map[string]any{
 		"permission": map[string]any{
@@ -154,6 +155,7 @@ func TestRemoveOpenCodeArtifacts_NoTocaElAmbitoDeUsuario(t *testing.T) {
 	dir := t.TempDir()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 
 	escribirOpenCodeJSON(t, dir, nil)
 	plugin := filepath.Join(home, ".config", "opencode", "plugins", "gomemory.ts")
@@ -179,6 +181,7 @@ func TestRemoveOpenCodeArtifacts_NoTocaElAmbitoDeUsuario(t *testing.T) {
 func TestRemoveOpenCodeArtifacts_SinArtefactosNoFalla(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	salida := captureStdout(t, func() { removeOpenCodeArtifacts(dir) })
 
@@ -197,6 +200,7 @@ func TestRemoveOpenCodeArtifacts_SinArtefactosNoFalla(t *testing.T) {
 func TestRemoveNativeWrappers_RetiraLosDeAmbosAgentes(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	generados := []string{
 		filepath.Join(".claude", "skills", "atomic-decomposition", "SKILL.md"),

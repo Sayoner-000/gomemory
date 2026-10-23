@@ -43,6 +43,7 @@ func inventario(t *testing.T, dir string) []string {
 func TestC5_ActividadDeProyectoNoModificaElEntornoDeLaPersona(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 
 	// Artefactos de ámbito de usuario que la actividad NO debe tocar.
 	for _, rel := range [][]string{
@@ -119,6 +120,7 @@ func TestC3_SimetriaDeInventario(t *testing.T) {
 func TestC8_SeleccionDeAgentesRespetada(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 
 	cli.RunGlobalScopeSetupForTest([]string{"codex"})
 

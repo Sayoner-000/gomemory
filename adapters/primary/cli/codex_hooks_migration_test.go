@@ -62,6 +62,7 @@ command = "foreign"
 func TestSetupCodexGlobalConsolidatesHooksJSONWithBackupAndIsIdempotent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	codexDir := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(codexDir, 0755); err != nil {
 		t.Fatal(err)
@@ -103,6 +104,7 @@ func TestSetupCodexGlobalConsolidatesHooksJSONWithBackupAndIsIdempotent(t *testi
 func TestSetupCodexGlobalKeepsInvalidHooksJSON(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	codexDir := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(codexDir, 0755); err != nil {
 		t.Fatal(err)

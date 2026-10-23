@@ -35,6 +35,7 @@ func TestDoctor_JSONEsEstableEntreEjecuciones(t *testing.T) {
 		t.Fatalf("mkdir .git: %v", err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	first, _ := runDoctor(t, bin, dir, "--json")
 	second, _ := runDoctor(t, bin, dir, "--json")
@@ -61,6 +62,7 @@ func TestDoctor_StrictExitCodeReflejaProblems(t *testing.T) {
 		t.Fatalf("mkdir .git: %v", err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	// Sin nada instalado: hay canales missing → problems > 0 → --strict falla.
 	_, code := runDoctor(t, bin, dir, "--strict", "--json")
@@ -82,6 +84,7 @@ func TestDoctor_CodegraphAusenteSinAvisos(t *testing.T) {
 		t.Fatalf("mkdir .git: %v", err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	out, _ := runDoctor(t, bin, dir, "--json")
 	var parsed struct {
@@ -113,6 +116,7 @@ func TestDoctor_PluginV1EnOpenCode2MarcaCanalesYCuentaProblems(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	plugins := filepath.Join(home, ".config", "opencode", "plugins")
 	if err := os.MkdirAll(plugins, 0755); err != nil {
 		t.Fatalf("mkdir plugins: %v", err)
