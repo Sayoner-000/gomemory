@@ -32,9 +32,21 @@ func CmdMigrate(deps *Deps, args []string) {
 	}
 
 	project := deps.ProjectRepo.Key(root)
+	// migrate no abre la base antes de migrar (con --force descarta el store
+	// previo, y Windows no borra un archivo abierto): la abre aquí, ya migrada,
+	// solo para contar.
+	repo := deps.MemoryRepo
+	if repo == nil {
+		if r, _, closeDB, ok, err := openStoreByKey(project); ok && err == nil {
+			defer closeDB()
+			repo = r
+		}
+	}
 	count := 0
-	if mems, err := deps.MemoryRepo.List(project, 1_000_000); err == nil {
-		count = len(mems)
+	if repo != nil {
+		if mems, err := repo.List(project, 1_000_000); err == nil {
+			count = len(mems)
+		}
 	}
 	humanf("✓ Migración completa: %d memoria(s) movidas al store global\n", count)
 	humanf("  Base de datos: %s\n", deps.ProjectRepo.DbPath(root))
