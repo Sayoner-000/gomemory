@@ -7,6 +7,33 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.36.3] - 2026-10-22
+
+### Seguridad
+
+- `install`, `update`, `setup-mcp` y `uninstall` dejan de seguir enlaces simbólicos en la configuración del proyecto: `.claude/settings.json`, `.mcp.json`, `opencode.json`, los MCP de Cursor, Windsurf y Cline, los archivos de instrucciones, `.gitignore`, `.specify/`, los plugins y los envoltorios. Un enlace hacía que gomemory escribiera, o borrara con `.claude/plugins` enlazado, un archivo fuera del repositorio, incluida la configuración global de Claude. Ahora el paso se omite con un aviso. En el ámbito de usuario el enlace se sigue y se conserva, por si viene de un repositorio de dotfiles.
+- Reescribir un archivo de configuración conserva su modo: un `settings.json` con `0600` ya no pasa a `0644`.
+
+### Corregido
+
+- Windows:
+  - `mem install` no instalaba los plugins de Claude Code y OpenCode ni la extensión de Spec Kit, porque leía los archivos embebidos con rutas `\`.
+  - Las escrituras de estado que hacen los hooks en paralelo (conversación, avisos, cola de expand, snapshots del grafo) podían fallar con «Access is denied»: ahora reintentan y los lectores no bloquean el reemplazo.
+  - `mem update` deja de pedir un `move` manual: publica el binario nuevo y, si el actual está en ejecución, lo aparta como `mem.exe.old` para retirarlo en la siguiente actualización. Desde una copia local ahora encuentra el binario global, que antes no veía.
+  - `mem uninstall` aparta el binario en uso antes de borrarlo, así su ubicación queda libre en el acto.
+  - `mem migrate --force` ya no falla al descartar el almacén previo.
+  - Las anclas de memoria con raíz sin unidad (`/otro/x.go`) se aceptaban como del proyecto.
+  - Shield marcaba como «fuera del home» hooks situados en un directorio del PATH.
+- `mem doctor` evaluaba la salud de los canales con horas de desfase en cualquier zona horaria distinta de UTC−5.
+- La compresión de salidas descartaba las líneas `FAIL` de los logs con prefijo (`gh run view --log`, `docker compose logs`) y las aserciones de cada test fallido. En un log real de CI se pasa de 6 a 275 líneas de error visibles, de 275, y de 0 a 282 aserciones, de 285.
+- `mem usage` aclara que su porcentaje mide solo el contexto que entrega gomemory, no las salidas de herramientas ni el resto de la conversación.
+- El guardarraíl de shell tardaba 1–2 s en bloquear una línea con miles de sustituciones anidadas; ahora la bloquea en milisegundos.
+
+### Notas
+
+- El checkout usa LF en todos los sistemas (`.gitattributes`), porque las plantillas embebidas se identifican por su SHA-256.
+- La suite de Windows pasa de unos 250 fallos a 10. Los tests que dependen de scripts de shell se omiten en Windows y dicen por qué.
+
 ## [v2.36.2] - 2026-10-22
 
 ### Corregido
