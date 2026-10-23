@@ -36,8 +36,9 @@ func FormatUsageReport(report domain.UsageReport, scope string) string {
 		header += " · todas las sesiones"
 	}
 	b.WriteString(header + "\n")
-	b.WriteString("Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas.\n")
-	b.WriteString(UsageReportScope + "\n")
+	// El alcance va en la misma línea que la nota: la vista de uso de la TUI
+	// tiene que caber en una terminal de 30 líneas.
+	b.WriteString("Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas. " + UsageReportScope + "\n")
 
 	if scope == "empty" || report.Calls == 0 {
 		b.WriteString("Sin actividad registrada todavía.\n")
