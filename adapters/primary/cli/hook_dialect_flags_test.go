@@ -57,7 +57,9 @@ func TestRenderEnteredDocument(t *testing.T) {
 // --strict, así que no llama a os.Exit) contra un proyecto de prueba. Reusa
 // fakeProjectRepo de cmd_save_test.go (mismo paquete).
 func TestCmdDoctor_CaminoNoStrictNoAborta(t *testing.T) {
-	t.Setenv("HOME", t.TempDir()) // aísla del $HOME real de la máquina
+	homeAislado := t.TempDir() // aísla del $HOME real de la máquina
+	t.Setenv("HOME", homeAislado)
+	t.Setenv("USERPROFILE", homeAislado) // Windows
 	deps := &Deps{
 		Root:        t.TempDir(),
 		ProjectRepo: &fakeProjectRepo{root: t.TempDir()},

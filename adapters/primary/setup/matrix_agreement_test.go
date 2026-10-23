@@ -140,6 +140,7 @@ func TestC7_ArchivosDeInstruccionesInspeccionadosConcuerdan(t *testing.T) {
 func TestC7_ElDiagnosticoNoInventaCanales(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 
 	declarados := map[string]bool{}
 	for _, c := range domain.ChannelMatrix {

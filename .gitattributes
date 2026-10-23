@@ -1,0 +1,10 @@
+# Todo el texto se versiona y se extrae con LF, también en Windows: las
+# plantillas embebidas se identifican por su SHA-256 y los tests buscan
+# marcadores con "\n", así que un checkout con CRLF cambiaba el binario y
+# rompía la suite.
+* text=auto eol=lf
+
+# Skill de terceros que se distribuye con sus CRLF originales; se conserva
+# byte a byte.
+infrastructure/templates/adversarial-consensus-review/SKILL.md -text
+skills/adversarial-consensus-review/SKILL.md -text

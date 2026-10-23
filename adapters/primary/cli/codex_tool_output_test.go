@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -50,6 +51,7 @@ command = "otro-hook"
 func TestSetupCodexGlobalRetiraElHookDeSalidas(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	cfgDir := filepath.Join(home, ".codex")
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -78,7 +80,7 @@ func TestSetupCodexGlobalRetiraElHookDeSalidas(t *testing.T) {
 	if !strings.Contains(string(got), "otro-hook") || !strings.Contains(string(got), "[mcp_servers.gomemory]") {
 		t.Errorf("no debe tocar hooks ajenos ni el registro MCP:\n%s", got)
 	}
-	if info, _ := os.Stat(cfg); info.Mode().Perm() != 0o600 {
+	if info, _ := os.Stat(cfg); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Errorf("debe conservar los permisos: %v", info.Mode().Perm())
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -111,7 +112,7 @@ func (p *Provider) snapshotPath() string {
 // proveedor. Si no hay snapshot o no parsea, devuelve uno vacío (Available=false).
 func (p *Provider) Snapshot() domain.CodeProviderSnapshot {
 	empty := domain.CodeProviderSnapshot{Provider: ProviderName, RootPath: p.root}
-	data, err := os.ReadFile(p.snapshotPath())
+	data, err := atomicfs.ReadFile(p.snapshotPath())
 	if err != nil {
 		return empty
 	}
@@ -438,7 +439,7 @@ func (p *Provider) writeSnapshot(snap domain.CodeProviderSnapshot) {
 	tmpPath := tmp.Name()
 	_, werr := tmp.Write(data)
 	cerr := tmp.Close()
-	if werr != nil || cerr != nil || os.Rename(tmpPath, p.snapshotPath()) != nil {
+	if werr != nil || cerr != nil || atomicfs.Replace(tmpPath, p.snapshotPath()) != nil {
 		_ = os.Remove(tmpPath)
 	}
 }

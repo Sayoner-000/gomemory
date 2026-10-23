@@ -85,7 +85,7 @@ func TestExtractBinaryFromTarGz(t *testing.T) {
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 	content := []byte("#!/bin/sh\necho fake mem binary\n")
-	if err := tw.WriteHeader(&tar.Header{Name: "mem", Mode: 0755, Size: int64(len(content))}); err != nil {
+	if err := tw.WriteHeader(&tar.Header{Name: memBinaryName(), Mode: 0755, Size: int64(len(content))}); err != nil {
 		t.Fatalf("tar header: %v", err)
 	}
 	if _, err := tw.Write(content); err != nil {
@@ -309,5 +309,32 @@ func assertNoUpdateLeftovers(t *testing.T, dir string, want ...string) {
 		if !allowed[e.Name()] {
 			t.Fatalf("archivo residual tras la actualización: %s", e.Name())
 		}
+	}
+}
+
+// El binario se publica completo también cuando el destino no está en
+// ejecución, y un .old de una actualización anterior se retira.
+func TestReplaceSelf_PublicaYRetiraElApartado(t *testing.T) {
+	dir := t.TempDir()
+	current := filepath.Join(dir, memBinaryName())
+	newBin := filepath.Join(dir, "nuevo")
+	if err := os.WriteFile(current, []byte("viejo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newBin, []byte("nuevo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(current+".old", []byte("apartado"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := replaceSelf(current, newBin); err != nil {
+		t.Fatalf("replaceSelf: %v", err)
+	}
+	if got, _ := os.ReadFile(current); string(got) != "nuevo" {
+		t.Errorf("binario publicado = %q", got)
+	}
+	removeStaleBinary(current)
+	if _, err := os.Stat(current + ".old"); !os.IsNotExist(err) {
+		t.Errorf("el .old debía retirarse: %v", err)
 	}
 }

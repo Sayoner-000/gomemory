@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -105,7 +106,7 @@ func TestLoadUsesCacheUntilFilesChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("debe existir la caché: %v", err)
 	}
-	if info, _ := os.Stat(cache); info.Mode().Perm() != 0o600 {
+	if info, _ := os.Stat(cache); runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("permisos de la caché: %v", info.Mode().Perm())
 	}
 	// Se manipula la caché: si se reutiliza, se verá el cambio.

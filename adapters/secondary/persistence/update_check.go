@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -35,7 +36,7 @@ func (UpdateCheckRepository) Read(_ context.Context) (domain.UpdateCheck, bool) 
 	if err != nil {
 		return domain.UpdateCheck{}, false
 	}
-	data, err := os.ReadFile(path)
+	data, err := atomicfs.ReadFile(path)
 	if err != nil {
 		return domain.UpdateCheck{}, false
 	}
@@ -71,7 +72,7 @@ func (UpdateCheckRepository) Write(_ context.Context, c domain.UpdateCheck) erro
 		_ = os.Remove(tmpPath)
 		return errors.Join(werr, cerr)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := atomicfs.Replace(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return err
 	}

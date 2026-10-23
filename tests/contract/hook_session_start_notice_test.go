@@ -50,10 +50,13 @@ func TestSessionStart_RetiraLaCopiaYAvisaUnaVez(t *testing.T) {
 	if _, err := os.Stat(copia); !os.IsNotExist(err) {
 		t.Fatal("la copia debía retirarse")
 	}
-	// FindRoot resuelve enlaces (en macOS /var → /private/var).
+	// FindRoot resuelve enlaces (en macOS /var → /private/var); en Windows
+	// EvalSymlinks además expande los nombres cortos (RUNNER~1), que FindRoot
+	// conserva: vale cualquiera de las dos formas.
 	realP, _ := filepath.EvalSymlinks(p)
-	if !strings.Contains(out.SystemMessage, "Se retiró "+filepath.Join(realP, exeName("mem"))) ||
-		!strings.Contains(out.SystemMessage, s.GlobalBin) {
+	retirada := strings.Contains(out.SystemMessage, "Se retiró "+filepath.Join(realP, exeName("mem"))) ||
+		strings.Contains(out.SystemMessage, "Se retiró "+copia)
+	if !retirada || !strings.Contains(out.SystemMessage, s.GlobalBin) {
 		t.Errorf("aviso de retirada inesperado: %q", out.SystemMessage)
 	}
 

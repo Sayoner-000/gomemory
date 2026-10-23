@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -39,7 +40,7 @@ func TestQueueAppendReadRemove(t *testing.T) {
 		t.Fatalf("tras remove: %+v", got)
 	}
 	info, err := os.Stat(q.path)
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("permisos: %v %v", info.Mode().Perm(), err)
 	}
 }
@@ -133,7 +134,7 @@ func TestShieldStateRoundTrip(t *testing.T) {
 		t.Fatalf("informe: %+v", got)
 	}
 	for _, p := range []string{s.hashPath, s.reportPath} {
-		if info, err := os.Stat(p); err != nil || info.Mode().Perm() != 0o600 {
+		if info, err := os.Stat(p); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 			t.Fatalf("permisos de %s: %v", p, err)
 		}
 	}

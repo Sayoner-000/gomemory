@@ -3,6 +3,7 @@ package persistence
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -72,7 +73,7 @@ func TestMigrateLegacy_MueveNormalizaYRespetaForce(t *testing.T) {
 	if got := globalContents(t, root); len(got) != 1 || got[0] != "contenido v1" {
 		t.Fatalf("filas migradas con la clave nueva: %v", got)
 	}
-	if info, err := os.Stat(DbPath(root)); err != nil || info.Mode().Perm() != 0o600 {
+	if info, err := os.Stat(DbPath(root)); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("permisos del store migrado: %v %v", info, err)
 	}
 

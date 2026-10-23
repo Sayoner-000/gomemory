@@ -18,7 +18,7 @@ import (
 // T026 — contrato de las herramientas MCP de compresión (feature 033),
 // interrogando el servidor real con la conexión abierta.
 func TestMCPPackTools(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "mem-pack-tools")
+	bin := filepath.Join(t.TempDir(), exeName("mem-pack-tools"))
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
 	build.Dir = repoRootContract(t)
 	if out, err := build.CombinedOutput(); err != nil {

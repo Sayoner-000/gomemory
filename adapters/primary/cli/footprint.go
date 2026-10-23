@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/adapters/secondary/persistence"
 	"mem/domain"
 
@@ -29,7 +30,7 @@ func footprintPath(root string) string {
 // footprintRead devuelve el acumulado de la sesión (0 si no hay archivo o es
 // inválido). Best-effort: nunca falla hacia afuera.
 func footprintRead(root string) int {
-	raw, err := os.ReadFile(footprintPath(root))
+	raw, err := atomicfs.ReadFile(footprintPath(root))
 	if err != nil {
 		return 0
 	}
@@ -106,7 +107,7 @@ func computeCompactNudge(root string, threshold int) (string, bool) {
 		return "", false
 	}
 	now := time.Now().Unix()
-	if raw, err := os.ReadFile(compactNudgeStatePath(root)); err == nil {
+	if raw, err := atomicfs.ReadFile(compactNudgeStatePath(root)); err == nil {
 		if last, err := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64); err == nil {
 			if now-last < compactNudgeCooldownSecs {
 				return "", false
@@ -149,7 +150,7 @@ type pendingAgentNotice struct {
 // entrega si no hay conversación registrada. ("", false) si no hay nada que
 // entregar.
 func consumePendingAgentNotice(root string) (string, bool) {
-	data, err := os.ReadFile(pendingAgentNoticePath(root))
+	data, err := atomicfs.ReadFile(pendingAgentNoticePath(root))
 	if err != nil {
 		return "", false
 	}
@@ -199,7 +200,7 @@ func computePreferenceReinforcement(deps *Deps, root, project string, threshold 
 	}
 
 	now := time.Now().Unix()
-	if raw, err := os.ReadFile(preferenceNudgeStatePath(root)); err == nil {
+	if raw, err := atomicfs.ReadFile(preferenceNudgeStatePath(root)); err == nil {
 		if last, err := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64); err == nil {
 			if now-last < preferenceNudgeCooldownSecs {
 				return "", false

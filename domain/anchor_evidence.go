@@ -35,7 +35,9 @@ func NormalizeAnchor(value, root string) (string, bool) {
 	if strings.TrimSpace(value) == "" {
 		return "", false
 	}
-	if filepath.IsAbs(value) {
+	// En Windows una ruta con raíz y sin unidad ("/otro/x.go") no es IsAbs,
+	// pero tampoco es relativa al proyecto: se trata como absoluta.
+	if filepath.IsAbs(value) || strings.HasPrefix(filepath.ToSlash(value), "/") {
 		rel, err := filepath.Rel(root, value)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			return "", false

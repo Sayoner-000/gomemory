@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -15,6 +16,9 @@ import (
 )
 
 func TestIndexRepository_CreaOReconstruyeIndice(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	for _, initialized := range []bool{false, true} {
 		for _, fail := range []bool{false, true} {
 			t.Run(fmt.Sprintf("initialized=%v/fail=%v", initialized, fail), func(t *testing.T) {
@@ -99,7 +103,7 @@ func TestSnapshot_EsIndependienteYNoBloquea(t *testing.T) {
 	if !snap.Available || snap.Architecture.TotalNodes != 9 || snap.ProjectArg != "projectPath" {
 		t.Fatalf("snapshot = %#v", snap)
 	}
-	if info, err := os.Stat(p.snapshotPath()); err != nil || info.Mode().Perm() != 0o600 {
+	if info, err := os.Stat(p.snapshotPath()); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("permisos del snapshot: %v, %v", info, err)
 	}
 	other := New(root, memDir, "/usr/local/bin/codegraph")
@@ -132,6 +136,9 @@ func TestLiveCodeGraph_RefrescaIndiceInstalado(t *testing.T) {
 }
 
 func TestIndexRepository_RespetaCancelacionDelLlamador(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	root := t.TempDir()
 	bin := filepath.Join(root, "fake-codegraph")
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {

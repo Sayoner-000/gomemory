@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -186,7 +187,7 @@ command = "foreign"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Fatalf("los permisos cambiaron: %o", info.Mode().Perm())
 	}
 	backups, err := filepath.Glob(cfgPath + ".gomemory-legacy-*.bak")

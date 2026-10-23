@@ -403,9 +403,10 @@ mem update            # descarga e instala la última versión (o --version vX.Y
 macOS prepara el binario nuevo completo junto al actual y lo publica con un único
 renombrado: durante la actualización cualquier otra invocación encuentra la
 versión anterior o la nueva, nunca un archivo ausente o a medio copiar, y un
-fallo antes de publicar deja la anterior intacta. En Windows el binario en uso
-está bloqueado: el nuevo queda como `mem.exe.new` con las instrucciones para
-completar el cambio. Si instalaste
+fallo antes de publicar deja la anterior intacta. En Windows hace lo mismo; si
+el binario que reemplaza está en ejecución, lo aparta como `mem.exe.old` (Windows
+permite renombrar un ejecutable en uso, no sobrescribirlo) y la siguiente
+actualización lo retira. Si instalaste
 con `mem install` (pack por proyecto) o los plugins de la sección **5**,
 reinstala tras actualizar solo si hubo cambios en esas partes:
 

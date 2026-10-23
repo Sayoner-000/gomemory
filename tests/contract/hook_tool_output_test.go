@@ -16,7 +16,7 @@ import (
 // fixtures de tests/contract/testdata/tool_output.
 func TestHookToolOutput(t *testing.T) {
 	root := repoRootContract(t)
-	bin := filepath.Join(t.TempDir(), "mem-hook-tool-output")
+	bin := filepath.Join(t.TempDir(), exeName("mem-hook-tool-output"))
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
 	build.Dir = root
 	if out, err := build.CombinedOutput(); err != nil {

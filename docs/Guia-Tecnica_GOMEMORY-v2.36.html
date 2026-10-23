@@ -828,7 +828,7 @@ mem adr-sync              <span class="c"># estado de sincronización de ADR</sp
     <thead><tr><th>Operación</th><th>Qué hace</th><th>Detalle</th></tr></thead>
     <tbody>
       <tr><td><strong><code>mem install</code></strong></td><td>Memoria, registro del proyecto, memorias por defecto, <code>.gitignore</code>, extensión de Spec Kit, planificación atómica, constitución, integraciones por agente, skills de expand, CodeGraph MCP, compresión y permisos</td><td>Pasos planificados con resumen; <code>--events</code> emite NDJSON v1 (<code>start</code>, <code>step</code>, <code>complete</code>); cancelar detiene todo el árbol de procesos</td></tr>
-      <tr><td><strong><code>mem update</code></strong></td><td>Binario e integración</td><td>Linux y macOS: renombrado atómico; Windows: <code>mem.exe.new</code> con instrucciones</td></tr>
+      <tr><td><strong><code>mem update</code></strong></td><td>Binario e integración</td><td>Renombrado atómico; en Windows aparta el binario en uso como <code>mem.exe.old</code></td></tr>
       <tr><td><strong><code>mem uninstall</code></strong></td><td>Reverso de install</td><td>Retira hooks, skills y artefactos generados; nunca borra un directorio contenedor compartido</td></tr>
       <tr><td><strong>Aviso de versión</strong></td><td>Caché <code>update-check.json</code></td><td>Se desactiva con <code>update_check_disabled</code> o <code>GOMEMORY_NO_UPDATE_CHECK</code></td></tr>
     </tbody>

@@ -109,6 +109,9 @@ func CmdUpdate(deps *Deps, args []string) {
 	if rootErr == nil {
 		dest, _ = resolveUpdateTarget(self, root)
 	}
+	// En Windows publishBinary aparta el ejecutable en uso; ese .old ya no
+	// corre cuando llega la siguiente actualización.
+	removeStaleBinary(dest)
 	if dest != self {
 		fmt.Printf("  🎯 Se actualiza el binario global %s\n", dest)
 	}
@@ -448,31 +451,44 @@ func extractBinaryFromZip(archivePath, binName, destPath string) error {
 // producción no hace nada.
 var replaceStep = func(stage string) error { return nil }
 
-// replaceSelf reemplaza el binario en ejecución de forma atómica. En unix se
-// puede renombrar sobre un binario que está corriendo (el inode viejo sigue
-// vivo hasta que el proceso actual termina): ver replaceSelfUnix. En Windows
-// el ejecutable está bloqueado mientras corre, así que se deja el nuevo
-// binario listo y se avisa al usuario que complete el reemplazo manualmente.
+// replaceSelf reemplaza el binario de forma atómica: prepara el nuevo completo
+// en un temporal del mismo directorio y lo publica con publishBinary.
 func replaceSelf(currentPath, newPath string) error {
-	if runtime.GOOS == "windows" {
-		finalPath := currentPath + ".new"
-		if err := copyFile(newPath, finalPath); err != nil {
-			return err
-		}
-		return fmt.Errorf(
-			"windows bloquea el binario en ejecución. El nuevo binario quedó en %s.\n"+
-				"Cierra este proceso y ejecuta:\n"+
-				"  move /Y \"%s\" \"%s\"",
-			finalPath, finalPath, currentPath,
-		)
-	}
-
 	return replaceSelfUnix(currentPath, newPath)
+}
+
+// publishBinary pone tmp en el lugar de current. En Unix es un rename, válido
+// aunque current esté corriendo (el inode viejo vive hasta que el proceso
+// termina). En Windows el rename falla si current está en ejecución, pero un
+// ejecutable en uso sí se puede renombrar: se aparta a current.old, se
+// publica el nuevo y, si eso falla, se restaura. El .old lo retira
+// removeStaleBinary en la siguiente ejecución.
+func publishBinary(tmp, current string) error {
+	err := os.Rename(tmp, current)
+	if err == nil || runtime.GOOS != "windows" {
+		return err
+	}
+	old := current + ".old"
+	_ = os.Remove(old)
+	if aerr := os.Rename(current, old); aerr != nil {
+		return err
+	}
+	if perr := os.Rename(tmp, current); perr != nil {
+		_ = os.Rename(old, current)
+		return perr
+	}
+	return nil
+}
+
+// removeStaleBinary retira el binario que publishBinary apartó en Windows. Es
+// best-effort: si el proceso anterior sigue corriendo, queda para la próxima.
+func removeStaleBinary(current string) {
+	_ = os.Remove(current + ".old")
 }
 
 // replaceSelfUnix prepara el binario nuevo completo en un temporal del mismo
 // directorio (copia, permisos, sync y close) y solo entonces lo publica con
-// rename, que en Unix es atómico dentro de un sistema de archivos (spec 037,
+// publishBinary; en Unix es un rename, atómico dentro de un sistema de archivos (spec 037,
 // H-04). Cualquier invocación concurrente encuentra el anterior completo o
 // el nuevo completo: nunca una ruta ausente ni un archivo a medio copiar.
 // Un fallo antes del rename elimina el temporal y conserva el instalado.
@@ -526,7 +542,7 @@ func replaceSelfUnix(currentPath, newPath string) (err error) {
 	if err = replaceStep("rename"); err != nil {
 		return err
 	}
-	if err = os.Rename(tmpName, currentPath); err != nil {
+	if err = publishBinary(tmpName, currentPath); err != nil {
 		return fmt.Errorf("publicar binario nuevo: %w", err)
 	}
 	return nil

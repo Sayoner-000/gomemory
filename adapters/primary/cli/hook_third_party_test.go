@@ -14,6 +14,7 @@ import (
 func TestThirdPartyHookSubcommandSurvivesInstallAndUninstall(t *testing.T) {
 	home, root := t.TempDir(), t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	t.Setenv("GOMEMORY_DATA_HOME", t.TempDir())
 	const third = "bash /opt/acme/hooks/entry.sh hook user-prompt-submit"
 	settings := filepath.Join(root, ".claude", "settings.json")

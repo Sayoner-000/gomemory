@@ -26,6 +26,7 @@ func TestCmdInstall_Cursor_Reinstalacion(t *testing.T) {
 		}
 	}
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	t.Setenv("GOMEMORY_DATA_HOME", filepath.Join(base, "data"))
 	t.Setenv("PATH", strings.Join([]string{bin, "/usr/bin", "/bin"}, string(os.PathListSeparator)))
 	// El global simulado permite ejercer init/seed sin afectar el HOME real.

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -44,7 +45,7 @@ func RegisterProject(root string) error {
 		_ = os.Remove(tmpPath)
 		return errors.Join(werr, cerr)
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := atomicfs.Replace(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return err
 	}

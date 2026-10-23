@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestExpandEpisodeIsolatedPerSession(t *testing.T) {
 		t.Fatal("otra sesión no comparte episodio")
 	}
 	info, err := os.Stat(expandEpisodePath(root, s1))
-	if err != nil || info.Mode().Perm() != 0o600 {
+	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0o600) {
 		t.Fatalf("permisos del marcador: %v %v", info.Mode().Perm(), err)
 	}
 	expandEpisodeReset(root, s1)

@@ -111,3 +111,11 @@ func TestShieldReferencesAndLines(t *testing.T) {
 		t.Errorf("RedactPrivate no cambia: %q", got)
 	}
 }
+
+// Un directorio del PATH con barra final sigue contando como PATH.
+func TestScanAgentConfig_PathConBarraFinal(t *testing.T) {
+	text := `{"hooks":{"PreToolUse":[{"hooks":[{"command":"/usr/local/bin/tool"}]}]}}`
+	if f := ScanAgentConfig("settings.json", []byte(text), "/home/user", []string{"/usr/local/bin/"}, nil); len(f) != 0 {
+		t.Errorf("false positive: %+v", f)
+	}
+}

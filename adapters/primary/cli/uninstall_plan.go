@@ -382,6 +382,12 @@ func openStoreByKey(key string) (ports.MemoryRepository, ports.RelationRepositor
 // Windows está bloqueado: se borra en diferido al terminar este proceso.
 func removeBinaryFile(path, self string) error {
 	if runtime.GOOS == "windows" && sameFilePath(path, self) {
+		// Un ejecutable en uso no se borra, pero sí se renombra: se aparta a la
+		// carpeta temporal para que su ubicación quede libre en el acto.
+		aside := filepath.Join(os.TempDir(), fmt.Sprintf("mem-desinstalado-%d.exe", os.Getpid()))
+		if os.Rename(path, aside) == nil {
+			path = aside
+		}
 		// En Windows un proceso hijo sobrevive al padre: `cmd` espera a que
 		// este termine y entonces borra el ejecutable liberado.
 		cmd := exec.Command("cmd", "/c", "ping -n 3 127.0.0.1 >nul & del /f /q \""+path+"\"")

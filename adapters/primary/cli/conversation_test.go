@@ -3,11 +3,13 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/domain"
 )
 
@@ -23,7 +25,9 @@ func TestWriteFileAtomic_ConcurrenteSiempreLegible(t *testing.T) {
 					t.Errorf("writeFileAtomic: %v", err)
 					return
 				}
-				if raw, err := os.ReadFile(p); err == nil {
+				// Se lee como los lectores del producto: en Windows os.ReadFile
+				// impide el reemplazo mientras el archivo está abierto.
+				if raw, err := atomicfs.ReadFile(p); err == nil {
 					if _, err := strconv.Atoi(strings.TrimSpace(string(raw))); err != nil {
 						t.Errorf("lectura concurrente corrupta: %q", raw)
 						return
@@ -59,7 +63,7 @@ func TestConversation_IdaYVuelta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
+	if perm := info.Mode().Perm(); runtime.GOOS != "windows" && perm != 0o600 {
 		t.Errorf("permisos: %o, se esperaba 600", perm)
 	}
 }

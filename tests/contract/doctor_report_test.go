@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -35,6 +36,7 @@ func TestDoctor_JSONEsEstableEntreEjecuciones(t *testing.T) {
 		t.Fatalf("mkdir .git: %v", err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	first, _ := runDoctor(t, bin, dir, "--json")
 	second, _ := runDoctor(t, bin, dir, "--json")
@@ -61,6 +63,7 @@ func TestDoctor_StrictExitCodeReflejaProblems(t *testing.T) {
 		t.Fatalf("mkdir .git: %v", err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	// Sin nada instalado: hay canales missing → problems > 0 → --strict falla.
 	_, code := runDoctor(t, bin, dir, "--strict", "--json")
@@ -82,6 +85,7 @@ func TestDoctor_CodegraphAusenteSinAvisos(t *testing.T) {
 		t.Fatalf("mkdir .git: %v", err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir()) // Windows
 
 	out, _ := runDoctor(t, bin, dir, "--json")
 	var parsed struct {
@@ -106,6 +110,9 @@ func TestDoctor_CodegraphAusenteSinAvisos(t *testing.T) {
 // opencode/user), y `problems` sigue siendo exactamente el número de canales
 // outdated/duplicated/missing (contrato 019), sin sumas por fuera.
 func TestDoctor_PluginV1EnOpenCode2MarcaCanalesYCuentaProblems(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	bin := buildPlanGuardBinary(t)
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0755); err != nil {
@@ -113,6 +120,7 @@ func TestDoctor_PluginV1EnOpenCode2MarcaCanalesYCuentaProblems(t *testing.T) {
 	}
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	plugins := filepath.Join(home, ".config", "opencode", "plugins")
 	if err := os.MkdirAll(plugins, 0755); err != nil {
 		t.Fatalf("mkdir plugins: %v", err)

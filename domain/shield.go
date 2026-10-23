@@ -150,7 +150,10 @@ func ScanAgentConfig(path string, raw []byte, home string, pathDirs, unsafePaths
 					return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 				}
 				temp := inside("/tmp") || inside("/private/tmp") || inside("/var/tmp")
-				if temp || slices.Contains(unsafePaths, p) || (!inside(home) && !slices.Contains(pathDirs, filepath.Dir(p))) {
+				// Se comparan rutas limpias: en Windows filepath.Dir devuelve "\"
+				// aunque el PATH o la configuración usen "/" o una barra final.
+				inPath := slices.ContainsFunc(pathDirs, func(d string) bool { return filepath.Clean(d) == filepath.Dir(p) })
+				if temp || slices.Contains(unsafePaths, p) || (!inside(home) && !inPath) {
 					add("hook-outside-home", "medium", "Hook fuera del home y del PATH o en directorio inseguro", 0)
 					return
 				}

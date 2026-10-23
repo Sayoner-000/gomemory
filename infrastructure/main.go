@@ -83,6 +83,9 @@ var rootIndependentCommands = map[string]bool{
 	// uninstall borra el almacén global: no debe abrir antes la base del
 	// proyecto actual (feature 034).
 	"uninstall": true,
+	// migrate --force descarta el store global previo: si el proceso lo
+	// tuviera abierto, Windows no podría borrarlo.
+	"migrate":   true,
 	"version":   true,
 	"--version": true,
 	"-v":        true,

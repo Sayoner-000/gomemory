@@ -26,7 +26,7 @@ func buildPlanGuardBinary(t *testing.T) string {
 			planGuardBinErr = err
 			return
 		}
-		planGuardBinPath = filepath.Join(dir, "mem-plan-guard-test-bin")
+		planGuardBinPath = filepath.Join(dir, exeName("mem-plan-guard-test-bin"))
 		cmd := exec.Command("go", "build", "-o", planGuardBinPath, "./infrastructure")
 		cmd.Dir = repoRootContract(t)
 		out, err := cmd.CombinedOutput()

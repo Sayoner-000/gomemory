@@ -16,6 +16,29 @@ const DbName = "mem.db"
 
 const Now = "datetime('now', '-5 hours')"
 
+// nowZone es el marco horario de Now. Una marca escrita con Now solo se
+// compara bien en Go si se formatea o se lee en esta zona: con time.Local, una
+// máquina fuera de UTC−5 desplazaba la comparación varias horas.
+var nowZone = time.FixedZone("UTC-5", -5*60*60)
+
+// formatNowTime formatea t como lo escribe Now.
+func formatNowTime(t time.Time) string {
+	return t.In(nowZone).Format("2006-01-02 15:04:05")
+}
+
+// parseNowTime lee una marca escrita con Now. Un valor ausente o ilegible
+// produce el cero.
+func parseNowTime(v sql.NullString) time.Time {
+	if !v.Valid || v.String == "" {
+		return time.Time{}
+	}
+	t, err := time.ParseInLocation("2006-01-02 15:04:05", v.String, nowZone)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 // FindRoot resuelve la identidad del proyecto activo. Ya no exige que
 // `.memory/` exista en el cwd o en algún padre: delega en FindProjectRoot,
 // que usa el git root (o el cwd si no hay `.git`) como identidad. Se

@@ -19,6 +19,7 @@ import (
 func TestActivationInspect_ClaudeUserInstructionsMiraElSubdirectorioCorrecto(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	// Archivo señuelo en la raíz de HOME, en la versión vigente: si el
@@ -68,6 +69,7 @@ func TestActivationInspect_ClaudeUserInstructionsMiraElSubdirectorioCorrecto(t *
 func TestActivationInspect_OpenCodeEntryComprubaElPluginRealNoElHookDeClaude(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	// Registrar el hook de CLAUDE (plan-entered) en .claude/settings.json,
@@ -102,6 +104,7 @@ func TestActivationInspect_OpenCodeEntryComprubaElPluginRealNoElHookDeClaude(t *
 func TestActivationInspect_OpenCodeEntryOKConElPluginInstalado(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	pluginDir := filepath.Join(home, ".config", "opencode", "plugins")
@@ -131,6 +134,7 @@ func TestActivationInspect_OpenCodeEntryOKConElPluginInstalado(t *testing.T) {
 func TestActivationInspect_OutdatedInstructions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	if err := os.MkdirAll(filepath.Join(root, ".claude"), 0755); err != nil {
@@ -161,6 +165,7 @@ func TestActivationInspect_OutdatedInstructions(t *testing.T) {
 func TestActivationInspect_MissingWhenNothingInstalled(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	inspector := NewActivationInspector()
@@ -180,6 +185,7 @@ func TestActivationInspect_MissingWhenNothingInstalled(t *testing.T) {
 func TestActivationInspect_OKWhenGuardRegistered(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	claudeDir := filepath.Join(root, ".claude")
@@ -208,6 +214,7 @@ func TestActivationInspect_OKWhenGuardRegistered(t *testing.T) {
 func TestActivationInspect_DuplicatedWhenTwoEntries(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	claudeDir := filepath.Join(root, ".claude")
@@ -243,6 +250,7 @@ func TestActivationInspect_DuplicatedWhenTwoEntries(t *testing.T) {
 func TestActivationInspect_OpenCodeGuardEsNotApplicableConMotivo(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	inspector := NewActivationInspector()
@@ -270,6 +278,7 @@ func TestActivationInspect_OpenCodeGuardEsNotApplicableConMotivo(t *testing.T) {
 func TestActivationInspect_CodegraphAusenteSeOmite(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	inspector := NewActivationInspector()
@@ -294,7 +303,8 @@ func TestActivationInspect_CodegraphAusenteSeOmite(t *testing.T) {
 func TestActivationInspect_InstruccionesDeProyectoNoAplican(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	root := t.TempDir() // proyecto limpio: sin AGENTS.md ni CLAUDE.md
+	t.Setenv("USERPROFILE", home) // Windows
+	root := t.TempDir()           // proyecto limpio: sin AGENTS.md ni CLAUDE.md
 
 	inspector := NewActivationInspector()
 	channels := inspector.Inspect(root)
@@ -326,6 +336,7 @@ func TestActivationInspect_InstruccionesDeProyectoNoAplican(t *testing.T) {
 func TestActivationInspect_InstruccionesDeUsuarioSiguenEvaluandose(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	inspector := NewActivationInspector()
@@ -352,6 +363,7 @@ func TestActivationInspect_InstruccionesDeUsuarioSiguenEvaluandose(t *testing.T)
 func TestActivationInspect_CodexEntryComprubaElHookRealInstalado(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	codexDir := filepath.Join(home, ".codex")
@@ -387,6 +399,7 @@ func TestActivationInspect_CodexEntryComprubaElHookRealInstalado(t *testing.T) {
 func TestActivationInspect_CodexEntryFaltaSinElHook(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	codexDir := filepath.Join(home, ".codex")
@@ -423,6 +436,7 @@ func TestActivationInspect_CodexEntryFaltaSinElHook(t *testing.T) {
 func TestActivationInspect_CodexLifecycleDetalleDerivaDeLaTabla(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
 	original := codexGomemoryHooks
@@ -492,6 +506,7 @@ func TestActivationInspect_OpenCodePluginV1EnV2EsOutdated(t *testing.T) {
 		t.Run(c.nombre, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home) // Windows
 			pluginDir := filepath.Join(home, ".config", "opencode", "plugins")
 			if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 				t.Fatalf("mkdir: %v", err)

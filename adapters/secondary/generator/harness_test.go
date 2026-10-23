@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -174,6 +175,9 @@ func TestProviderFailureExplainer(t *testing.T) {
 // A failed first version check is not cached: the next query runs it again,
 // and once it succeeds the result stays without rerunning the binary (H-01).
 func TestOpenCodeVersionCheckRetriesUntilSuccess(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	dir := t.TempDir()
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+"/usr/bin:/bin")
 	calls := filepath.Join(dir, "calls")
@@ -195,6 +199,9 @@ func TestOpenCodeVersionCheckRetriesUntilSuccess(t *testing.T) {
 }
 
 func TestOpenCodeIsolatedAgentAndCleanup(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	dir := t.TempDir()
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+"/usr/bin:/bin")
 	// Record the temporary workspace, arguments and stdin, and verify the

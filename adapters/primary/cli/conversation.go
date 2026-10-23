@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
 	"mem/domain"
@@ -31,7 +32,7 @@ func endConversation(root string) {
 // readConversation lee la conversación registrada. Un archivo ilegible o sin
 // id equivale a ausente y se borra: el estado nunca bloquea un turno.
 func readConversation(root string) (*domain.Conversation, bool) {
-	raw, err := os.ReadFile(conversationPath(root))
+	raw, err := atomicfs.ReadFile(conversationPath(root))
 	if err != nil {
 		return nil, false
 	}

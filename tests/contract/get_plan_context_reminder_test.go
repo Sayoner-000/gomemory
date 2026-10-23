@@ -22,7 +22,7 @@ import (
 func callGetPlanContext(t *testing.T, dir string) string {
 	t.Helper()
 
-	bin := filepath.Join(t.TempDir(), "mem-reminder-test")
+	bin := filepath.Join(t.TempDir(), exeName("mem-reminder-test"))
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
 	build.Dir = repoRootContract(t)
 	if out, err := build.CombinedOutput(); err != nil {

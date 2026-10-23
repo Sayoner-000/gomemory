@@ -15,7 +15,7 @@ import (
 // internas: "apagado" es una promesa sobre lo que el usuario observa, no sobre
 // qué ramas del código se ejecutan.
 func TestOctopusModuloApagado(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "mem-off-test")
+	bin := filepath.Join(t.TempDir(), exeName("mem-off-test"))
 	build := exec.Command("go", "build", "-o", bin, "./infrastructure")
 	build.Dir = repoRootIntegration(t)
 	if out, err := build.CombinedOutput(); err != nil {

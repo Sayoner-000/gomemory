@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"mem/adapters/primary/console"
+	"mem/adapters/secondary/atomicfs"
 )
 
 // Selección de `mem install` (feature 034, US3): qué agentes, en qué alcance y
@@ -221,7 +221,7 @@ func installGlobalBinary(self string) error {
 		return err
 	}
 	humanf("  ✅ Binario global instalado en %s\n", dest)
-	if found, err := exec.LookPath(memBinaryName()); err != nil || !sameFilePath(found, dest) {
+	if found, err := lookPathGlobal(); err != nil || !sameFilePath(found, dest) {
 		humanf("  ⚠️  %s no está en el PATH: añádelo para usar la instalación global\n", dir)
 	}
 	return nil
@@ -250,7 +250,7 @@ func copyFileMode(src, dst string, mode os.FileMode) error {
 		_ = os.Remove(tmp.Name())
 		return err
 	}
-	return os.Rename(tmp.Name(), dst)
+	return atomicfs.Replace(tmp.Name(), dst)
 }
 
 // selectedWrapperAgents son los agentes elegidos que tienen envoltorios
