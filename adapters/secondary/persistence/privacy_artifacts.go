@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -290,7 +291,7 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 		_ = os.Remove(name)
 		return err
 	}
-	if err := os.Rename(name, path); err != nil {
+	if err := atomicfs.Replace(name, path); err != nil {
 		_ = os.Remove(name)
 		return err
 	}

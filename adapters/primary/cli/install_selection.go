@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"mem/adapters/primary/console"
+	"mem/adapters/secondary/atomicfs"
 )
 
 // Selección de `mem install` (feature 034, US3): qué agentes, en qué alcance y
@@ -250,7 +251,7 @@ func copyFileMode(src, dst string, mode os.FileMode) error {
 		_ = os.Remove(tmp.Name())
 		return err
 	}
-	return os.Rename(tmp.Name(), dst)
+	return atomicfs.Replace(tmp.Name(), dst)
 }
 
 // selectedWrapperAgents son los agentes elegidos que tienen envoltorios

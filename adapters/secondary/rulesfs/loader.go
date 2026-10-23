@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
 	"mem/domain"
@@ -148,7 +149,7 @@ func writeCache(path string, c cacheData) {
 	name := tmp.Name()
 	_, werr := tmp.Write(data)
 	_ = tmp.Close()
-	if werr != nil || os.Chmod(name, 0o600) != nil || os.Rename(name, path) != nil {
+	if werr != nil || os.Chmod(name, 0o600) != nil || atomicfs.Replace(name, path) != nil {
 		_ = os.Remove(name)
 	}
 }

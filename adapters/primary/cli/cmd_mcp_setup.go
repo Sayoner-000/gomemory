@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mem/adapters/primary/setup"
+	"mem/adapters/secondary/atomicfs"
 	"mem/adapters/secondary/persistence"
 	"mem/domain"
 )
@@ -681,7 +682,7 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpPath, path); err != nil {
+	if err := atomicfs.Replace(tmpPath, path); err != nil {
 		return err
 	}
 	committed = true

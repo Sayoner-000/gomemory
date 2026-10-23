@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -226,5 +227,5 @@ func (p *Provider) writeSnapshot(snap domain.CodeProviderSnapshot) {
 	if err = tmp.Close(); err != nil {
 		return
 	}
-	_ = os.Rename(name, p.snapshotPath())
+	_ = atomicfs.Replace(name, p.snapshotPath())
 }
