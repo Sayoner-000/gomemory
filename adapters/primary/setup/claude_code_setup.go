@@ -168,7 +168,11 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 		fmt.Println("  ✅ claude-code: plugin ya instalado")
 	}
 
-	if err := writeMCPConfig(filepath.Join(root, ".mcp.json"), ref); err != nil {
+	mcpPath, err := ProjectConfigPath(root, ".mcp.json")
+	if err != nil {
+		return err
+	}
+	if err := writeMCPConfig(mcpPath, ref); err != nil {
 		return err
 	}
 	fmt.Printf("  ✅ claude-code: MCP configurado en %s\n", filepath.Join(root, ".mcp.json"))
@@ -226,11 +230,13 @@ var staleAllowPrefixes = []string{
 // que es la causa más común de que el protocolo de memoria no se aplique
 // automáticamente. Idempotente: dedupe y preserva entradas de terceros.
 func writeClaudePermissions(root string) error {
-	settingsDir := filepath.Join(root, ".claude")
-	if err := os.MkdirAll(settingsDir, 0755); err != nil {
+	settingsPath, err := ClaudeSettingsPath(root)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0755); err != nil {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
-	settingsPath := filepath.Join(settingsDir, "settings.json")
 
 	settings := map[string]interface{}{}
 	if data, _ := os.ReadFile(settingsPath); len(data) > 0 {
@@ -285,7 +291,7 @@ func writeClaudePermissions(root string) error {
 	settings["enabledMcpjsonServers"] = servers
 
 	data, _ := json.MarshalIndent(settings, "", "  ")
-	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+	if err := WriteConfigFile(settingsPath, data); err != nil {
 		return fmt.Errorf("write .claude/settings.json: %w", err)
 	}
 	return nil
@@ -306,7 +312,10 @@ func isStaleAllowEntry(entry string) bool {
 // inválido, o sin entradas de gomemory), para que el llamador pueda distinguir
 // ese caso de una limpieza real.
 func RemoveClaudePermissions(root string) (changed bool, err error) {
-	settingsPath := filepath.Join(root, ".claude", "settings.json")
+	settingsPath, err := ClaudeSettingsPath(root)
+	if err != nil {
+		return false, err
+	}
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		return false, nil // sin settings.json, nada que limpiar
@@ -357,7 +366,7 @@ func RemoveClaudePermissions(root string) (changed bool, err error) {
 	}
 
 	out, _ := json.MarshalIndent(settings, "", "  ")
-	if err := os.WriteFile(settingsPath, out, 0644); err != nil {
+	if err := WriteConfigFile(settingsPath, out); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -385,7 +394,7 @@ func writeMCPConfig(mcpPath string, ref AgentRef) error {
 	existing["mcpServers"] = ms
 
 	data, _ := json.MarshalIndent(existing, "", "  ")
-	if err := os.WriteFile(mcpPath, data, 0644); err != nil {
+	if err := WriteConfigFile(mcpPath, data); err != nil {
 		return fmt.Errorf("write .mcp.json: %w", err)
 	}
 	return nil
@@ -415,11 +424,13 @@ func writeClaudeHooks(root string, ref AgentRef) error {
 // writeClaudeHooksSkipping es writeClaudeHooks sin registrar los subcomandos de
 // skip (los que ya cubre el ámbito global, feature 035).
 func writeClaudeHooksSkipping(root string, ref AgentRef, skip map[string]bool) error {
-	settingsDir := filepath.Join(root, ".claude")
-	if err := os.MkdirAll(settingsDir, 0755); err != nil {
+	settingsPath, err := ClaudeSettingsPath(root)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0755); err != nil {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
-	settingsPath := filepath.Join(settingsDir, "settings.json")
 
 	settings := map[string]interface{}{}
 	if data, _ := os.ReadFile(settingsPath); len(data) > 0 {
@@ -471,7 +482,7 @@ func writeClaudeHooksSkipping(root string, ref AgentRef, skip map[string]bool) e
 	settings["hooks"] = hooks
 
 	data, _ := json.MarshalIndent(settings, "", "  ")
-	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+	if err := WriteConfigFile(settingsPath, data); err != nil {
 		return fmt.Errorf("write .claude/settings.json: %w", err)
 	}
 	return nil
@@ -708,7 +719,10 @@ func DedupClaudeProjectHooks(home, root string) ([]string, error) {
 	for _, d := range dups {
 		drop[d] = true
 	}
-	settingsPath := filepath.Join(root, ".claude", "settings.json")
+	settingsPath, err := ClaudeSettingsPath(root)
+	if err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		return nil, err
@@ -734,7 +748,7 @@ func DedupClaudeProjectHooks(home, root string) ([]string, error) {
 	}
 	settings["hooks"] = hooks
 	out, _ := json.MarshalIndent(settings, "", "  ")
-	if err := os.WriteFile(settingsPath, out, 0644); err != nil {
+	if err := WriteConfigFile(settingsPath, out); err != nil {
 		return nil, fmt.Errorf("write .claude/settings.json: %w", err)
 	}
 	return dups, nil

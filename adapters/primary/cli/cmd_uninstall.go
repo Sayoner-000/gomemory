@@ -424,7 +424,11 @@ func removeClaudePlugin(target string) {
 		fmt.Println("  ℹ️  .claude/plugins/gomemory: no encontrado")
 	}
 
-	settingsPath := filepath.Join(target, ".claude", "settings.json")
+	settingsPath, err := setup.ClaudeSettingsPath(target)
+	if err != nil {
+		fmt.Printf("  ⚠️  .claude/settings.json: %v\n", err)
+		return
+	}
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		fmt.Println("  ℹ️  .claude/settings.json: no encontrado")
@@ -473,7 +477,7 @@ func removeClaudePlugin(target string) {
 
 	settings["hooks"] = hooks
 	out, _ := json.MarshalIndent(settings, "", "  ")
-	if err := os.WriteFile(settingsPath, out, 0644); err != nil {
+	if err := setup.WriteConfigFile(settingsPath, out); err != nil {
 		fmt.Printf("  ⚠️  .claude/settings.json: error al escribir: %v\n", err)
 		return
 	}
