@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync/atomic"
 	"testing"
 
@@ -35,6 +36,9 @@ func TestNewProviders_SeleccionaAdaptadorPorComando(t *testing.T) {
 // codebase-memory-mcp: antes solo aparecía si el settings.json local lo
 // listaba a mano, así que otras máquinas nunca lo veían.
 func TestNewProviders_AutodetectaCodeGraphEnPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	root := t.TempDir()
 	memDir := filepath.Join(root, ".memory")
 	bin := t.TempDir()

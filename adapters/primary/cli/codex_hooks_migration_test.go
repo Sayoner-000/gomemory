@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -92,7 +93,7 @@ func TestSetupCodexGlobalConsolidatesHooksJSONWithBackupAndIsIdempotent(t *testi
 	if strings.Count(string(data), "vendor-neutral start") != 1 || strings.Count(string(data), "[mcp_servers.gomemory]") != 1 {
 		t.Fatalf("la migración no fue idempotente:\n%s", data)
 	}
-	if info, err := os.Stat(configPath); err != nil || info.Mode().Perm() != 0600 {
+	if info, err := os.Stat(configPath); err != nil || (runtime.GOOS != "windows" && info.Mode().Perm() != 0600) {
 		t.Fatalf("los permisos de config.toml cambiaron: info=%v err=%v", info, err)
 	}
 	backups, err := filepath.Glob(hooksPath + ".gomemory-legacy-*.bak")

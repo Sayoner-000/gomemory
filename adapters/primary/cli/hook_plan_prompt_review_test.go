@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -38,7 +39,7 @@ func TestClaimPlanEntryMarker(t *testing.T) {
 	if _, err := os.Stat(planEnteredMarkerPath(deps, root)); err != nil {
 		t.Fatalf("el marcador debe existir: %v", err)
 	}
-	if os.Geteuid() == 0 {
+	if !canDenyWrites() {
 		return
 	}
 	readOnly := t.TempDir()
@@ -55,8 +56,8 @@ func TestClaimPlanEntryMarker(t *testing.T) {
 // registra de verdad una entrada nueva. Sin marcador, cada prompt en modo plan
 // lo reiniciaría y el contador de devoluciones nunca acumularía.
 func TestPlanEntryFromPrompt_SinMarcadorNoReiniciaElEpisodio(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignora los permisos de directorio")
+	if !canDenyWrites() {
+		t.Skip("sin forma de denegar escrituras: root o Windows")
 	}
 	deps, _, root := newPlanPromptDeps(t, false)
 	// El episodio vive en root/.memory (escribible); el marcador del fake, en
@@ -78,8 +79,8 @@ func TestPlanEntryFromPrompt_SinMarcadorNoReiniciaElEpisodio(t *testing.T) {
 // S-001 (revisión 031): sin marcador no hay "una vez por sesión", y cada prompt
 // en modo plan reinyectaría el documento completo. Se degrada al recordatorio.
 func TestPlanEntryFromPrompt_SinMarcadorDegradaAlRecordatorio(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignora los permisos de directorio")
+	if !canDenyWrites() {
+		t.Skip("sin forma de denegar escrituras: root o Windows")
 	}
 	deps, _, root := newPlanPromptDeps(t, false)
 	if err := os.Chmod(root, 0o500); err != nil {
@@ -93,4 +94,10 @@ func TestPlanEntryFromPrompt_SinMarcadorDegradaAlRecordatorio(t *testing.T) {
 			t.Fatalf("prompt %d: sin marcador debe entregar solo el recordatorio: ok=%t doc=%q", i, ok, doc)
 		}
 	}
+}
+
+// canDenyWrites dice si un chmod de solo lectura impide escribir: root lo
+// ignora y Windows no lo aplica a los directorios.
+func canDenyWrites() bool {
+	return runtime.GOOS != "windows" && os.Geteuid() != 0
 }

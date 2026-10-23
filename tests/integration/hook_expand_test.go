@@ -170,7 +170,10 @@ func TestHookExpand_SuggestionOncePerEpisodeAndRecorded(t *testing.T) {
 		t.Fatalf("otra sesión tiene su propio episodio: %q", other)
 	}
 
-	root, err := filepath.EvalSymlinks(dir)
+	// La raíz se resuelve como la resuelve el binario: EvalSymlinks expande en
+	// Windows los nombres cortos (RUNNER~1) y daría otra clave de proyecto.
+	t.Chdir(dir)
+	root, err := persistence.FindRoot()
 	if err != nil {
 		t.Fatal(err)
 	}

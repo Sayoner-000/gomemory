@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -16,6 +17,9 @@ import (
 // `mem context` debe enriquecerse igual usando el disponible, sin
 // intervención manual — el ausente se salta en silencio.
 func TestCodeGraphMultiProvider(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el proveedor simulado es un script de shell")
+	}
 	bin := buildMemBinary(t)
 	target := t.TempDir()
 	resolved, err := filepath.EvalSymlinks(target)
@@ -67,6 +71,9 @@ func TestCodeGraphMultiProvider(t *testing.T) {
 }
 
 func TestCodeGraphCLI_CoexisteConCodebaseMemory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	bin := buildMemBinary(t)
 	target, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

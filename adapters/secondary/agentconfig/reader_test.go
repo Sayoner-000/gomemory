@@ -64,7 +64,7 @@ func TestReaderJSONCPathsAndSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, skipped = r.Files(ctx, 32, 1<<20)
-	if !slices.Contains(skipped, "~/.claude.json") {
+	if !slices.Contains(skipped, filepath.FromSlash("~/.claude.json")) {
 		t.Fatalf("malformed global config not skipped: %v", skipped)
 	}
 }

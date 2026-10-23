@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -25,6 +27,9 @@ func fakeCodeGraph(t *testing.T, home string) string {
 }
 
 func TestEnsureCodeGraphMCP_RegistraSoloCuandoFalta(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	home := t.TempDir()
 	log := fakeCodeGraph(t, home)
 	if err := os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"mcpServers":{"gomemory":{}}}`), 0o644); err != nil {
@@ -90,7 +95,9 @@ func TestCodeGraphMCPState_CodexComentadoNoCuenta(t *testing.T) {
 // S-001: un registro de Claude a nivel proyecto también cuenta.
 func TestCodeGraphMCPState_ClaudeANivelProyecto(t *testing.T) {
 	home, root := t.TempDir(), t.TempDir()
-	_ = os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"mcpServers":{},"projects":{"`+root+`":{"mcpServers":{"codegraph":{"command":"codegraph"}}}}}`), 0o644)
+	// La clave va serializada: una ruta de Windows lleva "\\", que sin escapar no es JSON válido.
+	key, _ := json.Marshal(root)
+	_ = os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"mcpServers":{},"projects":{`+string(key)+`:{"mcpServers":{"codegraph":{"command":"codegraph"}}}}}`), 0o644)
 	if !codeGraphMCPState(home, root)["claude"] {
 		t.Fatal("registro en projects[raíz] no reconocido")
 	}
@@ -104,6 +111,9 @@ func TestCodeGraphMCPState_ClaudeANivelProyecto(t *testing.T) {
 // S-002: un binario llamado codegraph que no ofrece el instalador esperado
 // no se ejecuta con --yes; queda el aviso con el comando manual.
 func TestEnsureCodeGraphMCP_VerificaElInstaladorAntesDeEjecutar(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	home := t.TempDir()
 	bin := t.TempDir()
 	log := filepath.Join(bin, "calls")

@@ -16,6 +16,9 @@ import (
 )
 
 func TestIndexRepository_CreaOReconstruyeIndice(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	for _, initialized := range []bool{false, true} {
 		for _, fail := range []bool{false, true} {
 			t.Run(fmt.Sprintf("initialized=%v/fail=%v", initialized, fail), func(t *testing.T) {
@@ -133,6 +136,9 @@ func TestLiveCodeGraph_RefrescaIndiceInstalado(t *testing.T) {
 }
 
 func TestIndexRepository_RespetaCancelacionDelLlamador(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	root := t.TempDir()
 	bin := filepath.Join(root, "fake-codegraph")
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {

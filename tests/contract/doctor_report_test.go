@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -109,6 +110,9 @@ func TestDoctor_CodegraphAusenteSinAvisos(t *testing.T) {
 // opencode/user), y `problems` sigue siendo exactamente el número de canales
 // outdated/duplicated/missing (contrato 019), sin sumas por fuera.
 func TestDoctor_PluginV1EnOpenCode2MarcaCanalesYCuentaProblems(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
 	bin := buildPlanGuardBinary(t)
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0755); err != nil {

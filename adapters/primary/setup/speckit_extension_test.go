@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -67,7 +68,7 @@ func TestInstallSpeckitExtension_WithSpecify_CopiesExtensionTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("el script bash no se copió: %v", err)
 	}
-	if info.Mode().Perm()&0o111 == 0 {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
 		t.Errorf("el script bash debería quedar con permiso de ejecución, tiene %v", info.Mode().Perm())
 	}
 }
