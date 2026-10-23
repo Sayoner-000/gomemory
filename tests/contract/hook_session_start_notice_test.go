@@ -224,7 +224,11 @@ func TestSessionStart_ConsultaEnSegundoPlano(t *testing.T) {
 	baseline := time.Since(baseStart)
 
 	s := newLifecycleSandbox(t)
-	srv, hits := apiServer(t, "v99.1.0", 1500*time.Millisecond)
+	// El retraso de la API queda por debajo de releaseQueryTimeout (5 s) y,
+	// con el margen de 2/3, por encima del ruido entre dos arranques en el
+	// runner de Windows (+1,3 s observado): esperarla no se confunde con él.
+	const apiDelay = 3 * time.Second
+	srv, hits := apiServer(t, "v99.1.0", apiDelay)
 	s.Setenv("GOMEMORY_NO_UPDATE_CHECK", "")
 	s.Setenv("GOMEMORY_RELEASE_API_BASE", srv.URL)
 	p := s.Project("p1")
@@ -235,11 +239,11 @@ func TestSessionStart_ConsultaEnSegundoPlano(t *testing.T) {
 	if res.ExitCode != 0 {
 		t.Fatalf("session-start: %d %s", res.ExitCode, res.Stderr)
 	}
-	// Esperar a la API sumaría sus 1,5 s a la línea base.
-	if d := time.Since(start); d > baseline+1000*time.Millisecond {
+	// Esperar a la API sumaría apiDelay a la línea base.
+	if d := time.Since(start); d > baseline+apiDelay*2/3 {
 		t.Errorf("el hook esperó a la API: %v (sin consulta: %v)", d, baseline)
 	}
-	deadline := time.Now().Add(8 * time.Second)
+	deadline := time.Now().Add(apiDelay + 10*time.Second)
 	for time.Now().Before(deadline) {
 		if strings.Contains(readAll(t, cache), "v99.1.0") {
 			if hits.Load() < 1 {
