@@ -105,7 +105,7 @@ Traducción de lo anterior. Su cabecera **debe** declarar el método de conteo (
 
 ```
 Uso de contexto — proyecto go_memory · sesión a1b2c3d4
-Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas.
+Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas. Mide el contexto que entrega gomemory (memoria, plan, búsquedas) frente a entregarlo completo; no incluye las salidas de herramientas ni el resto de la conversación. El ahorro de la compresión de salidas está en mem pack savings.
 
 RESUMEN
   Llamadas:    4

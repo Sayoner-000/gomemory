@@ -92,7 +92,7 @@ func renderUsageHuman(report domain.UsageReport, scope string, env console.Env) 
 	case scope == "all":
 		title += " · todas las sesiones"
 	}
-	note := l.Muted("Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas.")
+	note := l.Muted("Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas. " + usecases.UsageReportScope)
 	var b strings.Builder
 	if scope == "empty" || report.Calls == 0 {
 		b.WriteString(l.Panel(title, "", "", []string{"Sin actividad registrada todavía."}))
