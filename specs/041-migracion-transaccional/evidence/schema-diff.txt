@@ -1,0 +1,8 @@
+--- schema-v0.golden
++++ schema-v1.golden
+@@ -1,4 +1,4 @@
+-user_version=0
++user_version=1
+ index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
+ index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
+ index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)

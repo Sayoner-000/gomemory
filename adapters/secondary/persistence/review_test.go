@@ -365,6 +365,10 @@ func TestMigracion028EsAditivaSobreEsquemaPrevio(t *testing.T) {
 	if _, err := db.Exec(`DROP TABLE IF EXISTS rejudgments`); err != nil {
 		t.Fatal(err)
 	}
+	// La base simulada es anterior al versionado del esquema.
+	if _, err := db.Exec(`PRAGMA user_version = 0`); err != nil {
+		t.Fatalf("reset legacy schema version: %v", err)
+	}
 	if _, err := db.Exec(`UPDATE reviews SET current_target_digest = NULL, fix_authorized = NULL,
 		reviewer_a_provider = NULL, reviewer_a_model = NULL,
 		reviewer_b_provider = NULL, reviewer_b_model = NULL`); err != nil {

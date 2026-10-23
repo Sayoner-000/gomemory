@@ -30,6 +30,10 @@ func TestMigrateCompression_BaseVaciaYAnterior(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	// La base simulada es anterior al versionado del esquema.
+	if _, err := db.Exec(`PRAGMA user_version = 0`); err != nil {
+		t.Fatalf("reset legacy schema version: %v", err)
+	}
 	for i := 0; i < 2; i++ { // dos veces: idempotente
 		if err := migrate(db); err != nil {
 			t.Fatalf("migrate %d: %v", i, err)

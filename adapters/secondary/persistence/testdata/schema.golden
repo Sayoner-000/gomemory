@@ -1,0 +1,680 @@
+user_version=1
+index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
+index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
+index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)
+index|idx_code_edges_src_file|code_edges|CREATE INDEX idx_code_edges_src_file ON code_edges(src_file_id)
+index|idx_code_edges_to|code_edges|CREATE INDEX idx_code_edges_to ON code_edges(to_id)
+index|idx_code_files_project|code_files|CREATE INDEX idx_code_files_project ON code_files(project)
+index|idx_code_nodes_file|code_nodes|CREATE INDEX idx_code_nodes_file ON code_nodes(file_id)
+index|idx_code_nodes_project_name|code_nodes|CREATE INDEX idx_code_nodes_project_name ON code_nodes(project, name)
+index|idx_compression_originals_access|compression_originals|CREATE INDEX idx_compression_originals_access ON compression_originals(last_access_at)
+index|idx_compression_originals_expires|compression_originals|CREATE INDEX idx_compression_originals_expires ON compression_originals(expires_at)
+index|idx_consensus_review|consensus_findings|CREATE INDEX idx_consensus_review ON consensus_findings(review_id)
+index|idx_memories_created|memories|CREATE INDEX idx_memories_created ON memories(created_at DESC)
+index|idx_memories_project|memories|CREATE INDEX idx_memories_project ON memories(project)
+index|idx_memories_project_session|memories|CREATE INDEX idx_memories_project_session ON memories(project, session_id, created_at)
+index|idx_memories_topic|memories|CREATE INDEX idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL
+index|idx_memories_type|memories|CREATE INDEX idx_memories_type ON memories(type)
+index|idx_octopus_project_class|octopus_executions|CREATE INDEX idx_octopus_project_class ON octopus_executions(project, task_class)
+index|idx_octopus_project_task|octopus_executions|CREATE INDEX idx_octopus_project_task ON octopus_executions(project, task_id)
+index|idx_rejudgments_finding|rejudgments|CREATE INDEX idx_rejudgments_finding ON rejudgments(consensus_finding_id)
+index|idx_relations_mem_a|memory_relations|CREATE INDEX idx_relations_mem_a ON memory_relations(memory_id_a)
+index|idx_relations_mem_b|memory_relations|CREATE INDEX idx_relations_mem_b ON memory_relations(memory_id_b)
+index|idx_relations_pair|memory_relations|CREATE UNIQUE INDEX idx_relations_pair ON memory_relations(project, memory_id_a, memory_id_b)
+index|idx_relations_project|memory_relations|CREATE INDEX idx_relations_project ON memory_relations(project)
+index|idx_reviews_project|reviews|CREATE INDEX idx_reviews_project ON reviews(project)
+index|idx_reviews_status|reviews|CREATE INDEX idx_reviews_status ON reviews(project, status)
+index|idx_socratica_dispatch|socratica_flows|CREATE UNIQUE INDEX idx_socratica_dispatch ON socratica_flows(dispatch_id) WHERE dispatch_id IS NOT NULL
+index|idx_socratica_flows_scope|socratica_flows|CREATE INDEX idx_socratica_flows_scope ON socratica_flows(project, client, updated_at)
+index|idx_socratica_history_scope|socratica_history|CREATE INDEX idx_socratica_history_scope ON socratica_history(project, client, completed_at DESC)
+index|idx_socratica_one_pending|socratica_flows|CREATE UNIQUE INDEX idx_socratica_one_pending ON socratica_flows(project, client) WHERE phase NOT IN ('dispatched','cancelled')
+index|idx_usage_created|usage_records|CREATE INDEX idx_usage_created ON usage_records(created_at DESC)
+index|idx_usage_project_session|usage_records|CREATE INDEX idx_usage_project_session ON usage_records(project, session_id)
+index|sqlite_autoindex_channel_activity_1|channel_activity|
+index|sqlite_autoindex_code_edges_1|code_edges|
+index|sqlite_autoindex_code_files_1|code_files|
+index|sqlite_autoindex_code_nodes_1|code_nodes|
+index|sqlite_autoindex_compression_originals_1|compression_originals|
+index|sqlite_autoindex_compression_originals_2|compression_originals|
+index|sqlite_autoindex_compression_stats_1|compression_stats|
+index|sqlite_autoindex_compression_tuning_1|compression_tuning|
+index|sqlite_autoindex_consensus_findings_1|consensus_findings|
+index|sqlite_autoindex_context_deliveries_1|context_deliveries|
+index|sqlite_autoindex_delivered_blocks_1|delivered_blocks|
+index|sqlite_autoindex_findings_1|findings|
+index|sqlite_autoindex_fix_rounds_1|fix_rounds|
+index|sqlite_autoindex_hook_guard_events_1|hook_guard_events|
+index|sqlite_autoindex_instinct_folded_1|instinct_folded|
+index|sqlite_autoindex_instinct_stats_1|instinct_stats|
+index|sqlite_autoindex_rejudgments_1|rejudgments|
+index|sqlite_autoindex_reviewer_results_1|reviewer_results|
+index|sqlite_autoindex_reviews_1|reviews|
+index|sqlite_autoindex_sessions_1|sessions|
+index|sqlite_autoindex_socratica_flows_1|socratica_flows|
+index|sqlite_autoindex_socratica_history_1|socratica_history|
+index|sqlite_autoindex_socratica_history_2|socratica_history|
+table|adr_sync_records|adr_sync_records|CREATE TABLE adr_sync_records (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		memory_id INTEGER,
+		provider TEXT NOT NULL,
+		section TEXT NOT NULL,
+		block_key TEXT NOT NULL,
+		origin TEXT NOT NULL,
+		status TEXT NOT NULL,
+		content_hash TEXT NOT NULL DEFAULT '',
+		last_synced_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		FOREIGN KEY (memory_id) REFERENCES memories(id)
+	)
+table|channel_activity|channel_activity|CREATE TABLE channel_activity (
+		project TEXT NOT NULL,
+		agent TEXT NOT NULL,
+		scope TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		fired_at TEXT,
+		last_error TEXT NOT NULL DEFAULT '',
+		last_error_at TEXT,
+		PRIMARY KEY (project, agent, scope, kind)
+	)
+table|code_edges|code_edges|CREATE TABLE code_edges (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		from_id INTEGER NOT NULL,
+		to_id INTEGER NOT NULL,
+		kind TEXT NOT NULL,
+		confidence REAL NOT NULL DEFAULT 1.0,
+		src_file_id INTEGER NOT NULL DEFAULT 0,
+		UNIQUE(project, from_id, to_id, kind)
+	)
+table|code_files|code_files|CREATE TABLE code_files (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		path TEXT NOT NULL,
+		hash TEXT NOT NULL,
+		indexed_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		UNIQUE(project, path)
+	)
+table|code_nodes|code_nodes|CREATE TABLE code_nodes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		file_id INTEGER NOT NULL DEFAULT 0,
+		kind TEXT NOT NULL,
+		name TEXT NOT NULL,
+		package TEXT NOT NULL DEFAULT '',
+		file TEXT NOT NULL DEFAULT '',
+		receiver TEXT NOT NULL DEFAULT '',
+		signature TEXT NOT NULL DEFAULT '',
+		start_line INTEGER NOT NULL DEFAULT 0,
+		end_line INTEGER NOT NULL DEFAULT 0,
+		exported INTEGER NOT NULL DEFAULT 0,
+		UNIQUE(project, kind, name, file_id)
+	)
+table|code_search|code_search|CREATE VIRTUAL TABLE code_search USING fts5(
+		name, signature, package, node_id UNINDEXED
+	)
+table|code_search_config|code_search_config|CREATE TABLE 'code_search_config'(k PRIMARY KEY, v) WITHOUT ROWID
+table|code_search_content|code_search_content|CREATE TABLE 'code_search_content'(id INTEGER PRIMARY KEY, c0, c1, c2, c3)
+table|code_search_data|code_search_data|CREATE TABLE 'code_search_data'(id INTEGER PRIMARY KEY, block BLOB)
+table|code_search_docsize|code_search_docsize|CREATE TABLE 'code_search_docsize'(id INTEGER PRIMARY KEY, sz BLOB)
+table|code_search_idx|code_search_idx|CREATE TABLE 'code_search_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID
+table|compression_originals|compression_originals|CREATE TABLE compression_originals (
+		ref TEXT PRIMARY KEY,
+		hash TEXT NOT NULL UNIQUE,
+		project TEXT NOT NULL,
+		content_gz BLOB NOT NULL,
+		raw_bytes INTEGER NOT NULL,
+		content_type TEXT NOT NULL,
+		compressor TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		last_access_at TEXT NOT NULL,
+		expires_at TEXT NOT NULL
+	)
+table|compression_stats|compression_stats|CREATE TABLE compression_stats (
+		project TEXT NOT NULL,
+		compressor TEXT NOT NULL,
+		content_type TEXT NOT NULL,
+		uses INTEGER NOT NULL DEFAULT 0,
+		raw_tokens INTEGER NOT NULL DEFAULT 0,
+		structural_tokens INTEGER NOT NULL DEFAULT 0,
+		final_tokens INTEGER NOT NULL DEFAULT 0,
+		omissions INTEGER NOT NULL DEFAULT 0,
+		retrievals INTEGER NOT NULL DEFAULT 0,
+		fallbacks INTEGER NOT NULL DEFAULT 0,
+		latency_us_total INTEGER NOT NULL DEFAULT 0,
+		updated_at TEXT NOT NULL, no_gains INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (project, compressor, content_type)
+	)
+table|compression_tuning|compression_tuning|CREATE TABLE compression_tuning (
+		project TEXT NOT NULL,
+		content_type TEXT NOT NULL,
+		aggressiveness INTEGER NOT NULL,
+		reason TEXT NOT NULL,
+		-- Línea base del último ajuste: la tasa de recuperación se mide desde
+		-- aquí, para no bajar la agresividad dos veces por las mismas
+		-- recuperaciones.
+		omissions_base INTEGER NOT NULL DEFAULT 0,
+		retrievals_base INTEGER NOT NULL DEFAULT 0,
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (project, content_type)
+	)
+table|consensus_findings|consensus_findings|CREATE TABLE consensus_findings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		round INTEGER NOT NULL DEFAULT 0,
+		consensus_local_id TEXT NOT NULL,
+		status TEXT NOT NULL,
+		severity TEXT NOT NULL DEFAULT '',
+		claim TEXT NOT NULL DEFAULT '',
+		source_finding_ids TEXT NOT NULL DEFAULT '[]',
+		rejudgment_state TEXT,
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')), round_fingerprint TEXT, rejudgment_round INTEGER,
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		UNIQUE(review_id, consensus_local_id)
+	)
+table|context_deliveries|context_deliveries|CREATE TABLE context_deliveries (
+		session_id TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		content_hash TEXT NOT NULL,
+		delivered_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		PRIMARY KEY (session_id, kind)
+	)
+table|delivered_blocks|delivered_blocks|CREATE TABLE delivered_blocks (
+		session_id TEXT NOT NULL,
+		block_hash TEXT NOT NULL,
+		delivered_at TEXT NOT NULL,
+		PRIMARY KEY (session_id, block_hash)
+	)
+table|findings|findings|CREATE TABLE findings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		reviewer_result_id INTEGER NOT NULL,
+		local_id TEXT NOT NULL,
+		location TEXT NOT NULL DEFAULT '',
+		severity TEXT NOT NULL,
+		category TEXT NOT NULL DEFAULT '',
+		claim TEXT NOT NULL,
+		evidence_class TEXT NOT NULL,
+		evidence TEXT NOT NULL DEFAULT '[]',
+		confidence TEXT NOT NULL DEFAULT '',
+		FOREIGN KEY (reviewer_result_id) REFERENCES reviewer_results(id),
+		UNIQUE(reviewer_result_id, local_id)
+	)
+table|fix_rounds|fix_rounds|CREATE TABLE fix_rounds (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		round INTEGER NOT NULL,
+		base_target_digest TEXT NOT NULL,
+		fixed_target_digest TEXT NOT NULL,
+		addressed_consensus_ids TEXT NOT NULL DEFAULT '[]',
+		modified_paths TEXT NOT NULL DEFAULT '[]',
+		verification TEXT NOT NULL DEFAULT '[]',
+		diff_digest TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		UNIQUE(review_id, round)
+	)
+table|hook_guard_events|hook_guard_events|CREATE TABLE hook_guard_events (
+		project TEXT NOT NULL,
+		agent TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		day TEXT NOT NULL,
+		count INTEGER NOT NULL DEFAULT 0,
+		last_detail TEXT NOT NULL DEFAULT '',
+		updated_at TEXT NOT NULL,
+		PRIMARY KEY (project, agent, kind, day)
+	)
+table|instinct_folded|instinct_folded|CREATE TABLE instinct_folded(project TEXT NOT NULL,obs_id TEXT NOT NULL,folded_at TEXT NOT NULL,PRIMARY KEY(project,obs_id))
+table|instinct_stats|instinct_stats|CREATE TABLE instinct_stats (
+project TEXT NOT NULL,slug TEXT NOT NULL,kind TEXT NOT NULL,description TEXT NOT NULL,
+observations INTEGER NOT NULL DEFAULT 0,corrections INTEGER NOT NULL DEFAULT 0,
+confidence REAL NOT NULL DEFAULT 0.3,scope TEXT NOT NULL DEFAULT 'project',status TEXT NOT NULL DEFAULT 'proposed',
+first_seen TEXT NOT NULL,last_seen TEXT NOT NULL,PRIMARY KEY(project,slug))
+table|memories|memories|CREATE TABLE memories (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		session_id TEXT,
+		type TEXT NOT NULL DEFAULT 'learning',
+		title TEXT NOT NULL DEFAULT '',
+		content TEXT NOT NULL,
+		filepath TEXT,
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		updated_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours'))
+	, origin_prompt TEXT, topic_key TEXT, source_review_id INTEGER)
+table|memory_relations|memory_relations|CREATE TABLE memory_relations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		memory_id_a INTEGER NOT NULL,
+		memory_id_b INTEGER NOT NULL,
+		relation TEXT NOT NULL,
+		confidence REAL NOT NULL DEFAULT 1.0,
+		reasoning TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		FOREIGN KEY (memory_id_a) REFERENCES memories(id),
+		FOREIGN KEY (memory_id_b) REFERENCES memories(id)
+	)
+table|memory_search|memory_search|CREATE VIRTUAL TABLE memory_search USING fts5(
+		title, content, memory_id UNINDEXED
+	)
+table|memory_search_config|memory_search_config|CREATE TABLE 'memory_search_config'(k PRIMARY KEY, v) WITHOUT ROWID
+table|memory_search_content|memory_search_content|CREATE TABLE 'memory_search_content'(id INTEGER PRIMARY KEY, c0, c1, c2)
+table|memory_search_data|memory_search_data|CREATE TABLE 'memory_search_data'(id INTEGER PRIMARY KEY, block BLOB)
+table|memory_search_docsize|memory_search_docsize|CREATE TABLE 'memory_search_docsize'(id INTEGER PRIMARY KEY, sz BLOB)
+table|memory_search_idx|memory_search_idx|CREATE TABLE 'memory_search_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID
+table|octopus_executions|octopus_executions|CREATE TABLE octopus_executions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		plan_id TEXT NOT NULL DEFAULT '',
+		task_id TEXT NOT NULL,
+		task_class TEXT NOT NULL DEFAULT '',
+		route TEXT NOT NULL,
+		reason_code TEXT NOT NULL,
+		parallel_group TEXT NOT NULL DEFAULT '',
+		context_budget INTEGER NOT NULL DEFAULT 0,
+		output_budget INTEGER NOT NULL DEFAULT 0,
+		estimated_tokens INTEGER NOT NULL DEFAULT 0,
+		decided_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		status TEXT,
+		context_tokens INTEGER,
+		output_tokens INTEGER,
+		duration_ms INTEGER,
+		quality TEXT,
+		reported_at TEXT
+	)
+table|rejudgments|rejudgments|CREATE TABLE rejudgments (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		round INTEGER NOT NULL,
+		consensus_finding_id INTEGER NOT NULL,
+		reviewer TEXT NOT NULL,
+		state TEXT NOT NULL,
+		evidence TEXT NOT NULL DEFAULT '[]',
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		FOREIGN KEY (consensus_finding_id) REFERENCES consensus_findings(id),
+		UNIQUE(review_id, round, consensus_finding_id, reviewer)
+	)
+table|reviewer_results|reviewer_results|CREATE TABLE reviewer_results (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		review_id INTEGER NOT NULL,
+		reviewer TEXT NOT NULL,
+		round INTEGER NOT NULL DEFAULT 0,
+		provider TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL,
+		submitted_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		FOREIGN KEY (review_id) REFERENCES reviews(id),
+		UNIQUE(review_id, reviewer, round)
+	)
+table|reviews|reviews|CREATE TABLE reviews (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		review_id TEXT NOT NULL,
+		target_type TEXT NOT NULL,
+		target_revision TEXT NOT NULL,
+		target_digest TEXT NOT NULL,
+		target_scope TEXT NOT NULL DEFAULT '[]',
+		max_fix_rounds INTEGER NOT NULL DEFAULT 2,
+		auto_fix_severities TEXT NOT NULL DEFAULT '["CRITICAL","HIGH"]',
+		independence_level TEXT NOT NULL DEFAULT 'degraded',
+		independence_reason TEXT NOT NULL DEFAULT '',
+		round INTEGER NOT NULL DEFAULT 0,
+		status TEXT NOT NULL DEFAULT 'frozen',
+		verdict TEXT,
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		updated_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')), current_target_digest TEXT, fix_authorized INTEGER, reviewer_a_provider TEXT, reviewer_a_model TEXT, reviewer_b_provider TEXT, reviewer_b_model TEXT,
+		UNIQUE(project, review_id)
+	)
+table|sessions|sessions|CREATE TABLE sessions (
+		id TEXT PRIMARY KEY,
+		project TEXT NOT NULL,
+		summary TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
+		ended_at TEXT
+	, last_prompt TEXT)
+table|socratica_flows|socratica_flows|CREATE TABLE socratica_flows (
+  id TEXT PRIMARY KEY,
+  schema_version INTEGER NOT NULL DEFAULT 1,
+  project TEXT NOT NULL,
+  client TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  original_prompt TEXT NOT NULL,
+  questions_json TEXT NOT NULL DEFAULT '[]',
+  answers_json TEXT NOT NULL DEFAULT '[]',
+  proposed_prompt TEXT NOT NULL DEFAULT '',
+  approved_prompt TEXT NOT NULL DEFAULT '',
+  scrutiny_json TEXT,
+  phase TEXT NOT NULL,
+  last_stable_phase TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 0,
+  dispatch_id TEXT,
+  dispatch_ack INTEGER NOT NULL DEFAULT 0,
+  dispatch_consumed INTEGER NOT NULL DEFAULT 0,
+  dispatch_claimed_at TEXT,
+  dispatch_claim_owner TEXT,
+  ack_nonce TEXT,
+  approved_hash TEXT,
+  last_error TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+table|socratica_history|socratica_history|CREATE TABLE socratica_history (
+  id TEXT PRIMARY KEY,
+  flow_id TEXT NOT NULL UNIQUE,
+  project TEXT NOT NULL,
+  client TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  original_prompt TEXT NOT NULL,
+  proposed_prompt TEXT NOT NULL DEFAULT '',
+  approved_prompt TEXT,
+  scrutiny_json TEXT,
+  additions_json TEXT NOT NULL DEFAULT '[]',
+  words_before INTEGER NOT NULL,
+  words_after INTEGER NOT NULL,
+  completed_at TEXT NOT NULL
+)
+table|sqlite_sequence|sqlite_sequence|CREATE TABLE sqlite_sequence(name,seq)
+table|usage_records|usage_records|CREATE TABLE usage_records (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		session_id TEXT,
+		operation TEXT NOT NULL,
+		channel TEXT NOT NULL,
+		baseline_tokens INTEGER NOT NULL DEFAULT 0,
+		emitted_tokens INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours'))
+	)
+col|adr_sync_records|0|id|INTEGER|0||1
+col|adr_sync_records|1|project|TEXT|1||0
+col|adr_sync_records|2|memory_id|INTEGER|0||0
+col|adr_sync_records|3|provider|TEXT|1||0
+col|adr_sync_records|4|section|TEXT|1||0
+col|adr_sync_records|5|block_key|TEXT|1||0
+col|adr_sync_records|6|origin|TEXT|1||0
+col|adr_sync_records|7|status|TEXT|1||0
+col|adr_sync_records|8|content_hash|TEXT|1|''|0
+col|adr_sync_records|9|last_synced_at|TEXT|1|datetime('now', '-5 hours')|0
+col|adr_sync_records|10|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|channel_activity|0|project|TEXT|1||1
+col|channel_activity|1|agent|TEXT|1||2
+col|channel_activity|2|scope|TEXT|1||3
+col|channel_activity|3|kind|TEXT|1||4
+col|channel_activity|4|fired_at|TEXT|0||0
+col|channel_activity|5|last_error|TEXT|1|''|0
+col|channel_activity|6|last_error_at|TEXT|0||0
+col|code_edges|0|id|INTEGER|0||1
+col|code_edges|1|project|TEXT|1||0
+col|code_edges|2|from_id|INTEGER|1||0
+col|code_edges|3|to_id|INTEGER|1||0
+col|code_edges|4|kind|TEXT|1||0
+col|code_edges|5|confidence|REAL|1|1.0|0
+col|code_edges|6|src_file_id|INTEGER|1|0|0
+col|code_files|0|id|INTEGER|0||1
+col|code_files|1|project|TEXT|1||0
+col|code_files|2|path|TEXT|1||0
+col|code_files|3|hash|TEXT|1||0
+col|code_files|4|indexed_at|TEXT|1|datetime('now', '-5 hours')|0
+col|code_nodes|0|id|INTEGER|0||1
+col|code_nodes|1|project|TEXT|1||0
+col|code_nodes|2|file_id|INTEGER|1|0|0
+col|code_nodes|3|kind|TEXT|1||0
+col|code_nodes|4|name|TEXT|1||0
+col|code_nodes|5|package|TEXT|1|''|0
+col|code_nodes|6|file|TEXT|1|''|0
+col|code_nodes|7|receiver|TEXT|1|''|0
+col|code_nodes|8|signature|TEXT|1|''|0
+col|code_nodes|9|start_line|INTEGER|1|0|0
+col|code_nodes|10|end_line|INTEGER|1|0|0
+col|code_nodes|11|exported|INTEGER|1|0|0
+col|code_search|0|name||0||0
+col|code_search|1|signature||0||0
+col|code_search|2|package||0||0
+col|code_search|3|node_id||0||0
+col|code_search_config|0|k||1||1
+col|code_search_config|1|v||0||0
+col|code_search_content|0|id|INTEGER|0||1
+col|code_search_content|1|c0||0||0
+col|code_search_content|2|c1||0||0
+col|code_search_content|3|c2||0||0
+col|code_search_content|4|c3||0||0
+col|code_search_data|0|id|INTEGER|0||1
+col|code_search_data|1|block|BLOB|0||0
+col|code_search_docsize|0|id|INTEGER|0||1
+col|code_search_docsize|1|sz|BLOB|0||0
+col|code_search_idx|0|segid||1||1
+col|code_search_idx|1|term||1||2
+col|code_search_idx|2|pgno||0||0
+col|compression_originals|0|ref|TEXT|0||1
+col|compression_originals|1|hash|TEXT|1||0
+col|compression_originals|2|project|TEXT|1||0
+col|compression_originals|3|content_gz|BLOB|1||0
+col|compression_originals|4|raw_bytes|INTEGER|1||0
+col|compression_originals|5|content_type|TEXT|1||0
+col|compression_originals|6|compressor|TEXT|1||0
+col|compression_originals|7|created_at|TEXT|1||0
+col|compression_originals|8|last_access_at|TEXT|1||0
+col|compression_originals|9|expires_at|TEXT|1||0
+col|compression_stats|0|project|TEXT|1||1
+col|compression_stats|1|compressor|TEXT|1||2
+col|compression_stats|2|content_type|TEXT|1||3
+col|compression_stats|3|uses|INTEGER|1|0|0
+col|compression_stats|4|raw_tokens|INTEGER|1|0|0
+col|compression_stats|5|structural_tokens|INTEGER|1|0|0
+col|compression_stats|6|final_tokens|INTEGER|1|0|0
+col|compression_stats|7|omissions|INTEGER|1|0|0
+col|compression_stats|8|retrievals|INTEGER|1|0|0
+col|compression_stats|9|fallbacks|INTEGER|1|0|0
+col|compression_stats|10|latency_us_total|INTEGER|1|0|0
+col|compression_stats|11|updated_at|TEXT|1||0
+col|compression_stats|12|no_gains|INTEGER|1|0|0
+col|compression_tuning|0|project|TEXT|1||1
+col|compression_tuning|1|content_type|TEXT|1||2
+col|compression_tuning|2|aggressiveness|INTEGER|1||0
+col|compression_tuning|3|reason|TEXT|1||0
+col|compression_tuning|4|omissions_base|INTEGER|1|0|0
+col|compression_tuning|5|retrievals_base|INTEGER|1|0|0
+col|compression_tuning|6|updated_at|TEXT|1||0
+col|consensus_findings|0|id|INTEGER|0||1
+col|consensus_findings|1|review_id|INTEGER|1||0
+col|consensus_findings|2|round|INTEGER|1|0|0
+col|consensus_findings|3|consensus_local_id|TEXT|1||0
+col|consensus_findings|4|status|TEXT|1||0
+col|consensus_findings|5|severity|TEXT|1|''|0
+col|consensus_findings|6|claim|TEXT|1|''|0
+col|consensus_findings|7|source_finding_ids|TEXT|1|'[]'|0
+col|consensus_findings|8|rejudgment_state|TEXT|0||0
+col|consensus_findings|9|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|consensus_findings|10|round_fingerprint|TEXT|0||0
+col|consensus_findings|11|rejudgment_round|INTEGER|0||0
+col|context_deliveries|0|session_id|TEXT|1||1
+col|context_deliveries|1|kind|TEXT|1||2
+col|context_deliveries|2|content_hash|TEXT|1||0
+col|context_deliveries|3|delivered_at|TEXT|1|datetime('now', '-5 hours')|0
+col|delivered_blocks|0|session_id|TEXT|1||1
+col|delivered_blocks|1|block_hash|TEXT|1||2
+col|delivered_blocks|2|delivered_at|TEXT|1||0
+col|findings|0|id|INTEGER|0||1
+col|findings|1|reviewer_result_id|INTEGER|1||0
+col|findings|2|local_id|TEXT|1||0
+col|findings|3|location|TEXT|1|''|0
+col|findings|4|severity|TEXT|1||0
+col|findings|5|category|TEXT|1|''|0
+col|findings|6|claim|TEXT|1||0
+col|findings|7|evidence_class|TEXT|1||0
+col|findings|8|evidence|TEXT|1|'[]'|0
+col|findings|9|confidence|TEXT|1|''|0
+col|fix_rounds|0|id|INTEGER|0||1
+col|fix_rounds|1|review_id|INTEGER|1||0
+col|fix_rounds|2|round|INTEGER|1||0
+col|fix_rounds|3|base_target_digest|TEXT|1||0
+col|fix_rounds|4|fixed_target_digest|TEXT|1||0
+col|fix_rounds|5|addressed_consensus_ids|TEXT|1|'[]'|0
+col|fix_rounds|6|modified_paths|TEXT|1|'[]'|0
+col|fix_rounds|7|verification|TEXT|1|'[]'|0
+col|fix_rounds|8|diff_digest|TEXT|1|''|0
+col|fix_rounds|9|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|hook_guard_events|0|project|TEXT|1||1
+col|hook_guard_events|1|agent|TEXT|1||2
+col|hook_guard_events|2|kind|TEXT|1||3
+col|hook_guard_events|3|day|TEXT|1||4
+col|hook_guard_events|4|count|INTEGER|1|0|0
+col|hook_guard_events|5|last_detail|TEXT|1|''|0
+col|hook_guard_events|6|updated_at|TEXT|1||0
+col|instinct_folded|0|project|TEXT|1||1
+col|instinct_folded|1|obs_id|TEXT|1||2
+col|instinct_folded|2|folded_at|TEXT|1||0
+col|instinct_stats|0|project|TEXT|1||1
+col|instinct_stats|1|slug|TEXT|1||2
+col|instinct_stats|2|kind|TEXT|1||0
+col|instinct_stats|3|description|TEXT|1||0
+col|instinct_stats|4|observations|INTEGER|1|0|0
+col|instinct_stats|5|corrections|INTEGER|1|0|0
+col|instinct_stats|6|confidence|REAL|1|0.3|0
+col|instinct_stats|7|scope|TEXT|1|'project'|0
+col|instinct_stats|8|status|TEXT|1|'proposed'|0
+col|instinct_stats|9|first_seen|TEXT|1||0
+col|instinct_stats|10|last_seen|TEXT|1||0
+col|memories|0|id|INTEGER|0||1
+col|memories|1|project|TEXT|1||0
+col|memories|2|session_id|TEXT|0||0
+col|memories|3|type|TEXT|1|'learning'|0
+col|memories|4|title|TEXT|1|''|0
+col|memories|5|content|TEXT|1||0
+col|memories|6|filepath|TEXT|0||0
+col|memories|7|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|memories|8|updated_at|TEXT|1|datetime('now', '-5 hours')|0
+col|memories|9|origin_prompt|TEXT|0||0
+col|memories|10|topic_key|TEXT|0||0
+col|memories|11|source_review_id|INTEGER|0||0
+col|memory_relations|0|id|INTEGER|0||1
+col|memory_relations|1|project|TEXT|1||0
+col|memory_relations|2|memory_id_a|INTEGER|1||0
+col|memory_relations|3|memory_id_b|INTEGER|1||0
+col|memory_relations|4|relation|TEXT|1||0
+col|memory_relations|5|confidence|REAL|1|1.0|0
+col|memory_relations|6|reasoning|TEXT|1|''|0
+col|memory_relations|7|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|memory_search|0|title||0||0
+col|memory_search|1|content||0||0
+col|memory_search|2|memory_id||0||0
+col|memory_search_config|0|k||1||1
+col|memory_search_config|1|v||0||0
+col|memory_search_content|0|id|INTEGER|0||1
+col|memory_search_content|1|c0||0||0
+col|memory_search_content|2|c1||0||0
+col|memory_search_content|3|c2||0||0
+col|memory_search_data|0|id|INTEGER|0||1
+col|memory_search_data|1|block|BLOB|0||0
+col|memory_search_docsize|0|id|INTEGER|0||1
+col|memory_search_docsize|1|sz|BLOB|0||0
+col|memory_search_idx|0|segid||1||1
+col|memory_search_idx|1|term||1||2
+col|memory_search_idx|2|pgno||0||0
+col|octopus_executions|0|id|INTEGER|0||1
+col|octopus_executions|1|project|TEXT|1||0
+col|octopus_executions|2|plan_id|TEXT|1|''|0
+col|octopus_executions|3|task_id|TEXT|1||0
+col|octopus_executions|4|task_class|TEXT|1|''|0
+col|octopus_executions|5|route|TEXT|1||0
+col|octopus_executions|6|reason_code|TEXT|1||0
+col|octopus_executions|7|parallel_group|TEXT|1|''|0
+col|octopus_executions|8|context_budget|INTEGER|1|0|0
+col|octopus_executions|9|output_budget|INTEGER|1|0|0
+col|octopus_executions|10|estimated_tokens|INTEGER|1|0|0
+col|octopus_executions|11|decided_at|TEXT|1|datetime('now', '-5 hours')|0
+col|octopus_executions|12|status|TEXT|0||0
+col|octopus_executions|13|context_tokens|INTEGER|0||0
+col|octopus_executions|14|output_tokens|INTEGER|0||0
+col|octopus_executions|15|duration_ms|INTEGER|0||0
+col|octopus_executions|16|quality|TEXT|0||0
+col|octopus_executions|17|reported_at|TEXT|0||0
+col|rejudgments|0|id|INTEGER|0||1
+col|rejudgments|1|review_id|INTEGER|1||0
+col|rejudgments|2|round|INTEGER|1||0
+col|rejudgments|3|consensus_finding_id|INTEGER|1||0
+col|rejudgments|4|reviewer|TEXT|1||0
+col|rejudgments|5|state|TEXT|1||0
+col|rejudgments|6|evidence|TEXT|1|'[]'|0
+col|rejudgments|7|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|reviewer_results|0|id|INTEGER|0||1
+col|reviewer_results|1|review_id|INTEGER|1||0
+col|reviewer_results|2|reviewer|TEXT|1||0
+col|reviewer_results|3|round|INTEGER|1|0|0
+col|reviewer_results|4|provider|TEXT|1|''|0
+col|reviewer_results|5|model|TEXT|1|''|0
+col|reviewer_results|6|status|TEXT|1||0
+col|reviewer_results|7|submitted_at|TEXT|1|datetime('now', '-5 hours')|0
+col|reviews|0|id|INTEGER|0||1
+col|reviews|1|project|TEXT|1||0
+col|reviews|2|review_id|TEXT|1||0
+col|reviews|3|target_type|TEXT|1||0
+col|reviews|4|target_revision|TEXT|1||0
+col|reviews|5|target_digest|TEXT|1||0
+col|reviews|6|target_scope|TEXT|1|'[]'|0
+col|reviews|7|max_fix_rounds|INTEGER|1|2|0
+col|reviews|8|auto_fix_severities|TEXT|1|'["CRITICAL","HIGH"]'|0
+col|reviews|9|independence_level|TEXT|1|'degraded'|0
+col|reviews|10|independence_reason|TEXT|1|''|0
+col|reviews|11|round|INTEGER|1|0|0
+col|reviews|12|status|TEXT|1|'frozen'|0
+col|reviews|13|verdict|TEXT|0||0
+col|reviews|14|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|reviews|15|updated_at|TEXT|1|datetime('now', '-5 hours')|0
+col|reviews|16|current_target_digest|TEXT|0||0
+col|reviews|17|fix_authorized|INTEGER|0||0
+col|reviews|18|reviewer_a_provider|TEXT|0||0
+col|reviews|19|reviewer_a_model|TEXT|0||0
+col|reviews|20|reviewer_b_provider|TEXT|0||0
+col|reviews|21|reviewer_b_model|TEXT|0||0
+col|sessions|0|id|TEXT|0||1
+col|sessions|1|project|TEXT|1||0
+col|sessions|2|summary|TEXT|1|''|0
+col|sessions|3|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|sessions|4|ended_at|TEXT|0||0
+col|sessions|5|last_prompt|TEXT|0||0
+col|socratica_flows|0|id|TEXT|0||1
+col|socratica_flows|1|schema_version|INTEGER|1|1|0
+col|socratica_flows|2|project|TEXT|1||0
+col|socratica_flows|3|client|TEXT|1||0
+col|socratica_flows|4|mode|TEXT|1||0
+col|socratica_flows|5|original_prompt|TEXT|1||0
+col|socratica_flows|6|questions_json|TEXT|1|'[]'|0
+col|socratica_flows|7|answers_json|TEXT|1|'[]'|0
+col|socratica_flows|8|proposed_prompt|TEXT|1|''|0
+col|socratica_flows|9|approved_prompt|TEXT|1|''|0
+col|socratica_flows|10|scrutiny_json|TEXT|0||0
+col|socratica_flows|11|phase|TEXT|1||0
+col|socratica_flows|12|last_stable_phase|TEXT|1||0
+col|socratica_flows|13|revision|INTEGER|1|0|0
+col|socratica_flows|14|dispatch_id|TEXT|0||0
+col|socratica_flows|15|dispatch_ack|INTEGER|1|0|0
+col|socratica_flows|16|dispatch_consumed|INTEGER|1|0|0
+col|socratica_flows|17|dispatch_claimed_at|TEXT|0||0
+col|socratica_flows|18|dispatch_claim_owner|TEXT|0||0
+col|socratica_flows|19|ack_nonce|TEXT|0||0
+col|socratica_flows|20|approved_hash|TEXT|0||0
+col|socratica_flows|21|last_error|TEXT|0||0
+col|socratica_flows|22|created_at|TEXT|1||0
+col|socratica_flows|23|updated_at|TEXT|1||0
+col|socratica_history|0|id|TEXT|0||1
+col|socratica_history|1|flow_id|TEXT|1||0
+col|socratica_history|2|project|TEXT|1||0
+col|socratica_history|3|client|TEXT|1||0
+col|socratica_history|4|mode|TEXT|1||0
+col|socratica_history|5|original_prompt|TEXT|1||0
+col|socratica_history|6|proposed_prompt|TEXT|1|''|0
+col|socratica_history|7|approved_prompt|TEXT|0||0
+col|socratica_history|8|scrutiny_json|TEXT|0||0
+col|socratica_history|9|additions_json|TEXT|1|'[]'|0
+col|socratica_history|10|words_before|INTEGER|1||0
+col|socratica_history|11|words_after|INTEGER|1||0
+col|socratica_history|12|completed_at|TEXT|1||0
+col|sqlite_sequence|0|name||0||0
+col|sqlite_sequence|1|seq||0||0
+col|usage_records|0|id|INTEGER|0||1
+col|usage_records|1|project|TEXT|1||0
+col|usage_records|2|session_id|TEXT|0||0
+col|usage_records|3|operation|TEXT|1||0
+col|usage_records|4|channel|TEXT|1||0
+col|usage_records|5|baseline_tokens|INTEGER|1|0|0
+col|usage_records|6|emitted_tokens|INTEGER|1|0|0
+col|usage_records|7|created_at|TEXT|1|datetime('now', '-5 hours')|0

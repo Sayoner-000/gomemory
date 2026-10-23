@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -189,7 +190,46 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-// migrate aplica el esquema de forma SOLO ADITIVA (specs/009-mitigacion-riesgos,
+const schemaVersion = 1
+
+type schemaExecer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// migrate conserva el esquema solo aditivo en una transacción: evita las
+// decenas de sincronizaciones medidas en Windows (R1). El atajo de versión
+// evita pedir un bloqueo de escritura en bases al día. Cada cambio de catálogo
+// exige subir schemaVersion. Excepción de migración al abrir: ADR 0001.
+func migrate(db *sql.DB) error {
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+	if version >= schemaVersion {
+		return nil
+	}
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return fmt.Errorf("begin schema migration: %w", err)
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return fmt.Errorf("read schema version in transaction: %w", err)
+	}
+	if version >= schemaVersion {
+		return nil
+	}
+	if err := migrateSchema(tx); err != nil {
+		return err
+	}
+	// PRAGMA no admite parámetros; el valor interpolado es una constante.
+	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+		return fmt.Errorf("set schema version: %w", err)
+	}
+	return tx.Commit()
+}
+
+// migrateSchema aplica el esquema de forma SOLO ADITIVA (specs/009-mitigacion-riesgos,
 // Historia de Usuario 4): nuevas tablas vía CREATE TABLE/VIRTUAL TABLE IF NOT
 // EXISTS, nuevas columnas vía addColumnIfMissing. NUNCA se hace DROP, ni
 // RENAME, ni cambio de tipo sobre una columna/tabla ya existente — cualquier
@@ -198,11 +238,11 @@ func Init(root string) (*sql.DB, error) {
 // hiciera falta un cambio incompatible, la mitigación proporcionada es
 // versionar el bundle de export (ver domain.ExportVersion), no reescribir el
 // esquema de mem.db en el lugar.
-func migrate(db *sql.DB) error {
-	if _, err := db.Exec(instinctSchema); err != nil {
+func migrateSchema(ex schemaExecer) error {
+	if _, err := ex.Exec(instinctSchema); err != nil {
 		return fmt.Errorf("migrate instincts: %w", err)
 	}
-	if _, err := db.Exec(socraticaSchema); err != nil {
+	if _, err := ex.Exec(socraticaSchema); err != nil {
 		return fmt.Errorf("migrate socratica: %w", err)
 	}
 	schema := fmt.Sprintf(`
@@ -463,7 +503,7 @@ func migrate(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_octopus_project_class ON octopus_executions(project, task_class);
 	CREATE INDEX IF NOT EXISTS idx_octopus_project_task ON octopus_executions(project, task_id);
 	`, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now, Now)
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := ex.Exec(schema); err != nil {
 		return err
 	}
 
@@ -472,7 +512,7 @@ func migrate(db *sql.DB) error {
 	// (RFC 3339, UTC), para que TTL y ventana adaptativa sean deterministas en
 	// pruebas. Ninguna tabla guarda contenido privado: los bloques privados no
 	// generan originales (FR-024) y las estadísticas solo guardan cifras.
-	if _, err := db.Exec(`
+	if _, err := ex.Exec(`
 	CREATE TABLE IF NOT EXISTS compression_originals (
 		ref TEXT PRIMARY KEY,
 		hash TEXT NOT NULL UNIQUE,
@@ -528,56 +568,56 @@ func migrate(db *sql.DB) error {
 	// Columnas aditivas sobre tablas ya existentes. El esquema usa
 	// `CREATE TABLE IF NOT EXISTS`, así que en bases previas estas columnas no se
 	// crean solas: se agregan con ALTER idempotente (ignora "duplicate column").
-	addColumnIfMissing(db, "memories", "origin_prompt", "TEXT")
-	addColumnIfMissing(db, "sessions", "last_prompt", "TEXT")
+	addColumnIfMissing(ex, "memories", "origin_prompt", "TEXT")
+	addColumnIfMissing(ex, "sessions", "last_prompt", "TEXT")
 	// Feature 035: las salidas sin ganancia se cuentan aparte; no son una
 	// degradación y antes inflaban esa columna en mem pack savings.
-	addColumnIfMissing(db, "compression_stats", "no_gains", "INTEGER NOT NULL DEFAULT 0")
+	addColumnIfMissing(ex, "compression_stats", "no_gains", "INTEGER NOT NULL DEFAULT 0")
 
 	// Feature 028: el ledger de revisión gana el target vigente, la autorización de
 	// corrección, la identidad esperada de cada revisor y la huella de la ronda de
 	// consenso. Todas nullable a propósito: una base anterior a 028 sigue abriendo,
 	// su target vigente se interpreta como el original y su corrección como
 	// autorizada, que es su comportamiento histórico.
-	addColumnIfMissing(db, "reviews", "current_target_digest", "TEXT")
-	addColumnIfMissing(db, "reviews", "fix_authorized", "INTEGER")
-	addColumnIfMissing(db, "reviews", "reviewer_a_provider", "TEXT")
-	addColumnIfMissing(db, "reviews", "reviewer_a_model", "TEXT")
-	addColumnIfMissing(db, "reviews", "reviewer_b_provider", "TEXT")
-	addColumnIfMissing(db, "reviews", "reviewer_b_model", "TEXT")
-	addColumnIfMissing(db, "consensus_findings", "round_fingerprint", "TEXT")
+	addColumnIfMissing(ex, "reviews", "current_target_digest", "TEXT")
+	addColumnIfMissing(ex, "reviews", "fix_authorized", "INTEGER")
+	addColumnIfMissing(ex, "reviews", "reviewer_a_provider", "TEXT")
+	addColumnIfMissing(ex, "reviews", "reviewer_a_model", "TEXT")
+	addColumnIfMissing(ex, "reviews", "reviewer_b_provider", "TEXT")
+	addColumnIfMissing(ex, "reviews", "reviewer_b_model", "TEXT")
+	addColumnIfMissing(ex, "consensus_findings", "round_fingerprint", "TEXT")
 
 	// rejudgment_round fecha el estado agregado de re-juicio. Nullable a propósito:
 	// una base anterior la interpreta como ronda 0, que nunca es la ronda vigente de
 	// una re-revisión, así que sus hallazgos confirmados vuelven a exigir re-juicio
 	// en vez de aprobarse con el veredicto de una corrección pasada.
-	addColumnIfMissing(db, "consensus_findings", "rejudgment_round", "INTEGER")
+	addColumnIfMissing(ex, "consensus_findings", "rejudgment_round", "INTEGER")
 
 	// topic_key (feature 008): agrupa memorias por tópico para el upsert de dedup.
 	// El índice va DESPUÉS del ALTER (referencia la columna recién creada) y es
 	// parcial: solo indexa filas con tópico. Idempotente (IF NOT EXISTS).
-	addColumnIfMissing(db, "memories", "topic_key", "TEXT")
-	addColumnIfMissing(db, "memories", "source_review_id", "INTEGER")
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
+	addColumnIfMissing(ex, "memories", "topic_key", "TEXT")
+	addColumnIfMissing(ex, "memories", "source_review_id", "INTEGER")
+	_, _ = ex.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
 
 	// Unique index sobre el par de una relación. Best-effort: si la base ya
 	// tiene pares duplicados, CREATE UNIQUE INDEX FALLA y no queda índice (la
 	// migración es solo aditiva y no borra filas). Por eso formSynapse no
 	// depende de él: comprueba el par con NOT EXISTS en la misma sentencia.
-	_, _ = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_pair ON memory_relations(project, memory_id_a, memory_id_b)`)
+	_, _ = ex.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_relations_pair ON memory_relations(project, memory_id_a, memory_id_b)`)
 
 	// FTS5 es best-effort y separado del schema principal: si la build de
 	// sqlite en uso no lo soporta, code_search simplemente no existe y
 	// SearchNodes cae a LIKE — no debe romper la migración del resto de
 	// gomemory (memorias, sesiones, relaciones).
-	_, _ = db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(
+	_, _ = ex.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS code_search USING fts5(
 		name, signature, package, node_id UNINDEXED
 	)`)
 
 	// FTS5 para memorias (specs/009-mitigacion-riesgos, Historia de Usuario 3):
 	// mismo trato best-effort que code_search — si el build no soporta FTS5,
 	// memory_search simplemente no existe y SearchMemories cae a LIKE.
-	_, _ = db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_search USING fts5(
+	_, _ = ex.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS memory_search USING fts5(
 		title, content, memory_id UNINDEXED
 	)`)
 
@@ -588,6 +628,6 @@ func migrate(db *sql.DB) error {
 // idempotente: SQLite no soporta `ADD COLUMN IF NOT EXISTS`, así que el error de
 // columna duplicada (base ya migrada) se ignora en silencio. Best-effort: no
 // debe romper la migración del resto del esquema.
-func addColumnIfMissing(db *sql.DB, table, column, typ string) {
-	_, _ = db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, typ))
+func addColumnIfMissing(ex schemaExecer, table, column, typ string) {
+	_, _ = ex.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, typ))
 }
