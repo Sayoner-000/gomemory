@@ -36,7 +36,7 @@ func (UpdateCheckRepository) Read(_ context.Context) (domain.UpdateCheck, bool) 
 	if err != nil {
 		return domain.UpdateCheck{}, false
 	}
-	data, err := os.ReadFile(path)
+	data, err := atomicfs.ReadFile(path)
 	if err != nil {
 		return domain.UpdateCheck{}, false
 	}

@@ -116,7 +116,7 @@ func listRuleFiles(dir string) []cacheEntry {
 }
 
 func readCache(path string, entries []cacheEntry) (cacheData, bool) {
-	data, err := os.ReadFile(path)
+	data, err := atomicfs.ReadFile(path)
 	if err != nil {
 		return cacheData{}, false
 	}

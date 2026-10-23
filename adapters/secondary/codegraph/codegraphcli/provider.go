@@ -60,7 +60,7 @@ func (p *Provider) snapshotPath() string {
 
 func (p *Provider) Snapshot() domain.CodeProviderSnapshot {
 	empty := domain.CodeProviderSnapshot{Provider: ProviderName, RootPath: p.root}
-	data, err := os.ReadFile(p.snapshotPath())
+	data, err := atomicfs.ReadFile(p.snapshotPath())
 	if err != nil {
 		return empty
 	}

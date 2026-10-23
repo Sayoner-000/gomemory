@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"mem/adapters/secondary/atomicfs"
 	"mem/domain"
 )
 
@@ -24,7 +25,9 @@ func TestWriteFileAtomic_ConcurrenteSiempreLegible(t *testing.T) {
 					t.Errorf("writeFileAtomic: %v", err)
 					return
 				}
-				if raw, err := os.ReadFile(p); err == nil {
+				// Se lee como los lectores del producto: en Windows os.ReadFile
+				// impide el reemplazo mientras el archivo está abierto.
+				if raw, err := atomicfs.ReadFile(p); err == nil {
 					if _, err := strconv.Atoi(strings.TrimSpace(string(raw))); err != nil {
 						t.Errorf("lectura concurrente corrupta: %q", raw)
 						return

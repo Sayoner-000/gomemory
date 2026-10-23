@@ -161,7 +161,7 @@ func (q *Queue) readAll(ctx context.Context) ([]domain.Observation, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(q.path)
+	data, err := atomicfs.ReadFile(q.path)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}

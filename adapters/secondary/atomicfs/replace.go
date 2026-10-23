@@ -9,3 +9,11 @@ package atomicfs
 func Replace(tmp, dst string) error {
 	return replace(tmp, dst)
 }
+
+// ReadFile lee un archivo que se reemplaza con Replace. En Windows lo abre
+// compartiendo también el borrado: os.ReadFile no lo hace, y mientras un
+// lector lo tiene abierto ningún Replace puede sustituirlo. Además reintenta
+// los fallos transitorios de abrirlo justo mientras se reemplaza.
+func ReadFile(path string) ([]byte, error) {
+	return readFile(path)
+}

@@ -30,7 +30,7 @@ func TestReplace_ConcurrenteConLectores(t *testing.T) {
 					t.Errorf("Replace: %v", err)
 					return
 				}
-				if raw, err := os.ReadFile(dst); err == nil {
+				if raw, err := ReadFile(dst); err == nil {
 					if _, err := strconv.Atoi(string(raw)); err != nil {
 						t.Errorf("lectura a medias: %q", raw)
 						return
