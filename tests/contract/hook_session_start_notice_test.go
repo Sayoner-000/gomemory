@@ -213,6 +213,16 @@ func TestSessionStart_CacheCorrupta(t *testing.T) {
 // FR-029, SC-006: con la caché vencida la consulta va en segundo plano; el
 // hook no espera a una API lenta, y la caché se renueva después.
 func TestSessionStart_ConsultaEnSegundoPlano(t *testing.T) {
+	// Línea base: el mismo arranque en frío sin consulta. En Windows crear la
+	// base y escanear el ejecutable recién copiado ya cuesta más de un
+	// segundo; lo que se mide es lo que la consulta añade, no la máquina.
+	base := newLifecycleSandbox(t)
+	baseStart := time.Now()
+	if res, _ := runSessionStartClaude(t, base, base.Project("p1")); res.ExitCode != 0 {
+		t.Fatalf("session-start base: %d %s", res.ExitCode, res.Stderr)
+	}
+	baseline := time.Since(baseStart)
+
 	s := newLifecycleSandbox(t)
 	srv, hits := apiServer(t, "v99.1.0", 1500*time.Millisecond)
 	s.Setenv("GOMEMORY_NO_UPDATE_CHECK", "")
@@ -225,8 +235,9 @@ func TestSessionStart_ConsultaEnSegundoPlano(t *testing.T) {
 	if res.ExitCode != 0 {
 		t.Fatalf("session-start: %d %s", res.ExitCode, res.Stderr)
 	}
-	if d := time.Since(start); d > 1200*time.Millisecond {
-		t.Errorf("el hook esperó a la API: %v", d)
+	// Esperar a la API sumaría sus 1,5 s a la línea base.
+	if d := time.Since(start); d > baseline+1000*time.Millisecond {
+		t.Errorf("el hook esperó a la API: %v (sin consulta: %v)", d, baseline)
 	}
 	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {

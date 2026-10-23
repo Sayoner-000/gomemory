@@ -391,6 +391,9 @@ func removeBinaryFile(path, self string) error {
 		// En Windows un proceso hijo sobrevive al padre: `cmd` espera a que
 		// este termine y entonces borra el ejecutable liberado.
 		cmd := exec.Command("cmd", "/c", "ping -n 3 127.0.0.1 >nul & del /f /q \""+path+"\"")
+		// Un directorio de trabajo heredado quedaría en uso mientras espera:
+		// el del proyecto no se podría borrar.
+		cmd.Dir = os.TempDir()
 		return cmd.Start()
 	}
 	return os.Remove(path)

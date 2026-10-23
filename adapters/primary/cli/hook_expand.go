@@ -182,7 +182,10 @@ func runDeferredFold(fold func(context.Context) error, budget time.Duration, rec
 
 // expandRecordBudget acota el registro de activaciones, que ocurre ya con la
 // decisión escrita: si la base tarda, se pierde el registro, no la decisión.
-const expandRecordBudget = 500 * time.Millisecond
+// Es el plazo de expandFoldBudget: la primera apertura crea y migra la base
+// (0,4 s en un equipo rápido, más en Windows) y con 500 ms el registro de un
+// proyecto nuevo se perdía. Con la base creada tarda milisegundos.
+const expandRecordBudget = expandFoldBudget
 
 // expandRecords acumula activaciones de forma segura entre la goroutine de
 // la decisión (que puede seguir viva tras el plazo) y el proceso principal.
