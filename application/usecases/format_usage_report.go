@@ -21,6 +21,10 @@ import (
 // scope es "session", "all" o "empty" (los mismos tres valores que scope en
 // contracts/usage-report.md) — se recibe como string plano en vez de un tipo
 // del adaptador CLI, para no acoplar esta función a ningún canal concreto.
+// UsageReportScope dice qué mide el reporte. Sin ella, un 85 % de ahorro se
+// leía como el de toda la sesión, cuando solo cubre lo que inyecta gomemory.
+const UsageReportScope = "Mide el contexto que entrega gomemory (memoria, plan, búsquedas) frente a entregarlo completo; no incluye las salidas de herramientas ni el resto de la conversación. El ahorro de la compresión de salidas está en mem pack savings."
+
 func FormatUsageReport(report domain.UsageReport, scope string) string {
 	var b strings.Builder
 
@@ -33,6 +37,7 @@ func FormatUsageReport(report domain.UsageReport, scope string) string {
 	}
 	b.WriteString(header + "\n")
 	b.WriteString("Conteo aproximado neutral (~4 caracteres por token); cifras comparables contra sí mismas.\n")
+	b.WriteString(UsageReportScope + "\n")
 
 	if scope == "empty" || report.Calls == 0 {
 		b.WriteString("Sin actividad registrada todavía.\n")
