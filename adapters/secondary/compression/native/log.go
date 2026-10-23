@@ -34,6 +34,41 @@ var (
 // traceKeepLines: cabecera + unos 5 marcos (en Go cada marco son 2 líneas).
 const traceKeepLines = 10
 
+var (
+	// failStart abre el bloque de un test fallido; goTestBoundary lo cierra.
+	// Ninguno va anclado: en los logs con prefijo la línea no empieza por él.
+	failStart      = regexp.MustCompile(`--- FAIL`)
+	goTestBoundary = regexp.MustCompile(`--- (PASS|FAIL|SKIP)|=== (RUN|PAUSE|CONT|NAME)|\bFAIL\b|(^|\s)ok\s+\S|(^|\s)PASS\s*$`)
+)
+
+// failBlockMaxLines acota cuántas líneas del bloque de un test fallido se
+// conservan: un test con un log enorme no debe anular la compresión.
+const failBlockMaxLines = 30
+
+// protectedLines marca las líneas que nunca se colapsan: las de protectedLine
+// y las que siguen a un `--- FAIL` hasta la siguiente frontera de `go test`,
+// que son sus aserciones y su log (`x_test.go:31: esperaba 1, obtuve 0`) y
+// explican por qué falló.
+func protectedLines(lines []string) []bool {
+	keep := make([]bool, len(lines))
+	block := 0
+	for i, l := range lines {
+		switch {
+		case failStart.MatchString(l):
+			block = failBlockMaxLines
+		case block > 0 && goTestBoundary.MatchString(l):
+			block = 0
+		case block > 0:
+			keep[i] = true
+			block--
+		}
+		if protectedLine.MatchString(l) {
+			keep[i] = true
+		}
+	}
+	return keep
+}
+
 func shapeOf(line string) string {
 	s := normTimestamp.ReplaceAllString(line, "<ts>")
 	s = normUUID.ReplaceAllString(s, "<uuid>")
@@ -53,6 +88,7 @@ func logMarker(indent, ref string, n int, what string) string {
 // nunca toca una línea protegida.
 func compressLog(content, ref string, th domain.Thresholds) (string, int) {
 	lines := strings.Split(content, "\n")
+	keep := protectedLines(lines)
 	var out []string
 	omitted := 0
 	minRun := th.LogMinRun
@@ -86,7 +122,7 @@ func compressLog(content, ref string, th domain.Thresholds) (string, int) {
 			continue
 		}
 
-		if protectedLine.MatchString(l) || strings.TrimSpace(l) == "" {
+		if keep[i] || strings.TrimSpace(l) == "" {
 			out = append(out, l)
 			i++
 			continue
@@ -98,7 +134,7 @@ func compressLog(content, ref string, th domain.Thresholds) (string, int) {
 		j := i + 1
 		for j < len(lines) {
 			lj := lines[j]
-			if protectedLine.MatchString(lj) || traceStart.MatchString(lj) || strings.TrimSpace(lj) == "" {
+			if keep[j] || traceStart.MatchString(lj) || strings.TrimSpace(lj) == "" {
 				break
 			}
 			if warn {
@@ -187,6 +223,7 @@ func compressTable(content, ref string, th domain.Thresholds) (string, int) {
 	if rows <= first+last+th.LogMinRun {
 		return content, 0
 	}
+	keep := protectedLines(lines)
 	var out []string
 	out = append(out, lines[:head+first]...)
 	omitted := 0
@@ -204,7 +241,7 @@ func compressTable(content, ref string, th domain.Thresholds) (string, int) {
 		tailStart--
 	}
 	for i := head + first; i < tailStart; i++ {
-		if protectedLine.MatchString(lines[i]) {
+		if keep[i] {
 			flush()
 			out = append(out, lines[i])
 			continue

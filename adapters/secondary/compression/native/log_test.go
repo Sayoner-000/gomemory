@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"mem/domain"
 )
 
 // T020 — logs: ERROR/FATAL/PANIC y cabecera de traza intactos, series colapsadas.
@@ -89,5 +91,53 @@ func TestCompressTable_ConservaFallosConPrefijo(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("falta %q en la salida:\n%s", want, out)
 		}
+	}
+}
+
+// Las aserciones y el log que siguen a un `--- FAIL` explican el fallo y se
+// conservan hasta la siguiente frontera de go test; el resto se sigue
+// colapsando, también con el prefijo de `gh run view --log`.
+func TestCompressLog_ConservaElBloqueDelTestFallido(t *testing.T) {
+	for _, prefix := range []string{"", "Linux\tgo test\t2026-10-22T12:00:00Z "} {
+		var b strings.Builder
+		for i := 0; i < 40; i++ {
+			fmt.Fprintf(&b, "%s    x_test.go:10: INFO lote %d procesado\n", prefix, i)
+		}
+		fmt.Fprintf(&b, "%s--- FAIL: TestX (0.01s)\n", prefix)
+		fmt.Fprintf(&b, "%s    x_test.go:31: esperaba 1, obtuve 0\n", prefix)
+		fmt.Fprintf(&b, "%s    x_test.go:32: estado: vacío\n", prefix)
+		fmt.Fprintf(&b, "%s=== RUN   TestY\n", prefix)
+		for i := 0; i < 40; i++ {
+			fmt.Fprintf(&b, "%s    y_test.go:10: INFO lote %d procesado\n", prefix, i)
+		}
+		in := b.String()
+		for name, compress := range map[string]func(string, string, domain.Thresholds) (string, int){"log": compressLog, "table": compressTable} {
+			out, n := compress(in, "r", maxTh)
+			if n == 0 {
+				t.Errorf("%s/%q: los INFO repetidos deben colapsarse", name, prefix)
+			}
+			for _, want := range []string{"--- FAIL: TestX", "x_test.go:31: esperaba 1, obtuve 0", "x_test.go:32: estado: vacío"} {
+				if !strings.Contains(out, want) {
+					t.Errorf("%s/%q: falta %q", name, prefix, want)
+				}
+			}
+		}
+	}
+}
+
+func TestProtectedLines_BloqueAcotado(t *testing.T) {
+	lines := []string{"--- FAIL: TestX"}
+	for i := 0; i < failBlockMaxLines+10; i++ {
+		lines = append(lines, fmt.Sprintf("    x_test.go:%d: detalle", i))
+	}
+	keep := protectedLines(lines)
+	n := 0
+	for _, k := range keep[1:] {
+		if k {
+			n++
+		}
+	}
+	if n != failBlockMaxLines {
+		t.Errorf("líneas conservadas del bloque = %d, want %d", n, failBlockMaxLines)
 	}
 }
