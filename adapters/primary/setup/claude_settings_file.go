@@ -38,6 +38,16 @@ func ClaudeSettingsPath(root string) (string, error) {
 	return ProjectConfigPath(root, ".claude", "settings.json")
 }
 
+// ClaudePluginDir devuelve el directorio del plugin de gomemory en root con la
+// regla de ClaudeSettingsPath. uninstall lo borra con RemoveAll: con un tramo
+// enlazado en un proyecto, borraría fuera del repositorio.
+func ClaudePluginDir(root string) (string, error) {
+	if home, err := os.UserHomeDir(); err == nil && sameDir(home, root) {
+		return filepath.Join(root, ".claude", "plugins", "gomemory"), nil
+	}
+	return ProjectConfigPath(root, ".claude", "plugins", "gomemory")
+}
+
 // GlobalConfigPath resuelve una configuración de ámbito usuario hasta su
 // destino real. WriteConfigFile reemplaza con rename la entrada que recibe: si
 // recibiera el enlace de dotfiles, lo sustituiría por un archivo normal y la

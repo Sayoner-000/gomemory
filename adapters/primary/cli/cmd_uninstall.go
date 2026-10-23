@@ -421,8 +421,11 @@ func removeMCPEntries(target string) {
 }
 
 func removeClaudePlugin(target string) {
-	pluginDir := filepath.Join(target, ".claude", "plugins", "gomemory")
-	if _, err := os.Stat(pluginDir); err == nil {
+	// Un plugin enlazado solo se omite: settings.json tiene su propia
+	// comprobación y su limpieza sigue.
+	if pluginDir, err := setup.ClaudePluginDir(target); err != nil {
+		fmt.Printf("  ⚠️  .claude/plugins/gomemory: %v\n", err)
+	} else if _, err := os.Stat(pluginDir); err == nil {
 		if err := os.RemoveAll(pluginDir); err != nil {
 			fmt.Printf("  ⚠️  %s: error al eliminar: %v\n", pluginDir, err)
 		} else {
@@ -541,7 +544,11 @@ func removeOpenCodeArtifacts(target string) {
 func removeNativeWrappers(target string) {
 	retirados := 0
 	for _, seg := range setup.GeneratedWrapperPaths() {
-		ruta := filepath.Join(append([]string{target}, seg...)...)
+		ruta, err := setup.ProjectConfigPath(target, seg...)
+		if err != nil {
+			fmt.Printf("  ⚠️  %v\n", err)
+			continue
+		}
 		if _, err := os.Stat(ruta); err != nil {
 			continue
 		}
