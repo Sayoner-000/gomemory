@@ -3,6 +3,7 @@ package persistence
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -45,6 +46,9 @@ func TestDataHomeRespectsExplicitOverride(t *testing.T) {
 }
 
 func TestDataHomeFallsBackToXDGDataHome(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("XDG solo aplica en Linux y macOS; Windows usa %LOCALAPPDATA%")
+	}
 	t.Setenv(dataHomeEnvOverride, "")
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg-test")
 	home, err := DataHome()
@@ -53,6 +57,21 @@ func TestDataHomeFallsBackToXDGDataHome(t *testing.T) {
 	}
 	if home != filepath.Join("/tmp/xdg-test", "gomemory") {
 		t.Fatalf("esperaba %q, obtuve %q", filepath.Join("/tmp/xdg-test", "gomemory"), home)
+	}
+}
+
+func TestDataHome_WindowsUsaLocalAppData(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("solo Windows")
+	}
+	t.Setenv(dataHomeEnvOverride, "")
+	t.Setenv("LOCALAPPDATA", `C:\datos`)
+	home, err := DataHome()
+	if err != nil {
+		t.Fatalf("DataHome: %v", err)
+	}
+	if want := filepath.Join(`C:\datos`, "gomemory"); home != want {
+		t.Fatalf("esperaba %q, obtuve %q", want, home)
 	}
 }
 
