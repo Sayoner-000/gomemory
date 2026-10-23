@@ -66,6 +66,10 @@ type lifecycleSandbox struct {
 	BinDir string
 	// GlobalBin es el `mem` instalado globalmente en el sandbox.
 	GlobalBin string
+	// Temp es el TEMP del sandbox en Windows. Va fuera de Root: un binario
+	// desinstalado se borra unos segundos después de terminar, y dentro de
+	// Root haría fallar la limpieza del test.
+	Temp string
 	// extraEnv sobrescribe o añade variables (clave=valor) a cada ejecución.
 	extraEnv map[string]string
 }
@@ -85,6 +89,14 @@ func newLifecycleSandbox(t *testing.T) *lifecycleSandbox {
 	}
 	if coverDir := os.Getenv("GOMEMORY_COVERAGE_DIR"); coverDir != "" {
 		s.extraEnv["GOCOVERDIR"] = coverDir
+	}
+	if runtime.GOOS == "windows" {
+		tmp, err := os.MkdirTemp("", "gomemory-sandbox-tmp-*")
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.Temp = tmp
+		t.Cleanup(func() { _ = os.RemoveAll(tmp) })
 	}
 	s.GlobalBin = filepath.Join(s.BinDir, exeName("mem"))
 	mustMkdir(t, s.BinDir)
@@ -121,6 +133,12 @@ func (s *lifecycleSandbox) Env() []string {
 		"GOMEMORY_DATA_HOME": s.Data,
 		"PATH":               s.BinDir + string(os.PathListSeparator) + systemPath(),
 		"TERM":               "dumb",
+	}
+	// Un Windows real siempre define estas variables: sin TEMP, GetTempPath
+	// cae en USERPROFILE (el HOME del sandbox), y cmd necesita SystemRoot.
+	if runtime.GOOS == "windows" {
+		env["TEMP"], env["TMP"] = s.Temp, s.Temp
+		env["SystemRoot"] = os.Getenv("SystemRoot")
 	}
 	for k, v := range s.extraEnv {
 		env[k] = v
