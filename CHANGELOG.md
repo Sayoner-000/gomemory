@@ -7,6 +7,14 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.36.4] - 2026-10-23
+
+### Documentación
+
+- Reduce el README a una guía de entrada y traslada la referencia completa de ajustes a `docs/CONFIGURATION.md`.
+- Quita el badge de versión estático y el número de herramientas del badge MCP; el README conserva el badge dinámico de release y documenta el conteo junto a su fuente en `domain/mcp_tools.go`.
+- Añade a CONTRIBUTING las instrucciones para medir la cobertura global, incluidos los comandos ejecutados por pruebas de contrato.
+
 ## [v2.36.3] - 2026-10-22
 
 ### Seguridad
