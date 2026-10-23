@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"mem/adapters/primary/setup"
 	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
@@ -106,7 +106,10 @@ func refreshSpeckitConstitution(w io.Writer, root string, doc domain.PinnedDoc, 
 	if root == "" || strings.TrimSpace(current) == "" {
 		return
 	}
-	ruta := filepath.Join(root, ".specify", "memory", "constitution.md")
+	ruta, err := setup.ProjectConfigPath(root, ".specify", "memory", "constitution.md")
+	if err != nil {
+		return
+	}
 	data, err := os.ReadFile(ruta)
 	if err != nil {
 		return
@@ -120,7 +123,7 @@ func refreshSpeckitConstitution(w io.Writer, root string, doc domain.PinnedDoc, 
 			"para reflejar la constitución vigente: mem constitution --sync\n")
 		return
 	}
-	if err := os.WriteFile(ruta, []byte(current), 0o644); err != nil {
+	if err := setup.WriteConfigFile(ruta, []byte(current)); err != nil {
 		_, _ = fmt.Fprintf(w, "⚠️  no se pudo actualizar %s: %v\n", ruta, err)
 		return
 	}

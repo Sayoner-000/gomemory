@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -143,5 +144,121 @@ func TestProjectConfigPath_RechazaEnlaces(t *testing.T) {
 	}
 	if p, err := ProjectConfigPath(root, ".windsurf", "mcp_config.json"); err != nil || p != filepath.Join(root, ".windsurf", "mcp_config.json") {
 		t.Errorf("una ruta sin enlaces debe aceptarse: %q %v", p, err)
+	}
+}
+
+// Un ~/.claude/settings.json que es en sí mismo un enlace a dotfiles se
+// actualiza en su destino y sigue siendo un enlace: reemplazarlo con rename
+// rompía la configuración de la persona.
+func TestClaudeSettings_ArchivoGlobalEnlazadoConservaElEnlace(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("crear symlinks en Windows exige privilegios")
+	}
+	home, dotfiles := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	target := filepath.Join(dotfiles, "settings.json")
+	if err := os.WriteFile(target, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, ".claude", "settings.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteClaudeHooksGlobal(home, AgentRef{HookCommand: "mem"}); err != nil {
+		t.Fatalf("WriteClaudeHooksGlobal: %v", err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("el enlace de dotfiles debe conservarse: %v", err)
+	}
+	if data, _ := os.ReadFile(target); !strings.Contains(string(data), "mem hook") {
+		t.Errorf("los hooks deben quedar en el destino del enlace:\n%s", data)
+	}
+	if info, _ := os.Stat(target); info.Mode().Perm() != 0o600 {
+		t.Errorf("el modo del destino cambió a %o", info.Mode().Perm())
+	}
+}
+
+// Un .claude/plugins enlazado no recibe el plugin ni pierde contenido: la
+// limpieza de artefactos legados (RemoveAll de scripts/) borraría fuera.
+func TestInstallClaudeCode_PluginsEnlazadoNoSeToca(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("crear symlinks en Windows exige privilegios")
+	}
+	root, external := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", os.Getenv("HOME"))
+	keep := filepath.Join(external, "gomemory", "scripts", "ajeno.sh")
+	if err := os.MkdirAll(filepath.Dir(keep), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keep, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, filepath.Join(root, ".claude", "plugins")); err != nil {
+		t.Fatal(err)
+	}
+	if err := InstallClaudeCode(root, AgentRef{HookCommand: "mem", MCPCommand: "mem", MCPArgs: []string{"mcp"}}); err == nil {
+		t.Error("debe rechazar el enlace")
+	}
+	if _, err := os.Stat(keep); err != nil {
+		t.Errorf("el contenido externo debe conservarse: %v", err)
+	}
+}
+
+func TestWriteOpenCodeMCP_EnlaceNoSeSigue(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("crear symlinks en Windows exige privilegios")
+	}
+	root := t.TempDir()
+	external := filepath.Join(t.TempDir(), "opencode.json")
+	if err := os.WriteFile(external, []byte(`{"mcp":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, filepath.Join(root, "opencode.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteOpenCodeMCP(root, AgentRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}); err == nil {
+		t.Error("debe rechazar el enlace")
+	}
+	if got, _ := os.ReadFile(external); string(got) != `{"mcp":{}}` {
+		t.Errorf("el destino externo cambió: %s", got)
+	}
+}
+
+// El opencode.json global enlazado desde dotfiles se actualiza en su destino
+// y sigue siendo un enlace.
+func TestOpenCodeGlobal_EnlaceDeDotfilesSeConserva(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("crear symlinks en Windows exige privilegios")
+	}
+	home, dotfiles := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	target := filepath.Join(dotfiles, "opencode.json")
+	if err := os.WriteFile(target, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".config", "opencode"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, ".config", "opencode", "opencode.json")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := registerOpenCodeGlobal(AgentRef{MCPCommand: "mem", MCPArgs: []string{"mcp"}}); err != nil {
+		t.Fatalf("registerOpenCodeGlobal: %v", err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("el enlace de dotfiles debe conservarse")
+	}
+	if data, _ := os.ReadFile(target); !strings.Contains(string(data), "gomemory") {
+		t.Errorf("el registro debe quedar en el destino del enlace:\n%s", data)
 	}
 }

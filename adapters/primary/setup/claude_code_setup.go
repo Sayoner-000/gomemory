@@ -143,7 +143,12 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 		Version:     version.Version,
 	}
 
-	pluginDir := filepath.Join(root, ".claude", "plugins", "gomemory")
+	// Antes de crear o limpiar: con un tramo enlazado, el RemoveAll de los
+	// artefactos legados borraría fuera del repositorio.
+	pluginDir, err := ProjectConfigPath(root, ".claude", "plugins", "gomemory")
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(pluginDir, 0755); err != nil {
 		return fmt.Errorf("create claude plugin dir: %w", err)
 	}

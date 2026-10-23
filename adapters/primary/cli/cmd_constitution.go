@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"mem/adapters/primary/setup"
 	"mem/application/usecases"
 	"mem/domain"
 )
@@ -79,12 +80,15 @@ func syncSpeckitConstitution(root, contenido string, stderr io.Writer) error {
 		return nil
 	}
 
-	dir := filepath.Join(root, ".specify", "memory")
+	dir, err := setup.ProjectConfigPath(root, ".specify", "memory")
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("preparar %s: %w", dir, err)
 	}
 	destino := filepath.Join(dir, "constitution.md")
-	if err := os.WriteFile(destino, []byte(contenido), 0o644); err != nil {
+	if err := setup.WriteConfigFile(destino, []byte(contenido)); err != nil {
 		return fmt.Errorf("escribir %s: %w", destino, err)
 	}
 	_, _ = fmt.Fprintf(stderr, "✅ %s actualizado\n", destino)

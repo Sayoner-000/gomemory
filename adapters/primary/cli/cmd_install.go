@@ -182,29 +182,33 @@ func CmdInstall(deps *Deps, args []string) {
 	}
 
 	// 3. Update .gitignore
-	gitignore := filepath.Join(target, ".gitignore")
-	content := ""
-	if _, err := os.Stat(gitignore); err == nil {
-		data, _ := os.ReadFile(gitignore)
-		content = string(data)
-	}
-
-	needed := []string{".memory/", "mem\n"}
-	for _, line := range needed {
-		if !strings.Contains(content, line) {
-			if content != "" && !strings.HasSuffix(content, "\n") {
-				content += "\n"
-			}
-			content += line
-		}
-	}
-
-	if err := os.WriteFile(gitignore, []byte(content), 0644); err != nil {
-		humanf("  ⚠️  Error al actualizar .gitignore: %v\n", err)
+	if gitignore, err := setup.ProjectConfigPath(target, ".gitignore"); err != nil {
+		humanf("  ⚠️  .gitignore: %v\n", err)
 		addStep(".gitignore", err, "añade .memory/ y /mem a .gitignore")
 	} else {
-		humanf("  ✅ .gitignore actualizado\n")
-		addStep(".gitignore", nil, "")
+		content := ""
+		if _, err := os.Stat(gitignore); err == nil {
+			data, _ := os.ReadFile(gitignore)
+			content = string(data)
+		}
+
+		needed := []string{".memory/", "mem\n"}
+		for _, line := range needed {
+			if !strings.Contains(content, line) {
+				if content != "" && !strings.HasSuffix(content, "\n") {
+					content += "\n"
+				}
+				content += line
+			}
+		}
+
+		if err := setup.WriteConfigFile(gitignore, []byte(content)); err != nil {
+			humanf("  ⚠️  Error al actualizar .gitignore: %v\n", err)
+			addStep(".gitignore", err, "añade .memory/ y /mem a .gitignore")
+		} else {
+			humanf("  ✅ .gitignore actualizado\n")
+			addStep(".gitignore", nil, "")
+		}
 	}
 
 	// 3b. Retirar los artefactos de instalaciones anteriores (feature 021, US3).

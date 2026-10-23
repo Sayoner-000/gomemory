@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ProjectConfigPath devuelve root/rel… y se niega a seguir un symlink en
@@ -12,7 +13,12 @@ import (
 // uninstall lo reescribirían (ADM 2026-10-22).
 func ProjectConfigPath(root string, rel ...string) (string, error) {
 	path := root
-	for _, part := range rel {
+	var parts []string
+	for _, r := range rel {
+		// Un rel con varios tramos (".cursor/mcp.json") se comprueba tramo a tramo.
+		parts = append(parts, strings.Split(filepath.ToSlash(r), "/")...)
+	}
+	for _, part := range parts {
 		path = filepath.Join(path, part)
 		if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
 			return "", fmt.Errorf("%s es un enlace simbólico: gomemory no escribe a través de él porque modificaría un archivo fuera del proyecto", path)
@@ -27,9 +33,22 @@ func ProjectConfigPath(root string, rel ...string) (string, error) {
 // es la configuración que la persona eligió.
 func ClaudeSettingsPath(root string) (string, error) {
 	if home, err := os.UserHomeDir(); err == nil && sameDir(home, root) {
-		return filepath.Join(root, ".claude", "settings.json"), nil
+		return GlobalConfigPath(filepath.Join(root, ".claude", "settings.json")), nil
 	}
 	return ProjectConfigPath(root, ".claude", "settings.json")
+}
+
+// GlobalConfigPath resuelve una configuración de ámbito usuario hasta su
+// destino real. WriteConfigFile reemplaza con rename la entrada que recibe: si
+// recibiera el enlace de dotfiles, lo sustituiría por un archivo normal y la
+// configuración de la persona dejaría de apuntar a su repositorio.
+func GlobalConfigPath(path string) string {
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		if real, err := filepath.EvalSymlinks(path); err == nil {
+			return real
+		}
+	}
+	return path
 }
 
 // WriteConfigFile escribe data en path con un temporal y rename, que

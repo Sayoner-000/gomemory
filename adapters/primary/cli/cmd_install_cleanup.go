@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"mem/adapters/primary/setup"
 )
 
 // legacyAgentFiles son los archivos de instrucciones que las versiones
@@ -51,7 +53,10 @@ func limpiarArchivosDeAgente(target, memDir string) {
 	backupDir := filepath.Join(target, memDir, "backups", "agent-files")
 
 	for _, nombre := range legacyAgentFiles {
-		origen := filepath.Join(target, nombre)
+		origen, err := setup.ProjectConfigPath(target, nombre)
+		if err != nil {
+			continue
+		}
 		datos, err := os.ReadFile(origen)
 		if err != nil {
 			continue // no existe: nada que hacer, y nada que informar
@@ -99,7 +104,10 @@ func limpiarGenerados(target string) {
 // interpretar no se toca — es de alguien más y no sabemos qué contiene.
 func limpiarConfigsDeAgente(target string) {
 	for _, rel := range legacyMCPConfigs {
-		ruta := filepath.Join(target, rel)
+		ruta, err := setup.ProjectConfigPath(target, rel)
+		if err != nil {
+			continue
+		}
 		datos, err := os.ReadFile(ruta)
 		if err != nil {
 			continue
@@ -135,7 +143,7 @@ func limpiarConfigsDeAgente(target string) {
 			fmt.Printf("  ⚠️  %s: no se pudo serializar (%v), se deja intacto\n", rel, err)
 			continue
 		}
-		if err := os.WriteFile(ruta, salida, 0o644); err != nil {
+		if err := setup.WriteConfigFile(ruta, salida); err != nil {
 			fmt.Printf("  ⚠️  %s: no se pudo escribir (%v)\n", rel, err)
 			continue
 		}
