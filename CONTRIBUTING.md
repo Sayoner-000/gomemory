@@ -30,6 +30,16 @@ go build -o mem ./infrastructure/
 go test ./...
 ```
 
+Measure global coverage, including commands exercised through the installed
+binary in contract tests:
+
+```bash
+bash scripts/coverage.sh
+```
+
+The command fails below 80% and prints the path to the combined Go coverage
+profile. A plain `go test ./... -cover` omits the subprocess coverage.
+
 ## Code Style
 
 - Follow standard Go conventions (`gofmt`, `go vet`)
