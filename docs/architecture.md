@@ -674,6 +674,43 @@ no oculte los demás. Si el global se activa después que el proyecto,
 `mem setup-mcp --scope global` retira los duplicados del proyecto del `cwd`, y
 `mem update` hace lo mismo en cada proyecto donde se ejecute.
 
+#### Escrituras de archivos, enlaces y portabilidad (v2.36.3)
+
+- **Estado que escriben los hooks en paralelo** (conversación, avisos, cola de
+  expand, snapshots del grafo, caché de reglas y de `update-check`):
+  `atomicfs.Replace` publica un temporal con `rename`, y `atomicfs.ReadFile`
+  lo lee (`adapters/secondary/atomicfs`). En Windows, `rename` falla mientras
+  otro proceso tiene abierto el destino: `Replace` reintenta durante un
+  intervalo corto, y `ReadFile` abre compartiendo también el borrado
+  (`FILE_SHARE_DELETE`), sin el cual un lector bloqueaba el reemplazo. En el
+  resto de sistemas son `os.Rename` y `os.ReadFile`.
+- **Configuración del proyecto**: `setup.ProjectConfigPath(root, rel...)`
+  rechaza un enlace simbólico en cualquier tramo bajo la raíz, antes de
+  `MkdirAll`, `RemoveAll` o la escritura; `setup.WriteConfigFile` escribe con
+  temporal y `rename` conservando el modo existente. En el HOME,
+  `ClaudeSettingsPath`, `ClaudePluginDir` y `GlobalConfigPath` siguen el
+  enlace y escriben en su destino, para no sustituir un enlace de dotfiles por
+  un archivo normal.
+- **Autoactualización**: `publishBinary` (`cmd_update.go`) publica el binario
+  con `rename`; en Windows, si el destino está en ejecución, lo aparta como
+  `mem.exe.old`, publica el nuevo y lo restaura si falla. `removeStaleBinary`
+  retira el `.old` en la siguiente actualización. `uninstall` aparta el
+  binario en uso a la carpeta temporal antes del borrado diferido.
+- **Binario global**: `lookPathGlobal` recorre solo los directorios del PATH.
+  En Windows `exec.LookPath` prueba antes el directorio actual y, con una copia
+  local de `mem.exe`, devolvía `exec.ErrDot` aunque el global existiera.
+- **`mem migrate`** está entre los comandos que no abren la base del proyecto
+  (`rootIndependentCommands`): con `--force` descarta el store previo, y
+  Windows no borra un archivo abierto.
+- **Marcas de tiempo**: `Now` escribe en UTC−5 fijo. Las consultas y lecturas
+  en Go usan `formatNowTime`/`parseNowTime` (zona `nowZone`), no `time.Local`;
+  con la hora local, `mem doctor` evaluaba la salud de los canales con horas
+  de desfase fuera de UTC−5.
+- **Archivos embebidos**: las rutas dentro de un `fs.FS` usan `path.Join`; con
+  `filepath.Join`, en Windows ningún archivo embebido de un subdirectorio se
+  encontraba. `.gitattributes` fija LF en el checkout, porque las plantillas
+  embebidas se identifican por su SHA-256.
+
 Los hooks son el mecanismo que hace que la memoria "tome todo bien" en Claude Code: sin ellos, las tools MCP existen pero nadie abre/cierra sesiones ni recupera contexto automáticamente. El campo `{"tools": true}` que se usaba antes en `user-prompt-submit` NO es soportado por Claude Code (era un no-op silencioso que dejaba las tools diferidas sin cargar); se reemplazó por el `systemMessage` con `ToolSearch`.
 
 ### 12. Transporte MCP y hooks

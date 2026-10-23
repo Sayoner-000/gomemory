@@ -406,7 +406,7 @@ mem setup claude-code
 | `mem install` falla | Verificar que `mem` esté en el PATH: `which mem` (Linux/macOS) o `where mem` (Windows). |
 | Memoria no se persiste entre sesiones | Ejecutar `mem project` y comprobar permisos sobre el directorio de datos global mostrado. Usar `mem doctor` para revisar los hooks. |
 | Binario no encontrado después de instalar | Agregar al PATH: `export PATH="$HOME/.local/bin:$PATH"` (Linux/macOS). |
-| `mem update` en Windows | El binario en ejecución no se sobrescribe. Cerrar el proceso y ejecutar el comando que `mem update` sugiere. |
+| `mem update` en Windows | Desde la v2.36.3 se actualiza solo: si el binario está en ejecución, lo aparta como `mem.exe.old` y publica el nuevo; la siguiente actualización retira el `.old`. Si queda un `mem.exe.old`, se puede borrar a mano cuando no haya ningún `mem` en marcha. |
 | Contexto muy grande | Ejecutar `mem gc` para limpiar memorias antiguas (retención de 90 días por defecto). |
 | Base de datos corrupta | Restaurar desde un bundle creado con `mem export`; `mem compact` solo recupera espacio y no repara corrupción. |
 
@@ -795,7 +795,10 @@ los demás pasos.
   solo se quitan las entradas de gomemory. Encuentra los proyectos por el
   registro que guarda `mem install` y, para instalaciones anteriores, buscando en
   tu directorio personal hasta 6 niveles (`--scan <dir>` cambia la raíz,
-  `--no-scan` usa solo los registrados).
+  `--no-scan` usa solo los registrados). En Windows, el binario que ejecuta la
+  desinstalación no puede borrarse mientras corre: se aparta a la carpeta
+  temporal (así su ubicación queda libre en el acto) y se borra unos segundos
+  después de que termina el proceso.
 
 La **exportación** va por defecto a `~/gomemory-export-AAAAMMDD-HHMMSS/`: un
 archivo por proyecto, con el formato de `mem export`, más `index.json`, todo con
@@ -1070,6 +1073,8 @@ en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
 - **Redacción automática** — contenido envuelto en `<private>...</private>` (también anidado o sin cierre) y las credenciales reconocidas se eliminan antes de llegar a la base de datos, en memorias, resúmenes de sesión, razonamientos de relaciones, diagnósticos y el ledger de revisión, y no se reemiten en consultas, contexto ni exportaciones. Los registros anteriores se sanean con `mem sanitize`.
 - **SQLite WAL** — integridad ACID con Write-Ahead Logging. Los datos sobreviven cortes de energía.
 - **Permisos MCP granulares** — `forget_memory` queda fuera de auto-approve por ser destructivo/irreversible.
+- **Sin escrituras ni borrados fuera del proyecto** — `install`, `update`, `setup-mcp` y `uninstall` no siguen enlaces simbólicos en la configuración del proyecto (`.claude/`, `.mcp.json`, `opencode.json`, los MCP de Cursor, Windsurf y Cline, archivos de instrucciones, `.gitignore`, `.specify/`, plugins y envoltorios). Si uno es un enlace, el paso se omite con un aviso, porque seguirlo modificaría o borraría un archivo fuera del repositorio. En el ámbito de usuario (`~/.claude`, `~/.config/opencode`) el enlace sí se sigue y se conserva: un enlace desde un repositorio de dotfiles es la configuración elegida.
+- **Permisos conservados** — al reescribir un archivo de configuración se mantiene su modo; un `settings.json` con `0600` no pasa a ser legible por otros usuarios.
 
 ---
 
@@ -1205,6 +1210,13 @@ canal (`mcp`, `cli`, `tui`).
 2026-10-06, 432099 → 67495 tokens); `mem pack savings` (§19) mide el ahorro
 por **compresor** (alto en json/table/listing, ~0.3% en structural/prose, que
 degrada intacto por diseño).
+
+**Qué no mide `mem usage`:** solo cubre el contexto que entrega gomemory
+(memoria, plan, búsquedas) frente a entregarlo completo. No incluye las
+salidas de herramientas ni el resto de la conversación, que suelen dominar el
+consumo de una sesión, así que su porcentaje no es el ahorro de la sesión. El
+reporte lo dice en su cabecera desde la v2.36.3. Para la compresión de
+salidas, consulta `mem pack savings`.
 
 **Honestidad de la medición:** la cabecera del reporte declara que el conteo es una aproximación
 neutral (~4 caracteres por token), no el tokenizador de ningún proveedor — las cifras son
@@ -1472,6 +1484,13 @@ pidió**:
 - Los listados (`grep -rn`, `rg`, `find`) se resumen: 15 primeras y 5 últimas
   líneas literales, todas las líneas con error/FAIL/panic, y una marca con la
   ref del original y un conteo por archivo.
+- Los logs conservan todas las líneas con error, `FAIL` o pánico, aunque no
+  empiecen por ellas: en `gh run view --log` o `docker compose logs` cada
+  línea lleva delante el job, el paso o el servicio. También se conserva el
+  bloque que sigue a cada `--- FAIL` (las aserciones y el log del test, como
+  `x_test.go:31: esperaba 1, obtuve 0`) hasta la siguiente frontera de
+  `go test`, con un tope de 30 líneas por bloque. Un log de CI casi todo de
+  fallos se comprime poco, porque casi todo es información que importa.
 - La nota «Marcas ⟦mem⟧…» aparece una vez por conversación.
 - `mem pack savings` separa «sin ganancia» (no hubo nada que ganar) de
   «degradaciones» (el motor tuvo que renunciar).
