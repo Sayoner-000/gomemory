@@ -7,10 +7,25 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.37.0] - 2026-10-23
+
 ### Changed
 
 - Prepara la base de memoria en una sola transacción y registra su versión: un fallo revierte la preparación y una base al día omite el DDL sin esperar a otro escritor.
-- Unifica la configuración de las conexiones SQLite con WAL y `synchronous=NORMAL`, caché bajo demanda, temporales en memoria, lectura mapeada y límite del WAL retenido. Añade el índice de sesiones y actualiza las estadísticas al cerrar fuera de los hooks. Ante un corte de energía, NORMAL puede perder la última escritura confirmada; una caída del proceso la conserva.
+- Unifica la configuración de las conexiones SQLite: WAL con `synchronous=NORMAL`, caché bajo demanda, temporales en memoria, lectura mapeada y un límite para el WAL retenido. Añade el índice de sesiones y actualiza las estadísticas al cerrar, fuera de los hooks. Ante un corte de energía, NORMAL puede perder la última escritura confirmada; si solo cae el proceso, se conserva.
+- Medido en Windows CI, con 20 repeticiones por prueba: abrir una base nueva pasa de 554 ms p50 / 1.760 ms máx a 40 / 219 ms; abrir una base preparada, de 6 a 3 ms p50; el plegado del primer turno, de 581 / 1.809 ms a 87,5 / 264 ms. La actualización de estadísticas añade 2 ms como máximo al cierre.
+
+### Removed
+
+- Se retira el instalador de PowerShell (`scripts/install.ps1`) y su prueba de humo. Windows PowerShell 5.1 no lo parseaba (le faltaba el BOM UTF-8), y la prueba aprobaba sus casos de rechazo sin ejecutarlo. En Windows se instala el binario del release: se descarga `mem_windows_amd64.zip`, se verifica con `checksums.txt` y se deja `mem.exe` en el PATH (comandos en `INSTALLATION.md`). El CI ejecuta esa descarga contra el último release. `mem update` sigue actualizando en Windows.
+
+### Fixed
+
+- Los snapshots automáticos ya no se sobrescriben cuando el reloj repite la marca de tiempo entre dos seguidos, algo habitual en Windows. Cada snapshot se crea en exclusiva y la poda retira siempre el más antiguo.
+
+### Documentación
+
+- Nueva edición de las guías: SDD, edición 4, y técnica, edición 2 (`docs/*-v2.37.html`). Las ediciones de v2.36 pasan a `docs/editions/`. La guía técnica describe la preparación versionada de la base; las dos documentan la instalación en Windows con el binario del release.
 
 ## [v2.36.4] - 2026-10-23
 

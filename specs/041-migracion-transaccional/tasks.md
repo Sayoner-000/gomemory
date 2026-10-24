@@ -259,7 +259,7 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
   - `optimize` solo fuera de los hooks;
   - la contrapartida de `synchronous=NORMAL`;
   - un enlace al ADR 0001.
-- [ ] T036 [P] Añadir en `CHANGELOG.md`, bajo «Unreleased», una entrada `### Changed` con la preparación atómica y versionada, los pragmas, el índice y las cifras de T034.
+- [X] T036 [P] Añadir en `CHANGELOG.md`, bajo «Unreleased», una entrada `### Changed` con la preparación atómica y versionada, los pragmas, el índice y las cifras de T034.
 - [ ] T037 Guardar en gomemory (`save_memory`, `type=decision`, `topic_key=spec-041-db-optimizada`) el resultado final medido, la regla de `schemaVersion` y lo pendiente: R12 (FK) y que `.specify/` no se versiona, así que la excepción §25.1 vive en el ADR (dep: T034).
 - [ ] T038 Ejecutar el CI completo (`test.yml`) en `041-migracion-transaccional` tras el push aprobado y confirmar los tres jobs en verde antes de proponer el merge. La rama `diag/windows-timing-041` no se integra (dep: T032, T034).
 
@@ -413,3 +413,7 @@ CI de la feature [40045444358](https://github.com/Sayoner-000/gomemory/actions/r
 ### T034 completada
 
 Columna final y sección «Configuración final» en `evidence/windows-timing.md`. SC-002, SC-003 y SC-004 cumplen en el run 40045565011 (20/20). FR-013 se cumple: `optimize` cuesta 1 / 2 ms. El crecimiento de `close` es el checkpoint de `db.Close` con NORMAL. El run 40046457914 tuvo bloqueos del runner y 18/20 en US1; queda registrado. CI 40046447642: Windows falló en `TestCreateSnapshot_PrunesOldestBeyondKeep`. Era un defecto real: dos snapshots con la misma marca de reloj se sobrescribían. Corregido con creación exclusiva y contador; `TestCreateSnapshot_RepeatedClockKeepsEverySnapshot` está en rojo sin la corrección.
+
+### Decisión: retirar el instalador PowerShell (T038)
+
+La persona decide retirar `scripts/install.ps1` y su smoke PS5.1/PS7. Se mantiene el zip de Windows en Releases y el job de pruebas Go en Windows, y se certifica la instalación del binario del release. Run 40048518317: con el BOM, el instalador parsea, pero sus mocks de red no interceptan las descargas («No se pudo descargar…»), así que esa prueba no certificaba nada. Certificación: `install.sh` instalado de verdad en macOS arm64 contra v2.36.4 (`gomemory 2.36.4`). El CI añade `install.sh` en Linux y, en Windows, la descarga manual documentada con SHA-256 contra el último release. Diag 40048520386: los dos fallos de expand registran `expand.timeout` (llamadas de 343 y 833 ms), es decir, venció el plazo de 150 ms, no falló la lógica. `expandRun` repite una llamada solo si registró un timeout nuevo, sin crear la base desde la prueba. Local: en la primera suite completa falló una prueba de `tests/integration` que no quedó identificada; no se reprodujo en 2 suites completas, 3 ejecuciones aisladas ni 3 repeticiones bajo carga.
