@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -142,4 +143,45 @@ func TestGenerators(t *testing.T) {
 			t.Fatalf("respeta el orden recibido: %s", both.Name())
 		}
 	})
+}
+
+// H-03: stdout y stderr del agente tienen tope; al superarlo se cancela el
+// proceso al momento, aunque siga vivo, sin esperar al timeout. El agente
+// falso es este mismo binario de pruebas (TestHelperFloodingAgent), así que
+// no depende de un shell y corre también en Windows.
+func TestCLIGeneratorBoundsOutputAndCancels(t *testing.T) {
+	defer func(o, e int) { maxGeneratorStdout, maxGeneratorStderr = o, e }(maxGeneratorStdout, maxGeneratorStderr)
+	maxGeneratorStdout, maxGeneratorStderr = 4096, 1024
+	for _, stream := range []string{"stdout", "stderr"} {
+		t.Setenv("GOMEMORY_TEST_FLOOD", stream)
+		g := &cliGenerator{name: os.Args[0], timeout: 10 * time.Second, args: func() ([]string, func(), error) {
+			return []string{"-test.run=^TestHelperFloodingAgent$"}, func() {}, nil
+		}}
+		start := time.Now()
+		_, err := g.run(context.Background(), "prompt")
+		if elapsed := time.Since(start); elapsed > 3*time.Second {
+			t.Errorf("%s: tardó %s; debía cancelarse al superar el tope", stream, elapsed)
+		}
+		if !errors.Is(err, domain.ErrInvalidGeneration) || !strings.Contains(err.Error(), "límite") {
+			t.Errorf("%s: err = %v, want ErrInvalidGeneration con límite", stream, err)
+		}
+	}
+}
+
+// TestHelperFloodingAgent no es una prueba: es el agente falso que relanza
+// TestCLIGeneratorBoundsOutputAndCancels. Emite 64 KiB por el flujo pedido y
+// sigue vivo, como un CLI defectuoso.
+func TestHelperFloodingAgent(t *testing.T) {
+	stream := os.Getenv("GOMEMORY_TEST_FLOOD")
+	if stream == "" {
+		return
+	}
+	w := os.Stdout
+	if stream == "stderr" {
+		w = os.Stderr
+	}
+	_, _ = io.Copy(io.Discard, os.Stdin)
+	_, _ = w.Write(make([]byte, 64<<10))
+	time.Sleep(10 * time.Second)
+	os.Exit(0)
 }

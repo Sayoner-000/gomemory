@@ -18,6 +18,44 @@ import (
 // the agent, in case a grandchild still holds them open.
 const waitDelay = 200 * time.Millisecond
 
+// Topes de lo que se captura del agente: la respuesta es un JSON acotado y
+// stderr solo alimenta el mensaje de error. Son variables para que las
+// pruebas los bajen.
+var (
+	maxGeneratorStdout = 8 << 20
+	maxGeneratorStderr = 64 << 10
+)
+
+// boundedBuffer guarda hasta max bytes. Al superarlo descarta el resto y
+// cancela el proceso de inmediato, sin esperar al timeout. Cada flujo tiene
+// su buffer, así que exceeded solo se lee cuando cmd.Run ya terminó de copiar.
+// buf no va embebido: bytes.Buffer trae ReadFrom, e io.Copy lo usaría en
+// lugar de Write, saltándose el tope.
+type boundedBuffer struct {
+	buf      bytes.Buffer
+	max      int
+	exceeded bool
+	cancel   func()
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	if room := b.max - b.buf.Len(); len(p) > room {
+		if room > 0 {
+			b.buf.Write(p[:room])
+		}
+		if !b.exceeded {
+			b.exceeded = true
+			b.cancel()
+		}
+		return len(p), nil
+	}
+	return b.buf.Write(p)
+}
+
+func (b *boundedBuffer) Bytes() []byte  { return b.buf.Bytes() }
+func (b *boundedBuffer) String() string { return b.buf.String() }
+func (b *boundedBuffer) Len() int       { return b.buf.Len() }
+
 // cliGenerator runs one agent binary per request with the prompt on stdin.
 type cliGenerator struct {
 	name    string
@@ -58,10 +96,16 @@ func (g *cliGenerator) run(ctx context.Context, prompt string) (domain.Generatio
 	cmd.Dir = g.dir
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.WaitDelay = waitDelay
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err = cmd.Run(); err != nil {
+	stdout := &boundedBuffer{max: maxGeneratorStdout, cancel: cancel}
+	stderr := &boundedBuffer{max: maxGeneratorStderr, cancel: cancel}
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	err = cmd.Run()
+	// Antes que el timeout: la cancelación por exceso también deja ctx.Err().
+	if stdout.exceeded || stderr.exceeded {
+		return domain.GenerationResult{}, fmt.Errorf("%s: %w: la salida supera el límite (stdout %d, stderr %d bytes)", g.name, domain.ErrInvalidGeneration, maxGeneratorStdout, maxGeneratorStderr)
+	}
+	if err != nil {
 		if ctx.Err() != nil {
 			return domain.GenerationResult{}, fmt.Errorf("%s: %w (%s)", g.name, domain.ErrGenerationTimeout, g.timeout)
 		}

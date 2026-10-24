@@ -53,11 +53,12 @@ func openCodeVersionReason() string {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "opencode", "--version")
 	cmd.WaitDelay = waitDelay
-	out, err := cmd.Output()
-	if err != nil {
+	out := &boundedBuffer{max: 4 << 10, cancel: cancel}
+	cmd.Stdout = out
+	if err := cmd.Run(); err != nil || out.exceeded {
 		return "no se pudo verificar OpenCode V2; ejecuta opencode --version"
 	}
-	version := strings.TrimPrefix(strings.TrimSpace(string(out)), "opencode ")
+	version := strings.TrimPrefix(strings.TrimSpace(out.String()), "opencode ")
 	version = strings.TrimPrefix(version, "v")
 	if !strings.HasPrefix(version, "2.") {
 		return "se requiere OpenCode V2 con permisos de agente"
