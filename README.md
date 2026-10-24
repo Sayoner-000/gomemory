@@ -1,36 +1,45 @@
 <p align="center">
-  <img src="assets/gomemory_light.png" alt="gomemory logo" width="200">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/gomemory_dark.png">
+    <img src="assets/gomemory_light.png" alt="gomemory" width="200">
+  </picture>
+</p>
+
+<h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
+
+<p align="center">
+  <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
+  <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-server-blueviolet" alt="MCP server"></a>
 </p>
 
 <p align="center">
-  <strong>Persistent, local and portable memory for AI coding agents</strong>
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="docs/MANUAL.md">Manual</a> ·
+  <a href="INSTALLATION.md">Installation</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-[![GitHub Release](https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue)](https://github.com/Sayoner-000/gomemory/releases/latest)
-[![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![MCP](https://img.shields.io/badge/MCP-server-blueviolet)](https://modelcontextprotocol.io/)
+---
 
-AI coding agents forget everything when a session ends: why an architecture was
-chosen, how a bug was fixed, which approach was rejected. gomemory keeps that
-context — decisions, bug fixes, learnings and session checkpoints — in a local
-SQLite store, and serves it back to the agent through the
-[Model Context Protocol](https://modelcontextprotocol.io/) (MCP).
+Your coding agent starts every session from zero. It doesn't remember why you
+picked that architecture last week, how the flaky test got fixed, or which
+approach you already tried and threw away. So you explain it again, and pay for
+those tokens again.
 
-```
- Claude Code · OpenCode · Codex       MCP + lifecycle hooks
- Cursor · Windsurf · Cline            MCP
-                 │  stdio
-                 ▼
-              gomemory  ──►  one SQLite store per project,
-                             outside your repository
-```
+gomemory keeps that context for it. Decisions, bug fixes, learnings and session
+checkpoints go into a local SQLite store, one per project, and come back to the
+agent through the [Model Context Protocol](https://modelcontextprotocol.io/)
+(MCP) when it needs them.
 
-No cloud service, no API key, no database server, and no memory files in your repository.
+It is a single Go binary. There is no cloud service, no API key, no database
+server, and nothing is written to your repository.
 
 ## Quick start
 
-**1. Install**
+**1. Install the binary**
 
 ```bash
 # Linux / macOS
@@ -49,11 +58,9 @@ cd /path/to/your/project
 mem install .
 ```
 
-The guided setup detects your installed agents, asks for the configuration scope
-and confirms before writing anything. For scripts and CI, use `mem install . --yes`
-or `mem install . --agents claude,codex --scope project`. See
-[`INSTALLATION.md`](INSTALLATION.md) for global vs. project scope, `mem setup-mcp`,
-updates and troubleshooting.
+The guided setup detects the agents you have installed, asks for the
+configuration scope and confirms before writing anything. In scripts and CI, use
+`mem install . --yes` or `mem install . --agents claude,codex --scope project`.
 
 **3. Try it**
 
@@ -64,11 +71,27 @@ mem context        # what the agent receives at session start
 mem                # interactive terminal UI
 ```
 
-Memory lives in `~/.local/share/gomemory/` (Linux/macOS) or `%LOCALAPPDATA%\gomemory\` (Windows).
+Memory lives in `~/.local/share/gomemory/` on Linux and macOS, and in
+`%LOCALAPPDATA%\gomemory\` on Windows. [`INSTALLATION.md`](INSTALLATION.md)
+covers global vs. project scope, `mem setup-mcp`, updates and troubleshooting.
 
-## Supported agents
+## How it works
 
-| Agent | MCP | Automatic lifecycle hooks |
+```
+ Claude Code · OpenCode · Codex       MCP + lifecycle hooks
+ Cursor · Windsurf · Cline            MCP
+                 │  stdio
+                 ▼
+              gomemory  ──►  one SQLite store per project,
+                             outside your repository
+```
+
+Agents launch `mem mcp` as a stdio subprocess and call its tools to save and
+retrieve memory. Agents that support lifecycle hooks get more: gomemory injects
+context when a session starts, captures checkpoints on its own (without spending
+agent tokens) and keeps session memory across context compaction.
+
+| Agent | MCP | Lifecycle hooks |
 | :--- | :---: | :---: |
 | Claude Code | ✅ | ✅ |
 | OpenCode | ✅ | ✅ |
@@ -77,53 +100,46 @@ Memory lives in `~/.local/share/gomemory/` (Linux/macOS) or `%LOCALAPPDATA%\gome
 | Windsurf | ✅ | — |
 | Cline | ✅ | — |
 
-With lifecycle hooks, gomemory injects context at session start, captures
-checkpoints automatically (without spending agent tokens) and preserves session
-memory across context compaction.
+Using an agent that isn't listed? [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md)
+explains how to connect it.
 
-## Features
+## What it does
 
-- **Structured memory** — typed entries (`architecture`, `decision`, `bugfix`,
-  `pattern`, `learning`, `discovery`, `preference`, `checkpoint`) instead of a text dump.
-- **Relevant, budgeted retrieval** — FTS5 + BM25 search; `get_context` stays within
-  a token budget and `get_memory` returns full details on demand.
-- **Connected memory** — related memories are linked automatically and ranked by
-  centrality (`mem mass`); duplicates and stale file anchors are flagged, never deleted silently.
-- **Privacy by design** — common credential patterns are redacted, and anything
-  wrapped in `<private>…</private>` is never persisted.
-- **Planning support** — `mem plan-context` gives agents project history and an
-  atomic task-decomposition method before they plan.
-- **Context optimization** — `mem pack` builds token-budgeted context packs with
-  reversible compression; `mem usage` reports measured token savings.
-- **Adversarial consensus review** — `mem review` runs two independent reviewers;
-  a defect counts only when both confirm it.
-- **Code graph** — a built-in Go symbol graph, plus optional external providers
-  (`codebase-memory-mcp`, [CodeGraph](https://github.com/colbymchenry/codegraph)).
-- **Skills and guardrails** — `defensive-qa-audit`, `socratica` prompt refinement,
-  and `expand` protection rules, installed and updated by `mem install`/`mem update`.
-- **Octopus AAR (opt-in)** — recommends whether to keep work inline or delegate it
-  to a subagent, with an explained reason. It never runs agents itself.
-- **Portable** — `mem export` / `mem import` move memory between machines as JSON.
+Memory is structured, not a text dump. Each entry has a type (`architecture`,
+`decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference` or
+`checkpoint`), and search uses SQLite FTS5 with BM25 ranking.
 
-The [user manual](docs/MANUAL.md) covers each feature in detail.
+Context is budgeted. `get_context` stays within a token budget, and the agent
+asks `get_memory` for the full entry only when it needs it.
+`mem pack` builds context packs with reversible compression, and `mem usage`
+reports the tokens it actually saved.
 
-## MCP tools
+Related memories link to each other and are ranked by centrality (`mem mass`).
+Duplicates and memories that point to files that no longer exist are flagged for
+review. Nothing is deleted silently.
 
-31 core tools, plus 4 when Octopus AAR is enabled. The source of truth is
-[`domain/mcp_tools.go`](domain/mcp_tools.go).
+On top of memory, gomemory ships tools for the work agents do with it:
 
-| Group | Tools |
-| :--- | :--- |
-| Memory | `save_memory` `search_memories` `list_memories` `get_memory` `get_context` `get_plan_context` `start_session` `end_session` `save_session_summary` `forget_memory` `judge_memories` |
-| Code graph | `index_project` `graph_status` `search_code` `get_symbol` `list_dependencies` |
-| Context packs | `pack_build` `pack_show` `pack_stats` `pack_compress` `pack_retrieve` `pack_savings` |
-| Consensus review | `review_start` `review_submit` `review_consensus` `review_status` `review_fix_record` `review_rejudge` `review_finalize` `review_promote_memory` |
-| Socratica | `socratica_flow` |
-| Octopus AAR (optional) | `octopus_route_task` `octopus_route_plan` `octopus_report` `octopus_status` |
+- `mem plan-context` gives the agent the project's history and an atomic
+  task-decomposition method before it plans.
+- `mem review` runs an adversarial review with two independent reviewers. A
+  defect counts only when both confirm it.
+- A built-in Go symbol graph answers code-structure questions. External graph
+  providers are optional: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
+  and [CodeGraph](https://github.com/colbymchenry/codegraph).
+- `mem install` and `mem update` keep a set of skills and guardrails current:
+  `defensive-qa-audit`, `socratica` prompt refinement and the `expand`
+  protection rules.
+- Octopus AAR (opt-in) recommends whether to keep a task inline or hand it to a
+  subagent, and says why. It never launches agents itself.
 
-Resources: `mem://context` · `mem://memory/{id}`
+`mem export` and `mem import` move memory between machines as JSON. The
+[user manual](docs/MANUAL.md) covers every feature in detail.
 
-## CLI
+## Reference
+
+<details>
+<summary><b>CLI</b></summary>
 
 | Command | Purpose |
 | :--- | :--- |
@@ -136,16 +152,42 @@ Resources: `mem://context` · `mem://memory/{id}`
 | `mem export` / `mem import` | Back up or move memory |
 | `mem uninstall` | Remove gomemory from a project, or everywhere with `--all` |
 
-Run `mem help` for the full command list and examples. All settings are
+Run `mem help` for the full command list and examples. Every setting is
 documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
-## Security & privacy
+</details>
 
-Data stays on your machine, in owner-only files outside the repository. gomemory
-opens no network port: agents launch `mem mcp` as a stdio subprocess, and the
-background update check can be disabled. Do not sync `mem.db`
-directly (SQLite WAL mode); use `mem export` instead. See
-[`docs/MANUAL.md`](docs/MANUAL.md) for details and limitations.
+<details>
+<summary><b>MCP tools</b> (31, plus 4 with Octopus AAR)</summary>
+
+The source of truth is [`domain/mcp_tools.go`](domain/mcp_tools.go).
+
+| Group | Tools |
+| :--- | :--- |
+| Memory | `save_memory` `search_memories` `list_memories` `get_memory` `get_context` `get_plan_context` `start_session` `end_session` `save_session_summary` `forget_memory` `judge_memories` |
+| Code graph | `index_project` `graph_status` `search_code` `get_symbol` `list_dependencies` |
+| Context packs | `pack_build` `pack_show` `pack_stats` `pack_compress` `pack_retrieve` `pack_savings` |
+| Consensus review | `review_start` `review_submit` `review_consensus` `review_status` `review_fix_record` `review_rejudge` `review_finalize` `review_promote_memory` |
+| Socratica | `socratica_flow` |
+| Octopus AAR (optional) | `octopus_route_task` `octopus_route_plan` `octopus_report` `octopus_status` |
+
+Resources: `mem://context` · `mem://memory/{id}`
+
+</details>
+
+## Security and privacy
+
+Your data stays on your machine, in files only your user can read, outside the
+repository. gomemory opens no network port. It goes online only to check for a
+new release, which you can turn off, and to download one when you run
+`mem update`.
+
+Common credential patterns are redacted before they are stored, and anything
+wrapped in `<private>…</private>` is never persisted.
+
+Don't sync `mem.db` directly. It runs in SQLite WAL mode, and a copy taken while
+it is open can be inconsistent. Use `mem export` instead. The
+[manual](docs/MANUAL.md) lists the details and limitations.
 
 ## Documentation
 
@@ -159,11 +201,15 @@ directly (SQLite WAL mode); use `mem export` instead. See
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.37.html`](docs/Guia-Tecnica_GOMEMORY-v2.37.html) · [`docs/Guia-SDD_GOMEMERY-v2.37.html`](docs/Guia-SDD_GOMEMERY-v2.37.html) | Printable technical and SDD guides (previous editions in `docs/editions/`) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.37.html`](docs/Guia-Tecnica_GOMEMORY-v2.37.html) · [`docs/Guia-SDD_GOMEMERY-v2.37.html`](docs/Guia-SDD_GOMEMERY-v2.37.html) | Printable technical and SDD guides (Spanish; previous editions in `docs/editions/`) |
 
-## Building from source
+## Contributing
 
-Requires Go 1.27+.
+Bug reports and ideas go in [issues](https://github.com/Sayoner-000/gomemory/issues).
+Before sending a change, read [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+To build from source you need Go 1.27+:
 
 ```bash
 git clone https://github.com/Sayoner-000/gomemory.git
@@ -171,10 +217,6 @@ cd gomemory
 go build -o mem ./infrastructure/
 ./mem install .
 ```
-
-Contributions are welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), and
-[open an issue](https://github.com/Sayoner-000/gomemory/issues) for bugs or ideas.
 
 ## License
 
