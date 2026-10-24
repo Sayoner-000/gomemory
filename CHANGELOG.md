@@ -7,6 +7,27 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.39.0] - 2026-10-24
+
+### Changed
+
+- Los instincts llegan al contexto como patrones, no como la muestra de una ejecución: `` `go test` · 40 usos · último 2026-10-24 (0.8) ``. La clave sale del primer comando significativo, así que salta asignaciones `VAR=valor`, `sudo` con sus opciones, `cd` y los comandos triviales de lectura (`cat`, `sed`, `grep`, `rg`, `ls`, `head`, `tail`, `find`, `echo`, `wc`, `pwd`, `sqlite3` y `python3 -c`). Deja de inyectar lo que lleva 30 días sin observarse y las filas guardadas con el criterio anterior, sin borrar datos. Medido sobre una base real: de 8 líneas y unos 1.400 caracteres a 5 líneas y 253.
+
+### Fixed
+
+- Un proyecto con la raíz bajo el directorio temporal del sistema (`mktemp -d`) ya no cuenta como segundo proyecto para promover un instinct a global. Sigue leyendo los instincts globales.
+- `sudo -u app git commit` y las demás formas de `sudo` con opciones se reconocen como commit, así que el recordatorio de `verify-loop` vuelve a salir.
+
+### Seguridad
+
+- `mem update` limita lo que acepta de la red, con los mismos topes que el instalador: 128 MiB el archivo, 256 MiB lo expandido y 1 MiB los metadatos y `checksums.txt`. En un tar.gz cuentan también las entradas que no son el binario, porque se descomprimen al saltarlas. Superar un tope aborta sin tocar el binario instalado.
+- Los generadores de Socratica (claude, codex y opencode) acotan su salida a 8 MiB en stdout y 64 KiB en stderr. Al superarla, el proceso se cancela al momento en lugar de esperar al timeout, y la generación falla como respuesta inválida.
+
+### Documentación
+
+- El diagrama «How it works» y la tabla de agentes del README dejan de mostrar Cursor, que ya no se usa en el proyecto. El código lo sigue soportando y `INSTALLATION.md` lo documenta.
+- Nueva edición de las guías: SDD, edición 6, y técnica, edición 4 (`docs/*-v2.39.html`). Las de v2.38 pasan a `docs/editions/`. El manual, la arquitectura, `expand.md`, `socratica.md` y `DATABASE.md` recogen los cambios de este release.
+
 ## [v2.38.0] - 2026-10-23
 
 ### Removed

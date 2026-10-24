@@ -84,7 +84,6 @@ flowchart LR
     subgraph agents [Agents]
         direction TB
         hooked["Claude Code · Codex · OpenCode"]
-        cursor["Cursor"]
     end
 
     subgraph mem [mem · one Go binary]
@@ -100,7 +99,6 @@ flowchart LR
 
     hooked -- "MCP tools" --> mcp
     hooked -- "lifecycle hooks" --> hook
-    cursor -- "MCP tools" --> mcp
     you(["You"]) --> cli
 
     core --> db[("mem.db<br/>one SQLite store per project<br/>in your user data directory")]
@@ -125,7 +123,6 @@ what you see in the terminal is what the agent gets.
 | Claude Code | ✅ | ✅ |
 | Codex | ✅ | ✅ |
 | OpenCode | ✅ | ✅ |
-| Cursor | ✅ | — |
 
 Using an agent that isn't listed? [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md)
 explains how to connect it.
@@ -228,7 +225,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.38.html`](docs/Guia-Tecnica_GOMEMORY-v2.38.html) · [`docs/Guia-SDD_GOMEMERY-v2.38.html`](docs/Guia-SDD_GOMEMERY-v2.38.html) | Printable technical and SDD guides (Spanish; previous editions in `docs/editions/`) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.39.html`](docs/Guia-Tecnica_GOMEMORY-v2.39.html) · [`docs/Guia-SDD_GOMEMERY-v2.39.html`](docs/Guia-SDD_GOMEMERY-v2.39.html) | Printable technical and SDD guides (Spanish; previous editions in `docs/editions/`) |
 
 ## Contributing
 

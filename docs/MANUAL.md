@@ -101,7 +101,9 @@ global, las copias locales que queden y el estado de la última consulta.
 
 **Integridad.** `mem update` verifica el SHA-256 del archivo descargado con el
 `checksums.txt` de la release antes de sustituir el binario; si no coincide o no
-existe, aborta sin tocar nada. No crea archivos `AGENTS.md` ni `CLAUDE.md`. Si encuentra artefactos
+existe, aborta sin tocar nada. También limita lo que acepta de la red, con los
+mismos topes que el instalador: 128 MiB el archivo, 256 MiB lo expandido y 1 MiB
+los metadatos y `checksums.txt`. Superar un tope aborta sin tocar el binario. No crea archivos `AGENTS.md` ni `CLAUDE.md`. Si encuentra artefactos
 gestionados por instalaciones antiguas, los respalda y retira.
 
 Las reglas llegan al agente **íntegras** en cada `get_context()`; la constitución
@@ -1559,7 +1561,10 @@ actúan en los hooks del agente: **rules** (reglas de protección, incluida la d
 serie `destructive-shell`), **shield** (inspección de configuraciones de
 agentes), **flow** (sugerencias de las skills `verify-loop`, `search-first`,
 `iterative-retrieval` y `strategic-compact`) e **instincts** (patrones
-aprendidos con confianza).
+aprendidos con confianza). El contexto muestra cada instinct como patrón, usos y
+fecha (`` `go test` · 40 usos · último 2026-10-24 (0.8) ``). Excluye los comandos
+triviales de lectura y navegación y los que llevan más de 30 días sin
+observarse (detalle en [`expand.md`](expand.md)).
 
 ```bash
 mem expand status                       # cableado, reglas, errores y activaciones

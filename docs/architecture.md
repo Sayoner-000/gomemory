@@ -849,7 +849,10 @@ mem install /ruta/a/proyecto [--yes] [--agents a,b] [--scope project|global]
   (`usecases.DecideUpdateNotice`). El aviso sale en `systemMessage` en Claude
   Code: el dialecto de `session-start` se reconoce por `CLAUDE_PROJECT_DIR`,
   porque su payload no trae `tool_name`. Sin avisos, la salida es texto plano
-  como antes. `mem update` verifica el SHA-256 con `checksums.txt`.
+  como antes. `mem update` verifica el SHA-256 con `checksums.txt` y acota lo
+  que lee de la red como el instalador: 128 MiB el archivo, 256 MiB lo
+  expandido (en un TAR cuentan todas las entradas, porque `tar.Reader.Next`
+  descomprime las que salta) y 1 MiB los metadatos.
 - **Desinstalación.** `cli/uninstall_plan.go` construye un
   `domain.UninstallPlan` (orden FR-014, continuidad ante ⚠) con lo que existe:
   proyectos (registro + escaneo acotado de `~`), configuración de usuario

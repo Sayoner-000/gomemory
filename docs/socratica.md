@@ -114,7 +114,7 @@ Viven en `.memory/settings.json` del proyecto y se validan al cargar: un valor i
 | `socratica_private` | `false` | Modo privado: sin historial (`mem socratica private on`/`off`) |
 | `socratica_history_limit` | `20` | Refinamientos que se conservan por agente (1–1000) |
 | `socratica_generators` | `["claude","codex","opencode"]` | Harnesses habilitados para refinar; el orden no establece prioridad ni reemplazo automático |
-| `socratica_generator_timeout_seconds` | `120` | Tiempo máximo del generador |
+| `socratica_generator_timeout_seconds` | `120` | Tiempo máximo del generador. Además, su salida tiene tope: 8 MiB en stdout y 64 KiB en stderr. Al superarlo, el proceso se cancela al momento y la generación falla como respuesta inválida |
 | `socratica_query_timeout_ms` | `5000` | Tiempo máximo de cada consulta al almacén (mínimo 100) |
 
 `mem socratica status` muestra por agente la intercepción y las capacidades, el modo privado y la disponibilidad de los harnesses; `socratica_flow(action=settings)` devuelve por MCP la intercepción, las capacidades y el modo privado del cliente. Los pendientes conservan su cliente; retomar uno no abre un selector nuevo.
