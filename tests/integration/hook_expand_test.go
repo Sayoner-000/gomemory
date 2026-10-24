@@ -12,11 +12,30 @@ import (
 	"time"
 
 	"mem/adapters/secondary/persistence"
+	"mem/domain"
 )
 
 // expandRun ejecuta `mem hook expand <args...>` y devuelve stdout, stderr y
 // el código de salida (feature 040, contracts/hook-expand.md).
+//
+// La decisión tiene un plazo de 150 ms y, si vence, el hook deja pasar y lo
+// registra como expand.timeout. Es el comportamiento correcto, pero no prueba
+// la lógica: si la llamada registró un timeout nuevo (el runner de Windows se
+// detiene a veces más de un segundo), se repite hasta dos veces. Un fallo de
+// la lógica no registra timeout y no se repite.
 func expandRun(t *testing.T, bin, dir, payload string, args ...string) (string, string, int) {
+	t.Helper()
+	for attempt := 0; ; attempt++ {
+		before := expandTimeoutCount(dir)
+		out, errOut, code := expandRunOnce(t, bin, dir, payload, args...)
+		if attempt == 2 || expandTimeoutCount(dir) == before {
+			return out, errOut, code
+		}
+		t.Logf("mem hook expand %v: venció el plazo (expand.timeout); se repite", args)
+	}
+}
+
+func expandRunOnce(t *testing.T, bin, dir, payload string, args ...string) (string, string, int) {
 	t.Helper()
 	cmd := exec.Command(bin, append([]string{"hook", "expand"}, args...)...)
 	cmd.Dir = dir
@@ -39,28 +58,54 @@ func expandRun(t *testing.T, bin, dir, payload string, args ...string) (string, 
 	return stdout.String(), stderr.String(), code
 }
 
+// expandEvents devuelve los eventos del proyecto sin crear su base: abrirla
+// desde la prueba cambiaría lo que el hook encuentra. La raíz se resuelve como
+// la resuelve el binario, porque EvalSymlinks expande en Windows los nombres
+// cortos (RUNNER~1) y daría otra clave de proyecto.
+func expandEvents(dir string) ([]domain.GuardCount, error) {
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = os.Chdir(wd) }()
+	if err := os.Chdir(dir); err != nil {
+		return nil, err
+	}
+	root, err := persistence.FindRoot()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(persistence.DbPath(root)); err != nil {
+		return nil, nil
+	}
+	db, err := persistence.Open(root)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = db.Close() }()
+	return persistence.GuardEventsSince(db, persistence.ProjectKey(root), 1)
+}
+
+// expandTimeoutCount suma los expand.timeout registrados en el proyecto.
+func expandTimeoutCount(dir string) int {
+	events, _ := expandEvents(dir)
+	n := 0
+	for _, e := range events {
+		if e.Kind == "expand.timeout" {
+			n += e.Count
+		}
+	}
+	return n
+}
+
 // expandTimeouts resume los expand.timeout registrados en el proyecto. Su
 // presencia prueba que venció el plazo; su ausencia no lo descarta, porque el
 // registro también tiene plazo.
 func expandTimeouts(dir string) string {
-	wd, err := os.Getwd()
+	events, err := expandEvents(dir)
 	if err != nil {
 		return "expand.timeout: " + err.Error()
 	}
-	defer func() { _ = os.Chdir(wd) }()
-	if err := os.Chdir(dir); err != nil {
-		return "expand.timeout: " + err.Error()
-	}
-	root, err := persistence.FindRoot()
-	if err != nil {
-		return "expand.timeout: " + err.Error()
-	}
-	db, err := persistence.Open(root)
-	if err != nil {
-		return "expand.timeout: " + err.Error()
-	}
-	defer func() { _ = db.Close() }()
-	events, _ := persistence.GuardEventsSince(db, persistence.ProjectKey(root), 1)
 	var got []string
 	for _, e := range events {
 		if e.Kind == "expand.timeout" {
