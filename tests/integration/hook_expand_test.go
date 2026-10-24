@@ -18,24 +18,10 @@ import (
 // expandRun ejecuta `mem hook expand <args...>` y devuelve stdout, stderr y
 // el código de salida (feature 040, contracts/hook-expand.md).
 //
-// La decisión tiene un plazo de 150 ms y, si vence, el hook deja pasar y lo
-// registra como expand.timeout. Es el comportamiento correcto, pero no prueba
-// la lógica: si la llamada registró un timeout nuevo (el runner de Windows se
-// detiene a veces más de un segundo), se repite hasta dos veces. Un fallo de
-// la lógica no registra timeout y no se repite.
+// No se repite cuando vence el plazo de 150 ms: los eventos tienen efectos
+// previos a la decisión (pre-tool cuenta herramientas, prompt y post-tool
+// encolan observaciones) y repetirlos los duplicaría.
 func expandRun(t *testing.T, bin, dir, payload string, args ...string) (string, string, int) {
-	t.Helper()
-	for attempt := 0; ; attempt++ {
-		before := expandTimeoutCount(dir)
-		out, errOut, code := expandRunOnce(t, bin, dir, payload, args...)
-		if attempt == 2 || expandTimeoutCount(dir) == before {
-			return out, errOut, code
-		}
-		t.Logf("mem hook expand %v: venció el plazo (expand.timeout); se repite", args)
-	}
-}
-
-func expandRunOnce(t *testing.T, bin, dir, payload string, args ...string) (string, string, int) {
 	t.Helper()
 	cmd := exec.Command(bin, append([]string{"hook", "expand"}, args...)...)
 	cmd.Dir = dir
@@ -84,18 +70,6 @@ func expandEvents(dir string) ([]domain.GuardCount, error) {
 	}
 	defer func() { _ = db.Close() }()
 	return persistence.GuardEventsSince(db, persistence.ProjectKey(root), 1)
-}
-
-// expandTimeoutCount suma los expand.timeout registrados en el proyecto.
-func expandTimeoutCount(dir string) int {
-	events, _ := expandEvents(dir)
-	n := 0
-	for _, e := range events {
-		if e.Kind == "expand.timeout" {
-			n += e.Count
-		}
-	}
-	return n
 }
 
 // expandTimeouts resume los expand.timeout registrados en el proyecto. Su
