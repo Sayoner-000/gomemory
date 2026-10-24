@@ -281,8 +281,8 @@ func assetName() string {
 	return assetNameFor(runtime.GOOS, runtime.GOARCH)
 }
 
-// assetNameFor replica el naming de scripts/install.sh (mem_${os}_${arch}.tar.gz)
-// e install.ps1 (mem_windows_${arch}.zip).
+// assetNameFor replica el naming de los assets del release: scripts/install.sh
+// (mem_${os}_${arch}.tar.gz) y el zip de Windows (mem_windows_${arch}.zip).
 func assetNameFor(goos, goarch string) string {
 	if goos == "windows" {
 		return fmt.Sprintf("mem_windows_%s.zip", goarch)

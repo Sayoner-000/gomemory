@@ -51,7 +51,7 @@ func updateTestEnv(extra ...string) []string {
 
 // buildFakeAsset produce el asset de la release fake para este sistema, con
 // el nombre que publica goreleaser: un zip con "mem.exe" en Windows (el que
-// espera install.ps1) y un tar.gz con "mem" en el resto.
+// descarga mem update) y un tar.gz con "mem" en el resto.
 func buildFakeAsset(content []byte) (string, []byte) {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("mem_windows_%s.zip", runtime.GOARCH), buildFakeZip(content)

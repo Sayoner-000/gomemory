@@ -37,10 +37,10 @@ No cloud service, no API key, no database server, and no memory files in your re
 curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
 
-```powershell
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
-```
+On Windows, download `mem_windows_amd64.zip` from
+[Releases](https://github.com/Sayoner-000/gomemory/releases/latest), check it
+against `checksums.txt` and put `mem.exe` on your PATH. The exact PowerShell
+commands are in [`INSTALLATION.md`](INSTALLATION.md).
 
 **2. Connect your agents**
 

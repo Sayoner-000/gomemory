@@ -74,7 +74,7 @@ detect_os() {
   case "$(uname -s)" in
     Linux)  echo "linux" ;;
     Darwin) echo "darwin" ;;
-    *) die "SO no soportado: $(uname -s). Usa install.ps1 en Windows." ;;
+    *) die "SO no soportado: $(uname -s). En Windows descarga mem_windows_amd64.zip del release (ver INSTALLATION.md)." ;;
   esac
 }
 

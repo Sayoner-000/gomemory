@@ -15,7 +15,7 @@ import (
 // causa de que la config se rompiera al viajar entre Linux, macOS y Windows.
 //
 // La referencia universal y agnóstica de agente es el binario por nombre en el
-// PATH ("mem"), que garantiza el instalador de consola (install.sh / install.ps1).
+// PATH ("mem"), que garantiza la instalación del binario (install.sh o el zip del release en Windows).
 // El campo HookCommand solo difiere en el fallback por-proyecto de Claude Code,
 // que sabe expandir ${CLAUDE_PROJECT_DIR} en runtime; el resto de agentes
 // dependen del PATH.

@@ -88,10 +88,14 @@ mem --version
 En PowerShell:
 
 ```powershell
-$env:GOMEMORY_VERSION = "vX.Y.Z"
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
-mem --version
+$base = "https://github.com/Sayoner-000/gomemory/releases/download/vX.Y.Z"
+Invoke-WebRequest "$base/mem_windows_amd64.zip" -OutFile "$env:TEMP\mem.zip"
+Expand-Archive "$env:TEMP\mem.zip" -DestinationPath "$env:TEMP\mem-vX.Y.Z" -Force
+& "$env:TEMP\mem-vX.Y.Z\mem.exe" --version
 ```
+
+El job de Windows de `test.yml` ejecuta esta misma descarga contra el último
+release y comprueba además el SHA-256.
 
 Si el workflow falla, corrige la causa y publica un tag nuevo. No reemplaces un
 tag ya distribuido ni subas artefactos construidos con pasos distintos a los de
