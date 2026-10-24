@@ -19,7 +19,7 @@ import (
 
 // globalScopeAgents son los agentes que soportan registrar gomemory una sola
 // vez a nivel de usuario/máquina, en vez de por proyecto (ver
-// specs/005-global-mcp-store). Cursor, Windsurf y Cline no tienen un
+// specs/005-global-mcp-store). Cursor no tiene un
 // mecanismo de config MCP a nivel de usuario conocido — se documenta como
 // limitación de esos agentes, no de gomemory (contracts/cli-contracts.md).
 //
@@ -59,7 +59,7 @@ var codexConfigMu sync.Mutex
 func CmdMCPSetup(deps *Deps, args []string) {
 	fs := newFlagSet("setup-mcp", flag.ContinueOnError)
 	target := fs.String("target", ".", "Directorio del proyecto donde instalar configs (solo aplica a --scope project)")
-	agents := fs.String("agents", defaultAgentList, "Agentes objetivo (separados por coma): opencode, claude, cursor, windsurf, cline, codex, all")
+	agents := fs.String("agents", defaultAgentList, "Agentes objetivo (separados por coma): opencode, claude, cursor, codex, all")
 	scope := fs.String("scope", "project", "project (default, por repo) o global (una vez por máquina — claude, codex, opencode)")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -108,14 +108,6 @@ func CmdMCPSetup(deps *Deps, args []string) {
 			if setupCursor(absRoot) {
 				generated++
 			}
-		case "windsurf":
-			if setupWindsurf(absRoot) {
-				generated++
-			}
-		case "cline":
-			if setupCline(absRoot) {
-				generated++
-			}
 		case "codex":
 			if setupCodex(absRoot) {
 				generated++
@@ -130,17 +122,11 @@ func CmdMCPSetup(deps *Deps, args []string) {
 			if setupCursor(absRoot) {
 				generated++
 			}
-			if setupWindsurf(absRoot) {
-				generated++
-			}
-			if setupCline(absRoot) {
-				generated++
-			}
 			if setupCodex(absRoot) {
 				generated++
 			}
 		default:
-			fmt.Printf("  ⚠️  Agente desconocido: %s (opciones: opencode, claude, cursor, windsurf, cline, codex, all)\n", agent)
+			fmt.Printf("  ⚠️  Agente desconocido: %s (opciones: opencode, claude, cursor, codex, all)\n", agent)
 		}
 	}
 
@@ -239,11 +225,9 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	// de cada agente, y su envoltorio nativo. Con esto, habilitar una vez cubre
 	// todos los proyectos presentes y futuros.
 	//
-	// Cursor, Windsurf y Cline quedan deliberadamente fuera: no aparecen en
-	// globalScopeAgents porque no tienen un scope de usuario equivalente. Su
-	// cobertura llega por scope de proyecto, donde `mem install` ya les escribe
-	// el mismo bloque de protocolo en .cursorrules/.windsurfrules — así que no
-	// pierden la funcionalidad, solo el "habilitar una sola vez".
+	// Cursor queda deliberadamente fuera: no aparece en globalScopeAgents
+	// porque no tiene un scope de usuario equivalente. Se configura por
+	// proyecto y recibe el protocolo en el initialize de MCP.
 	written, err := setup.InstallAtomicPlanGlobal(PlanMethod(), func(existing string) (string, bool) {
 		return composeAgentFile(existing, embeddedTemplate("universal-agent-instructions.md"), buildIntegrationBlock())
 	})
@@ -449,6 +433,7 @@ func readClaudeUserMCPEntry(name string) (*claudeMCPEntry, error) {
 // server ya resuelve el proyecto por git-root del cwd del proceso que Codex
 // lance, así que una entrada por proyecto (el esquema anterior,
 // `gomemory_<key>` con `cwd` fijo) ya no es necesaria.
+
 func setupCodexGlobal(ref BinRef) bool {
 	codexConfigMu.Lock()
 	defer codexConfigMu.Unlock()
@@ -793,120 +778,6 @@ func setupCursor(root string) bool {
 		return false
 	}
 	fmt.Println("  ✅ cursor: .cursor/mcp.json creado/actualizado")
-	return true
-}
-
-func setupWindsurf(root string) bool {
-	ref := binRefFor(root)
-	mcpPath, err := setup.ProjectConfigPath(root, ".windsurf", "mcp_config.json")
-	if err != nil {
-		fmt.Printf("  ⚠️  windsurf: %v\n", err)
-		return false
-	}
-	if err := os.MkdirAll(filepath.Dir(mcpPath), 0755); err != nil {
-		fmt.Printf("  ⚠️  windsurf: error al crear directorio: %v\n", err)
-		return false
-	}
-
-	mcpCfg := map[string]interface{}{
-		"mcpServers": map[string]interface{}{
-			"gomemory": map[string]interface{}{
-				"command": ref.MCPCommand,
-				"args":    ref.MCPArgs,
-			},
-		},
-	}
-
-	var existing map[string]interface{}
-	if data, _ := os.ReadFile(mcpPath); data != nil {
-		if err := json.Unmarshal(data, &existing); err != nil {
-			fmt.Printf("  ⚠️  windsurf: configuración inválida: %v\n", err)
-			return false
-		}
-	}
-	if existing == nil {
-		existing = mcpCfg
-	} else {
-		ms, _ := existing["mcpServers"].(map[string]interface{})
-		if ms == nil {
-			ms = make(map[string]interface{})
-		}
-		if _, has := ms["gomemory"]; has {
-			fmt.Println("  ✅ windsurf: .windsurf/mcp_config.json ya configurado")
-			return true
-		}
-		ms["gomemory"] = map[string]interface{}{
-			"command": ref.MCPCommand,
-			"args":    ref.MCPArgs,
-		}
-		existing["mcpServers"] = ms
-	}
-
-	data, _ := json.MarshalIndent(existing, "", "  ")
-	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
-		fmt.Printf("  ⚠️  windsurf: error al escribir .windsurf/mcp_config.json: %v\n", err)
-		return false
-	}
-	fmt.Println("  ✅ windsurf: .windsurf/mcp_config.json creado/actualizado")
-	return true
-}
-
-func setupCline(root string) bool {
-	ref := binRefFor(root)
-	mcpPath, err := setup.ProjectConfigPath(root, ".cline", "mcp_settings.json")
-	if err != nil {
-		fmt.Printf("  ⚠️  cline: %v\n", err)
-		return false
-	}
-	if err := os.MkdirAll(filepath.Dir(mcpPath), 0755); err != nil {
-		fmt.Printf("  ⚠️  cline: error al crear directorio: %v\n", err)
-		return false
-	}
-
-	mcpCfg := map[string]interface{}{
-		"mcpServers": map[string]interface{}{
-			"gomemory": map[string]interface{}{
-				"command":     ref.MCPCommand,
-				"args":        ref.MCPArgs,
-				"disabled":    false,
-				"autoApprove": []string{},
-			},
-		},
-	}
-
-	var existing map[string]interface{}
-	if data, _ := os.ReadFile(mcpPath); data != nil {
-		if err := json.Unmarshal(data, &existing); err != nil {
-			fmt.Printf("  ⚠️  cline: configuración inválida: %v\n", err)
-			return false
-		}
-	}
-	if existing == nil {
-		existing = mcpCfg
-	} else {
-		ms, _ := existing["mcpServers"].(map[string]interface{})
-		if ms == nil {
-			ms = make(map[string]interface{})
-		}
-		if _, has := ms["gomemory"]; has {
-			fmt.Println("  ✅ cline: .cline/mcp_settings.json ya configurado")
-			return true
-		}
-		ms["gomemory"] = map[string]interface{}{
-			"command":     ref.MCPCommand,
-			"args":        ref.MCPArgs,
-			"disabled":    false,
-			"autoApprove": []string{},
-		}
-		existing["mcpServers"] = ms
-	}
-
-	data, _ := json.MarshalIndent(existing, "", "  ")
-	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
-		fmt.Printf("  ⚠️  cline: error al escribir .cline/mcp_settings.json: %v\n", err)
-		return false
-	}
-	fmt.Println("  ✅ cline: .cline/mcp_settings.json creado/actualizado")
 	return true
 }
 

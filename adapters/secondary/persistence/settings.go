@@ -195,7 +195,7 @@ func DefaultSettings() Settings {
 	return Settings{
 		AutoApprove: false,
 		// Derivado de domain: son las tools que ApplyAutoApprove escribe como
-		// `autoApprove` para Cursor, Windsurf y Cline. Cuando esta lista estaba
+		// `autoApprove` para Cursor. Cuando esta lista estaba
 		// escrita a mano se quedó sin get_plan_context ni las 5 del grafo, así que
 		// esos agentes pedían permiso justo en la acción que debía ser automática.
 		// forget_memory queda fuera por destructiva (MCPAutoApprovableTools).
@@ -388,8 +388,6 @@ func ApplyAutoApprove(root string, s Settings) {
 	paths := []string{
 		filepath.Join(root, ".mcp.json"),
 		filepath.Join(root, ".cursor", "mcp.json"),
-		filepath.Join(root, ".windsurf", "mcp_config.json"),
-		filepath.Join(root, ".cline", "mcp_settings.json"),
 	}
 	for _, p := range paths {
 		if s.AutoApprove {

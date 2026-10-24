@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
 
-export const agents = ['opencode', 'claude', 'cursor', 'codex', 'windsurf', 'cline'] as const;
+export const agents = ['opencode', 'claude', 'cursor', 'codex'] as const;
 export type Agent = typeof agents[number];
 export interface Options {
   target: string; yes: boolean; noMotion: boolean; help: boolean; agentsExplicit: boolean;

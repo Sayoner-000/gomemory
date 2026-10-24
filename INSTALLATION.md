@@ -96,9 +96,9 @@ mem setup-mcp --scope global --agents claude,codex,opencode
 - Si ya tenías un proyecto instalado a la manera antigua (`.memory/mem.db`
   dentro del repo), su historial se migra solo al primer uso, o de forma
   explícita con `mem migrate`.
-- Cursor, Windsurf y Cline todavía no tienen un mecanismo de registro MCP a
-  nivel de usuario conocido — siguen requiriendo `mem setup-mcp --scope
-  project --agents cursor,windsurf,cline --target <dir>` por repositorio.
+- Cursor no tiene un mecanismo de registro MCP a nivel de usuario conocido:
+  requiere `mem setup-mcp --scope project --agents cursor --target <dir>` por
+  repositorio.
 - El protocolo de memoria (cuándo guardar, buscar y cerrar sesión) no depende
   de ningún archivo del repositorio: el propio servidor `mem mcp` lo declara en
   `initialize.instructions`, en la descripción de cada tool, y embebido en la
@@ -197,9 +197,8 @@ quedó completa sin tener que inspeccionar `~/.claude/settings.json` a mano.
 
 > Para Claude Code/Codex/OpenCode, la sección **0.1 Registro global** reemplaza
 > este paso — regístralo una vez y listo para todos tus proyectos. Para
-> Cursor, Windsurf y Cline, la sección 0.1 ya cubre el registro MCP por
-> proyecto con `mem setup-mcp --scope project --agents cursor,windsurf,cline
-> --target <dir>` — este paso (`mem install`) ya NO es necesario para ningún
+> Cursor, la sección 0.1 ya cubre el registro MCP por proyecto con
+> `mem setup-mcp --scope project --agents cursor --target <dir>` — este paso (`mem install`) ya NO es necesario para ningún
 > agente: es un pack opcional (binario copiado + configuración MCP + hooks +
 > siembra de reglas y constitución) si lo prefieres sobre el registro MCP a secas.
 
@@ -233,8 +232,9 @@ proyecto arrastra esos artefactos de una instalación anterior, la instalación
 los retira — respaldando los archivos de instrucciones en
 `.memory/backups/agent-files/` antes de borrarlos.
 
-`.windsurf/` y `.cline/` tampoco se crean ya: se configuran con
-`mem setup-mcp --agents windsurf,cline` cuando se piden.
+Windsurf y Cline dejaron de estar soportados en v2.38: gomemory ya no crea
+`.windsurf/` ni `.cline/`. `mem uninstall` sigue retirando la entrada de
+gomemory que una versión anterior les escribió.
 
 Para poner las reglas de tu equipo:
 

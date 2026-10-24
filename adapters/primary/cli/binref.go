@@ -9,7 +9,7 @@ import (
 
 // BinRef describe cómo referenciar el binario `mem` en archivos de config de
 // agentes, de forma portable entre máquinas, sistemas operativos y agentes
-// (Claude, OpenCode, Cursor, Windsurf, Cline, Codex).
+// (Claude, OpenCode, Cursor, Codex).
 //
 // Nunca se escribe una ruta absoluta de la máquina de instalación: esa era la
 // causa de que la config se rompiera al viajar entre Linux, macOS y Windows.

@@ -7,6 +7,10 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- Se retira el soporte de Windsurf y Cline. `mem install` deja de ofrecerlos, y `mem setup-mcp` ya no los acepta en `--agents` ni los configura con `all`, así que nunca crea `.windsurf/` ni `.cline/`. Una selección de agentes guardada por una versión anterior los descarta al reinstalar. `mem uninstall` sigue retirando la entrada de gomemory que una versión anterior les escribió. Los agentes soportados son Claude Code, Codex, OpenCode y Cursor.
+
 ## [v2.37.0] - 2026-10-23
 
 ### Changed

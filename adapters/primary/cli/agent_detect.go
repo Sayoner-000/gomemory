@@ -17,9 +17,6 @@ type installAgent struct {
 	// directorio de configuración de usuario (relativo al HOME).
 	bins []string
 	dirs [][]string
-	// optional: se ofrece pero nunca se marca solo (feature 021 los sacó de la
-	// instalación automática).
-	optional bool
 }
 
 var installAgents = []installAgent{
@@ -27,8 +24,6 @@ var installAgents = []installAgent{
 	{name: "codex", label: "Codex", bins: []string{"codex"}, dirs: [][]string{{".codex"}}},
 	{name: "opencode", label: "OpenCode", bins: []string{"opencode"}, dirs: [][]string{{".config", "opencode"}, {".opencode"}}},
 	{name: "cursor", label: "Cursor", bins: []string{"cursor"}, dirs: [][]string{{".cursor"}}},
-	{name: "windsurf", label: "Windsurf", bins: []string{"windsurf"}, dirs: [][]string{{".codeium", "windsurf"}}, optional: true},
-	{name: "cline", label: "Cline", optional: true},
 }
 
 // legacyDefaultAgents son los agentes que install configuraba siempre antes de
@@ -42,7 +37,7 @@ type agentChoice struct {
 }
 
 // checked indica si la opción sale marcada en la consola.
-func (c agentChoice) checked() bool { return c.detected && !c.optional }
+func (c agentChoice) checked() bool { return c.detected }
 
 func detectAgents(home string, lookPath func(string) (string, error)) []agentChoice {
 	out := make([]agentChoice, 0, len(installAgents))
@@ -73,6 +68,23 @@ func defaultAgents(choices []agentChoice) []string {
 	}
 	if len(out) == 0 {
 		return append([]string(nil), legacyDefaultAgents...)
+	}
+	return out
+}
+
+// supportedAgents descarta de una selección guardada los agentes que ya no se
+// configuran (Windsurf y Cline desde v2.38): la reinstalación los ignoraría y,
+// sin este filtro, volvería a guardarlos.
+func supportedAgents(saved []string) []string {
+	known := map[string]bool{}
+	for _, a := range installAgents {
+		known[a.name] = true
+	}
+	var out []string
+	for _, a := range saved {
+		if known[a] {
+			out = append(out, a)
+		}
 	}
 	return out
 }

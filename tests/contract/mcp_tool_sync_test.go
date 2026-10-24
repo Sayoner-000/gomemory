@@ -165,8 +165,8 @@ func TestBootstrapMaterializaTodasLasTools(t *testing.T) {
 	}
 }
 
-// TestAutoApproveNoDejaFueraNingunaToolSegura evita que un agente tipo Cursor o
-// Windsurf pida permiso justo en la acción que debería ser automática.
+// TestAutoApproveNoDejaFueraNingunaToolSegura evita que un agente tipo Cursor
+// pida permiso justo en la acción que debería ser automática.
 func TestAutoApproveNoDejaFueraNingunaToolSegura(t *testing.T) {
 	auto := map[string]bool{}
 	for _, tool := range persistence.DefaultSettings().AutoApproveTools {

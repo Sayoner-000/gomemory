@@ -34,7 +34,7 @@ async function configure(options:Options, interactive:boolean): Promise<Options>
 async function run(): Promise<void> {
   let options = parseOptions(process.argv.slice(2));
   if (options.help) {
-    console.log('goMemory · Instalador opcional\n\nUso: gomemory-install [directorio] [opciones]\n\nOPCIONES\n  --agents opencode,claude,cursor,codex,windsurf,cline\n  --scope project|global\n  --binary /ruta/mem      Usar un binario local compatible con --events\n  --version vX.Y.Z       Elegir release (default: latest)\n  --bin-dir /ruta        Destino del binario (default: ~/.local/bin)\n  --yes, -y              Sin preguntas\n  --no-motion            Sin animaciones\n  --help, -h             Mostrar ayuda');
+    console.log('goMemory · Instalador opcional\n\nUso: gomemory-install [directorio] [opciones]\n\nOPCIONES\n  --agents opencode,claude,cursor,codex\n  --scope project|global\n  --binary /ruta/mem      Usar un binario local compatible con --events\n  --version vX.Y.Z       Elegir release (default: latest)\n  --bin-dir /ruta        Destino del binario (default: ~/.local/bin)\n  --yes, -y              Sin preguntas\n  --no-motion            Sin animaciones\n  --help, -h             Mostrar ayuda');
     return;
   }
   const mode = processMode(options.noMotion);

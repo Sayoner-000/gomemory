@@ -61,7 +61,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// terminal interactiva (hooks, CI, `curl | sh`, el subproceso de update)
 	// o con --yes nunca se pregunta (FR-022).
 	stored := deps.SettingsRepo.Read(target)
-	saved := installSelection{agents: stored.Agents, scope: stored.AgentScope}
+	saved := installSelection{agents: supportedAgents(stored.Agents), scope: stored.AgentScope}
 	home, _ := os.UserHomeDir()
 	choices := detectAgents(home, exec.LookPath)
 	sel := resolveInstallSelection(opts, saved, choices)
@@ -331,20 +331,6 @@ func CmdInstall(deps *Deps, args []string) {
 			addStep("Integración Codex", fmt.Errorf("no se pudo configurar Codex"), "repite mem install --yes --agents codex")
 		}
 	}
-	if sel.scope == "project" && sel.has("windsurf") {
-		if setupWindsurf(target) {
-			addStep("Integración Windsurf", nil, "")
-		} else {
-			addStep("Integración Windsurf", fmt.Errorf("no se pudo configurar Windsurf"), "repite mem install --yes --agents windsurf")
-		}
-	}
-	if sel.scope == "project" && sel.has("cline") {
-		if setupCline(target) {
-			addStep("Integración Cline", nil, "")
-		} else {
-			addStep("Integración Cline", fmt.Errorf("no se pudo configurar Cline"), "repite mem install --yes --agents cline")
-		}
-	}
 	// FR-019 (040): las cinco skills de expand se instalan siempre en los
 	// harness presentes, también con alcance proyecto; en global ya las
 	// instala runGlobalScopeSetup (C-006).
@@ -352,10 +338,8 @@ func CmdInstall(deps *Deps, args []string) {
 		_, err := setup.InstallExpandSkills(expandSkillBodies())
 		addStep("Skills de expand", err, "repite mem install --yes")
 	}
-	// windsurf y cline se retiraron de la instalación automática (feature 021):
-	// creaban .windsurf/ y .cline/ en la raíz de TODO proyecto para alojar un
-	// único JSON de configuración. Siguen soportados por la vía explícita:
-	// `mem setup-mcp --agents windsurf,cline`.
+	// Windsurf y Cline ya no se configuran (v2.38): uninstall y la limpieza de
+	// install siguen retirando lo que una versión anterior les escribió.
 
 	// CodeGraph en el grafo externo: su servidor MCP queda conectado a los
 	// agentes para que lo usen solos, como codebase-memory-mcp.

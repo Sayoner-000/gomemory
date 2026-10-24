@@ -36,7 +36,7 @@ el árbol del proyecto.
                               │
    ┌───────────┬──────────────┼──────────────┬───────────────────────┐
    ▼           ▼              ▼              ▼                       ▼
-OpenCode (global*)  Claude (global*)  Codex (global*)  Cursor/Windsurf/Cline (por proyecto)
+OpenCode (global*)  Claude (global*)  Codex (global*)  Cursor (por proyecto)
 
 * Registro global: una vez por máquina, vía `mem setup-mcp --scope global`.
   El resto de agentes siguen usando config MCP por proyecto (`--scope project`,
@@ -65,7 +65,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
 | `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 31 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
-| `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor, Windsurf, Cline y/o Codex |
+| `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor y/o Codex |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable del ciclo de sesión, compactación, turnos, subagentes y modo plan |
 | `code-refresh` | `infrastructure/main.go` | Fast-path interno (detached): refresca el snapshot del grafo de código externo fuera del hot path. No abre la BD |
 | `settings` | `adapters/primary/cli/cmd_settings.go` | Ver o cambiar auto-approve de las tools MCP (`--auto-approve`, `--show`) y la configuración del grafo externo (`--code-graph`, `--code-graph-command`, `--code-graph-providers`) |
@@ -455,8 +455,8 @@ CLI `specify` en proyectos de prueba aislados
 (`specs/012-gomemory-context-distribution/contracts/`) y embebidos tal
 cual — evita reimplementar en Go la lógica de traducción de un proyecto de
 terceros. Alcance: solo Claude Code y OpenCode, los dos únicos agentes que
-`mem install` ya configura por completo (plugin + hooks); Cursor/Windsurf/
-Cline/Codex solo reciben `mcp.json` y quedan fuera de esta iteración.
+`mem install` ya configura por completo (plugin + hooks); Cursor y Codex solo
+reciben `mcp.json` y quedan fuera de esta iteración.
 
 ### 5. Wrap (`adapters/primary/cli/cmd_wrap.go`)
 
@@ -595,19 +595,17 @@ Sesión:   Activa desde 2026-06-18 10:00:00
 Configura la integración MCP para múltiples agentes AI desde un solo comando, en dos scopes posibles:
 
 ```
-mem setup-mcp --scope project [--target dir] [--agents opencode,claude,cursor,windsurf,cline,codex,all]
+mem setup-mcp --scope project [--target dir] [--agents opencode,claude,cursor,codex,all]
 mem setup-mcp --scope global [--agents claude,codex,opencode,all]
 ```
 
-**`--scope project`** (default, compatibilidad con el flujo por-proyecto anterior) — soporta 6 agentes:
+**`--scope project`** (default, compatibilidad con el flujo por-proyecto anterior) — soporta 4 agentes:
 
 | Agente | Archivo destino | Configuración |
 |---|---|---|
 | `opencode` | `opencode.json` | `mcp.gomemory = { command, args: ["mcp"] }` |
 | `claude` | `.mcp.json` (proyecto) | `mcpServers.gomemory` — servidor MCP sobre stdio |
 | `cursor` | `.cursor/mcp.json` | `mcpServers.gomemory` |
-| `windsurf` | `.windsurf/mcp_config.json` | `mcpServers.gomemory` |
-| `cline` | `.cline/mcp_settings.json` | `mcpServers.gomemory` con `disabled: false` |
 | `codex` | `~/.codex/config.toml` (global, una tabla por proyecto) | `[mcp_servers."gomemory_<proyecto>"]` con `command`, `args`, `cwd` |
 
 **`--scope global`** (recomendado, `specs/005-global-mcp-store`) — solo agentes con mecanismo de registro a nivel de usuario:
@@ -617,7 +615,7 @@ mem setup-mcp --scope global [--agents claude,codex,opencode,all]
 | `claude` | `claude mcp add -s user gomemory mem mcp` | Se delega la escritura al CLI oficial de Claude Code — gomemory nunca edita `~/.claude.json` a mano, solo lo **lee** para detectar colisiones de nombre (FR-008: si `gomemory` ya existe apuntando a otro comando, se detiene y pide resolución manual en vez de sobrescribir) |
 | `codex` | `~/.codex/config.toml`, tabla única `[mcp_servers.gomemory]` | Sin `cwd` ni sufijo por proyecto — el server ya resuelve el proyecto por git-root del cwd real en cada invocación |
 | `opencode` | `~/.config/opencode/opencode.json`, clave `mcp.gomemory` (mismo esquema que el scope project) + plugin en `~/.config/opencode/plugins/gomemory.ts` | Confirmado empíricamente con `opencode debug config`: OpenCode mergea el `opencode.json` de usuario con el del proyecto activo, así que una sola entrada global aplica a todos los proyectos. Reemplaza la limitación documentada antes en `specs/005-global-mcp-store/tasks.md` T027 (no se pudo verificar sin el CLI de OpenCode instalado) |
-| `cursor`, `windsurf`, `cline` | No soportado | `runGlobalScopeSetup` imprime el mensaje explícito y remite a `--scope project --target <dir>` |
+| `cursor` | No soportado | `runGlobalScopeSetup` imprime el mensaje explícito y remite a `--scope project --target <dir>` |
 
 Cada función de setup es idempotente: detecta si la configuración ya existe y la salta o actualiza. `setupCodex`/`setupCodexGlobal` nunca reescriben el archivo completo — solo hacen `append` de su propia tabla TOML, para no arriesgar corromper otras entradas ya presentes en `~/.codex/config.toml`.
 
@@ -728,7 +726,7 @@ puerto TCP ni servicio residente.
 
 La referencia al binario es portable (`BinRef`/`binRefFor` en `cmd_install.go`/`binref.go`): se usa `mem` por PATH, nunca una ruta absoluta de máquina. El fallback por-proyecto de los hooks de Claude usa `${CLAUDE_PROJECT_DIR}/mem`, que Claude expande en runtime.
 
-`mem install` ejecuta este setup para OpenCode y Claude Code, además de registrar MCP para Cursor y Codex. Windsurf y Cline se configuran de forma explícita con `mem setup-mcp --scope project`.
+`mem install` ejecuta este setup para OpenCode y Claude Code, además de registrar MCP para Cursor y Codex. Windsurf y Cline dejaron de estar soportados en v2.38; `mem uninstall` sigue limpiando lo que una versión anterior les escribió.
 
 ### 14. Mantenimiento de memoria (`cmd_purge.go`, `cmd_compact.go`, `cmd_gc.go` + `adapters/secondary/persistence/maintenance.go`)
 
@@ -1324,7 +1322,7 @@ datos se resuelve solo. Variables opcionales (documentadas en `.env.example`):
 
 5. **MCP como integración primaria**: `mem mcp` expone la memoria como herramientas nativas. Los agentes MCP pueden invocar `save_memory`, `search_memories`, etc. sin depender de instrucciones en texto.
 
-6. **Multi-agente MCP**: `setup-mcp` configura opencode, Claude, Cursor, Windsurf, Cline y Codex desde un solo comando. Cada función de setup es idempotente. El `cwd` real del proceso que lanza `mem mcp` no es confiable entre agentes, así que la raíz del proyecto se pasa explícita vía `--root` en `args` (ver sección "El flag `--root`").
+6. **Multi-agente MCP**: `setup-mcp` configura opencode, Claude, Cursor y Codex desde un solo comando. Cada función de setup es idempotente. El `cwd` real del proceso que lanza `mem mcp` no es confiable entre agentes, así que la raíz del proyecto se pasa explícita vía `--root` en `args` (ver sección "El flag `--root`").
 
 7. **Triple vía de integración**: MCP nativo (`initialize.instructions` + descripciones de tools + `get_context` embebido en `cmd_mcp.go` — funciona en cualquier agente/scope, sin archivos en el repo) + plugin/hooks (ciclo de vida completo para OpenCode/Claude Code) + archivos de instrucciones de **ámbito usuario** (`mem setup-mcp --scope global`). Desde v2.9 el ámbito de proyecto ya no escribe archivos: era una segunda copia del bloque que el MCP ya entrega. Ver `docs/MEMORY-PROTOCOL.md`.
 
@@ -1350,7 +1348,7 @@ datos se resuelve solo. Variables opcionales (documentadas en `.env.example`):
 
     **Contexto**: la alternativa era detectar el modo plan desde el entorno, con un hook por agente (`PreToolUse`/`EnterPlanMode` en Claude Code, un evento del plugin en OpenCode). Se descartó: solo cubre los agentes con integración dedicada, y en varios el cambio a modo plan es un estado de la interfaz que ningún hook observa.
 
-    **Compromisos aceptados**: la fiabilidad pasa a depender de que el agente obedezca la instrucción, no de una garantía del entorno — el mismo trato que ya rige para el resto del protocolo de memoria. A cambio, la cobertura es universal: cualquier agente que lea el protocolo y alcance gomemory queda cubierto sin escribir código para él (verificado: Cursor y Windsurf reciben el disparador sin una sola línea específica).
+    **Compromisos aceptados**: la fiabilidad pasa a depender de que el agente obedezca la instrucción, no de una garantía del entorno — el mismo trato que ya rige para el resto del protocolo de memoria. A cambio, la cobertura es universal: cualquier agente que lea el protocolo y alcance gomemory queda cubierto sin escribir código para él (verificado: Cursor recibe el disparador sin una sola línea específica).
 
     **Una sola llamada, no dos**: `get_plan_context()` devuelve método + contexto juntos. El método completo (~4 KB) **no** va en el bloque de protocolo porque ese bloque vive en el prompt de sistema de todos los turnos, y la feature 008 se hizo para reducir esa huella; el bloque solo lleva el disparador (~7 líneas). La parte de contexto reutiliza `ContextBuilder.Build()`, heredando el techo de `budget` — reconstruirla por separado lo habría roto en silencio.
 
@@ -1398,8 +1396,7 @@ proyecto/
 ```
 
 OpenCode mantiene el plugin en la configuración del usuario y Codex registra el
-servidor en `~/.codex/config.toml`. Windsurf y Cline se añaden solo cuando se
-solicitan con `mem setup-mcp --scope project`.
+servidor en `~/.codex/config.toml`.
 
 ## Arquitectura Hexagonal
 
