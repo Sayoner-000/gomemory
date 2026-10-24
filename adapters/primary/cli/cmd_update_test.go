@@ -338,3 +338,132 @@ func TestReplaceSelf_PublicaYRetiraElApartado(t *testing.T) {
 		t.Errorf("el .old debía retirarse: %v", err)
 	}
 }
+
+// H-01: la descarga y la extracción tienen tope, aunque el servidor no
+// declare Content-Length o la cabecera del archivo mienta.
+func TestDownloadFileRejectsOversizedBody(t *testing.T) {
+	defer func(v int64) { maxUpdateArchiveBytes = v }(maxUpdateArchiveBytes)
+	maxUpdateArchiveBytes = 1024
+	for name, h := range map[string]http.HandlerFunc{
+		"content-length": func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(make([]byte, 2048)) },
+		"chunked": func(w http.ResponseWriter, _ *http.Request) {
+			for range 4 {
+				_, _ = w.Write(make([]byte, 512))
+				w.(http.Flusher).Flush()
+			}
+		},
+	} {
+		srv := httptest.NewServer(h)
+		err := downloadFile(srv.Client(), srv.URL, filepath.Join(t.TempDir(), "a.tar.gz"))
+		srv.Close()
+		if err == nil || !strings.Contains(err.Error(), "límite") {
+			t.Errorf("%s: err = %v, want límite", name, err)
+		}
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(make([]byte, 1024)) }))
+	defer srv.Close()
+	if err := downloadFile(srv.Client(), srv.URL, filepath.Join(t.TempDir(), "a.tar.gz")); err != nil {
+		t.Fatalf("cuerpo en el límite: %v", err)
+	}
+}
+
+func TestExtractBinaryRejectsOversizedBinary(t *testing.T) {
+	defer func(v int64) { maxUpdateBinaryBytes = v }(maxUpdateBinaryBytes)
+	maxUpdateBinaryBytes = 1024
+	content := make([]byte, 2048)
+	dir := t.TempDir()
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: memBinaryName(), Mode: 0755, Size: int64(len(content))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tgz := filepath.Join(dir, "mem.tar.gz")
+	if err := os.WriteFile(tgz, buf.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := extractBinaryFromTarGz(tgz, memBinaryName(), filepath.Join(dir, "out-tar")); err == nil || !strings.Contains(err.Error(), "límite") {
+		t.Errorf("tar.gz: err = %v, want límite", err)
+	}
+
+	var zbuf bytes.Buffer
+	zw := zip.NewWriter(&zbuf)
+	w, err := zw.Create(memBinaryName())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zp := filepath.Join(dir, "mem.zip")
+	if err := os.WriteFile(zp, zbuf.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := extractBinaryFromZip(zp, memBinaryName(), filepath.Join(dir, "out-zip")); err == nil || !strings.Contains(err.Error(), "límite") {
+		t.Errorf("zip: err = %v, want límite", err)
+	}
+}
+
+func TestLatestReleaseTagBoundsMetadata(t *testing.T) {
+	defer func(v int64) { maxUpdateMetadataBytes = v }(maxUpdateMetadataBytes)
+	maxUpdateMetadataBytes = 64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"pad":"` + strings.Repeat("x", 128) + `","tag_name":"v9.9.9"}`))
+	}))
+	defer srv.Close()
+	origBase := releaseAPIBase
+	releaseAPIBase = srv.URL
+	defer func() { releaseAPIBase = origBase }()
+	if tag, err := latestReleaseTag(srv.Client()); err == nil {
+		t.Fatalf("metadatos por encima del límite aceptados: %q", tag)
+	}
+}
+
+// H-02: el presupuesto de expansión cuenta todas las entradas del TAR, no
+// solo el binario. Una entrada ajena grande delante de mem debe rechazarse
+// por su cabecera, antes de que tar.Reader.Next la descomprima para saltarla.
+func TestExtractBinaryFromTarGzBoundsSkippedEntries(t *testing.T) {
+	defer func(v int64) { maxUpdateBinaryBytes = v }(maxUpdateBinaryBytes)
+	maxUpdateBinaryBytes = 1024
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	for _, e := range []struct {
+		name string
+		size int
+	}{{"README.md", 2048}, {memBinaryName(), 16}} {
+		if err := tw.WriteHeader(&tar.Header{Name: e.name, Mode: 0644, Size: int64(e.size)}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(make([]byte, e.size)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	tgz := filepath.Join(dir, "mem.tar.gz")
+	if err := os.WriteFile(tgz, buf.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := extractBinaryFromTarGz(tgz, memBinaryName(), filepath.Join(dir, "out")); err == nil || !strings.Contains(err.Error(), "límite") {
+		t.Fatalf("err = %v, want límite", err)
+	}
+}

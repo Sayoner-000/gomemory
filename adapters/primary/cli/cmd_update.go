@@ -290,6 +290,27 @@ func assetNameFor(goos, goarch string) string {
 	return fmt.Sprintf("mem_%s_%s.tar.gz", goos, goarch)
 }
 
+// Topes de lo que mem update acepta de la red, alineados con el instalador
+// (installer/src/bootstrap.ts). Son variables para que las pruebas los bajen.
+var (
+	maxUpdateMetadataBytes int64 = 1 << 20
+	maxUpdateArchiveBytes  int64 = 128 << 20
+	maxUpdateBinaryBytes   int64 = 256 << 20
+)
+
+// copyLimited copia como mucho max bytes y falla si src trae más: una
+// cabecera de tamaño puede mentir, el corte en la copia no.
+func copyLimited(dst io.Writer, src io.Reader, max int64) error {
+	n, err := io.Copy(dst, io.LimitReader(src, max+1))
+	if err != nil {
+		return err
+	}
+	if n > max {
+		return fmt.Errorf("el contenido supera el límite de %d bytes", max)
+	}
+	return nil
+}
+
 func latestReleaseTag(client *http.Client) (string, error) {
 	url := releaseAPIBase + "/repos/" + releaseRepo + "/releases/latest"
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -306,14 +327,14 @@ func latestReleaseTag(client *http.Client) (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxUpdateMetadataBytes))
 		return "", fmt.Errorf("GitHub API respondió %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var payload struct {
 		TagName string `json:"tag_name"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxUpdateMetadataBytes)).Decode(&payload); err != nil {
 		return "", err
 	}
 	if payload.TagName == "" {
@@ -338,6 +359,9 @@ func downloadFile(client *http.Client, url, destPath string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("descarga respondió %d (¿existe el asset %s?)", resp.StatusCode, filepath.Base(destPath))
 	}
+	if resp.ContentLength > maxUpdateArchiveBytes {
+		return fmt.Errorf("el asset declara %d bytes y supera el límite de %d bytes", resp.ContentLength, maxUpdateArchiveBytes)
+	}
 
 	out, err := os.Create(destPath)
 	if err != nil {
@@ -345,7 +369,7 @@ func downloadFile(client *http.Client, url, destPath string) error {
 	}
 	defer func() { _ = out.Close() }()
 
-	if _, err := io.Copy(out, resp.Body); err != nil {
+	if err := copyLimited(out, resp.Body, maxUpdateArchiveBytes); err != nil {
 		return err
 	}
 	return out.Sync()
@@ -397,6 +421,9 @@ func extractBinaryFromTarGz(archivePath, binName, destPath string) error {
 	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
+	// expanded suma lo que declaran todas las entradas: tar.Reader.Next
+	// descomprime la entrada que se salta, así que una ajena también cuenta.
+	var expanded int64
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -405,6 +432,10 @@ func extractBinaryFromTarGz(archivePath, binName, destPath string) error {
 		if err != nil {
 			return err
 		}
+		if hdr.Size < 0 || hdr.Size > maxUpdateBinaryBytes-expanded {
+			return fmt.Errorf("el tar.gz expandido supera el límite de %d bytes", maxUpdateBinaryBytes)
+		}
+		expanded += hdr.Size
 		if filepath.Base(hdr.Name) != binName {
 			continue
 		}
@@ -413,8 +444,7 @@ func extractBinaryFromTarGz(archivePath, binName, destPath string) error {
 			return err
 		}
 		defer func() { _ = out.Close() }()
-		_, err = io.Copy(out, tr)
-		return err
+		return copyLimited(out, tr, maxUpdateBinaryBytes)
 	}
 }
 
@@ -429,6 +459,9 @@ func extractBinaryFromZip(archivePath, binName, destPath string) error {
 		if filepath.Base(f.Name) != binName {
 			continue
 		}
+		if f.UncompressedSize64 > uint64(maxUpdateBinaryBytes) {
+			return fmt.Errorf("el binario declara %d bytes y supera el límite de %d bytes", f.UncompressedSize64, maxUpdateBinaryBytes)
+		}
 		rc, err := f.Open()
 		if err != nil {
 			return err
@@ -440,8 +473,7 @@ func extractBinaryFromZip(archivePath, binName, destPath string) error {
 			return err
 		}
 		defer func() { _ = out.Close() }()
-		_, err = io.Copy(out, rc)
-		return err
+		return copyLimited(out, rc, maxUpdateBinaryBytes)
 	}
 	return fmt.Errorf("binario %s no encontrado en el zip", binName)
 }

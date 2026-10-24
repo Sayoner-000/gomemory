@@ -100,3 +100,24 @@ func TestChecksum(t *testing.T) {
 		t.Errorf("sin checksums.txt: %v", err)
 	}
 }
+
+// H-01: ni el JSON de la API ni checksums.txt se leen más allá de
+// maxMetadataBytes; lo que quede detrás del tope no cuenta.
+func TestMetadataReadsAreBounded(t *testing.T) {
+	pad := strings.Repeat("x", maxMetadataBytes)
+	srv := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "checksums.txt") {
+			// Líneas cortas: una sola línea larga ya la corta bufio.Scanner.
+			_, _ = fmt.Fprintf(w, "%sccc333  mem_linux_amd64.tar.gz\n", strings.Repeat("0  other.tar.gz\n", maxMetadataBytes/16+1))
+			return
+		}
+		_, _ = fmt.Fprintf(w, `{"pad":"%s","tag_name":"v9.9.9"}`, pad)
+	})
+	g := New(srv.URL, srv.URL, repo, time.Second)
+	if tag, _, _, err := g.Latest(context.Background(), ""); err == nil {
+		t.Errorf("Latest aceptó metadatos por encima del tope: %q", tag)
+	}
+	if sum, err := g.Checksum(context.Background(), "v1.0.0", "mem_linux_amd64.tar.gz"); err == nil {
+		t.Errorf("Checksum leyó más allá del tope: %q", sum)
+	}
+}

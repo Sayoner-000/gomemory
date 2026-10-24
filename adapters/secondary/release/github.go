@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -38,6 +39,10 @@ func New(apiBase, downloadBase, repo string, timeout time.Duration) *GitHub {
 	}
 }
 
+// maxMetadataBytes acota lo que se lee del JSON de la API y de
+// checksums.txt, como el instalador (installer/src/bootstrap.ts).
+const maxMetadataBytes = 1 << 20
+
 func (g *GitHub) Latest(ctx context.Context, etag string) (string, string, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.apiBase+"/repos/"+g.repo+"/releases/latest", nil)
 	if err != nil {
@@ -62,7 +67,7 @@ func (g *GitHub) Latest(ctx context.Context, etag string) (string, string, bool,
 	var body struct {
 		TagName string `json:"tag_name"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxMetadataBytes)).Decode(&body); err != nil {
 		return "", "", false, fmt.Errorf("respuesta de la API: %w", err)
 	}
 	if body.TagName == "" {
@@ -88,7 +93,7 @@ func (g *GitHub) Checksum(ctx context.Context, tag, asset string) (string, error
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("descargar checksums.txt: HTTP %d", resp.StatusCode)
 	}
-	sc := bufio.NewScanner(resp.Body)
+	sc := bufio.NewScanner(io.LimitReader(resp.Body, maxMetadataBytes))
 	for sc.Scan() {
 		// Formato de goreleaser: "<sha256>  <archivo>".
 		f := strings.Fields(sc.Text())
