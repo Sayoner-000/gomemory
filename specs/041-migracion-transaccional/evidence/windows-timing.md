@@ -4,15 +4,15 @@ Línea base: Windows CI, workflow `diag-windows-timing`, run [39941668694](https
 
 | Métrica | Línea base (p50 / máximo) | Después (transacción) | Después (con R9 e índice) |
 |---|---|---|---|
-| `db.open`, base nueva | 554 / 1.760 ms | | |
-| `db.open`, base preparada | 6 / 8 ms | | |
-| `fold`, cierre del primer turno | 581 / 1.809 ms | | |
-| Registro de sugerencia o bloqueo (`flush`) | 42 / 1.592 ms | | |
-| `toolout` | Sin agregado en la tabla original; máximo de referencia 71 ms | | |
-| `close`, por comando y canal | Sin línea base | | |
-| Apertura de base al día con escritor abierto (`contention.open`, SC-010) | Sin línea base | | |
-| `TestHookExpandInstinctsTwoProjects`, PASS/FAIL | Cinco repeticiones; sin recuento en la tabla original | | |
-| `TestHookExpand_SuggestionOncePerEpisodeAndRecorded`, PASS/FAIL | Cinco repeticiones; sin recuento en la tabla original | | |
+| `db.open`, base nueva | 554 / 1.760 ms | 62,5 / 195 ms en expand stop; 964 ms máx en tool-output (run 39954797737) | 40 / 219 ms (100 aperturas) |
+| `db.open`, base preparada | 6 / 8 ms | 5 / 9 ms | 3 / 10 ms (240) |
+| `fold`, cierre del primer turno | 581 / 1.809 ms | 134,5 / 335 ms | 87,5 / 264 ms (40) |
+| Registro de sugerencia o bloqueo (`flush`) | 42 / 1.592 ms | 41 / 183 ms | 20,5 / 239 ms (pre-tool, 60) |
+| `toolout` | Sin agregado en la tabla original; máximo de referencia 71 ms | 34 / 150 ms (Claude, 80) | 17 / 27 ms (Claude, 80) |
+| `close`, por comando y canal | Sin línea base | context 27,5 / 63 ms | context 53,5 / 214 ms; `optimize` 1 / 2 ms (run 40046457914) |
+| Apertura de base al día con escritor abierto (`contention.open`, SC-010) | Sin línea base | — | `db_migrate_contention_test.go` en verde en Windows (go test, run 40045564958) |
+| `TestHookExpandInstinctsTwoProjects`, PASS/FAIL | Cinco repeticiones; sin recuento en la tabla original | 20 / 0 | 20 / 0 (40045565011); 18 / 2 (40046457914, con bloqueos del runner) |
+| `TestHookExpand_SuggestionOncePerEpisodeAndRecorded`, PASS/FAIL | Cinco repeticiones; sin recuento en la tabla original | 20 / 0 | 20 / 0 (40045565011); 18 / 2 (40046457914, con bloqueos del runner) |
 
 Pendiente: medir 20 repeticiones en la rama de diagnóstico; estos espacios vacíos no representan resultados locales ni objetivos cumplidos.
 
@@ -78,3 +78,9 @@ SC-002 sigue en FAIL en la tanda conjunta. La tanda aislada no reemplaza la acep
 | Fold p50 / máximo | 137 / 2.026 ms | — | 106 / 437 ms |
 
 NORMAL cumple SC-001, SC-002 y SC-003 en esta tanda. Se continúa con la implementación de R9 y la revalidación del conjunto final. El workflow global permanece fallido porque conserva los fallos de control; el paso NORMAL es el resultado experimental favorable. Esto no sustituye el CI final ni las cifras de la columna con todos los pragmas e índice.
+
+## Configuración final (R9 e índice): runs 40045565011 y 40046457914
+
+[Run 40045565011](https://github.com/Sayoner-000/gomemory/actions/runs/40045565011), commit `544ae53`. La tanda conjunta pasa 20/20 en las cuatro pruebas. Agregados: `windows-final-joint.json` y `windows-final-isolated.json`. Resultados: base nueva 219 ms máx (SC-002 < 400, PASS), base preparada 3 ms p50 (SC-004 ≤ 10, PASS) y fold 264 ms máx (SC-003 < 500, PASS). La tanda aislada de tool-output abre una base nueva en 77 ms máx.
+
+[Run 40046457914](https://github.com/Sayoner-000/gomemory/actions/runs/40046457914), commit `0258dd1`. Añade las marcas `close.optimize` y `close.db`; agregado en `windows-close-split-joint.json`. `optimize` cuesta 1 ms p50 / 2 ms máx: FR-013 se cumple, porque las estadísticas suman como mucho 2 ms al cierre. El crecimiento de `close` frente a la transacción (27,5 / 63 ms → 53,5 / 214 ms) está en `db.Close` (48,5 / 203 ms): con `synchronous=NORMAL`, las sincronizaciones a disco se aplazan al checkpoint del WAL que hace la última conexión. Es el coste esperado de R9 y lo pagan los comandos de la CLI, no los hooks medidos, que terminan sin `Close`. En este run hubo bloqueos del runner que afectan también a operaciones sin escritura: una apertura de base existente llegó a 1.559 ms, frente a 10 ms máx en el run anterior. Hubo 2 fallos en cada prueba US1 (18/20). Se registra sin descartarlo: de las tres tandas NORMAL, dos pasan 20/20 y una 18/20 con bloqueos.

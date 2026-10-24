@@ -243,7 +243,7 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 
 - [X] T032 Ejecutar `gofmt -l .`, `go vet ./...`, `GOOS=windows go vet ./...` y `go test ./... -count=1`: todo en verde (SC-006).
 - [ ] T033 Proponer a la persona el commit de US2 a US4 (archivos y mensaje `perf(persistence): tune SQLite pragmas, index sessions and refresh stats on close`). Hacer commit solo tras su aprobación. Después, en `diag/windows-timing-041`, rebasar sobre `041-migracion-transaccional`. Habrá un conflicto esperado en `Container.Close` entre la marca `close` (T012) y el `optimize` (T028) (F2): conservar las dos. Proponer el push (dep: T032).
-- [ ] T034 Tras el run, completar la columna «Después (con R9 e índice)» de `evidence/windows-timing.md` con estos objetivos:
+- [X] T034 Tras el run, completar la columna «Después (con R9 e índice)» de `evidence/windows-timing.md` con estos objetivos:
   - `db.open` en una base nueva (SC-002, < 400 ms);
   - `db.open` en una base preparada (SC-004, ≤ 10 ms p50);
   - `contention.open` (SC-010, < 50 ms);
@@ -409,3 +409,7 @@ T033 pendiente de aprobación del commit `perf(persistence): tune SQLite pragmas
 T033: commit `d866c22` y push de la feature; diag rebasada sin el interruptor NORMAL (`544ae53`). Run diag [40045565011](https://github.com/Sayoner-000/gomemory/actions/runs/40045565011), tanda conjunta, las cuatro pruebas 20/20: base nueva 40 / 219 ms (SC-002 PASS), base preparada 3 ms p50 (SC-004 PASS), fold máximo 264 ms (SC-003 PASS), flush pre-tool 20,5 ms p50 frente a 42. FR-013 FAIL: `close` de `context` 53,5 / 214 ms frente a 27,5 / 63 ms sin `optimize`. Siguiente medición: marcas `close.optimize` y `close.db` para atribuir el crecimiento antes de cambiar el cierre. T034 sigue abierta.
 
 CI de la feature [40045444358](https://github.com/Sayoner-000/gomemory/actions/runs/40045444358): Linux y TypeScript en verde. En Windows falló `TestExpandHook_StopsWhenContextExpires`, una prueba intermitente que dependía de que venciera un temporizador de 1 ns; ahora usa un plazo ya vencido. Causa del fallo PS5.1 13/15: `install.ps1` está en UTF-8 sin BOM, así que PS5.1 lo decodifica como cp1252 y las secuencias del banner y de ✓ se convierten en comillas tipográficas. El script no parsea, y los 13 casos negativos aprobaban sin probar nada. Cierre: BOM en los `.ps1`, parseo obligatorio antes de los casos y prueba Go de guarda.
+
+### T034 completada
+
+Columna final y sección «Configuración final» en `evidence/windows-timing.md`. SC-002, SC-003 y SC-004 cumplen en el run 40045565011 (20/20). FR-013 se cumple: `optimize` cuesta 1 / 2 ms. El crecimiento de `close` es el checkpoint de `db.Close` con NORMAL. El run 40046457914 tuvo bloqueos del runner y 18/20 en US1; queda registrado. CI 40046447642: Windows falló en `TestCreateSnapshot_PrunesOldestBeyondKeep`. Era un defecto real: dos snapshots con la misma marca de reloj se sobrescribían. Corregido con creación exclusiva y contador; `TestCreateSnapshot_RepeatedClockKeepsEverySnapshot` está en rojo sin la corrección.
