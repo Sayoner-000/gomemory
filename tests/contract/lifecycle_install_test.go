@@ -38,7 +38,7 @@ func TestInstall_RetiraLaCopiaExistente(t *testing.T) {
 		t.Fatalf("install: code=%d\n%s\n%s", res.ExitCode, res.Stdout, res.Stderr)
 	}
 	if _, err := os.Stat(filepath.Join(p, exeName("mem"))); !os.IsNotExist(err) {
-		t.Fatal("la copia de gomemory debía retirarse")
+		t.Fatalf("la copia de gomemory debía retirarse:\n%s\n%s", res.Stdout, res.Stderr)
 	}
 	if !strings.Contains(res.Stdout, "Se retiró") {
 		t.Errorf("la retirada debe comunicarse:\n%s", res.Stdout)

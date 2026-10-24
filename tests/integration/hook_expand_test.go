@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"mem/adapters/secondary/persistence"
 )
@@ -22,7 +23,13 @@ func expandRun(t *testing.T, bin, dir, payload string, args ...string) (string, 
 	cmd.Stdin = strings.NewReader(payload)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	start := time.Now()
 	err := cmd.Run()
+	// Solo se ve si la prueba falla: separa un plazo vencido por el runner
+	// (la decisión tiene 150 ms) de un fallo de la lógica.
+	if d := time.Since(start); d > 150*time.Millisecond {
+		t.Logf("mem hook expand %v tardó %v", args, d)
+	}
 	code := 0
 	if ee, ok := err.(*exec.ExitError); ok {
 		code = ee.ExitCode()
@@ -30,6 +37,37 @@ func expandRun(t *testing.T, bin, dir, payload string, args ...string) (string, 
 		t.Fatalf("mem hook expand %v: %v", args, err)
 	}
 	return stdout.String(), stderr.String(), code
+}
+
+// expandTimeouts resume los expand.timeout registrados en el proyecto. Su
+// presencia prueba que venció el plazo; su ausencia no lo descarta, porque el
+// registro también tiene plazo.
+func expandTimeouts(dir string) string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "expand.timeout: " + err.Error()
+	}
+	defer func() { _ = os.Chdir(wd) }()
+	if err := os.Chdir(dir); err != nil {
+		return "expand.timeout: " + err.Error()
+	}
+	root, err := persistence.FindRoot()
+	if err != nil {
+		return "expand.timeout: " + err.Error()
+	}
+	db, err := persistence.Open(root)
+	if err != nil {
+		return "expand.timeout: " + err.Error()
+	}
+	defer func() { _ = db.Close() }()
+	events, _ := persistence.GuardEventsSince(db, persistence.ProjectKey(root), 1)
+	var got []string
+	for _, e := range events {
+		if e.Kind == "expand.timeout" {
+			got = append(got, fmt.Sprintf("%s×%d", e.LastDetail, e.Count))
+		}
+	}
+	return "expand.timeout: [" + strings.Join(got, ", ") + "]"
 }
 
 func TestHookExpandInstinctsTwoProjects(t *testing.T) {
@@ -63,7 +101,7 @@ func TestHookExpandInstinctsTwoProjects(t *testing.T) {
 			Observations int
 		}
 		if json.Unmarshal(raw, &list) != nil || len(list) != 1 || list[0].Slug != "cmd:go-test" || list[0].Observations != 16 || list[0].Confidence < .699 {
-			t.Fatalf("%s", raw)
+			t.Fatalf("%s %s", raw, expandTimeouts(dir))
 		}
 		if p == 1 && list[0].Scope != "global" {
 			t.Fatalf("not global: %s", raw)
@@ -158,16 +196,16 @@ func TestHookExpand_SuggestionOncePerEpisodeAndRecorded(t *testing.T) {
 	dir := expandProject(t)
 	first, _, _ := expandRun(t, bin, dir, commitPayload("s1"), "pre-tool")
 	if !strings.Contains(first, "verify-loop") || !strings.Contains(first, "additionalContext") {
-		t.Fatalf("primera llamada debe sugerir verify-loop: %q", first)
+		t.Fatalf("primera llamada debe sugerir verify-loop: %q %s", first, expandTimeouts(dir))
 	}
 	if strings.Contains(first, `"allow"`) {
 		t.Fatalf("pre-tool nunca debe aprobar (G6): %q", first)
 	}
 	if second, _, _ := expandRun(t, bin, dir, commitPayload("s1"), "pre-tool"); second != "{}" {
-		t.Fatalf("segunda llamada de la misma sesión debe callar: %q", second)
+		t.Fatalf("segunda llamada de la misma sesión debe callar: %q %s", second, expandTimeouts(dir))
 	}
 	if other, _, _ := expandRun(t, bin, dir, commitPayload("s2"), "pre-tool"); !strings.Contains(other, "verify-loop") {
-		t.Fatalf("otra sesión tiene su propio episodio: %q", other)
+		t.Fatalf("otra sesión tiene su propio episodio: %q %s", other, expandTimeouts(dir))
 	}
 
 	// La raíz se resuelve como la resuelve el binario: EvalSymlinks expande en
@@ -221,7 +259,7 @@ func TestHookExpand_CompactResetsEpisode(t *testing.T) {
 	_, _, _ = expandRun(t, bin, dir, commitPayload("s1"), "pre-tool")
 	_, _, _ = expandRun(t, bin, dir, `{"hook_event_name":"SessionStart","source":"compact","session_id":"s1"}`, "session-start")
 	if out, _, _ := expandRun(t, bin, dir, commitPayload("s1"), "pre-tool"); !strings.Contains(out, "verify-loop") {
-		t.Fatalf("tras compactar, la sugerencia vuelve a estar disponible: %q", out)
+		t.Fatalf("tras compactar, la sugerencia vuelve a estar disponible: %q %s", out, expandTimeouts(dir))
 	}
 }
 
@@ -287,7 +325,7 @@ func TestHookExpandRules_ProjectRules(t *testing.T) {
 
 	out, _, _ := expandRun(t, bin, dir, `{"hook_event_name":"UserPromptSubmit","prompt":"despliega a producción"}`, "prompt", "--emit=claude")
 	if !strings.Contains(out, "additionalContext") || !strings.Contains(out, "nunca toques producción") {
-		t.Errorf("warn en prompt: %q", out)
+		t.Errorf("warn en prompt: %q %s", out, expandTimeouts(dir))
 	}
 	out, _, _ = expandRun(t, bin, dir, `{"hook_event_name":"UserPromptSubmit","prompt":"imprime la clave de la API"}`, "prompt", "--emit=json")
 	var m map[string]any
