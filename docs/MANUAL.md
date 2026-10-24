@@ -55,11 +55,11 @@ El registro global configura MCP y las integraciones de ciclo de vida disponible
 una sola vez para todos los proyectos. El almacén global y las memorias iniciales
 del proyecto se crean de forma diferida en el primer uso.
 
-Cursor, Windsurf y Cline no tienen un ámbito global compatible. Configúralos en
-el proyecto que los use:
+Cursor no tiene un ámbito global compatible. Configúralo en el proyecto que lo
+use:
 
 ```bash
-mem setup-mcp --scope project --agents cursor,windsurf,cline --target .
+mem setup-mcp --scope project --agents cursor --target .
 ```
 
 **Instalación guiada.** Con una terminal interactiva, `mem install .` pregunta,
@@ -418,7 +418,7 @@ guardar, buscar y cerrar sesión de memoria.
 
 - **Con integración de ciclo de vida (OpenCode, Claude Code, Codex)**: se
   inyecta automáticamente y los hooks registran la actividad compatible.
-- **Solo MCP (Cursor, Windsurf, Cline)**: el servidor MCP entrega el
+- **Solo MCP (Cursor)**: el servidor MCP entrega el
   protocolo en la respuesta `initialize`, así que cualquier cliente MCP lo
   recibe sin archivos en el repositorio. Para el ámbito de usuario,
   `mem setup-mcp --scope global` sigue escribiendo el bloque en el archivo de
@@ -1009,7 +1009,7 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 | **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
 | **OpenCode** | `~/.config/opencode/opencode.json` → `mcp.gomemory` | OpenCode mergea la config de usuario con la del proyecto activo (confirmado con `opencode debug config`); el plugin se instala en el mismo paso |
 
-**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor/Windsurf/Cline (sin registro global conocido), opcional para Claude/Codex/OpenCode:
+**Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor (sin registro global conocido), opcional para Claude/Codex/OpenCode:
 
 | Agente | Config MCP | ¿Lo configura `mem install`? | Hooks |
 |--------|-----------|------------------------------|-------|
@@ -1017,11 +1017,9 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 | **OpenCode** | `opencode.json` | Sí | `plugin/opencode/gomemory.ts` (auto-inicio, ya es global) |
 | **Cursor** | `.cursor/mcp.json` | Sí | — |
 | **Codex** | `~/.codex/config.toml` | Sí | Ciclo de sesión y turnos; el registro efectivo es de usuario |
-| **Windsurf** | `.windsurf/mcp_config.json` | No — solo con `mem setup-mcp --agents windsurf` | — |
-| **Cline** | `.cline/mcp_settings.json` | No — solo con `mem setup-mcp --agents cline` | — |
-
-> Windsurf y Cline se configuran por la vía explícita para evitar crear carpetas
-> de configuración en proyectos que no usan esos agentes.
+> Windsurf y Cline dejaron de estar soportados en v2.38. `mem uninstall` sigue
+> retirando la entrada de gomemory de `.windsurf/mcp_config.json` y
+> `.cline/mcp_settings.json` si una versión anterior la escribió.
 
 > Los hooks son subcomandos del binario (`mem hook <evento>`), no scripts shell:
 > no dependen de `bash`/`curl` ni de un servidor HTTP, y corren igual en Windows.

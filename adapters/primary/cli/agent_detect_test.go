@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"mem/domain"
@@ -58,14 +59,16 @@ func TestDetectAgents(t *testing.T) {
 	}
 }
 
-// Windsurf y Cline se ofrecen, pero sin marcar aunque se detecten (feature
-// 021: salieron de la instalación automática).
-func TestDetectAgents_OpcionalesNuncaMarcados(t *testing.T) {
+// Windsurf y Cline ya no se ofrecen (v2.38), aunque estén instalados.
+func TestDetectAgents_SinWindsurfNiCline(t *testing.T) {
 	home := t.TempDir()
 	for _, c := range detectAgents(home, fakeLookPath("windsurf")) {
-		if (c.name == "windsurf" || c.name == "cline") && (!c.optional || c.checked()) {
-			t.Errorf("%s: optional=%v checked=%v", c.name, c.optional, c.checked())
+		if c.name == "windsurf" || c.name == "cline" {
+			t.Errorf("%s no debe ofrecerse", c.name)
 		}
+	}
+	if _, err := parseAgentList("windsurf"); err == nil {
+		t.Error("--agents windsurf debe rechazarse")
 	}
 }
 
@@ -77,5 +80,13 @@ func TestParseAgentList(t *testing.T) {
 	}
 	if _, err := parseAgentList("claude,vscode"); err == nil {
 		t.Error("un agente desconocido debe ser error")
+	}
+}
+
+// Una selección guardada por una versión anterior pierde Windsurf y Cline.
+func TestSupportedAgents_DescartaLosRetirados(t *testing.T) {
+	got := supportedAgents([]string{"claude", "windsurf", "cline", "codex"})
+	if strings.Join(got, ",") != "claude,codex" {
+		t.Fatalf("selección filtrada: %v", got)
 	}
 }

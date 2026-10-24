@@ -64,7 +64,7 @@ posterior lo indica de forma explícita.
 - `mem log` alias existed in code but wasn't documented in help/README
 - `mem setup-mcp` and `cmd_mcp_setup.go` existed but weren't documented in any doc file (README, architecture.md, AGENTS.md) — always keep docs in sync with all source files
 - AGENTS.md and CLAUDE.md must have identical architecture sections — they diverged (CLAUDE.md was missing the full architecture block)
-- The `--agents` flag for `setup-mcp` supports `all` to configure 5 agents at once — document this explicitly
+- The `--agents` flag for `setup-mcp` supports `all` to configure every supported agent at once (opencode, claude, cursor, codex) — document this explicitly
 
 ## 2026-06-18
 

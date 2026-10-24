@@ -123,9 +123,15 @@ func TestCLIWorkflows_SetupMCPTodosLosAgentesDeProyecto(t *testing.T) {
 			t.Fatalf("setup-mcp %v: %+v", args, res)
 		}
 	}
-	for _, rel := range []string{"opencode.json", ".mcp.json", ".cursor/mcp.json", ".windsurf/mcp_config.json", ".cline/mcp_settings.json"} {
+	for _, rel := range []string{"opencode.json", ".mcp.json", ".cursor/mcp.json"} {
 		if _, err := os.Stat(filepath.Join(project, rel)); err != nil {
 			t.Fatalf("falta configuración de %s: %v", rel, err)
+		}
+	}
+	// Windsurf y Cline ya no se configuran (v2.38), ni con --agents all.
+	for _, rel := range []string{".windsurf", ".cline"} {
+		if _, err := os.Stat(filepath.Join(project, rel)); !os.IsNotExist(err) {
+			t.Fatalf("setup-mcp no debe crear %s: %v", rel, err)
 		}
 	}
 }

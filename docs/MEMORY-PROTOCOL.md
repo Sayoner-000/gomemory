@@ -139,7 +139,7 @@ El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
   ese prompt como `origin_prompt` (provenance: por qué se guardó esto). En Claude
   Code la captura va **inline** dentro de `user-prompt-submit`; el plugin de
   OpenCode lo invoca desde su evento `chat.message`. Agentes sin hook de mensaje
-  (Cursor, Windsurf y Cline) simplemente no aportan prompt: `origin_prompt`
+  (Cursor) simplemente no aportan prompt: `origin_prompt`
   queda vacío (degradación limpia).
 - `mem hook session-end` — cierra la sesión como **red de seguridad**, aunque el
   modelo no haya llamado `end_session`. El resumen rico lo aporta el modelo.

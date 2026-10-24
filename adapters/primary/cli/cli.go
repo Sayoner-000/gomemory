@@ -214,7 +214,7 @@ COMMANDS
   mem uninstall [dir] [--yes]      Desinstalar gomemory por completo (reverso de install)
   mem seed                         Sembrar las memorias por defecto del proyecto actual
   mem setup [--port 9735] <agent>  Instalar plugin para opencode|claude-code (flags ANTES del agente)
-  mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, windsurf, cline, codex, all
+  mem setup-mcp [--agents a,b,c]   Configurar MCP: opencode, claude, cursor, codex, all
   mem settings [--auto-approve=true|false] [--show]
                                    Ver o cambiar auto-approve de las tools MCP
   mem expand [status] [--json]     Estado, cableado y activaciones de supertools
