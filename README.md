@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/gomemory_dark.png">
-    <img src="assets/gomemory_light.png" alt="gomemory" width="200">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/gomemory-readme-dark.png">
+    <img src="assets/gomemory-readme-light.png" alt="gomemory" width="240">
   </picture>
 </p>
 
@@ -34,8 +34,10 @@ checkpoints go into a local SQLite store, one per project, and come back to the
 agent through the [Model Context Protocol](https://modelcontextprotocol.io/)
 (MCP) when it needs them.
 
-It is a single Go binary. There is no cloud service, no API key, no database
-server, and nothing is written to your repository.
+It is a single Go binary. There is no cloud service, no API key and no database
+server. Memory lives outside your repository; the project only gets a
+`.memory/` folder for settings and hook state, which `mem install` adds to
+`.gitignore`.
 
 ## Quick start
 
@@ -77,28 +79,53 @@ covers global vs. project scope, `mem setup-mcp`, updates and troubleshooting.
 
 ## How it works
 
-```
- Claude Code · OpenCode · Codex       MCP + lifecycle hooks
- Cursor · Windsurf · Cline            MCP
-                 │  stdio
-                 ▼
-              gomemory  ──►  one SQLite store per project,
-                             outside your repository
+```mermaid
+flowchart LR
+    subgraph agents [Agents]
+        direction TB
+        hooked["Claude Code · Codex · OpenCode"]
+        cursor["Cursor"]
+    end
+
+    subgraph mem [mem · one Go binary]
+        direction TB
+        mcp["mem mcp<br/>MCP server over stdio"]
+        hook["mem hook …<br/>session-start · user-prompt-submit<br/>tool-output · expand · pre-compact"]
+        cli["mem / mem command<br/>CLI and terminal UI"]
+        core["Use cases<br/>memory · context budget<br/>code graph · review"]
+        mcp --> core
+        hook --> core
+        cli --> core
+    end
+
+    hooked -- "MCP tools" --> mcp
+    hooked -- "lifecycle hooks" --> hook
+    cursor -- "MCP tools" --> mcp
+    you(["You"]) --> cli
+
+    core --> db[("mem.db<br/>one SQLite store per project<br/>in your user data directory")]
+    core --> instincts[("instincts.db<br/>patterns shared across projects")]
+    core --> local["project/.memory/<br/>settings and hook state<br/>(gitignored)"]
+    core -.-> graph["Code graph<br/>built-in Go graph<br/>codebase-memory-mcp · CodeGraph"]
 ```
 
-Agents launch `mem mcp` as a stdio subprocess and call its tools to save and
-retrieve memory. Agents that support lifecycle hooks get more: gomemory injects
-context when a session starts, captures checkpoints on its own (without spending
-agent tokens) and keeps session memory across context compaction.
+gomemory reaches your agent through two channels. Every supported agent
+launches `mem mcp` as a stdio subprocess and calls its tools to save and
+retrieve memory. Claude Code, Codex and OpenCode also run `mem hook` at points
+of their lifecycle: gomemory injects context when a session starts, captures
+checkpoints on its own (without spending agent tokens), compresses large tool
+output, applies the `expand` rules before a tool runs and keeps session memory
+across context compaction.
+
+The same use cases sit behind the MCP server, the hooks and the `mem` CLI, so
+what you see in the terminal is what the agent gets.
 
 | Agent | MCP | Lifecycle hooks |
 | :--- | :---: | :---: |
 | Claude Code | ✅ | ✅ |
-| OpenCode | ✅ | ✅ |
 | Codex | ✅ | ✅ |
+| OpenCode | ✅ | ✅ |
 | Cursor | ✅ | — |
-| Windsurf | ✅ | — |
-| Cline | ✅ | — |
 
 Using an agent that isn't listed? [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md)
 explains how to connect it.
