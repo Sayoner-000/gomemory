@@ -93,11 +93,15 @@ func TestHookExpandInstinctsTwoProjects(t *testing.T) {
 	bin := buildMemBinary(t)
 	data := t.TempDir()
 	t.Setenv("GOMEMORY_DATA_HOME", data)
-	// Los proyectos se crean en el directorio temporal; después TMPDIR apunta
-	// a otro vacío para que el binario no los tome por efímeros y cuenten
-	// para la promoción global.
+	// Los proyectos se crean en el directorio temporal; después el temporal
+	// apunta a otro vacío para que el binario no los tome por efímeros y
+	// cuenten para la promoción global. os.TempDir lee TMPDIR en Unix y
+	// TMP/TEMP en Windows.
 	dirs := []string{expandProject(t), expandProject(t)}
-	t.Setenv("TMPDIR", t.TempDir())
+	other := t.TempDir()
+	for _, env := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(env, other)
+	}
 	var second string
 	for p, dir := range dirs {
 		second = dir
