@@ -13,13 +13,16 @@ import (
 )
 
 type Instincts struct {
-	Queue    ports.ObservationQueueRepository
-	Repo     ports.InstinctRepository
-	Global   ports.InstinctGlobalRepository
-	Project  string
-	Now      func() time.Time
-	NewID    func() string
-	Memories ports.MemoryRepository
+	Queue   ports.ObservationQueueRepository
+	Repo    ports.InstinctRepository
+	Global  ports.InstinctGlobalRepository
+	Project string
+	// Ephemeral marca un proyecto con raíz en el directorio temporal: lee los
+	// instincts globales, pero no cuenta como proyecto para promoverlos.
+	Ephemeral bool
+	Now       func() time.Time
+	NewID     func() string
+	Memories  ports.MemoryRepository
 }
 
 func (u *Instincts) Evolve(ctx context.Context, g ports.SocraticGenerator, client, slug, template string) (string, string, error) {
@@ -121,7 +124,7 @@ func (u *Instincts) FoldPending(ctx context.Context, now time.Time) error {
 	if err := u.Repo.PurgeFolded(ctx, now.Add(-7*24*time.Hour)); err != nil {
 		return errors.Join(removeErr, err)
 	}
-	if u.Global != nil {
+	if u.Global != nil && !u.Ephemeral {
 		all, err := u.Repo.ForContext(ctx, .5)
 		if err != nil {
 			return errors.Join(removeErr, err)

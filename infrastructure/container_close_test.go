@@ -69,3 +69,25 @@ func TestContainerClose_NoErrorAndValidStatement(t *testing.T) {
 		t.Fatalf("invalid optimize statement: %v", err)
 	}
 }
+
+func TestUnderTempDir(t *testing.T) {
+	tmp := t.TempDir()
+	inside := filepath.Join(tmp, "proj")
+	if err := os.Mkdir(inside, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		root, tmp string
+		want      bool
+	}{
+		{inside, tmp, true},
+		{tmp, tmp, true},
+		{filepath.Dir(tmp), tmp, false},
+		{tmp + "x", tmp, false},
+		{inside, "", false},
+	} {
+		if got := underTempDir(tc.root, tc.tmp); got != tc.want {
+			t.Errorf("underTempDir(%q, %q) = %v, want %v", tc.root, tc.tmp, got, tc.want)
+		}
+	}
+}

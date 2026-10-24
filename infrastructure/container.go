@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -138,7 +139,7 @@ func NewContainer(root, channel string) (*Container, error) {
 	if instinctGlobalErr == nil {
 		instinctGlobalPort = instinctGlobal
 	}
-	instinctUC := &usecases.Instincts{Queue: expandstate.NewQueue(filepath.Join(root, persistence.MemDir)), Repo: instinctRepo, Global: instinctGlobalPort, Project: project, Memories: memRepo}
+	instinctUC := &usecases.Instincts{Queue: expandstate.NewQueue(filepath.Join(root, persistence.MemDir)), Repo: instinctRepo, Global: instinctGlobalPort, Project: project, Ephemeral: underTempDir(root, os.TempDir()), Memories: memRepo}
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
 	contextBuilder.Instincts = instinctRepo
 	if instinctGlobalErr == nil {
@@ -335,6 +336,23 @@ func NewContainer(root, channel string) (*Container, error) {
 	}
 
 	return c, nil
+}
+
+// underTempDir indica si root está dentro de tmp. Resuelve los enlaces de
+// ambos lados porque en macOS os.TempDir() cuelga de /var y la raíz ya
+// resuelta de /private/var.
+func underTempDir(root, tmp string) bool {
+	if tmp == "" {
+		return false
+	}
+	resolve := func(p string) string {
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			return r
+		}
+		return filepath.Clean(p)
+	}
+	rel, err := filepath.Rel(resolve(tmp), resolve(root))
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // openInstinctGlobal abre instincts.db en el directorio de datos del usuario.

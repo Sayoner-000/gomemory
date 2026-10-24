@@ -1058,6 +1058,9 @@ turno) en Claude Code, Codex y OpenCode.
 - **Instincts**: cola NDJSON (`adapters/secondary/expandstate`) con candado entre
   procesos; `InstinctRepository` en el mem.db del proyecto e
   `InstinctGlobalRepository` en `instincts.db`, auxiliar y degradable.
+  `instincts.db` vive aparte porque cada `mem.db` está aislado (feature 005) y
+  la promoción a global necesita contar proyectos (R12 de la feature 040). Los
+  proyectos con raíz bajo el directorio temporal no cuentan para esa promoción.
 
 ---
 

@@ -125,6 +125,20 @@ func TestInstinctObserveRedactsAndFoldRecovers(t *testing.T) {
 	}
 }
 
+func TestInstinctFoldSkipsGlobalRecordForEphemeralProject(t *testing.T) {
+	now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		ephemeral bool
+		want      int
+	}{{false, 1}, {true, 0}} {
+		g := &instinctGlobalFake{}
+		u := &Instincts{Queue: &instinctQueueFake{}, Repo: &instinctRepoFake{}, Global: g, Project: "p", Ephemeral: tc.ephemeral}
+		if err := u.FoldPending(context.Background(), now); err != nil || g.recorded != tc.want {
+			t.Fatalf("ephemeral=%v: recorded=%d err=%v, want %d", tc.ephemeral, g.recorded, err, tc.want)
+		}
+	}
+}
+
 func TestInstinctContextHonorsRejection(t *testing.T) {
 	r := &instinctRepoFake{list: []domain.Instinct{{Slug: "rejected", Confidence: .9, Status: "rejected"}, {Slug: "low", Confidence: .6}, {Slug: "high", Confidence: .7, Description: "safe"}}}
 	g := &instinctGlobalFake{list: []domain.Instinct{{Slug: "rejected", Confidence: .9}, {Slug: "global", Confidence: .8}}}

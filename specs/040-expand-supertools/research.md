@@ -169,6 +169,9 @@ Cada decisión parte del código actual (verificado el 2026-10-21 con codegraph 
   - **Inyección**: `build_context.go` añade la sección `## Instincts` después de `## Preferencias del Usuario`, con los instincts del proyecto y globales de confianza ≥ 0.7 y estado distinto de `rejected`. La sección se añade también a la lista de `session_delta.go`.
 - **Corrige**: el plan guardaba los instincts como memorias `type=instinct` desde la observación. Eso llenaría el contexto con propuestas no confirmadas y obligaría a añadir un `MemoryType`. Solo los confirmados pasan a memoria, como `preference`, y `ValidMemoryType` no cambia.
 - **Rationale de la cola**: no hay escritura SQLite por herramienta, el plegado va por lotes y no hace falta un agente en segundo plano.
+- **Rationale del registro global aparte**: desde la feature 005 cada proyecto tiene su propio `mem.db`, aislado del resto. La promoción exige ver en qué proyectos aparece un instinct, y ningún `mem.db` puede responder eso sin abrir los de los demás. `instincts.db` es la única base compartida de `DataHome()` y solo guarda `slug`, el conjunto de `ProjectKey` y la confianza; las observaciones y el estado siguen en el `mem.db` de cada proyecto.
+- **Alternatives**: una tabla en cada `mem.db` y la agregación al leer. Se rechaza porque cada plegado tendría que abrir N bases ajenas, y eso rompe el aislamiento de 005. También se descarta una base global única para todos los datos de instincts, porque mezclaría observaciones de proyectos distintos.
+- **Proyectos efímeros**: un proyecto cuya raíz está bajo el directorio temporal del sistema no se registra en `instinct_global`. Así un `mktemp -d` no cuenta como segundo proyecto en la promoción, aunque sí puede leer los instincts globales.
 
 ## R13. Evolve (hoja 6.6 del plan de entrada)
 
