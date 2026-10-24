@@ -7,9 +7,16 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.38.0] - 2026-10-23
+
 ### Removed
 
 - Se retira el soporte de Windsurf y Cline. `mem install` deja de ofrecerlos, y `mem setup-mcp` ya no los acepta en `--agents` ni los configura con `all`, así que nunca crea `.windsurf/` ni `.cline/`. Una selección de agentes guardada por una versión anterior los descarta al reinstalar. `mem uninstall` sigue retirando la entrada de gomemory que una versión anterior les escribió. Los agentes soportados son Claude Code, Codex, OpenCode y Cursor.
+
+### Documentación
+
+- El README se reorganiza en torno al problema, el inicio rápido y el funcionamiento, con un diagrama Mermaid de la arquitectura actual y un logo transparente para los temas claro y oscuro. Corrige además una afirmación: el proyecto sí recibe una carpeta `.memory/`, que `mem install` añade a `.gitignore`.
+- Nueva edición de las guías: SDD, edición 5, y técnica, edición 3 (`docs/*-v2.38.html`). Las de v2.37 pasan a `docs/editions/`. `INSTALLATION.md`, el manual, la arquitectura y el protocolo de memoria ya no mencionan Windsurf ni Cline como soportados.
 
 ## [v2.37.0] - 2026-10-23
 
