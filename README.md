@@ -106,7 +106,7 @@ flowchart LR
     core --> db[("mem.db<br/>one SQLite store per project<br/>in your user data directory")]
     core --> instincts[("instincts.db<br/>patterns shared across projects")]
     core --> local["project/.memory/<br/>settings and hook state<br/>(gitignored)"]
-    core -.-> graph["Code graph<br/>built-in Go graph<br/>codebase-memory-mcp · CodeGraph"]
+    core -.-> codegraph["Code graph<br/>built-in Go graph<br/>codebase-memory-mcp · CodeGraph"]
 ```
 
 gomemory reaches your agent through two channels. Every supported agent
