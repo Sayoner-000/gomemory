@@ -125,3 +125,22 @@ Cada decisión se contrastó con el código actual (`adapters/secondary/persiste
 - **Decision**: `sqliteDSN(path, busyMs)` es el único constructor de DSN. Una prueba de guarda (`TestSQLiteOpen_OnlyThroughSqliteDSN`) recorre los `.go` de `adapters/secondary/persistence/` que no son de prueba y falla si alguna llamada `sql.Open("sqlite", …)` no recibe `sqliteDSN(…)`.
 - **Rationale**: los pragmas son por conexión y no se pueden observar después de que `MigrateLegacy` cierre la suya. Una guarda estática cubre `MigrateLegacy` y cualquier apertura futura (análisis G3).
 - **Cambio intencionado en `MigrateLegacy` (análisis I4)**: hoy su DSN pone `journal_mode` antes de `busy_timeout` y no usa `_txlock=immediate`. El DSN común corrige ambos, de forma coherente con la feature 035: `busy_timeout` primero, para que pasar a WAL espere a un bloqueo, y transacciones inmediatas sin promoción de lectura a escritura.
+
+## R15. Resultado de la primera medición transaccional (2026-10-23)
+
+- **Evidencia:** run 39954797737, commit diagnóstico 1b44900, 20 repeticiones; detalles y agregados en `evidence/windows-timing.md` y `windows-transaction-spans.json`.
+- **Resultado:** ambas pruebas US1 pasan 20/20 y fold máximo es 335 ms. Sin embargo, una base nueva de tool-output Claude abre en 964 ms y no cumple SC-002. `TestHookToolOutput` pasa 19/20 y falla una vez por salida vacía de `claude-mcp.json`.
+- **Decisión de la puerta:** detener el avance de implementación tras T014, conservando el trabajo independiente de US2 ya validado mientras corría CI. No elevar presupuestos ni atribuir causalidad sin evidencia.
+- **Cierre propuesto:** aislar en un diagnóstico la primera apertura de tool-output, separando apertura de conexión/WAL, lectura de versión, inicio de transacción, DDL y commit, y comparar con el mismo muestreo sin competir con otros tests. R9 está diseñado pero aún no aplicado; cualquier adelanto de esa fase debe quedar explícito en el plan. Volver a ejecutar la medición de aceptación de 20 repeticiones y exigir SC-002 antes de continuar.
+
+### Preparación de R15: medición por fase
+
+Instrumentación adicional preparada solo en el worktree de diagnóstico; no cambia SQL, pragmas ni plazos. `migration.connect` incluye la primera conexión real y los pragmas del DSN, porque `sql.Open` es perezoso. `migration.lock` mide `BeginTx`; `migration.schema`, DDL; `migration.commit`, la confirmación. `dbfile.create`, `dbfile.chmod` y el total completan el desglose. La marca `dbfile.created` permite identificar bases nuevas sin deducirlo de su posición en la tanda ni registrar rutas privadas.
+
+El workflow mantiene la tanda de aceptación conjunta y añade después 20 ejecuciones aisladas de tool-output, incluso si la primera tanda falla, con registros separados. Comparar ambas permite observar el efecto de la competencia entre paquetes sin eliminar la prueba original. Validación local completada; falta publicar y ejecutar en Windows para atribuir la demora.
+
+### Resultado del diagnóstico por fase (T039)
+
+Run 40043142611: ambas pruebas US1 20/20; fold máximo 282 ms. Conjunta: ToolOutput 19/20, base nueva máxima 1.435 ms, dividida en primera conexión/pragmas 1.035 ms y commit 383 ms; DDL 16 ms y BEGIN 0 ms. Otra apertura tarda 850 ms, con commit de 664 ms. Aislada: ToolOutput 20/20, base nueva máxima 82 ms; bases existentes máximas 6 ms. Las marcas identifican archivos nuevos explícitamente. Detalles y recuentos en evidence.
+
+**Siguiente experimento:** R9 `synchronous=NORMAL` únicamente en la rama diag, activado con `GOMEMORY_DIAG_NORMAL=1`, conservando un control FULL y añadiendo una tanda conjunta NORMAL de 20 repeticiones en el mismo run. El interruptor experimental no se integra. La rama de feature conserva la configuración anterior hasta que la aceptación permita continuar. No se atribuye todavía la pausa de primera conexión a fsync, antivirus o scheduler: esa causa no está medida.

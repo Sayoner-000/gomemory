@@ -123,3 +123,23 @@ func TestSchemaGolden_VersionBumpsWithCatalog(t *testing.T) {
 	}
 	requireSchemaVersionBump(t, string(previous), schemaCatalog(t, db))
 }
+
+func TestMigrate_ThreeOpensSameCatalog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mem.db")
+	var first string
+	for i := 0; i < 3; i++ {
+		db, err := openDBFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := schemaCatalog(t, db)
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if i == 0 {
+			first = got
+		} else if got != first {
+			t.Fatalf("open %d changed the schema catalog", i+1)
+		}
+	}
+}

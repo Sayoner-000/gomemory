@@ -142,7 +142,7 @@ func openDBFile(path string) (*sql.DB, error) {
 	if f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err == nil {
 		_ = f.Close()
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate")
+	db, err := sql.Open("sqlite", sqliteDSN(path, 5000))
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 type schemaExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -293,6 +293,8 @@ func migrateSchema(ex schemaExecer) error {
 		delivered_at TEXT NOT NULL DEFAULT (%s),
 		PRIMARY KEY (session_id, kind)
 	);
+	-- Evita los SCAN sessions de las consultas de turno y sesión (R10).
+	CREATE INDEX IF NOT EXISTS idx_sessions_project_created ON sessions(project, created_at);
 	CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project);
 	CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type);
 	CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);

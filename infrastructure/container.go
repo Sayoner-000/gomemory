@@ -41,6 +41,7 @@ type Container struct {
 	Root              string
 	Project           string
 	db                *sql.DB
+	channel           string
 	// settings es la lectura única de settings.json hecha en NewContainer; el
 	// resto del Container la reutiliza para no ver dos versiones del archivo.
 	settings persistence.Settings
@@ -271,6 +272,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		Root:              root,
 		Project:           project,
 		db:                db,
+		channel:           channel,
 		settings:          settings,
 
 		MemoryRepo:                   memRepo,
@@ -351,6 +353,10 @@ func (c *Container) Close() error {
 	var globalErr error
 	if c.instinctGlobal != nil {
 		globalErr = c.instinctGlobal.Close()
+	}
+	// Los hooks llegan por defer closeContainer de main y tienen un plazo de 2 s.
+	if c.channel != "hook" {
+		_, _ = c.db.Exec("PRAGMA analysis_limit=400; PRAGMA optimize;")
 	}
 	return errors.Join(c.db.Close(), globalErr)
 }

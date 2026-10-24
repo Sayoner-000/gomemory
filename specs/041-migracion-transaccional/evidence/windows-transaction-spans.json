@@ -1,0 +1,107 @@
+[
+  {
+    "command": "context",
+    "span": "close",
+    "n": 20,
+    "p50_ms": 27.5,
+    "max_ms": 63
+  },
+  {
+    "command": "context",
+    "span": "db.open",
+    "n": 20,
+    "p50_ms": 5.0,
+    "max_ms": 9
+  },
+  {
+    "command": "expand instincts list",
+    "span": "db.open",
+    "n": 40,
+    "p50_ms": 5.0,
+    "max_ms": 7
+  },
+  {
+    "command": "hook expand post-tool",
+    "span": "flush",
+    "n": 640,
+    "p50_ms": 0.0,
+    "max_ms": 2
+  },
+  {
+    "command": "hook expand pre-tool",
+    "span": "db.open",
+    "n": 40,
+    "p50_ms": 29.5,
+    "max_ms": 154
+  },
+  {
+    "command": "hook expand pre-tool",
+    "span": "flush",
+    "n": 60,
+    "p50_ms": 41.0,
+    "max_ms": 183
+  },
+  {
+    "command": "hook expand stop",
+    "span": "db.open",
+    "n": 40,
+    "p50_ms": 62.5,
+    "max_ms": 195
+  },
+  {
+    "command": "hook expand stop",
+    "span": "flush",
+    "n": 40,
+    "p50_ms": 0.0,
+    "max_ms": 1
+  },
+  {
+    "command": "hook expand stop",
+    "span": "fold",
+    "n": 40,
+    "p50_ms": 134.5,
+    "max_ms": 335
+  },
+  {
+    "command": "hook tool-output claude",
+    "span": "db.open",
+    "n": 120,
+    "p50_ms": 6.0,
+    "max_ms": 964
+  },
+  {
+    "command": "hook tool-output claude",
+    "span": "toolout",
+    "n": 80,
+    "p50_ms": 34.0,
+    "max_ms": 150
+  },
+  {
+    "command": "hook tool-output codex",
+    "span": "db.open",
+    "n": 40,
+    "p50_ms": 6.0,
+    "max_ms": 11
+  },
+  {
+    "command": "hook tool-output codex",
+    "span": "toolout",
+    "n": 40,
+    "p50_ms": 1.0,
+    "max_ms": 2
+  },
+  {
+    "command": "hook tool-output opencode",
+    "span": "db.open",
+    "n": 20,
+    "p50_ms": 6.0,
+    "max_ms": 7
+  },
+  {
+    "command": "hook tool-output opencode",
+    "span": "toolout",
+    "n": 20,
+    "p50_ms": 36.5,
+    "max_ms": 89
+  }
+]

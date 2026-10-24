@@ -191,7 +191,7 @@ func OpenInstinctGlobal(dataHome string) (*InstinctGlobalStore, error) {
 	if err := os.Chmod(path, 0600); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(100)&_pragma=journal_mode(WAL)&_txlock=immediate")
+	db, err := sql.Open("sqlite", sqliteDSN(path, 100))
 	if err != nil {
 		return nil, err
 	}

@@ -313,7 +313,7 @@ func doMigrateLegacy(root, key string) error {
 		return fmt.Errorf("endurecer permisos de mem.db migrado: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", globalPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", sqliteDSN(globalPath, 5000))
 	if err != nil {
 		return fmt.Errorf("abrir mem.db migrado: %w", err)
 	}

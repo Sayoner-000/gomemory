@@ -140,3 +140,9 @@ specs/041-migracion-transaccional/evidence/
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | Migración al abrir, sin runner (golang-migrate) (§6), registrada en §25.1 y en el ADR 0001 | Excepción preexistente de spec 009: CLI local sin despliegue, con miles de bases por usuario creadas por versiones distintas. | Un runner versionado exigiría un paso de despliegue que no existe. Esta feature no amplía la excepción: la hace atómica y versionada. |
+
+## Ajuste de orden por evidencia de la puerta (2026-10-23)
+
+El run 40043862213 compara el control FULL con `synchronous=NORMAL` de R9, manteniendo 20 repeticiones conjuntas y los plazos. FULL pierde una repetición de cada prueba US1 y llega a 3.574 ms en una base nueva. NORMAL pasa las cuatro pruebas 20/20, con nuevas máximo 271 ms y fold máximo 437 ms. Es evidencia suficiente para continuar el cierre de T040 mediante la configuración R9 ya diseñada; no se elimina el control fallido ni se amplía la aceptación.
+
+Se prepararon las pruebas T020–T025 durante CI y se traslada ahora R9 a la feature (T026), seguido del índice y cierre previstos (T027/T028). La validación final en Windows con toda la configuración y el índice sigue siendo obligatoria (T034/T038). El interruptor `GOMEMORY_DIAG_NORMAL` y la instrumentación pertenecen solo a diag y no se integran.

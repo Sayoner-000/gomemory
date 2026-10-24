@@ -7,6 +7,11 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Prepara la base de memoria en una sola transacción y registra su versión: un fallo revierte la preparación y una base al día omite el DDL sin esperar a otro escritor.
+- Unifica la configuración de las conexiones SQLite con WAL y `synchronous=NORMAL`, caché bajo demanda, temporales en memoria, lectura mapeada y límite del WAL retenido. Añade el índice de sesiones y actualiza las estadísticas al cerrar fuera de los hooks. Ante un corte de energía, NORMAL puede perder la última escritura confirmada; una caída del proceso la conserva.
+
 ## [v2.36.4] - 2026-10-23
 
 ### Documentación

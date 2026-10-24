@@ -1,0 +1,577 @@
+{
+  "tests": {
+    "TestHookExpandInstinctsTwoProjects": {
+      "PASS": 20
+    },
+    "TestHookExpand_SuggestionOncePerEpisodeAndRecorded": {
+      "PASS": 20
+    },
+    "TestSessionStart_ConsultaEnSegundoPlano": {
+      "PASS": 20
+    },
+    "TestHookToolOutput": {
+      "PASS": 19,
+      "FAIL": 1
+    }
+  },
+  "spans": [
+    {
+      "command": "-test.paniconexit0 -test.timeout=10m0s -test.run=^(TestHookExpandInstinctsTwoProjects|TestHookToolOutput|TestSessionStart_ConsultaEnSegundoPlano|TestHookExpand_SuggestionOncePerEpisodeAndRecorded)$",
+      "span": "dbfile",
+      "n": 20,
+      "p50_ms": 3.0,
+      "max_ms": 6
+    },
+    {
+      "command": "-test.paniconexit0 -test.timeout=10m0s -test.run=^(TestHookExpandInstinctsTwoProjects|TestHookToolOutput|TestSessionStart_ConsultaEnSegundoPlano|TestHookExpand_SuggestionOncePerEpisodeAndRecorded)$",
+      "span": "dbfile.chmod",
+      "n": 20,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "-test.paniconexit0 -test.timeout=10m0s -test.run=^(TestHookExpandInstinctsTwoProjects|TestHookToolOutput|TestSessionStart_ConsultaEnSegundoPlano|TestHookExpand_SuggestionOncePerEpisodeAndRecorded)$",
+      "span": "dbfile.create",
+      "n": 20,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "-test.paniconexit0 -test.timeout=10m0s -test.run=^(TestHookExpandInstinctsTwoProjects|TestHookToolOutput|TestSessionStart_ConsultaEnSegundoPlano|TestHookExpand_SuggestionOncePerEpisodeAndRecorded)$",
+      "span": "migration.connect",
+      "n": 20,
+      "p50_ms": 2.0,
+      "max_ms": 6
+    },
+    {
+      "command": "context",
+      "span": "close",
+      "n": 20,
+      "p50_ms": 29.0,
+      "max_ms": 74
+    },
+    {
+      "command": "context",
+      "span": "db.open",
+      "n": 20,
+      "p50_ms": 5.5,
+      "max_ms": 7
+    },
+    {
+      "command": "context",
+      "span": "dbfile",
+      "n": 20,
+      "p50_ms": 4.0,
+      "max_ms": 6
+    },
+    {
+      "command": "context",
+      "span": "dbfile.chmod",
+      "n": 20,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "context",
+      "span": "dbfile.create",
+      "n": 20,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "context",
+      "span": "migration.connect",
+      "n": 20,
+      "p50_ms": 3.0,
+      "max_ms": 5
+    },
+    {
+      "command": "expand instincts list",
+      "span": "db.open",
+      "n": 40,
+      "p50_ms": 6.0,
+      "max_ms": 10
+    },
+    {
+      "command": "expand instincts list",
+      "span": "dbfile",
+      "n": 40,
+      "p50_ms": 4.0,
+      "max_ms": 8
+    },
+    {
+      "command": "expand instincts list",
+      "span": "dbfile.chmod",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "expand instincts list",
+      "span": "dbfile.create",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "expand instincts list",
+      "span": "migration.connect",
+      "n": 40,
+      "p50_ms": 3.0,
+      "max_ms": 7
+    },
+    {
+      "command": "hook expand post-tool",
+      "span": "expand.flush",
+      "n": 640,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "db.open",
+      "n": 40,
+      "p50_ms": 30.5,
+      "max_ms": 202
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "dbfile",
+      "n": 40,
+      "p50_ms": 29.0,
+      "max_ms": 187
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "dbfile.chmod",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "dbfile.create",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "expand.flush",
+      "n": 60,
+      "p50_ms": 40.5,
+      "max_ms": 241
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "migration.commit",
+      "n": 20,
+      "p50_ms": 20.0,
+      "max_ms": 58
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "migration.connect",
+      "n": 40,
+      "p50_ms": 12.0,
+      "max_ms": 152
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "migration.lock",
+      "n": 20,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook expand pre-tool",
+      "span": "migration.schema",
+      "n": 20,
+      "p50_ms": 14.0,
+      "max_ms": 26
+    },
+    {
+      "command": "hook expand stop",
+      "span": "db.open",
+      "n": 40,
+      "p50_ms": 62.5,
+      "max_ms": 208
+    },
+    {
+      "command": "hook expand stop",
+      "span": "dbfile",
+      "n": 40,
+      "p50_ms": 60.0,
+      "max_ms": 206
+    },
+    {
+      "command": "hook expand stop",
+      "span": "dbfile.chmod",
+      "n": 40,
+      "p50_ms": 1.0,
+      "max_ms": 2
+    },
+    {
+      "command": "hook expand stop",
+      "span": "dbfile.create",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 2
+    },
+    {
+      "command": "hook expand stop",
+      "span": "expand.flush",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook expand stop",
+      "span": "fold",
+      "n": 40,
+      "p50_ms": 134.5,
+      "max_ms": 282
+    },
+    {
+      "command": "hook expand stop",
+      "span": "migration.commit",
+      "n": 40,
+      "p50_ms": 22.0,
+      "max_ms": 157
+    },
+    {
+      "command": "hook expand stop",
+      "span": "migration.connect",
+      "n": 40,
+      "p50_ms": 21.0,
+      "max_ms": 137
+    },
+    {
+      "command": "hook expand stop",
+      "span": "migration.lock",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook expand stop",
+      "span": "migration.schema",
+      "n": 40,
+      "p50_ms": 14.0,
+      "max_ms": 21
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "db.open",
+      "n": 120,
+      "p50_ms": 7.0,
+      "max_ms": 1437
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "dbfile",
+      "n": 120,
+      "p50_ms": 5.0,
+      "max_ms": 1435
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "dbfile.chmod",
+      "n": 120,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "dbfile.create",
+      "n": 120,
+      "p50_ms": 0.0,
+      "max_ms": 2
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "migration.commit",
+      "n": 40,
+      "p50_ms": 24.0,
+      "max_ms": 664
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "migration.connect",
+      "n": 120,
+      "p50_ms": 4.0,
+      "max_ms": 1035
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "migration.lock",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 2
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "migration.schema",
+      "n": 40,
+      "p50_ms": 14.5,
+      "max_ms": 25
+    },
+    {
+      "command": "hook tool-output claude",
+      "span": "toolout",
+      "n": 80,
+      "p50_ms": 33.0,
+      "max_ms": 151
+    },
+    {
+      "command": "hook tool-output codex",
+      "span": "db.open",
+      "n": 40,
+      "p50_ms": 6.0,
+      "max_ms": 10
+    },
+    {
+      "command": "hook tool-output codex",
+      "span": "dbfile",
+      "n": 40,
+      "p50_ms": 4.0,
+      "max_ms": 8
+    },
+    {
+      "command": "hook tool-output codex",
+      "span": "dbfile.chmod",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook tool-output codex",
+      "span": "dbfile.create",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook tool-output codex",
+      "span": "migration.connect",
+      "n": 40,
+      "p50_ms": 3.0,
+      "max_ms": 8
+    },
+    {
+      "command": "hook tool-output codex",
+      "span": "toolout",
+      "n": 40,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook tool-output opencode",
+      "span": "db.open",
+      "n": 20,
+      "p50_ms": 6.0,
+      "max_ms": 10
+    },
+    {
+      "command": "hook tool-output opencode",
+      "span": "dbfile",
+      "n": 20,
+      "p50_ms": 5.0,
+      "max_ms": 8
+    },
+    {
+      "command": "hook tool-output opencode",
+      "span": "dbfile.chmod",
+      "n": 20,
+      "p50_ms": 0.5,
+      "max_ms": 1
+    },
+    {
+      "command": "hook tool-output opencode",
+      "span": "dbfile.create",
+      "n": 20,
+      "p50_ms": 0.0,
+      "max_ms": 1
+    },
+    {
+      "command": "hook tool-output opencode",
+      "span": "migration.connect",
+      "n": 20,
+      "p50_ms": 3.0,
+      "max_ms": 6
+    },
+    {
+      "command": "hook tool-output opencode",
+      "span": "toolout",
+      "n": 20,
+      "p50_ms": 39.5,
+      "max_ms": 80
+    }
+  ],
+  "database_opens": {
+    "existing_file": {
+      "n": 240,
+      "p50_ms": 4.0,
+      "max_ms": 8
+    },
+    "new_file": {
+      "n": 100,
+      "p50_ms": 62.0,
+      "max_ms": 1435
+    }
+  },
+  "slowest_opens": [
+    {
+      "pid": "3608",
+      "command": "hook tool-output claude",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 1,
+        "migration.connect": 1035,
+        "migration.lock": 0,
+        "migration.schema": 16,
+        "migration.commit": 383,
+        "dbfile.chmod": 0,
+        "dbfile": 1435
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "3568",
+      "command": "hook tool-output claude",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 1,
+        "migration.connect": 164,
+        "migration.lock": 1,
+        "migration.schema": 20,
+        "migration.commit": 664,
+        "dbfile.chmod": 0,
+        "dbfile": 850
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "3608",
+      "command": "hook tool-output claude",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 1,
+        "migration.connect": 91,
+        "migration.lock": 0,
+        "migration.schema": 13,
+        "migration.commit": 132,
+        "dbfile.chmod": 0,
+        "dbfile": 237
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "1444",
+      "command": "hook expand stop",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 0,
+        "migration.connect": 137,
+        "migration.lock": 0,
+        "migration.schema": 14,
+        "migration.commit": 52,
+        "dbfile.chmod": 0,
+        "dbfile": 206
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "3676",
+      "command": "hook tool-output claude",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 1,
+        "migration.connect": 48,
+        "migration.lock": 1,
+        "migration.schema": 15,
+        "migration.commit": 132,
+        "dbfile.chmod": 1,
+        "dbfile": 198
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "3028",
+      "command": "hook expand stop",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 0,
+        "migration.connect": 17,
+        "migration.lock": 0,
+        "migration.schema": 19,
+        "migration.commit": 157,
+        "dbfile.chmod": 1,
+        "dbfile": 195
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "3736",
+      "command": "hook expand pre-tool",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 0,
+        "migration.connect": 152,
+        "migration.lock": 0,
+        "migration.schema": 14,
+        "migration.commit": 20,
+        "dbfile.chmod": 0,
+        "dbfile": 187
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "1672",
+      "command": "hook expand stop",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 0,
+        "migration.connect": 106,
+        "migration.lock": 0,
+        "migration.schema": 13,
+        "migration.commit": 52,
+        "dbfile.chmod": 1,
+        "dbfile": 175
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "6224",
+      "command": "hook expand stop",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 1,
+        "migration.connect": 47,
+        "migration.lock": 0,
+        "migration.schema": 16,
+        "migration.commit": 84,
+        "dbfile.chmod": 1,
+        "dbfile": 149
+      },
+      "version_before": 0
+    },
+    {
+      "pid": "4012",
+      "command": "hook expand pre-tool",
+      "created": true,
+      "phases_ms": {
+        "dbfile.create": 0,
+        "migration.connect": 70,
+        "migration.lock": 0,
+        "migration.schema": 14,
+        "migration.commit": 58,
+        "dbfile.chmod": 0,
+        "dbfile": 143
+      },
+      "version_before": 0
+    }
+  ],
+  "incomplete_opens": 0,
+  "unmatched_begin_marks": 1496
+}

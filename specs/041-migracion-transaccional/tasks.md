@@ -111,9 +111,9 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 **Nota**: US1 no tiene código propio, lo entrega la fase Foundational. Esta fase lo demuestra en el entorno donde fallaba (regla de trabajo 2).
 
 - [X] T011 [US1] Proponer a la persona el commit de las fases 1 y 2 en `041-migracion-transaccional`. Lista de archivos: `db.go`, las pruebas nuevas, `testdata/schema.golden`, `specs/041-migracion-transaccional/` y `docs/adr/0001-migracion-al-abrir-la-base.md`. Mensaje: `perf(persistence): prepare the memory database in a single versioned transaction`. Hacer commit solo tras su aprobación (dep: T010).
-- [ ] T012 [US1] Crear la rama `diag/windows-timing-041` a partir de `041-migracion-transaccional` y aplicar `git cherry-pick 3e81733`. En `infrastructure/container.go`, resolver los conflictos conservando las marcas `db.open.*`. Añadir una marca `close` alrededor del cuerpo de `Container.Close` (dep: T011).
-- [ ] T013 [US1] En `.github/workflows/diag-windows-timing.yml` de esa rama, cambiar `on.push.branches` a `["diag/windows-timing-041"]` y `-count=5` por `-count=20`. Añadir `TestMigrate_UpToDateDBDoesNotWaitForOpenWriter` al patrón `-run` cuando exista (T017), con una marca `contention.open` en esa prueba solo en esta rama. Proponer el push a la persona con la URL remota (`https://github.com/Sayoner-000/gomemory.git`). Tras su aprobación, hacer push y esperar el run con `gh run watch` (dep: T012).
-- [ ] T014 [US1] Agregar el registro del run con el script de la línea base (spans `db.open`, `fold`, `flush`, `toolout` y `close` por comando). Completar la columna «Después (transacción)» de `evidence/windows-timing.md` con los recuentos PASS/FAIL por test (SC-001), el `db.open` máximo en una base nueva (SC-002, < 400 ms) y el `fold` máximo (SC-003, < 500 ms) (dep: T013).
+- [X] T012 [US1] Crear la rama `diag/windows-timing-041` a partir de `041-migracion-transaccional` y aplicar `git cherry-pick 3e81733`. En `infrastructure/container.go`, resolver los conflictos conservando las marcas `db.open.*`. Añadir una marca `close` alrededor del cuerpo de `Container.Close` (dep: T011).
+- [X] T013 [US1] En `.github/workflows/diag-windows-timing.yml` de esa rama, cambiar `on.push.branches` a `["diag/windows-timing-041"]` y `-count=5` por `-count=20`. Añadir `TestMigrate_UpToDateDBDoesNotWaitForOpenWriter` al patrón `-run` cuando exista (T017), con una marca `contention.open` en esa prueba solo en esta rama. Proponer el push a la persona con la URL remota (`https://github.com/Sayoner-000/gomemory.git`). Tras su aprobación, hacer push y esperar el run con `gh run watch` (dep: T012).
+- [X] T014 [US1] Agregar el registro del run con el script de la línea base (spans `db.open`, `fold`, `flush`, `toolout` y `close` por comando). Completar la columna «Después (transacción)» de `evidence/windows-timing.md` con los recuentos PASS/FAIL por test (SC-001), el `db.open` máximo en una base nueva (SC-002, < 400 ms) y el `fold` máximo (SC-003, < 500 ms) (dep: T013).
 
 **Checkpoint**: si SC-001, SC-002 o SC-003 no se cumplen, se detiene la feature y se vuelve a research con los datos. No se suben plazos (FR-010).
 
@@ -125,9 +125,9 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 
 **Independent Test**: `go test ./adapters/secondary/persistence/ -run 'ThreeOpens|ConcurrentPools|FailureMidway|OpenWriter|NotDowngraded' -count=3`.
 
-- [ ] T015 [P] [US2] Escribir `TestMigrate_ThreeOpensSameCatalog` en `adapters/secondary/persistence/db_schema_golden_test.go`: abrir la misma base 3 veces con `openDBFile`, cerrando entre una y otra, y comprobar que `schemaCatalog` da el mismo texto en las 3 (SC-009) (dep: T007, mismo archivo).
-- [ ] T016 [P] [US2] Escribir `TestMigrate_ConcurrentPoolsNewDBWithWrites` en `adapters/secondary/persistence/db_migrate_concurrency_test.go` (T1: son pools `*sql.DB` independientes, que reproducen el bloqueo entre procesos; el caso de procesos reales lo cubre la prueba existente). 8 goroutines abren a la vez, cada una con su propio `openDBFile`, la misma ruta nueva, y cada una inserta una memoria con `InsertMemory`. Ninguna falla, hay 8 filas y `user_version = schemaVersion` (FR-007).
-- [ ] T017 [P] [US2] Escribir `TestMigrate_UpToDateDBDoesNotWaitForOpenWriter` en `adapters/secondary/persistence/db_migrate_contention_test.go` (U1 y D1, FR-018). Sin comparar tiempos de reloj (§10):
+- [X] T015 [P] [US2] Escribir `TestMigrate_ThreeOpensSameCatalog` en `adapters/secondary/persistence/db_schema_golden_test.go`: abrir la misma base 3 veces con `openDBFile`, cerrando entre una y otra, y comprobar que `schemaCatalog` da el mismo texto en las 3 (SC-009) (dep: T007, mismo archivo).
+- [X] T016 [P] [US2] Escribir `TestMigrate_ConcurrentPoolsNewDBWithWrites` en `adapters/secondary/persistence/db_migrate_concurrency_test.go` (T1: son pools `*sql.DB` independientes, que reproducen el bloqueo entre procesos; el caso de procesos reales lo cubre la prueba existente). 8 goroutines abren a la vez, cada una con su propio `openDBFile`, la misma ruta nueva, y cada una inserta una memoria con `InsertMemory`. Ninguna falla, hay 8 filas y `user_version = schemaVersion` (FR-007).
+- [X] T017 [P] [US2] Escribir `TestMigrate_UpToDateDBDoesNotWaitForOpenWriter` en `adapters/secondary/persistence/db_migrate_contention_test.go` (U1 y D1, FR-018). Sin comparar tiempos de reloj (§10):
   1. Preparar una base con `openDBFile` y cerrarla.
   2. Abrir una conexión `w` con el mismo DSN que `openDBFile`; tras T026, `sqliteDSN(path, 5000)` (I2). Hacer `tx, _ := w.BeginTx` y un `INSERT` en `memories` sin confirmar.
   3. En una goroutine, `openDBFile(path)` y enviar el resultado a `done`.
@@ -135,8 +135,8 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
   5. `tx.Rollback()` siempre al final.
 
   Verificar que es rojo con un `BEGIN IMMEDIATE` incondicional.
-- [ ] T018 [P] [US2] Escribir `TestMigrate_NewerUserVersionIsNotDowngraded` en `adapters/secondary/persistence/db_migrate_contention_test.go` (I1): preparar una base, fijar `PRAGMA user_version = schemaVersion + 5`, cerrar, abrir con `openDBFile` y comprobar que `user_version` sigue en `schemaVersion + 5` (dep: T017, mismo archivo).
-- [ ] T019 [US2] Ejecutar el Independent Test de US2 con `-count=3`: verde las 3 veces (dep: T015, T016, T017, T018).
+- [X] T018 [P] [US2] Escribir `TestMigrate_NewerUserVersionIsNotDowngraded` en `adapters/secondary/persistence/db_migrate_contention_test.go` (I1): preparar una base, fijar `PRAGMA user_version = schemaVersion + 5`, cerrar, abrir con `openDBFile` y comprobar que `user_version` sigue en `schemaVersion + 5` (dep: T017, mismo archivo).
+- [X] T019 [US2] Ejecutar el Independent Test de US2 con `-count=3`: verde las 3 veces (dep: T015, T016, T017, T018).
 
 **Checkpoint**: US2 verificada de forma independiente y sin depender del reloj.
 
@@ -148,13 +148,13 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 
 **Independent Test**: `go test ./adapters/secondary/persistence/ -run 'SchemaGolden|LegacyDB|Aditiv|Migracion028|Compression_BaseVacia' -count=1`.
 
-- [ ] T020 [P] [US3] Escribir `TestMigrate_LegacyDBKeepsData` en `adapters/secondary/persistence/db_migrate_legacy_test.go`:
+- [X] T020 [P] [US3] Escribir `TestMigrate_LegacyDBKeepsData` en `adapters/secondary/persistence/db_migrate_legacy_test.go`:
   1. Crear una base con las columnas originales, tomadas del `CREATE TABLE` real sin las columnas añadidas después: `CREATE TABLE memories(id INTEGER PRIMARY KEY AUTOINCREMENT, project TEXT NOT NULL, session_id TEXT, type TEXT NOT NULL DEFAULT 'learning', title TEXT NOT NULL DEFAULT '', content TEXT NOT NULL, filepath TEXT, created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')` y `CREATE TABLE sessions(id TEXT PRIMARY KEY, project TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '', ended_at TEXT)`.
   2. Insertar 1 memoria y 1 sesión.
   3. Abrir con `openDBFile` y comprobar que las 2 filas siguen iguales, que existen `memories.topic_key` y `sessions.last_prompt` y que `user_version = schemaVersion` (FR-004, SC-005).
 
   Verde antes y después, salvo la aserción de `user_version`, que entra con T009.
-- [ ] T021 [US3] Ejecutar el Independent Test de US3: todo en verde (dep: T020).
+- [X] T021 [US3] Ejecutar el Independent Test de US3: todo en verde (dep: T020).
 
 **Checkpoint**: compatibilidad garantizada.
 
@@ -168,18 +168,18 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 
 ### Tests (rojo primero)
 
-- [ ] T022 [P] [US4] Escribir `TestOpenDBFile_PragmasOnEveryConnection` en `adapters/secondary/persistence/db_pragmas_test.go`:
+- [X] T022 [P] [US4] Escribir `TestOpenDBFile_PragmasOnEveryConnection` en `adapters/secondary/persistence/db_pragmas_test.go`:
   1. Abrir con `openDBFile` y tomar 3 conexiones a la vez con `db.Conn(ctx)`, sin soltarlas, para forzar conexiones nuevas del pool.
   2. En cada una, comprobar `busy_timeout`=5000, `journal_mode`=wal, `synchronous`=1, `cache_size`=-16000, `temp_store`=2, `mmap_size`=268435456, `journal_size_limit`=67108864 y `foreign_keys`=0 (FR-011, FR-014, SC-007).
   3. Para `OpenInstinctGlobal(t.TempDir())`, que tiene `SetMaxOpenConns(1)`, comprobar los mismos pragmas en UNA sola conexión, con `busy_timeout`=100 (FR-012).
 
   Rojo hasta T026.
-- [ ] T023 [P] [US4] Escribir `TestSQLiteOpen_OnlyThroughSqliteDSN` en `adapters/secondary/persistence/sqlite_open_guard_test.go` (R14):
+- [X] T023 [P] [US4] Escribir `TestSQLiteOpen_OnlyThroughSqliteDSN` en `adapters/secondary/persistence/sqlite_open_guard_test.go` (R14):
   1. Recorrer con `go/parser` los `.go` del paquete que no terminan en `_test.go`.
   2. Para cada `sql.Open` con primer argumento `"sqlite"`, exigir que el segundo sea una llamada a `sqliteDSN`.
 
   Rojo hasta T026 (hoy hay tres aperturas con DSN literal).
-- [ ] T024 [P] [US4] Escribir `TestQueryPlans_HotQueriesNeverScan` en `adapters/secondary/persistence/db_query_plans_test.go`. Sobre una base nueva con `openDBFile`, ejecutar `EXPLAIN QUERY PLAN` de cada consulta de la lista vigilada y fallar si alguna fila de `detail` empieza por `SCAN ` seguido de una tabla que no sea virtual FTS5 (`code_search`, `memory_search`). Cada entrada lleva un comentario `// archivo:línea` (FR-016). La lista:
+- [X] T024 [P] [US4] Escribir `TestQueryPlans_HotQueriesNeverScan` en `adapters/secondary/persistence/db_query_plans_test.go`. Sobre una base nueva con `openDBFile`, ejecutar `EXPLAIN QUERY PLAN` de cada consulta de la lista vigilada y fallar si alguna fila de `detail` empieza por `SCAN ` seguido de una tabla que no sea virtual FTS5 (`code_search`, `memory_search`). Cada entrada lleva un comentario `// archivo:línea` (FR-016). La lista:
   - `SELECT COUNT(*) FROM sessions WHERE project = ? AND created_at >= ?` (channel_activity.go:102)
   - `SELECT id, project, COALESCE(summary,''), created_at, ended_at FROM sessions WHERE project = ? AND ended_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1` (session.go:102)
   - `SELECT id, project, COALESCE(summary,''), created_at, COALESCE(ended_at,'') FROM sessions WHERE project = ? ORDER BY created_at DESC, rowid DESC LIMIT ?` (session.go:126)
@@ -201,7 +201,7 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
   - `SELECT slug FROM instinct_stats WHERE project = ? AND status != 'rejected' ORDER BY confidence DESC, slug`
 
   En las cuatro últimas sin `archivo:línea` (findings, fix_rounds, reviewer_results e instinct_stats), localizar la línea real con `grep` y anotarla. Rojo hasta T027, por las cuatro consultas de `sessions`.
-- [ ] T025 [P] [US4] Escribir `TestContainerClose_HookChannelSkipsOptimize` en `infrastructure/container_close_test.go` (G1):
+- [X] T025 [P] [US4] Escribir `TestContainerClose_HookChannelSkipsOptimize` en `infrastructure/container_close_test.go` (G1):
   1. Con `GOMEMORY_DATA_HOME` aislado, `NewContainer(root, "hook")`, insertar 3 memorias y llamar a `Close()`.
   2. Reabrir la base con `sql.Open` y comprobar que NO existe `sqlite_stat1`. Una base nueva no lo tiene hasta que corre `ANALYZE` u `optimize`, así que su ausencia demuestra que el cierre con el canal `hook` no ejecutó `optimize`.
 
@@ -209,14 +209,14 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 
 ### Implementation
 
-- [ ] T026 [US4] Crear `adapters/secondary/persistence/sqlite_dsn.go` con `func sqliteDSN(path string, busyMs int) string`. Devuelve `path + "?_pragma=busy_timeout(<busyMs>)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-16000)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)&_pragma=journal_size_limit(67108864)&_txlock=immediate"`, con `busy_timeout` siempre primero (R9). El comentario de cabecera explica el motivo de cada pragma en una línea y la contrapartida de `synchronous=NORMAL`. Usarlo en las tres aperturas:
+- [X] T026 [US4] Crear `adapters/secondary/persistence/sqlite_dsn.go` con `func sqliteDSN(path string, busyMs int) string`. Devuelve `path + "?_pragma=busy_timeout(<busyMs>)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-16000)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)&_pragma=journal_size_limit(67108864)&_txlock=immediate"`, con `busy_timeout` siempre primero (R9). El comentario de cabecera explica el motivo de cada pragma en una línea y la contrapartida de `synchronous=NORMAL`. Usarlo en las tres aperturas:
   - `openDBFile` en `db.go` (5000; conservar el comentario sobre el orden y `_txlock`);
   - `MigrateLegacy` en `globalstore.go:316` (5000; cambio intencionado del orden de pragmas y de `_txlock`, R14/I4);
   - `OpenInstinctGlobal` en `instincts.go:194` (100).
 
   T022 y T023 deben pasar a verde.
-- [ ] T027 [US4] En `migrateSchema` (`adapters/secondary/persistence/db.go`), junto a los demás `CREATE INDEX` de sesiones y memorias, añadir `CREATE INDEX IF NOT EXISTS idx_sessions_project_created ON sessions(project, created_at);` con un comentario que cite el `SCAN sessions` de R10. El índice NO es único (FR-017). Subir `schemaVersion` a 2 y regenerar `testdata/schema.golden` con `-update-schema-golden`. Comprobar con `git diff` que el diff del golden es solo la línea del índice y `user_version=2`, y añadirlo a `evidence/schema-diff.txt` (FR-008, FR-019). T024 debe pasar a verde (dep: T009).
-- [ ] T028 [US4] En `infrastructure/container.go` (G1):
+- [X] T027 [US4] En `migrateSchema` (`adapters/secondary/persistence/db.go`), junto a los demás `CREATE INDEX` de sesiones y memorias, añadir `CREATE INDEX IF NOT EXISTS idx_sessions_project_created ON sessions(project, created_at);` con un comentario que cite el `SCAN sessions` de R10. El índice NO es único (FR-017). Subir `schemaVersion` a 2 y regenerar `testdata/schema.golden` con `-update-schema-golden`. Comprobar con `git diff` que el diff del golden es solo la línea del índice y `user_version=2`, y añadirlo a `evidence/schema-diff.txt` (FR-008, FR-019). T024 debe pasar a verde (dep: T009).
+- [X] T028 [US4] En `infrastructure/container.go` (G1):
   - Añadir el campo `channel string` a `Container` y asignarlo en `NewContainer(root, channel)`.
   - En `Close`, antes de `c.db.Close()`, `if c.channel != "hook" { _, _ = c.db.Exec("PRAGMA analysis_limit=400; PRAGMA optimize;") }`, con un comentario de una línea: los hooks llegan a `Close` por el `defer closeContainer` de `main` y tienen un plazo de 2 s (R11).
 
@@ -224,13 +224,13 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 
 ### Tests (tras implementar)
 
-- [ ] T029 [P] [US4] Escribir `TestMigrate_LegacyDBGainsSessionsIndex` en `adapters/secondary/persistence/db_migrate_legacy_test.go`: misma base anterior de T020; tras `openDBFile`, existe `idx_sessions_project_created` y `user_version = schemaVersion` (FR-004) (dep: T027, T020).
-- [ ] T030 [P] [US4] Escribir `TestContainerClose_NoErrorAndValidStatement` en `infrastructure/container_close_test.go`:
+- [X] T029 [P] [US4] Escribir `TestMigrate_LegacyDBGainsSessionsIndex` en `adapters/secondary/persistence/db_migrate_legacy_test.go`: misma base anterior de T020; tras `openDBFile`, existe `idx_sessions_project_created` y `user_version = schemaVersion` (FR-004) (dep: T027, T020).
+- [X] T030 [P] [US4] Escribir `TestContainerClose_NoErrorAndValidStatement` en `infrastructure/container_close_test.go`:
   1. `NewContainer(root, "cli")` con `GOMEMORY_DATA_HOME` aislado, 3 memorias y `Close()` devuelve nil.
   2. Abrir otra base con `persistence.Open` y comprobar que `db.Exec("PRAGMA analysis_limit=400; PRAGMA optimize;")` devuelve nil.
 
   No se comprueba `sqlite_stat1` con el canal `cli`, porque `optimize` decide con heurísticas (R11) (dep: T028, T025, mismo archivo).
-- [ ] T031 [P] [US4] Escribir `TestDurability_CommitSurvivesAbruptExit` en `adapters/secondary/persistence/db_durability_test.go` (US4-AC4):
+- [X] T031 [P] [US4] Escribir `TestDurability_CommitSurvivesAbruptExit` en `adapters/secondary/persistence/db_durability_test.go` (US4-AC4):
   1. El test se relanza a sí mismo con `exec.Command(os.Args[0], "-test.run=^TestDurability_CommitSurvivesAbruptExit$")` y `GOMEMORY_DURABILITY_CHILD=<path>`.
   2. En el hijo: `openDBFile`, `InsertMemory` y `os.Exit(0)` sin `Close`.
   3. El padre espera al hijo, reabre con `openDBFile` y comprueba que la memoria está y que `PRAGMA integrity_check` devuelve `ok` (dep: T026).
@@ -241,7 +241,7 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T032 Ejecutar `gofmt -l .`, `go vet ./...`, `GOOS=windows go vet ./...` y `go test ./... -count=1`: todo en verde (SC-006).
+- [X] T032 Ejecutar `gofmt -l .`, `go vet ./...`, `GOOS=windows go vet ./...` y `go test ./... -count=1`: todo en verde (SC-006).
 - [ ] T033 Proponer a la persona el commit de US2 a US4 (archivos y mensaje `perf(persistence): tune SQLite pragmas, index sessions and refresh stats on close`). Hacer commit solo tras su aprobación. Después, en `diag/windows-timing-041`, rebasar sobre `041-migracion-transaccional`. Habrá un conflicto esperado en `Container.Close` entre la marca `close` (T012) y el `optimize` (T028) (F2): conservar las dos. Proponer el push (dep: T032).
 - [ ] T034 Tras el run, completar la columna «Después (con R9 e índice)» de `evidence/windows-timing.md` con estos objetivos:
   - `db.open` en una base nueva (SC-002, < 400 ms);
@@ -250,7 +250,7 @@ Monolito Go hexagonal en la raíz. El código de producción cambia en `adapters
   - `close` con canal distinto de `hook` (FR-013, ≤ 100 ms máx), y que en los hooks no crece;
   - `fold` máximo (SC-003, < 500 ms);
   - `flush` en pre-tool, como referencia, frente a 42 ms p50 de la línea base (dep: T033).
-- [ ] T035 [P] Añadir a `docs/DATABASE.md` una sección «Configuración y preparación de mem.db» con:
+- [X] T035 [P] Añadir a `docs/DATABASE.md` una sección «Configuración y preparación de mem.db» con:
   - los pragmas de R9 y su motivo;
   - `user_version` con `>=` y la regla de subir `schemaVersion` con cada cambio de esquema;
   - la preparación en una sola transacción;
@@ -347,3 +347,59 @@ T001–T011 completadas y marcadas. Commit de fases 1 y 2 autorizado expresament
 - El primer pase de la batería completa detectó tres fixtures que simulaban bases antiguas borrando tablas sin restablecer la versión. La persona autorizó expresamente corregirlos: `TestMigrateCompression_BaseVaciaYAnterior`, `TestMigracion028EsAditivaSobreEsquemaPrevio` y `TestSocraticaRepository_Complementos/older_database_migrates_additively` ahora ejecutan `PRAGMA user_version=0` tras borrar tablas. Se conservan todas sus aserciones. Esta es la excepción acotada a la regla de no modificar pruebas existentes; no se cambia el contrato FR-018.
 - Validación posterior: `go test ./adapters/secondary/persistence/ -count=1` en verde (14,795 s); `git diff --check` sin errores.
 - T011: commit de fases 1 y 2 autorizado expresamente por la persona con el mensaje acordado. Siguiente tarea: T012, rama de diagnóstico Windows.
+
+### Diagnóstico preparado (T012, 2026-10-23)
+
+- Rama `diag/windows-timing-041` creada desde `1dbb297` en `/private/tmp/gomemory-diag-windows-timing-041`. Instrumentación de `3e81733` aplicada con `git cherry-pick --no-commit` para respetar la aprobación previa de cada commit. No hubo conflictos. Se conservan las marcas `db.open.*` y se añaden `close.begin/end`.
+- Workflow preparado para esa rama y 20 repeticiones. Guarda tanto marcas como resultados completos de pruebas; propaga el código de salida de Go. T017 aún no existe y se incorporará al diagnóstico cuando esté implementada.
+- Verificación: `go build ./...`, `go vet ./...`, formato y diff sin errores; las cuatro pruebas del diagnóstico pasan con `-race -count=1` en macOS (integración 3,521 s; contrato 7,122 s). Esta comprobación no sustituye la medición Windows de T014.
+- La suite completa `go test -race ./...` de `1dbb297` terminó en verde fuera del sandbox; registro `/private/tmp/gomemory-041-commit-race-unrestricted.log`.
+- T013 sigue pendiente: falta aprobación de commit y push a `https://github.com/Sayoner-000/gomemory.git`, ejecutar el workflow y esperar su resultado. Propuesta: `chore(diag): measure transactional database startup on Windows`.
+
+### Primera medición Windows y puerta de aceptación
+
+- Commit y push de diagnóstico autorizados y realizados: `1b44900` en `origin/diag/windows-timing-041`. Run `39954797737` observado hasta finalizar; T013 completada.
+- T014 completada como medición, con **SC-002 FAIL**: apertura nueva de tool-output Claude 964 ms. Ambas pruebas US1 pasan 20/20 y fold máximo 335 ms. Workflow falla por `TestHookToolOutput` (19/20); detalles en evidence y R15. La feature se detiene en la puerta y vuelve a research; completar la tarea de medición no significa aprobar el umbral.
+- Mientras corría CI se completaron T015–T019: tres catálogos idénticos, ocho pools con escrituras, contención y versión futura. Independent Test US2 verde con `-count=3`. T017 probado en rojo mediante mutación temporal que elimina el primer atajo: falla por la aserción de escritor abierto; producción restaurada y prueba verde. Registro rojo `/private/tmp/gomemory-041-contention-red.log`.
+- No se ha creado tag, merge ni release. T020 en adelante pendiente de resolver la puerta de SC-002.
+
+### Trabajo de cierre de la puerta SC-002 (2026-10-23)
+
+- [X] T039 [US1] Ejecutar diagnóstico granular en `diag/windows-timing-041`: creación del archivo, primera conexión y WAL/lectura de versión, espera del bloqueo, DDL, commit y permisos. Mantener la tanda conjunta de 20 repeticiones y añadir 20 de `TestHookToolOutput` aisladas. Registrar el resultado por fase y separar bases nuevas mediante la marca `dbfile.created`. No cambiar plazos ni el SQL.
+- [X] T040 [US1] Con la evidencia de T039, cerrar la causa de SC-002 y repetir los criterios de aceptación antes de continuar T020–T038. Si el cierre requiere adelantar R9, registrar el ajuste de orden en plan/tasks; conservar las comprobaciones rojas de pragmas antes de implementarlo.
+
+T039 preparada en `/private/tmp/gomemory-diag-windows-timing-041`: solo cambian `adapters/secondary/persistence/db.go` (marcas) y `.github/workflows/diag-windows-timing.yml` (segunda tanda y artefactos). Validación local: build/vet/formato/diff PASS; batería persistencia PASS (15,691 s); `TestHookToolOutput` con `-race` PASS (3,598 s), log con todas las parejas connect/lock/schema/commit y dos bases nuevas. Pendiente aprobación del commit `chore(diag): trace SQLite startup phases and isolate tool output` y push de la misma rama.
+
+### Ejecución de T039 autorizada
+
+La persona autorizó el commit y push del diagnóstico granular al responder «continua» a la propuesta concreta. Commit `9e87816` publicado en `diag/windows-timing-041`; run [40043142611](https://github.com/Sayoner-000/gomemory/actions/runs/40043142611) iniciado. T039 permanece pendiente hasta analizar ambas tandas. El script `evidence/aggregate_windows_timing.py` reproduce los recuentos anteriores y agrega las parejas de marcas nuevas por proceso y comando, con clasificación explícita de base nueva y existente. No se ha cerrado SC-002.
+
+El CI completo previo (`39954797729`) pasó Go en Linux y Windows, carreras/cobertura en Linux y plugin/instalador TypeScript. Falló después en PowerShell 5.1: `install.explicit_ok` y `install.latest_resolved_once` (13/15). El runner suprime la excepción, por lo que falta capturarla antes de atribuir la causa. Registrar y cerrar esa evidencia antes de T038.
+
+### T039 completada; T040 en investigación
+
+Diagnóstico granular `9e87816` publicado y run `40043142611` analizado: control conjunto con bases nuevas máximo 1.435 ms; aislado máximo 82 ms. Predominan primera conexión y commit; DDL no supera el presupuesto por sí solo. ToolOutput pasa 19/20 conjunto y 20/20 aislado; US1 20/20 cada prueba. Agregados y script guardados en evidence. T039 [X]; T040 sigue pendiente, SC-002 no se cierra.
+
+Siguiente experimento revisable preparado solo en diag: `GOMEMORY_DIAG_NORMAL=1` añade `synchronous=NORMAL` al DSN de mem.db, sin tocar el control ni los plazos. Workflow añade una tanda conjunta NORMAL de 20 repeticiones y sus artefactos. Pendiente aprobación de commit/push `chore(diag): compare WAL synchronous modes under Windows load`.
+
+### Experimento NORMAL publicado y pruebas previas preparadas
+
+Commit autorizado `40e17c6` publicado en `diag/windows-timing-041`; run `40043862213` compara FULL y NORMAL manteniendo la tanda conjunta de 20 repeticiones. T040 sigue pendiente hasta analizarlo.
+
+Durante CI se prepararon únicamente las pruebas previas T022–T024, sin adelantar configuración ni SQL de producción: T022 detecta los pragmas actuales que faltan en tres conexiones del pool y en instincts global; T023 detecta las tres aperturas SQLite fuera del constructor común; T024 falla únicamente por los cuatro `SCAN sessions`. Registros rojos `/private/tmp/gomemory-041-r9-red.log` y `/private/tmp/gomemory-041-plans-red.log`. Se marcan las tareas de escritura y demostración de rojo; la batería completa permanecerá roja hasta T026/T027. La puerta SC-002 sigue abierta.
+
+### Compatibilidad y protección del cierre verificadas durante CI
+
+T020/T021: fixture real con las columnas originales, memoria y sesión conservadas campo a campo; prueba independiente US3 verde. T025: cierre de hook deja ausente `sqlite_stat1`; mutación temporal que ejecuta `optimize` sin discriminar el canal falla con la aserción esperada. Fuente restaurada tras la mutación; evidencia roja `/private/tmp/gomemory-041-hook-optimize-red.log`. Solo se añaden pruebas; no se adelanta código de producción ni se cierra SC-002 por estos resultados.
+
+### Investigación cerrada e implementación de R9 (T040)
+
+Run `40043862213`: control FULL con US1 19/20 cada prueba, base nueva máxima 3.574 ms y fold máximo 2.026 ms; NORMAL conjunto con las cuatro pruebas 20/20, nueva máxima 271 ms y fold máximo 437 ms. Agregados y limitaciones en evidence. Se registra el ajuste de orden en plan: implementar R9 ya previsto y revalidar el conjunto final; no se cambian umbrales ni presupuestos. T040 [X] como cierre mediante R9, sin sustituir T034/T038.
+
+T026–T031 implementadas; prueba independiente US4 en verde. Golden v2 difiere del v1 únicamente en user_version y el índice de sesiones; diff anexado. T035 documentada. CHANGELOG preparado sin cifras finales; T036 sigue pendiente de T034. La configuración experimental y diagtiming permanecen únicamente en diag.
+
+### T032 completada y punto de aprobación T033
+
+Validación final local: `gofmt -l .` sin salida, `go build ./...` PASS, `go vet ./...` PASS, `GOOS=windows go vet ./...` PASS, `go test ./... -count=1` PASS (contrato 86,325 s; integración 35,345 s), `go test -race ./adapters/secondary/persistence ./infrastructure -count=1` PASS (62,514 s y 2,169 s), `git diff --check` limpio. Registros `/private/tmp/gomemory-041-final-tests.log` y `/private/tmp/gomemory-041-final-race.log`.
+
+T033 pendiente de aprobación del commit `perf(persistence): tune SQLite pragmas, index sessions and refresh stats on close` y push de la rama de feature, más rebase/push de diagnóstico para T034. No se integra la rama diag ni se crea release. T034/T036/T037/T038 siguen pendientes de la medición y del CI finales, incluido el fallo previo del instalador PowerShell registrado por separado.
