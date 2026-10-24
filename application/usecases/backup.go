@@ -1,7 +1,9 @@
 package usecases
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -9,6 +11,10 @@ import (
 
 	"mem/application/ports"
 )
+
+// snapshotNow es el reloj de CreateSnapshot; las pruebas lo fijan para
+// reproducir la marca repetida del reloj de Windows.
+var snapshotNow = time.Now
 
 // CreateSnapshot exporta project a un archivo JSON con timestamp bajo backupDir
 // (mismo formato que ExportProject/EncodeBundle ya generan para `mem export`,
@@ -31,12 +37,23 @@ func CreateSnapshot(memRepo ports.MemoryRepository, relRepo ports.RelationReposi
 		return "", fmt.Errorf("create snapshot: crear directorio de backups: %w", err)
 	}
 
-	name := time.Now().UTC().Format("20060102-150405.000000000") + ".json"
-	path := filepath.Join(backupDir, name)
-
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
-	if err != nil {
-		return "", fmt.Errorf("create snapshot: crear archivo: %w", err)
+	// El reloj de Windows puede repetir la marca entre dos snapshots seguidos:
+	// el archivo se crea en exclusiva y el contador evita sobrescribir el
+	// anterior. El contador de dos cifras mantiene el orden lexicográfico.
+	stamp := snapshotNow().UTC().Format("20060102-150405.000000000")
+	var (
+		f    *os.File
+		path string
+	)
+	for n := 0; ; n++ {
+		path = filepath.Join(backupDir, fmt.Sprintf("%s-%02d.json", stamp, n))
+		f, err = os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, fs.ErrExist) || n == 99 {
+			return "", fmt.Errorf("create snapshot: crear archivo: %w", err)
+		}
 	}
 	if err := EncodeBundle(f, bundle); err != nil {
 		if closeErr := f.Close(); closeErr != nil {
@@ -84,7 +101,13 @@ func pruneSnapshots(dir string, keep int) {
 		return
 	}
 
-	sort.Slice(files, func(i, j int) bool { return files[i].modTime.Before(files[j].modTime) })
+	// Con la misma fecha de modificación decide el nombre, que lleva la marca.
+	sort.Slice(files, func(i, j int) bool {
+		if !files[i].modTime.Equal(files[j].modTime) {
+			return files[i].modTime.Before(files[j].modTime)
+		}
+		return files[i].path < files[j].path
+	})
 	for _, f := range files[:len(files)-keep] {
 		_ = os.Remove(f.path)
 	}

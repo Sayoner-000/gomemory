@@ -172,7 +172,13 @@ func TestUpdate_TerminaConResumenDePasos(t *testing.T) {
 		p := s.Project("p1")
 		copia := filepath.Join(p, exeName("mem"))
 		copyExecutable(t, buildLifecycleBinary(t), copia)
-		newReleaseServer(t, "v9.9.9", "").apply(s)
+		// Un binario real: update ejecuta el global nuevo para refrescar la
+		// integración, y en Windows un script no es ejecutable.
+		real, err := os.ReadFile(buildLifecycleBinary(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		newReleaseServerFor(t, "v9.9.9", "", real).apply(s)
 
 		res := s.Run(copia, p, "update", "--version", "v9.9.9")
 		if res.ExitCode != 0 {

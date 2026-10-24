@@ -57,7 +57,10 @@ func retireLocalCopy(root, global string) (localCopy, bool, error) {
 	if ci, err := os.Stat(c.Path); err != nil || os.SameFile(gi, ci) {
 		return localCopy{}, false, nil
 	}
-	if err := os.Remove(c.Path); err != nil {
+	// La copia puede ser el ejecutable en curso (`./mem update`): en Windows no
+	// se borra en uso y removeBinaryFile la aparta.
+	self, _ := os.Executable()
+	if err := removeBinaryFile(c.Path, self); err != nil {
 		return c, false, err
 	}
 	return c, true, nil

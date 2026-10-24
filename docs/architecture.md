@@ -788,18 +788,18 @@ Salida: Markdown con los items del paquete y un bloque de estadísticas (tokens 
 
 Aditivo: no cambia el comportamiento de `get_context`/`search_memories`/`mem context` si no se invoca `mem pack`/`pack_build` explícitamente.
 
-## Instalador universal de consola (`scripts/install.sh`, `scripts/install.ps1`)
+## Instalación del binario (`scripts/install.sh` y releases)
 
-Para que toda la config de agentes pueda referenciar `mem` por nombre (no por ruta absoluta), el binario debe estar en el PATH. Los instaladores de consola lo dejan ahí sin compilar ni clonar, en Linux, macOS y Windows:
+Para que toda la config de agentes pueda referenciar `mem` por nombre (no por ruta absoluta), el binario debe estar en el PATH. Se instala el binario que GoReleaser publica en GitHub Releases (`.github/workflows/release.yml`, al pushear un tag `v*`), sin compilar ni clonar:
 
 ```bash
 # Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
 ```
 
-Descargan el binario del release de GitHub correspondiente al SO/arquitectura y lo instalan (Linux/macOS: `GOMEMORY_VERSION`, `GOMEMORY_BIN_DIR` para fijar versión/destino; `--uninstall`/`-Uninstall` para remover). Los releases los publica GoReleaser vía el workflow `.github/workflows/release.yml` al pushear un tag `v*`.
+`install.sh` descarga el archivo del SO/arquitectura, lo verifica contra `checksums.txt` y lo instala (`GOMEMORY_VERSION` y `GOMEMORY_BIN_DIR` fijan versión y destino; `--uninstall` lo retira). En Windows no hay script: se descarga `mem_windows_amd64.zip`, se verifica su SHA-256 y se deja `mem.exe` en el PATH con los comandos de `INSTALLATION.md`. El job de Windows de `test.yml` ejecuta esa misma descarga contra el último release. Después, `mem update` actualiza el binario en las tres plataformas.
+
+El antiguo `install.ps1` se retiró en v2.37.0. Sin BOM, Windows PowerShell 5.1 no lo parseaba, y su prueba de humo no podía certificar la descarga con red simulada.
 
 ## Flujo de instalación por proyecto (`adapters/primary/cli/cmd_install.go`)
 
@@ -1555,9 +1555,8 @@ gomemory/
 │   ├── MEMORY-PROTOCOL.md
 │   ├── MANUAL.md
 │   └── lessons.md
-├── scripts/                   # Instaladores universales de consola
-│   ├── install.sh             #   Linux / macOS
-│   └── install.ps1            #   Windows (PowerShell)
+├── scripts/                   # Instalador de consola
+│   └── install.sh             #   Linux / macOS (Windows: zip del release)
 ├── specs/                     # Especificaciones de producto y arquitectura
 ├── .github/workflows/         # CI: release.yml (GoReleaser al pushear tag v*)
 ├── go.mod / go.sum

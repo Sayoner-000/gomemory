@@ -6,8 +6,12 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"syscall"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // replaceTimeout acota la espera: más allá, el destino sigue bloqueado por
@@ -34,7 +38,7 @@ func replace(tmp, dst string) error {
 	deadline := time.Now().Add(replaceTimeout)
 	wait := time.Millisecond
 	for {
-		err := os.Rename(tmp, dst)
+		err := renameReplace(tmp, dst)
 		if err == nil || !transient(err) || time.Now().After(deadline) {
 			return err
 		}
@@ -43,6 +47,56 @@ func replace(tmp, dst string) error {
 			wait *= 2
 		}
 	}
+}
+
+// renameReplace sustituye dst con semántica POSIX: reemplaza aunque haya
+// lectores con dst abierto compartiendo el borrado (como ReadFile). os.Rename
+// usa MoveFileEx, que falla mientras dure cualquier lectura, y con lectores
+// constantes el reintento se agotaba sin hueco. Los sistemas de archivos sin
+// esa semántica (FAT, Windows anteriores a 10 1709) vuelven a os.Rename.
+func renameReplace(tmp, dst string) error {
+	if err := posixRename(tmp, dst); err == nil {
+		return nil
+	}
+	return os.Rename(tmp, dst)
+}
+
+func posixRename(tmp, dst string) error {
+	abs, err := filepath.Abs(dst)
+	if err != nil {
+		return err
+	}
+	name, err := windows.UTF16FromString(abs)
+	if err != nil {
+		return err
+	}
+	from, err := windows.UTF16PtrFromString(tmp)
+	if err != nil {
+		return err
+	}
+	h, err := windows.CreateFile(from, windows.DELETE|windows.SYNCHRONIZE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = windows.CloseHandle(h) }()
+
+	// FILE_RENAME_INFO: Flags (unión con ReplaceIfExists), RootDirectory,
+	// FileNameLength en bytes sin el nulo y FileName.
+	type renameInfo struct {
+		Flags          uint32
+		RootDirectory  windows.Handle
+		FileNameLength uint32
+		FileName       [1]uint16
+	}
+	nameBytes := (len(name) - 1) * 2
+	buf := make([]byte, int(unsafe.Offsetof(renameInfo{}.FileName))+len(name)*2)
+	info := (*renameInfo)(unsafe.Pointer(&buf[0]))
+	info.Flags = windows.FILE_RENAME_REPLACE_IF_EXISTS | windows.FILE_RENAME_POSIX_SEMANTICS
+	info.FileNameLength = uint32(nameBytes)
+	copy(unsafe.Slice(&info.FileName[0], len(name)), name)
+	return windows.SetFileInformationByHandle(h, windows.FileRenameInfoEx, &buf[0], uint32(len(buf)))
 }
 
 // readTimeout es menor que replaceTimeout: un lector solo espera a que

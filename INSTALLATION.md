@@ -6,8 +6,9 @@
 
 ## 0. Instalación universal (recomendada)
 
-Un solo comando descarga el binario `mem` y lo deja en el PATH. No requiere Go,
-Git ni compilar. Funciona en Linux, macOS y Windows.
+Se instala el binario `mem` publicado en GitHub Releases y se deja en el PATH.
+No requiere Go, Git ni compilar. En Linux y macOS lo hace un script; en Windows,
+la descarga del zip del release.
 
 ```bash
 # Linux / macOS
@@ -15,17 +16,29 @@ curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/i
 ```
 
 ```powershell
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
+# Windows (PowerShell): binario del release con verificación SHA-256
+$base = "https://github.com/Sayoner-000/gomemory/releases/latest/download"
+$dir  = "$env:LOCALAPPDATA\Programs\gomemory"
+Invoke-WebRequest "$base/mem_windows_amd64.zip" -OutFile "$env:TEMP\mem.zip"
+Invoke-WebRequest "$base/checksums.txt" -OutFile "$env:TEMP\checksums.txt"
+$want = (Select-String "$env:TEMP\checksums.txt" -Pattern ' mem_windows_amd64\.zip$').Line.Split(' ')[0]
+if ((Get-FileHash "$env:TEMP\mem.zip" -Algorithm SHA256).Hash.ToLower() -ne $want) { throw "SHA-256 no coincide" }
+Expand-Archive "$env:TEMP\mem.zip" -DestinationPath $dir -Force
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$dir", "User")
 ```
 
-Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=vX.Y.Z` para fijar versión,
-`GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino. En Windows,
-`GOMEMORY_VERSION` o `-Version vX.Y.Z`.
+Abre una terminal nueva y comprueba con `mem version`. Desde ahí, `mem update`
+actualiza el binario.
 
-**Integridad de la descarga.** Ambos instaladores resuelven una sola vez la
-versión a un release estable `vX.Y.Z`, descargan el archivo y `checksums.txt` de
-ese mismo release y comprueban el SHA-256 **antes** de extraer. Se rechaza un
+Variables opcionales (Linux/macOS): `GOMEMORY_VERSION=vX.Y.Z` para fijar versión,
+`GOMEMORY_BIN_DIR=/usr/local/bin` para elegir el destino. En Windows, para fijar
+versión, cambia `latest/download` por `download/vX.Y.Z` en `$base`.
+
+**Integridad de la descarga.** En Windows, los comandos de arriba comparan el
+SHA-256 del zip con `checksums.txt` antes de extraerlo. El script de Linux/macOS
+resuelve una sola vez la versión a un release estable `vX.Y.Z`, descarga el
+archivo y `checksums.txt` de ese mismo release y comprueba el SHA-256 **antes**
+de extraer. Se rechaza un
 `checksums.txt` ausente, inválido, sin entrada exacta para el archivo o con
 entradas duplicadas, y también una descarga cuyo binario esté vacío, sea un
 enlace o no sea un ejecutable de la plataforma. Ante cualquier fallo, el binario
@@ -34,7 +47,9 @@ en un solo paso. Linux/macOS necesitan `sha256sum` o `shasum`; sin ninguno, la
 instalación se detiene. `checksums.txt` viene del mismo release: verifica la
 integridad publicada, no es una firma independiente.
 
-Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`.
+Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`. En
+Windows, borra `%LOCALAPPDATA%\Programs\gomemory` y quita esa carpeta del PATH
+de usuario.
 
 Tras instalar, sigue con **0.1 Registro global** (recomendado, sin pasos por proyecto)
 o salta a la sección **4. Instalar en un proyecto** (el flujo clásico, todavía soportado).

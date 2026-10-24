@@ -39,10 +39,9 @@ Deja el binario `mem` en el PATH, sin compilar. Linux, macOS y Windows.
 curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
 
-```powershell
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
-```
+En Windows, descarga `mem_windows_amd64.zip` del último release, verifica su
+SHA-256 con `checksums.txt` y deja `mem.exe` en el PATH. Los comandos de
+PowerShell están en [`INSTALLATION.md`](../INSTALLATION.md).
 
 Luego, en tu proyecto:
 
@@ -73,8 +72,8 @@ en `.memory/settings.json` (`agents`, `agent_scope`) y la reutilizan las
 reinstalaciones, incluida la que hace `mem update`, sin volver a preguntar. En
 scripts y CI: `mem install . --yes` (agentes detectados; si no se detecta
 ninguno, los que se configuraban siempre), `--agents claude,codex` y
-`--scope project|global`. Sin terminal interactiva nunca pregunta. Los
-instaladores de consola (`install.sh`, `install.ps1`) ofrecen esta instalación
+`--scope project|global`. Sin terminal interactiva nunca pregunta. El
+instalador de consola (`install.sh`) ofrece esta instalación
 guiada al terminar si estás dentro de un repositorio git. `mem update` también
 pide confirmación con terminal interactiva (`--yes` para omitirla).
 

@@ -38,10 +38,10 @@ func buildFakeInstall(t *testing.T, target string) {
 	// Un binario de gomemory real: desde la feature 034 (FR-003) uninstall
 	// solo retira un `mem` que se identifica como gomemory; un archivo
 	// cualquiera con ese nombre es de la persona y no se toca.
-	if err := copyFileForTest(buildMemBinary(t), filepath.Join(target, "mem")); err != nil {
+	if err := copyFileForTest(buildMemBinary(t), filepath.Join(target, exeName("mem"))); err != nil {
 		t.Fatalf("copiar binario mem: %v", err)
 	}
-	if err := os.Chmod(filepath.Join(target, "mem"), 0755); err != nil {
+	if err := os.Chmod(filepath.Join(target, exeName("mem")), 0755); err != nil {
 		t.Fatalf("chmod mem: %v", err)
 	}
 
@@ -81,7 +81,7 @@ func TestUninstallRemovesFullInstallation(t *testing.T) {
 			t.Fatalf("esperaba que %s NO exista tras mem uninstall", rel)
 		}
 	}
-	requireGone("mem")
+	requireGone(exeName("mem"))
 	requireGone(".memory")
 	requireGone(filepath.Join(".claude", "plugins", "gomemory"))
 
@@ -148,7 +148,7 @@ func TestUninstallCancelsWithoutConfirmation(t *testing.T) {
 
 	cli.CmdUninstall(deps, []string{target})
 
-	if _, err := os.Stat(filepath.Join(target, "mem")); err != nil {
+	if _, err := os.Stat(filepath.Join(target, exeName("mem"))); err != nil {
 		t.Fatal("el binario no debió eliminarse al cancelar la confirmación")
 	}
 	if _, err := os.Stat(filepath.Join(target, ".memory")); err != nil {

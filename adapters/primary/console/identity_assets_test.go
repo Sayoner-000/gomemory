@@ -9,7 +9,7 @@ import (
 )
 
 func TestPortableInstallersUseCurrentTerminalMark(t *testing.T) {
-	for _, file := range []string{"../../../scripts/install.sh", "../../../scripts/install.ps1"} {
+	for _, file := range []string{"../../../scripts/install.sh"} {
 		content, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)

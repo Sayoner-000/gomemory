@@ -38,6 +38,13 @@ jobs:
       - name: go test
         run: go test ./... -count=1
 
+      - name: install.sh contra el último release (ruta documentada)
+        if: always()
+        run: |
+          bin="$RUNNER_TEMP/mem-release"
+          GOMEMORY_BIN_DIR="$bin" bash scripts/install.sh </dev/null
+          "$bin/mem" version
+
       - name: Detector de carreras en las rutas afectadas
         run: go test -race ./application/usecases ./adapters/secondary/persistence ./adapters/primary/cli -count=1
 
@@ -66,7 +73,7 @@ jobs:
           npm --prefix installer test
 
   windows:
-    name: Windows (Go y install.ps1)
+    name: Windows (Go y binario del release)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -78,27 +85,20 @@ jobs:
       - name: go test
         run: go test ./... -count=1
 
-      - name: Instalador PowerShell (Windows PowerShell 5.1)
-        shell: powershell
-        run: |
-          $work = Join-Path $env:RUNNER_TEMP 'audit037-ps51'
-          go build -o (Join-Path $env:RUNNER_TEMP 'mem.exe') ./infrastructure
-          powershell -NoProfile -File scripts/audit_037_windows_smoke.ps1 -MemBin (Join-Path $env:RUNNER_TEMP 'mem.exe') -WorkDir $work -Case all
-          exit $LASTEXITCODE
-
-      - name: Instalador PowerShell (PowerShell 7)
+      - name: Binario del release por descarga manual (ruta documentada)
+        if: always()
         shell: pwsh
         run: |
-          $work = Join-Path $env:RUNNER_TEMP 'audit037-ps7'
-          pwsh -NoProfile -File scripts/audit_037_windows_smoke.ps1 -MemBin (Join-Path $env:RUNNER_TEMP 'mem.exe') -WorkDir $work -Case all
-          exit $LASTEXITCODE
-
-      - name: Evidencia de Windows
-        if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: audit037-windows
-          path: |
-            ${{ runner.temp }}/audit037-ps51/result.json
-            ${{ runner.temp }}/audit037-ps7/result.json
-          if-no-files-found: warn
+          # Certifica la instalación documentada en INSTALLATION.md contra el
+          # último release publicado: descarga, SHA-256, extracción y arranque.
+          $dir = Join-Path $env:RUNNER_TEMP 'mem-release'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $base = 'https://github.com/Sayoner-000/gomemory/releases/latest/download'
+          Invoke-WebRequest "$base/mem_windows_amd64.zip" -OutFile "$dir\mem_windows_amd64.zip"
+          Invoke-WebRequest "$base/checksums.txt" -OutFile "$dir\checksums.txt"
+          $want = (Select-String -Path "$dir\checksums.txt" -Pattern ' mem_windows_amd64\.zip$').Line.Split(' ')[0]
+          $got = (Get-FileHash "$dir\mem_windows_amd64.zip" -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $want) { throw "SHA-256 distinto: $got frente a $want" }
+          Expand-Archive "$dir\mem_windows_amd64.zip" -DestinationPath $dir -Force
+          & "$dir\mem.exe" version
+          if ($LASTEXITCODE -ne 0) { throw "mem.exe version terminó con $LASTEXITCODE" }

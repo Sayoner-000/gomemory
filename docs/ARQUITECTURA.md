@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.36.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD](Guia-SDD_GOMEMERY-v2.36.html) explica cómo usar gomemory en un harness con Spec Kit. Las ediciones anteriores se conservan en [editions/](editions/).
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.37.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD](Guia-SDD_GOMEMERY-v2.37.html) explica cómo usar gomemory en un harness con Spec Kit. Las ediciones anteriores se conservan en [editions/](editions/).
 
 
 ## Expand (040)

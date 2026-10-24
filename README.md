@@ -37,10 +37,10 @@ No cloud service, no API key, no database server, and no memory files in your re
 curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
 
-```powershell
-# Windows (PowerShell)
-irm https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.ps1 | iex
-```
+On Windows, download `mem_windows_amd64.zip` from
+[Releases](https://github.com/Sayoner-000/gomemory/releases/latest), check it
+against `checksums.txt` and put `mem.exe` on your PATH. The exact PowerShell
+commands are in [`INSTALLATION.md`](INSTALLATION.md).
 
 **2. Connect your agents**
 
@@ -159,7 +159,7 @@ directly (SQLite WAL mode); use `mem export` instead. See
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.36.html`](docs/Guia-Tecnica_GOMEMORY-v2.36.html) · [`docs/Guia-SDD_GOMEMERY-v2.36.html`](docs/Guia-SDD_GOMEMERY-v2.36.html) | Printable technical and SDD guides (previous editions in `docs/editions/`) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.37.html`](docs/Guia-Tecnica_GOMEMORY-v2.37.html) · [`docs/Guia-SDD_GOMEMERY-v2.37.html`](docs/Guia-SDD_GOMEMERY-v2.37.html) | Printable technical and SDD guides (previous editions in `docs/editions/`) |
 
 ## Building from source
 

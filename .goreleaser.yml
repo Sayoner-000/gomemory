@@ -35,7 +35,7 @@ archives:
   - id: default
     ids:
       - mem
-    # Nombre estable y predecible para que install.sh / install.ps1 puedan
+    # Nombre estable y predecible para que install.sh, mem update y la descarga manual puedan
     # construir la URL del asset: mem_<os>_<arch>.<ext>
     name_template: "mem_{{ .Os }}_{{ .Arch }}"
     format_overrides:

@@ -1,0 +1,25 @@
+--- schema-v0.golden
++++ schema-v1.golden
+@@ -1,4 +1,4 @@
+-user_version=0
++user_version=1
+ index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
+ index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
+ index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)
+
+--- schema-v1.golden
++++ schema-v2.golden
+@@ -1,4 +1,4 @@
+-user_version=1
++user_version=2
+ index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
+ index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
+ index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)
+@@ -24,6 +24,7 @@
+ index|idx_relations_project|memory_relations|CREATE INDEX idx_relations_project ON memory_relations(project)
+ index|idx_reviews_project|reviews|CREATE INDEX idx_reviews_project ON reviews(project)
+ index|idx_reviews_status|reviews|CREATE INDEX idx_reviews_status ON reviews(project, status)
++index|idx_sessions_project_created|sessions|CREATE INDEX idx_sessions_project_created ON sessions(project, created_at)
+ index|idx_socratica_dispatch|socratica_flows|CREATE UNIQUE INDEX idx_socratica_dispatch ON socratica_flows(dispatch_id) WHERE dispatch_id IS NOT NULL
+ index|idx_socratica_flows_scope|socratica_flows|CREATE INDEX idx_socratica_flows_scope ON socratica_flows(project, client, updated_at)
+ index|idx_socratica_history_scope|socratica_history|CREATE INDEX idx_socratica_history_scope ON socratica_history(project, client, completed_at DESC)

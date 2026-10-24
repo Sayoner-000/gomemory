@@ -498,6 +498,10 @@ func TestSocraticaRepository_Complementos(t *testing.T) {
 		if _, err := r.db.Exec(`DROP TABLE socratica_flows; DROP TABLE socratica_history`); err != nil {
 			t.Fatal(err)
 		}
+		// La base simulada es anterior al versionado del esquema.
+		if _, err := r.db.Exec(`PRAGMA user_version = 0`); err != nil {
+			t.Fatalf("reset legacy schema version: %v", err)
+		}
 		for i := 0; i < 2; i++ {
 			if err := migrate(r.db); err != nil {
 				t.Fatal(err)

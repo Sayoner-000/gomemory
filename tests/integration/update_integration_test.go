@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -48,8 +49,27 @@ func updateTestEnv(extra ...string) []string {
 	return append(append(env, "PATH=/usr/bin:/bin"), extra...)
 }
 
-// buildFakeTarGz produce el tar.gz que sirve el release fake, con el mismo
-// layout que scripts/install.sh espera: un único archivo "mem" en la raíz.
+// buildFakeAsset produce el asset de la release fake para este sistema, con
+// el nombre que publica goreleaser: un zip con "mem.exe" en Windows (el que
+// descarga mem update) y un tar.gz con "mem" en el resto.
+func buildFakeAsset(content []byte) (string, []byte) {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("mem_windows_%s.zip", runtime.GOARCH), buildFakeZip(content)
+	}
+	return fmt.Sprintf("mem_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH), buildFakeTarGz(content)
+}
+
+func buildFakeZip(content []byte) []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	w, _ := zw.Create("mem.exe")
+	_, _ = w.Write(content)
+	_ = zw.Close()
+	return buf.Bytes()
+}
+
+// buildFakeTarGz produce el tar.gz con el mismo layout que scripts/install.sh
+// espera: un único archivo "mem" en la raíz.
 func buildFakeTarGz(content []byte) []byte {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
@@ -69,7 +89,7 @@ func TestUpdateIntegration(t *testing.T) {
 	bin := buildMemBinary(t)
 
 	newContent := []byte("#!/bin/sh\necho fake-new-mem\n")
-	asset := buildFakeTarGz(newContent)
+	assetName, asset := buildFakeAsset(newContent)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/Sayoner-000/gomemory/releases/latest", func(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +104,7 @@ func TestUpdateIntegration(t *testing.T) {
 	downloadMux := http.NewServeMux()
 	downloadMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/checksums.txt") {
-			_, _ = fmt.Fprintf(w, "%s  mem_%s_%s.tar.gz\n", hex.EncodeToString(sum[:]), runtime.GOOS, runtime.GOARCH)
+			_, _ = fmt.Fprintf(w, "%s  %s\n", hex.EncodeToString(sum[:]), assetName)
 			return
 		}
 		_, _ = w.Write(asset)
@@ -122,7 +142,9 @@ func TestUpdateIntegration(t *testing.T) {
 	if !bytes.Equal(data, newContent) {
 		t.Errorf("el binario no se reemplazó con el contenido esperado, got: %q", data)
 	}
-	if _, err := os.Stat(dummyBin + ".old"); err == nil {
+	// En Windows el ejecutable en uso no se borra: publishBinary lo aparta a
+	// .old y removeStaleBinary lo retira en la siguiente ejecución.
+	if _, err := os.Stat(dummyBin + ".old"); err == nil && runtime.GOOS != "windows" {
 		t.Error("el archivo .old debió limpiarse tras un update exitoso")
 	}
 }
@@ -140,7 +162,7 @@ func TestUpdateCheckDoesNotMutate(t *testing.T) {
 	defer srv.Close()
 
 	target := t.TempDir()
-	dummyBin := filepath.Join(target, "mem")
+	dummyBin := filepath.Join(target, exeName("mem"))
 	if err := copyFileForTest(bin, dummyBin); err != nil {
 		t.Fatalf("copiar binario dummy: %v", err)
 	}
