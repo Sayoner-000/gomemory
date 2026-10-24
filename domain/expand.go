@@ -264,15 +264,41 @@ func IsCommitCommand(cmd string) bool {
 	return false
 }
 
-// stripEnvAssignments quita las asignaciones VAR=valor iniciales y `sudo`.
+// sudoOptionsWithArg son las opciones cortas de sudo cuyo valor va en el
+// token siguiente (`sudo -u app cmd`).
+var sudoOptionsWithArg = map[string]bool{
+	"-u": true, "-g": true, "-h": true, "-p": true, "-C": true, "-D": true,
+	"-r": true, "-t": true, "-U": true, "-T": true,
+}
+
+// stripEnvAssignments quita las asignaciones VAR=valor iniciales y `sudo`
+// con sus opciones.
 func stripEnvAssignments(toks []string) []string {
 	for len(toks) > 0 {
 		t := toks[0]
-		if t == "sudo" || isEnvAssignment(t) {
+		if isEnvAssignment(t) {
 			toks = toks[1:]
 			continue
 		}
+		if t == "sudo" {
+			toks = skipSudoOptions(toks[1:])
+			continue
+		}
 		break
+	}
+	return toks
+}
+
+func skipSudoOptions(toks []string) []string {
+	for len(toks) > 0 && strings.HasPrefix(toks[0], "-") {
+		opt := toks[0]
+		toks = toks[1:]
+		if opt == "--" {
+			break
+		}
+		if sudoOptionsWithArg[opt] && len(toks) > 0 {
+			toks = toks[1:]
+		}
 	}
 	return toks
 }
