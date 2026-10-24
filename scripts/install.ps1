@@ -1,4 +1,4 @@
-# Instalador universal de gomemory para Windows (PowerShell).
+﻿# Instalador universal de gomemory para Windows (PowerShell).
 #
 # Uso:
 #   irm https://raw.githubusercontent.com/Sayoner-000/gomemory/master/scripts/install.ps1 | iex

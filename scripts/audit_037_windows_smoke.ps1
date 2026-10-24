@@ -1,4 +1,4 @@
-# Runner de validación de la feature 037 en Windows: integridad de
+﻿# Runner de validación de la feature 037 en Windows: integridad de
 # scripts/install.ps1 (H-08) contra un release de fixture, sin red pública.
 #
 # Uso (PowerShell 5.1 o 7, en Windows):
@@ -41,6 +41,14 @@ Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $Installer = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'install.ps1'
+# Un instalador que no parsea lanza en todos los casos: los negativos, que
+# esperan una excepción, aprobarían sin probar nada. Se exige antes de empezar.
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($Installer, [ref]$null, [ref]$parseErrors)
+if ($parseErrors.Count) {
+  Write-Error "preparación inválida: install.ps1 no parsea en PowerShell $($PSVersionTable.PSVersion): $($parseErrors[0].Message) (línea $($parseErrors[0].Extent.StartLineNumber))"
+  exit 2
+}
 $Asset = 'mem_windows_amd64.zip'
 $RealBytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $MemBin))
 $PreviousBytes = [System.Text.Encoding]::ASCII.GetBytes("MZ-binario-anterior")
@@ -118,13 +126,14 @@ function Invoke-Scenario {
   $savedUserPath = [Environment]::GetEnvironmentVariable('Path', 'User')
   $lock = $null
   $threw = $false
+  $thrown = ''
   try {
     $env:LOCALAPPDATA = $localAppData
     if ($LockDestination) { $lock = [System.IO.File]::Open($target, 'Open', 'Read', 'None') }
     # Fuera de cualquier repositorio git: así el instalador no ofrece la
     # instalación guiada interactiva al terminar.
     Push-Location -LiteralPath $root
-    try { & $Installer -Version $Version *> $null } catch { $threw = $true } finally { Pop-Location }
+    try { & $Installer -Version $Version *> $null } catch { $threw = $true; $thrown = $_.Exception.Message } finally { Pop-Location }
   } finally {
     if ($lock) { $lock.Dispose() }
     $env:LOCALAPPDATA = $savedLocal
@@ -140,7 +149,7 @@ function Invoke-Scenario {
   } else {
     $ok = $threw -and $isPrevious -and $leftovers.Count -eq 0
   }
-  $detail = "lanzó=$threw nuevo=$isNew previo=$isPrevious residuos=$($leftovers.Count)"
+  $detail = "lanzó=$threw nuevo=$isNew previo=$isPrevious residuos=$($leftovers.Count) excepción=$thrown"
   $Results.Add([pscustomobject]@{ case_id = "install.$Name"; ok = $ok; detail = $(if ($ok) { '' } else { $detail }) })
 }
 
