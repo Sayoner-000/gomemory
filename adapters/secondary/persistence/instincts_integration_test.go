@@ -36,20 +36,20 @@ func TestInstinctSanitizeAllStoresAndContext(t *testing.T) {
 	}
 	defer g.Close()
 	q := expandstate.NewQueue(filepath.Join(root, MemDir))
-	obs := domain.Observation{ID: "one", Kind: "cmd", Key: "cmd:go-test", Sample: "safe"}
+	obs := domain.Observation{ID: "one", Kind: "cmd", Key: "cmd:go-test", Sample: "go test ./..."}
 	if err := repo.Fold(ctx, []domain.Observation{obs}, now); err != nil {
 		t.Fatal(err)
 	}
 	leak := "ghp_" + strings.Repeat("a", 36)
-	if _, err := db.Exec(`UPDATE instinct_stats SET description=?,confidence=.7 WHERE project=?`, leak, project); err != nil {
+	if _, err := db.Exec(`UPDATE instinct_stats SET description=?,confidence=.7 WHERE project=?`, "go test "+leak, project); err != nil {
 		t.Fatal(err)
 	}
 	for _, p := range []string{project, "other"} {
-		if err := g.RecordProject(ctx, p, domain.Instinct{Slug: "global", Kind: "cmd", Confidence: .7, Description: "safe"}, now); err != nil {
+		if err := g.RecordProject(ctx, p, domain.Instinct{Slug: "cmd:git-diff", Kind: "cmd", Confidence: .7, Description: "git diff"}, now); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := g.db.Exec(`UPDATE instinct_global SET description=?`, leak); err != nil {
+	if _, err := g.db.Exec(`UPDATE instinct_global SET description=?`, "git diff "+leak); err != nil {
 		t.Fatal(err)
 	}
 	// Seed historical bytes directly; the queue writer already redacts new observations.
@@ -83,8 +83,9 @@ func TestInstinctSanitizeAllStoresAndContext(t *testing.T) {
 	builder.Instincts = repo
 	builder.InstinctGlobal = g
 	builder.ExpandSettings = NewSettingsRepository()
+	builder.Clock = instinctClock{}
 	out, err := builder.Build()
-	if err != nil || !strings.Contains(out, "## Instincts") || !strings.Contains(out, "global") {
+	if err != nil || !strings.Contains(out, "## Instincts") || !strings.Contains(out, "`go test` · 1 usos") || !strings.Contains(out, "`git diff` · 2 proyectos") || strings.Contains(out, leak) {
 		t.Fatal(out, err)
 	}
 	settings := builder.ExpandSettings.Read(root)
@@ -137,7 +138,7 @@ func TestInstinctGlobalProposalReviewableInNewProject(t *testing.T) {
 	if list, err := rejecting.List(ctx, false); err != nil || len(list) != 0 {
 		t.Errorf("un rechazo local oculta la propuesta: %+v %v", list, err)
 	}
-	if inj, err := usecases.InstinctContext(ctx, rejecting.Repo, g); err != nil || len(inj) != 0 {
+	if inj, err := usecases.InstinctContext(ctx, rejecting.Repo, g, instinctClock{}.Now()); err != nil || len(inj) != 0 {
 		t.Errorf("un rechazo local impide inyectarla: %+v %v", inj, err)
 	}
 
@@ -301,7 +302,7 @@ func TestInstinctKeysNeverKeepSecrets(t *testing.T) {
 	if err := db.QueryRow(`SELECT COUNT(*) FROM instinct_stats WHERE slug LIKE ?`, "%"+secret+"%").Scan(&leaks); err != nil || leaks != 0 {
 		t.Errorf("instinct_stats conserva el secreto: %d %v", leaks, err)
 	}
-	ctxText, err := usecases.InstinctContext(ctx, repo, g)
+	ctxText, err := usecases.InstinctContext(ctx, repo, g, instinctClock{}.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +372,7 @@ func TestInstinctHistoricSlugsProtectedOnRead(t *testing.T) {
 			t.Errorf("falta %s en el listado: %v", want, slugs)
 		}
 	}
-	ctxList, err := usecases.InstinctContext(ctx, repo, g)
+	ctxList, err := usecases.InstinctContext(ctx, repo, g, instinctClock{}.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

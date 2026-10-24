@@ -248,8 +248,22 @@ func (u *Instincts) review(ctx context.Context, slug, status string, before func
 	return u.Repo.SetStatus(ctx, slug, status)
 }
 
+// instinctFreshness es la ventana sin observaciones tras la que un instinct
+// deja de inyectarse: un hábito abandonado no debe ocupar contexto.
+const instinctFreshness = 30 * 24 * time.Hour
+
+// injectable descarta las filas guardadas con el criterio de claves anterior
+// y las que no se observan desde hace más de instinctFreshness.
+func injectable(i domain.Instinct, now time.Time) bool {
+	if domain.StaleInstinct(i) {
+		return false
+	}
+	seen, err := time.Parse(time.RFC3339Nano, i.LastSeen)
+	return err != nil || now.Sub(seen) <= instinctFreshness
+}
+
 // InstinctContext merges project and global proposals while honoring local rejection.
-func InstinctContext(ctx context.Context, repo ports.InstinctRepository, global ports.InstinctGlobalRepository) ([]domain.Instinct, error) {
+func InstinctContext(ctx context.Context, repo ports.InstinctRepository, global ports.InstinctGlobalRepository, now time.Time) ([]domain.Instinct, error) {
 	all := []domain.Instinct{}
 	blocked := map[string]bool{}
 	seen := map[string]bool{}
@@ -263,7 +277,7 @@ func InstinctContext(ctx context.Context, repo ports.InstinctRepository, global 
 				blocked[i.Slug] = true
 				continue
 			}
-			if i.Confidence+1e-9 >= .7 {
+			if i.Confidence+1e-9 >= .7 && injectable(i, now) {
 				all = append(all, i)
 				seen[i.Slug] = true
 			}
@@ -275,7 +289,7 @@ func InstinctContext(ctx context.Context, repo ports.InstinctRepository, global 
 			return nil, err
 		}
 		for _, i := range list {
-			if !blocked[i.Slug] && !seen[i.Slug] {
+			if !blocked[i.Slug] && !seen[i.Slug] && injectable(i, now) {
 				all = append(all, i)
 				seen[i.Slug] = true
 			}

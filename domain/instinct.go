@@ -3,6 +3,7 @@ package domain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"math"
 	"path/filepath"
 	"regexp"
@@ -32,6 +33,7 @@ type Instinct struct {
 	Scope        string   `json:"scope"`
 	Status       string   `json:"status"`
 	Projects     []string `json:"projects,omitempty"`
+	LastSeen     string   `json:"last_seen,omitempty"`
 }
 
 func InstinctConfidence(obs, corrections int) float64 {
@@ -43,26 +45,84 @@ func InstinctConfidence(obs, corrections int) float64 {
 
 var observationWord = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
+// trivialCommands son lecturas y navegación que el agente repite sin que
+// formen un hábito: no aportan nada al contexto y se excluyen de la clave.
+var trivialCommands = map[string]bool{
+	"cat": true, "sed": true, "grep": true, "rg": true, "ls": true, "head": true,
+	"tail": true, "find": true, "echo": true, "cd": true, "wc": true, "pwd": true,
+	"sqlite3": true,
+}
+
+func trivialCommand(toks []string) bool {
+	bin := strings.ToLower(filepath.Base(toks[0]))
+	return trivialCommands[bin] || (bin == "python3" && len(toks) > 1 && toks[1] == "-c")
+}
+
+// observationParts devuelve binario y subcomando del primer comando
+// significativo: salta asignaciones VAR=valor, sudo y comandos triviales.
+func observationParts(cmd string) []string {
+	for _, toks := range SplitShellCommands(ProtectText(cmd)) {
+		toks = stripEnvAssignments(toks)
+		if len(toks) == 0 || trivialCommand(toks) {
+			continue
+		}
+		parts := []string{strings.ToLower(filepath.Base(toks[0]))}
+		if !observationWord.MatchString(parts[0]) {
+			return nil
+		}
+		if len(toks) > 1 && !strings.HasPrefix(toks[1], "-") {
+			sub := strings.ToLower(toks[1])
+			if observationWord.MatchString(sub) {
+				parts = append(parts, sub)
+			}
+		}
+		return parts
+	}
+	return nil
+}
+
 // ObservationKey deriva la clave de un comando ya protegido: un token que
 // parece credencial (p. ej. `sk-…`) nunca llega a la clave ni al slug que
 // se persiste y se comparte entre proyectos (B-001 del ACR de 040).
 func ObservationKey(cmd string) string {
-	commands := SplitShellCommands(ProtectText(cmd))
-	if len(commands) == 0 || len(commands[0]) == 0 {
+	parts := observationParts(cmd)
+	if len(parts) == 0 {
 		return ""
-	}
-	tokens := commands[0]
-	parts := []string{strings.ToLower(filepath.Base(tokens[0]))}
-	if !observationWord.MatchString(parts[0]) {
-		return ""
-	}
-	if len(tokens) > 1 && !strings.HasPrefix(tokens[1], "-") {
-		sub := strings.ToLower(tokens[1])
-		if observationWord.MatchString(sub) {
-			parts = append(parts, sub)
-		}
 	}
 	return TruncateRunes("cmd:"+strings.Join(parts, "-"), 80)
+}
+
+// ObservationLabel es la forma legible de la clave («go test»).
+func ObservationLabel(cmd string) string {
+	return strings.Join(observationParts(cmd), " ")
+}
+
+// StaleInstinct indica que una fila de comando se guardó con un criterio de
+// claves anterior: su muestra ya no produce su slug (asignaciones, cd o un
+// comando trivial). Se deja de inyectar sin borrar la fila.
+func StaleInstinct(i Instinct) bool {
+	return i.Kind == "cmd" && ObservationKey(i.Description) != i.Slug
+}
+
+// ContextLine es la línea de la sección ## Instincts: el patrón con sus
+// estadísticas, nunca la muestra cruda de una ejecución.
+func (i Instinct) ContextLine() string {
+	if i.Kind != "cmd" {
+		return fmt.Sprintf("- corrección: %s (%.1f)", i.Description, i.Confidence)
+	}
+	label := ObservationLabel(i.Description)
+	if label == "" {
+		label = strings.TrimPrefix(i.Slug, "cmd:")
+	}
+	usage := fmt.Sprintf("%d usos", i.Observations)
+	if i.Scope == "global" {
+		usage = fmt.Sprintf("%d proyectos", len(i.Projects))
+	}
+	line := fmt.Sprintf("- `%s` · %s", label, usage)
+	if len(i.LastSeen) >= 10 {
+		line += " · último " + i.LastSeen[:10]
+	}
+	return fmt.Sprintf("%s (%.1f)", line, i.Confidence)
 }
 
 // ProtectObservationKey sanea una clave o un slug ya guardados: si contiene

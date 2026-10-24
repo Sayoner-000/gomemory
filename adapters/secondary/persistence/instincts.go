@@ -66,7 +66,7 @@ func (s *InstinctStore) Fold(ctx context.Context, batch []domain.Observation, no
 		}
 		desc := domain.TruncateRunes(domain.StripTerminalControls(domain.RedactSecrets(domain.RedactPrivate(obs.Sample))), 200)
 		_, err = tx.ExecContext(ctx, `INSERT INTO instinct_stats(project,slug,kind,description,observations,corrections,first_seen,last_seen) VALUES(?,?,?,?,1,?,?,?)
-ON CONFLICT(project,slug) DO UPDATE SET observations=instinct_stats.observations+1,corrections=instinct_stats.corrections+excluded.corrections,last_seen=excluded.last_seen`, s.project, key, obs.Kind, desc, corrections, stamp, stamp)
+ON CONFLICT(project,slug) DO UPDATE SET observations=instinct_stats.observations+1,corrections=instinct_stats.corrections+excluded.corrections,description=excluded.description,last_seen=excluded.last_seen`, s.project, key, obs.Kind, desc, corrections, stamp, stamp)
 		if err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func (s *InstinctStore) PurgeFolded(ctx context.Context, before time.Time) error
 	return err
 }
 func (s *InstinctStore) List(ctx context.Context, all bool) ([]domain.Instinct, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT slug,kind,description,observations,corrections,confidence,scope,status FROM instinct_stats WHERE project=? AND (? OR status!='rejected') ORDER BY confidence DESC,slug`, s.project, all)
+	rows, err := s.db.QueryContext(ctx, `SELECT slug,kind,description,observations,corrections,confidence,scope,status,last_seen FROM instinct_stats WHERE project=? AND (? OR status!='rejected') ORDER BY confidence DESC,slug`, s.project, all)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (s *InstinctStore) List(ctx context.Context, all bool) ([]domain.Instinct, 
 	out := []domain.Instinct{}
 	for rows.Next() {
 		var i domain.Instinct
-		if err := rows.Scan(&i.Slug, &i.Kind, &i.Description, &i.Observations, &i.Corrections, &i.Confidence, &i.Scope, &i.Status); err != nil {
+		if err := rows.Scan(&i.Slug, &i.Kind, &i.Description, &i.Observations, &i.Corrections, &i.Confidence, &i.Scope, &i.Status, &i.LastSeen); err != nil {
 			return nil, err
 		}
 		// Un slug histórico aún sin sanear no sale con su credencial (A-001):
@@ -288,7 +288,7 @@ func (s *InstinctGlobalStore) RecordProject(ctx context.Context, project string,
 	return tx.Commit()
 }
 func (s *InstinctGlobalStore) GlobalFor(ctx context.Context, minConfidence float64) ([]domain.Instinct, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT slug,kind,description,projects,confidence FROM instinct_global WHERE confidence>=? ORDER BY confidence DESC,slug`, minConfidence-1e-9)
+	rows, err := s.db.QueryContext(ctx, `SELECT slug,kind,description,projects,confidence,updated_at FROM instinct_global WHERE confidence>=? ORDER BY confidence DESC,slug`, minConfidence-1e-9)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +297,7 @@ func (s *InstinctGlobalStore) GlobalFor(ctx context.Context, minConfidence float
 	for rows.Next() {
 		var i domain.Instinct
 		var raw string
-		if err := rows.Scan(&i.Slug, &i.Kind, &i.Description, &raw, &i.Confidence); err != nil {
+		if err := rows.Scan(&i.Slug, &i.Kind, &i.Description, &raw, &i.Confidence, &i.LastSeen); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(raw), &i.Projects); err != nil {

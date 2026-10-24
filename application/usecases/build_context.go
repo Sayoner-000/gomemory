@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"mem/application/ports"
 	"mem/domain"
@@ -100,6 +101,9 @@ func displayTitle(m domain.Memory) string {
 }
 
 type Builder struct {
+	// Clock fija el instante con el que caducan los instincts. nil usa la
+	// hora del sistema.
+	Clock          ports.ClockPort
 	Instincts      ports.InstinctRepository
 	InstinctGlobal ports.InstinctGlobalRepository
 	ExpandSettings ports.SettingsRepository
@@ -886,6 +890,13 @@ func (b *Builder) WriteFile() error {
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
+func (b *Builder) now() time.Time {
+	if b.Clock != nil {
+		return b.Clock.Now()
+	}
+	return time.Now()
+}
+
 func (b *Builder) writeInstincts(sb *strings.Builder) {
 	if b.ExpandSettings != nil {
 		s := b.ExpandSettings.Read(b.Root)
@@ -898,13 +909,13 @@ func (b *Builder) writeInstincts(sb *strings.Builder) {
 			}
 		}
 	}
-	list, err := InstinctContext(context.Background(), b.Instincts, b.InstinctGlobal)
+	list, err := InstinctContext(context.Background(), b.Instincts, b.InstinctGlobal, b.now())
 	if err != nil || len(list) == 0 {
 		return
 	}
 	sb.WriteString("## Instincts\n\n")
 	for _, i := range list {
-		line := fmt.Sprintf("- **%s**: %s (%.1f, %s)\n", i.Slug, i.Description, i.Confidence, i.Scope)
+		line := i.ContextLine() + "\n"
 		if !b.fits(sb, len(line)) {
 			break
 		}

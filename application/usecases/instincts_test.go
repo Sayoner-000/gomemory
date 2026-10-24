@@ -142,8 +142,21 @@ func TestInstinctFoldSkipsGlobalRecordForEphemeralProject(t *testing.T) {
 func TestInstinctContextHonorsRejection(t *testing.T) {
 	r := &instinctRepoFake{list: []domain.Instinct{{Slug: "rejected", Confidence: .9, Status: "rejected"}, {Slug: "low", Confidence: .6}, {Slug: "high", Confidence: .7, Description: "safe"}}}
 	g := &instinctGlobalFake{list: []domain.Instinct{{Slug: "rejected", Confidence: .9}, {Slug: "global", Confidence: .8}}}
-	list, err := InstinctContext(context.Background(), r, g)
+	list, err := InstinctContext(context.Background(), r, g, time.Now())
 	if err != nil || len(list) != 2 || list[0].Slug != "high" || list[1].Slug != "global" {
+		t.Fatalf("%+v %v", list, err)
+	}
+}
+
+func TestInstinctContextSkipsStaleAndOldInstincts(t *testing.T) {
+	now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+	r := &instinctRepoFake{list: []domain.Instinct{
+		{Slug: "cmd:go-test", Kind: "cmd", Description: "go test ./...", Confidence: .8, LastSeen: "2026-10-20T00:00:00Z"},
+		{Slug: "cmd:sed", Kind: "cmd", Description: "sed -n '1,9p' a.go", Confidence: .9, LastSeen: "2026-10-23T00:00:00Z"},
+		{Slug: "cmd:git-diff", Kind: "cmd", Description: "git diff", Confidence: .9, LastSeen: "2026-09-01T00:00:00Z"},
+	}}
+	list, err := InstinctContext(context.Background(), r, nil, now)
+	if err != nil || len(list) != 1 || list[0].Slug != "cmd:go-test" {
 		t.Fatalf("%+v %v", list, err)
 	}
 }
