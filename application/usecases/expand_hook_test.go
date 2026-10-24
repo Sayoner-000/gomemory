@@ -112,9 +112,10 @@ func TestExpandHook_ShieldNoticeOnlyWhenFindings(t *testing.T) {
 }
 
 func TestExpandHook_StopsWhenContextExpires(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+	// Un plazo ya vencido cancela al crearse: esperar a que venza uno de 1 ns
+	// dependía de que el temporizador corriera a tiempo, y en Windows no siempre.
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancel()
-	time.Sleep(time.Millisecond)
 	rules := &fakeRules{results: map[string]RuleResult{domain.RuleTargetBash: {Decision: domain.DecisionBlock, Reason: "x", Rule: "r"}}}
 	out := ExpandHook{}.Run(ctx, domain.ExpandSignals{}, []domain.SupertoolAction{a(domain.ActionRulesEval, domain.RuleTargetBash)}, ExpandHookDeps{Rules: rules})
 	if !out.TimedOut || len(rules.calls) != 0 {
