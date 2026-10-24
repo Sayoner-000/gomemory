@@ -26,6 +26,8 @@ def aggregate(timing_path, tests_path):
         "expand.exit": "expand.flush.begin",
         "toolout.end": "toolout.begin",
         "close.end": "close.begin",
+        "close.optimize.end": "close.optimize.begin",
+        "close.db.end": "close.db.begin",
     }
     for line in Path(timing_path).read_text(encoding="utf-8-sig").splitlines():
         match = mark.search(line)
