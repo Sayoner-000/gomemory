@@ -28,6 +28,7 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 - `mem settings`, `mem install` y la TUI informan cuando no pueden aplicar auto-approve (JSON ilegible o escritura fallida), en vez de dar un falso éxito.
 - Reenviar un flujo ya enviado mientras hay otro pendiente para el mismo agente devuelve un error claro, en vez de `UNIQUE constraint failed` de SQLite.
 - Cancelar un flujo con una preparación de una versión más nueva la conserva intacta, campos desconocidos incluidos.
+- `GOMEMORY_NO_CODE_REFRESH=1` apaga el refresco en segundo plano del snapshot del grafo de código externo (`mem code-refresh`). Las suites de integración y contrato lo activan: ese proceso seguía escribiendo en `.memory` después del comando y, en Windows, impedía borrar el directorio temporal de la prueba.
 
 ### Seguridad
 

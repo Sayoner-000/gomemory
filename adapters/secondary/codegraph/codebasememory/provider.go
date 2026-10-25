@@ -127,7 +127,7 @@ func (p *Provider) Snapshot() domain.CodeProviderSnapshot {
 // bloquea: retorna apenas lanza (o no) el proceso de fondo. Debounce en memoria
 // evita tormentas de refrescos en el proceso largo (servidor MCP).
 func (p *Provider) MaybeRefresh() {
-	if !p.Snapshot().Stale(snapshotTTL) {
+	if refreshDisabled() || !p.Snapshot().Stale(snapshotTTL) {
 		return
 	}
 	p.mu.Lock()
@@ -513,4 +513,16 @@ func parseArchitecture(out []byte) (*domain.CodeArchitecture, bool) {
 		arch.Hotspots = append(arch.Hotspots, domain.CodeHotspot{Name: h.Name, FanIn: h.FanIn})
 	}
 	return arch, true
+}
+
+// refreshDisabled: GOMEMORY_NO_CODE_REFRESH apaga el refresco en segundo plano.
+// La suite de integración lo usa porque el hijo detached escribe el snapshot en
+// .memory después de que el comando termina, y en Windows impide borrar el
+// directorio temporal de la prueba. Mismo criterio que GOMEMORY_NO_UPDATE_CHECK.
+func refreshDisabled() bool {
+	switch os.Getenv("GOMEMORY_NO_CODE_REFRESH") {
+	case "", "0", "false":
+		return false
+	}
+	return true
 }

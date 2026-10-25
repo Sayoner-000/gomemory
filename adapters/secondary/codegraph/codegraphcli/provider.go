@@ -77,7 +77,7 @@ func (p *Provider) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
 }
 
 func (p *Provider) MaybeRefresh() {
-	if !p.Snapshot().Stale(snapshotTTL) {
+	if refreshDisabled() || !p.Snapshot().Stale(snapshotTTL) {
 		return
 	}
 	p.mu.Lock()
@@ -228,4 +228,16 @@ func (p *Provider) writeSnapshot(snap domain.CodeProviderSnapshot) {
 		return
 	}
 	_ = atomicfs.Replace(name, p.snapshotPath())
+}
+
+// refreshDisabled: GOMEMORY_NO_CODE_REFRESH apaga el refresco en segundo plano.
+// La suite de integración lo usa porque el hijo detached escribe el snapshot en
+// .memory después de que el comando termina, y en Windows impide borrar el
+// directorio temporal de la prueba. Mismo criterio que GOMEMORY_NO_UPDATE_CHECK.
+func refreshDisabled() bool {
+	switch os.Getenv("GOMEMORY_NO_CODE_REFRESH") {
+	case "", "0", "false":
+		return false
+	}
+	return true
 }
