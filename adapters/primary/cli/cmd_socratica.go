@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -517,11 +518,33 @@ func (c *socraticaCmd) review(f domain.RefinementFlow) int {
 		return socraticaExitOK
 	}
 	for {
-		line, err := c.action("Socratica · ¿Qué quieres hacer con la propuesta?", "\n[e]jecutar [d]itar [c]opiar [x]cancelar: ", []console.Option{{Value: "e", Label: "Ejecutar en " + f.Client}, {Value: "d", Label: "Editar propuesta"}, {Value: "c", Label: "Copiar propuesta"}, {Value: "x", Label: "Cancelar", Hint: "conservar el original"}})
+		offered := c.u.LocalActions(f, !c.printOnly)
+		var opts []console.Option
+		var hints []string
+		for _, m := range []struct {
+			action usecases.SocraticaAction
+			opt    console.Option
+			hint   string
+		}{
+			{usecases.ActionExecute, console.Option{Value: "e", Label: "Ejecutar en " + f.Client}, "[e]jecutar"},
+			{usecases.ActionEdit, console.Option{Value: "d", Label: "Editar propuesta"}, "[d]itar"},
+			{usecases.ActionCopy, console.Option{Value: "c", Label: "Copiar propuesta"}, "[c]opiar"},
+			{usecases.ActionCancel, console.Option{Value: "x", Label: "Cancelar", Hint: "conservar el original"}, "[x]cancelar"},
+		} {
+			if slices.Contains(offered, m.action) {
+				opts, hints = append(opts, m.opt), append(hints, m.hint)
+			}
+		}
+		line, err := c.action("Socratica · ¿Qué quieres hacer con la propuesta?", "\n"+strings.Join(hints, " ")+": ", opts)
 		if err != nil {
 			return socraticaExitOK
 		}
-		switch strings.TrimSpace(line) {
+		key := strings.TrimSpace(line)
+		// Only the keys of the actions LocalActions offers are accepted.
+		if !slices.ContainsFunc(opts, func(o console.Option) bool { return o.Value == key }) {
+			continue
+		}
+		switch key {
 		case "e":
 			return c.execute(f)
 		case "d":
@@ -679,17 +702,18 @@ func (c *socraticaCmd) failed(f domain.RefinementFlow) int {
 	if !c.sio.tty {
 		return socraticaExitUsage
 	}
+	offered := c.u.LocalActions(f, !c.printOnly)
 	for {
 		opts := []console.Option{{Value: "h", Label: "Cambiar harness", Hint: "conservar el prompt y volver a refinar"}, {Value: "x", Label: "Cancelar", Hint: "conservar el original"}, {Value: "o", Label: "Enviar mi original", Hint: "ejecutar sin refinamiento"}}
-		if !c.printOnly {
+		if slices.Contains(offered, usecases.ActionAssist) {
 			opts = append([]console.Option{{Value: "a", Label: "Continuar asistido en " + f.Client, Hint: "preguntas y propuesta dentro del harness; sin ejecutar la tarea"}}, opts...)
 		}
 		fallback := "\n[h]cambiar harness [o]riginal [x]cancelar: "
-		if info.Retryable {
+		if slices.Contains(offered, usecases.ActionRetry) {
 			opts = append(opts, console.Option{Value: "r", Label: "Reintentar con " + f.Client, Hint: "misma configuración"})
 			fallback = "\n[r]eintentar [o]riginal [x]cancelar [h]cambiar harness: "
 		}
-		if !c.printOnly {
+		if slices.Contains(offered, usecases.ActionAssist) {
 			fallback += "[a]continuar asistido: "
 		}
 		line, err := c.action("Socratica · No se pudo generar con "+f.Client, fallback, opts)
@@ -698,7 +722,7 @@ func (c *socraticaCmd) failed(f domain.RefinementFlow) int {
 		}
 		switch strings.TrimSpace(line) {
 		case "a":
-			if c.printOnly {
+			if !slices.Contains(offered, usecases.ActionAssist) {
 				continue
 			}
 			c.sio.printf("Abriendo Socratica asistida en %s. Tu original se refina en la conversación; todavía no se ejecuta.\n", f.Client)
@@ -711,7 +735,7 @@ func (c *socraticaCmd) failed(f domain.RefinementFlow) int {
 		case "h":
 			return c.changeHarness(f)
 		case "r":
-			if !info.Retryable {
+			if !slices.Contains(offered, usecases.ActionRetry) {
 				c.sio.printf("Elige otro harness o corrige su configuración antes de continuar.\n")
 				continue
 			}
@@ -764,10 +788,11 @@ func (c *socraticaCmd) reconcile(f domain.RefinementFlow) int {
 		if err != nil {
 			return socraticaExitUsage
 		}
-		kind := map[string]string{"m": "mark_dispatched", "r": "force_resend", "x": "cancel"}[strings.TrimSpace(line)]
-		if kind == "" {
+		action := map[string]usecases.SocraticaAction{"m": usecases.ActionMarkDispatched, "r": usecases.ActionResend, "x": usecases.ActionCancel}[strings.TrimSpace(line)]
+		if action == "" || !slices.Contains(c.u.LocalActions(f, !c.printOnly), action) {
 			continue
 		}
+		kind := string(action)
 		r, err := c.u.Apply(c.ctx, f.ID, domain.Event{Kind: kind, DispatchID: f.DispatchID}, usecases.OriginLocal)
 		if err != nil {
 			c.sio.errorf("Error: %v\n", err)

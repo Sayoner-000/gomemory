@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -485,29 +486,67 @@ func (m model) updateSocraticaQuestions(key string) (tea.Model, tea.Cmd) {
 	return m, m.socApply(f.ID, ev)
 }
 
-// socraticaActions son las acciones que admite el estado del flujo, alineadas
-// con el next de contracts/mcp-tool.md (I11).
-func socraticaActions(f domain.RefinementFlow, hasFlow bool) (label string, keys string) {
-	if hasFlow && f.Mode == domain.ModeSpecify {
-		return socraticaSpecifyActions(f)
+// socraticaKeys es la tecla y el rótulo de cada acción local, en el orden en
+// que se muestran. Qué acciones admite cada estado lo decide LocalActions;
+// aquí solo se presentan. Reenviar y Reintentar comparten la r porque nunca
+// coinciden en un mismo estado.
+var socraticaKeys = []struct {
+	action     usecases.SocraticaAction
+	key, label string
+}{
+	{usecases.ActionExecute, "e", "Ejecutar"},
+	{usecases.ActionEdit, "d", "Editar"},
+	{usecases.ActionCopy, "c", "Copiar"},
+	{usecases.ActionAssist, "a", "Continuar asistido"},
+	{usecases.ActionChangeHarness, "h", "Cambiar harness"},
+	{usecases.ActionSendOriginal, "o", "Enviar original"},
+	{usecases.ActionMarkDispatched, "m", "Marcar enviado"},
+	{usecases.ActionResend, "r", "Reenviar"},
+	{usecases.ActionCancel, "x", "Cancelar"},
+	{usecases.ActionRetry, "r", "Reintentar"},
+}
+
+// socraticaKeyHints rotula las acciones ofrecidas.
+func socraticaKeyHints(offered []usecases.SocraticaAction) string {
+	var parts []string
+	for _, k := range socraticaKeys {
+		if slices.Contains(offered, k.action) {
+			parts = append(parts, k.key+" "+k.label)
+		}
 	}
-	switch {
-	case !hasFlow:
+	return strings.Join(parts, " · ")
+}
+
+// socraticaKeyAction resuelve una tecla a la acción que la usa, solo si el
+// estado la ofrece.
+func socraticaKeyAction(key string, offered []usecases.SocraticaAction) (usecases.SocraticaAction, bool) {
+	for _, k := range socraticaKeys {
+		if k.key == key && slices.Contains(offered, k.action) {
+			return k.action, true
+		}
+	}
+	return "", false
+}
+
+// socraticaActions devuelve el rótulo del estado y las teclas que ofrece.
+func (m model) socraticaActions(f domain.RefinementFlow, hasFlow bool) (label string, keys string) {
+	if !hasFlow {
 		return "", ""
+	}
+	keys = socraticaKeyHints(m.soc.deps.Flow.LocalActions(f, true))
+	switch {
 	case f.InFlight:
-		return "Envío en curso", ""
+		return "Envío en curso", keys
+	case f.Mode == domain.ModeSpecify:
+		return socraticaSpecifyLabel(f), keys
 	case f.Uncertain:
-		return "Puede que ya se haya enviado", "m Marcar enviado · r Reenviar · x Cancelar"
+		return "Puede que ya se haya enviado", keys
+	case f.Phase == domain.PhaseFailed:
+		return m.soc.deps.Flow.ExplainFailure(f.LastError).Message, keys
+	case f.Phase == domain.PhaseDispatched:
+		return "Ya enviado", keys
 	}
-	switch f.Phase {
-	case domain.PhaseReview, domain.PhaseApproved:
-		return "", "e Ejecutar · d Editar · c Copiar · x Cancelar"
-	case domain.PhaseFailed:
-		return "No se pudo generar", "r Reintentar · o Enviar mi original · x Cancelar"
-	case domain.PhaseDispatched:
-		return "Ya enviado", "r Reenviar"
-	}
-	return "", ""
+	return "", keys
 }
 
 func (m model) updateSocraticaDetail(key string) (tea.Model, tea.Cmd) {
@@ -520,78 +559,57 @@ func (m model) updateSocraticaDetail(key string) (tea.Model, tea.Cmd) {
 	if f.ID == "" || m.soc.busy != "" || f.InFlight {
 		return m, nil
 	}
-	if f.Mode == domain.ModeSpecify {
-		// The only local action is the explicit cancel: preparation, review and
-		// delivery belong to the agent conversation.
-		if key == "x" && !f.Phase.Terminal() {
-			return m, m.socApply(f.ID, domain.Event{Kind: "cancel"})
-		}
-		return m, nil
-	}
-	if f.Uncertain {
-		kind := map[string]string{"m": "mark_dispatched", "r": "force_resend", "x": "cancel"}[key]
-		if kind == "" {
-			return m, nil
-		}
-		return m, m.socApply(f.ID, domain.Event{Kind: kind, DispatchID: f.DispatchID})
-	}
-	switch f.Phase {
-	case domain.PhaseReview, domain.PhaseApproved:
-		switch key {
-		case "e":
-			m.soc.busy = "Ejecutando en " + f.Client + "…"
-			return m, m.socExecute(f)
-		case "d":
-			m.soc.inputMode = "edit"
-			m.soc.input.SetValue(domain.StripTerminalControls(f.ProposedPrompt))
-			return m, m.soc.input.Focus()
-		case "c":
-			m.statusMsg = "Propuesta copiada al portapapeles"
-			m.statusTimer = 40
-			return m, tea.SetClipboard(domain.StripTerminalControls(domain.ProtectText(f.ProposedPrompt)))
-		case "x":
-			return m, m.socApply(f.ID, domain.Event{Kind: "cancel"})
-		}
-	case domain.PhaseFailed:
-		switch key {
-		case "a":
-			m.soc.busy = "Abriendo Socratica asistida en " + f.Client + "…"
-			return m, m.socAssist(f)
-		case "h":
-			m.soc.switchFlow = &f
-			m.soc.harnesses = nil
-			m.soc.harnessCursor = 0
-			m.soc.choosingHarness = true
-			m.soc.busy = "Detectando harnesses…"
-			flow := m.soc.deps.Flow
-			return m, func() tea.Msg { return socraticaHarnessesMsg{choices: flow.Harnesses()} }
-		case "r":
-			if info := m.soc.deps.Flow.ExplainFailure(f.LastError); !info.Retryable {
-				m.statusMsg = "a continúa asistido · h cambia de harness"
-				m.statusTimer = 40
-				return m, nil
-			}
-			m.soc.busy = "Generando con " + m.generatorName() + "…"
-			return m, m.socApply(f.ID, domain.Event{Kind: "retry"})
-		case "o":
-			m.soc.busy = "Ejecutando en " + f.Client + "…"
-			return m, m.socExecute(f)
-		case "x":
-			return m, m.socApply(f.ID, domain.Event{Kind: "cancel"})
-		}
-	case domain.PhaseDispatched:
+	offered := m.soc.deps.Flow.LocalActions(f, true)
+	if f.Phase == domain.PhaseDispatched && slices.Contains(offered, usecases.ActionResend) {
 		// Reenviar es una autorización nueva: exige una segunda pulsación (I10).
 		switch {
 		case key == "r" && !m.soc.confirmResend:
 			m.soc.confirmResend = true
 		case key == "y" && m.soc.confirmResend:
 			m.soc.confirmResend = false
-			return m, m.socApply(f.ID, domain.Event{Kind: "force_resend", DispatchID: f.DispatchID})
+			return m, m.socApply(f.ID, domain.Event{Kind: string(usecases.ActionResend), DispatchID: f.DispatchID})
 		default:
 			m.soc.confirmResend = false
 		}
+		return m, nil
 	}
-	return m, nil
+	action, ok := socraticaKeyAction(key, offered)
+	if !ok {
+		if key == "r" && f.Phase == domain.PhaseFailed && f.Mode != domain.ModeSpecify {
+			m.statusMsg = "a continúa asistido · h cambia de harness"
+			m.statusTimer = 40
+		}
+		return m, nil
+	}
+	switch action {
+	case usecases.ActionExecute, usecases.ActionSendOriginal:
+		m.soc.busy = "Ejecutando en " + f.Client + "…"
+		return m, m.socExecute(f)
+	case usecases.ActionEdit:
+		m.soc.inputMode = "edit"
+		m.soc.input.SetValue(domain.StripTerminalControls(f.ProposedPrompt))
+		return m, m.soc.input.Focus()
+	case usecases.ActionCopy:
+		m.statusMsg = "Propuesta copiada al portapapeles"
+		m.statusTimer = 40
+		return m, tea.SetClipboard(domain.StripTerminalControls(domain.ProtectText(f.ProposedPrompt)))
+	case usecases.ActionAssist:
+		m.soc.busy = "Abriendo Socratica asistida en " + f.Client + "…"
+		return m, m.socAssist(f)
+	case usecases.ActionChangeHarness:
+		m.soc.switchFlow = &f
+		m.soc.harnesses = nil
+		m.soc.harnessCursor = 0
+		m.soc.choosingHarness = true
+		m.soc.busy = "Detectando harnesses…"
+		flow := m.soc.deps.Flow
+		return m, func() tea.Msg { return socraticaHarnessesMsg{choices: flow.Harnesses()} }
+	case usecases.ActionRetry:
+		m.soc.busy = "Generando con " + m.generatorName() + "…"
+		return m, m.socApply(f.ID, domain.Event{Kind: string(action)})
+	}
+	// Cancelar, marcar enviado y reenviar son eventos del dominio con el mismo nombre.
+	return m, m.socApply(f.ID, domain.Event{Kind: string(action), DispatchID: f.DispatchID})
 }
 
 func (m model) toggleSocraticaInterception() (tea.Model, tea.Cmd) {
@@ -881,14 +899,9 @@ func (m model) socraticaDetailView() string {
 	}
 	var b strings.Builder
 	b.WriteString(m.socTitle(width) + "\n")
-	label, keys := socraticaActions(f, hasFlow)
+	label, keys := m.socraticaActions(f, hasFlow)
 	if f.Phase == domain.PhaseFailed {
-		info := m.soc.deps.Flow.ExplainFailure(f.LastError)
-		keys = "a Continuar asistido · h Cambiar harness · o Enviar original · x Cancelar"
-		if info.Retryable {
-			keys += " · r Reintentar"
-		}
-		label = ansi.Hardwrap(ansi.Wrap(info.Message, width, ""), width, false)
+		label = ansi.Hardwrap(ansi.Wrap(label, width, ""), width, false)
 	}
 	if label != "" {
 		b.WriteString(lipgloss.NewStyle().Foreground(socWarn).Bold(true).Render(label) + "\n")
@@ -928,23 +941,19 @@ func (m model) socraticaDetailView() string {
 	return b.String() + m.socFooter("esc volver", width)
 }
 
-// socraticaSpecifyActions: the local view of a specify flow only reads and can
-// cancel. Preparation, review and delivery happen in the agent conversation, so
-// none of the generic actions (execute, edit, copy, retry, resend) is offered.
-func socraticaSpecifyActions(f domain.RefinementFlow) (label string, keys string) {
+// socraticaSpecifyLabel: the local view of a specify flow only reads and can
+// cancel (LocalActions); preparation, review and delivery happen in the agent
+// conversation. This only describes the state.
+func socraticaSpecifyLabel(f domain.RefinementFlow) string {
 	switch {
-	case f.InFlight:
-		return "Envío en curso", ""
 	case f.PrivateStateUnavailable:
-		return "Reserva privada: sin contenido en esta instancia", "x Cancelar"
+		return "Reserva privada: sin contenido en esta instancia"
 	case f.Uncertain:
-		return "Puede que ya se haya enviado: decídelo desde el agente", "x Cancelar"
+		return "Puede que ya se haya enviado: decídelo desde el agente"
 	case f.Phase == domain.PhaseDispatched:
-		return "Ya enviado", ""
-	case f.Phase.Terminal():
-		return "", ""
+		return "Ya enviado"
 	}
-	return "", "x Cancelar"
+	return ""
 }
 
 // socraticaSpecifyBody is a pure view of a specify flow: stage, revision, what

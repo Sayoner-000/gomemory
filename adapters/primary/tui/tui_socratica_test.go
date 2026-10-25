@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -336,6 +337,63 @@ func TestSocraticaView_Pura(t *testing.T) {
 		}
 		if s.repo.calls.Load() != repoBefore || s.gen.calls.Load() != genBefore || s.launcher.calls.Load() != 0 {
 			t.Fatalf("pantalla %d: View tocó repositorio, generador o lanzador", sc)
+		}
+	}
+}
+
+// TestSocraticaApprovedFlowDoesNotOfferEdit: an approved flow that never ran
+// (no ack, no claim) only accepts edit after going back to review, so the
+// detail must not offer an edit the domain would reject.
+func TestSocraticaApprovedFlowDoesNotOfferEdit(t *testing.T) {
+	s := newSocTUI(t)
+	s.gen.questions = nil
+	s.refine("envía el informe")
+	id := s.m.soc.current.Flow.ID
+	r, err := s.m.soc.deps.Flow.Apply(context.Background(), id, domain.Event{Kind: "approve"}, usecases.OriginLocal)
+	if err != nil || r.Flow.Phase != domain.PhaseApproved {
+		t.Fatalf("approve: %v %s", err, r.Flow.Phase)
+	}
+	s.m.soc.current = r
+	if v := s.view(); strings.Contains(v, "d Editar") || !strings.Contains(v, "e Ejecutar · c Copiar · x Cancelar") {
+		t.Fatalf("un flujo aprobado no debe ofrecer editar:\n%s", v)
+	}
+	s.press("d")
+	if s.m.soc.inputMode != "" {
+		t.Fatal("la tecla d no debe abrir la edición en un flujo aprobado")
+	}
+}
+
+// TestSocraticaKeysMatchLocalActions: for every state the footer shows exactly
+// the actions LocalActions offers, and no key reaches an action it does not.
+func TestSocraticaKeysMatchLocalActions(t *testing.T) {
+	flow := &usecases.SocraticaFlow{}
+	phases := []domain.SocraticaPhase{domain.PhaseCaptured, domain.PhaseQuestions, domain.PhaseRewriting, domain.PhaseReview, domain.PhaseApproved, domain.PhaseFailed, domain.PhaseDispatched, domain.PhaseCancelled}
+	for _, mode := range []domain.SocraticaMode{domain.ModeRefine, domain.ModeScrutiny, domain.ModeSpecify} {
+		for _, phase := range phases {
+			for flags := 0; flags < 16; flags++ {
+				f := domain.RefinementFlow{Mode: mode, Phase: phase, InFlight: flags&1 != 0, Uncertain: flags&2 != 0, PrivateStateUnavailable: flags&4 != 0, LastError: domain.ErrGenerationTimeout.Error()}
+				if flags&8 != 0 {
+					f.LastError = "credenciales inválidas"
+				}
+				offered := flow.LocalActions(f, true)
+				hints := socraticaKeyHints(offered)
+				for _, a := range offered {
+					found := false
+					for _, k := range socraticaKeys {
+						if k.action == a {
+							found = strings.Contains(hints, k.key+" "+k.label)
+						}
+					}
+					if !found {
+						t.Errorf("%s/%s ofrece %s sin tecla en el pie %q", mode, phase, a, hints)
+					}
+				}
+				for _, k := range socraticaKeys {
+					if a, ok := socraticaKeyAction(k.key, offered); ok && !slices.Contains(offered, a) {
+						t.Errorf("%s/%s: la tecla %s dispara %s, que no se ofrece", mode, phase, k.key, a)
+					}
+				}
+			}
 		}
 	}
 }
