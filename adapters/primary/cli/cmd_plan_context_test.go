@@ -17,8 +17,8 @@ type fakeSettingsRepo struct {
 func (f fakeSettingsRepo) Read(string) ports.SettingsData {
 	return ports.SettingsData{AtomicPlanDisabled: f.atomicPlanDisabled}
 }
-func (f fakeSettingsRepo) Write(string, ports.SettingsData) error      { return nil }
-func (f fakeSettingsRepo) ApplyAutoApprove(string, ports.SettingsData) {}
+func (f fakeSettingsRepo) Write(string, ports.SettingsData) error            { return nil }
+func (f fakeSettingsRepo) ApplyAutoApprove(string, ports.SettingsData) error { return nil }
 
 // planCtxStub es el doble del constructor de contexto para las pruebas del
 // comando: permite ejercer la rama degradada sin necesidad de un proyecto sin

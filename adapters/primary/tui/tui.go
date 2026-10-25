@@ -665,7 +665,11 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.statusTimer = 40
 			return m, nil
 		}
-		m.settingsRepo.ApplyAutoApprove(m.root, settings)
+		if err := m.settingsRepo.ApplyAutoApprove(m.root, settings); err != nil {
+			m.statusMsg = "Guardado, pero no se pudo aplicar auto-approve: " + err.Error()
+			m.statusTimer = 40
+			return m, nil
+		}
 		if m.autoApprove {
 			m.statusMsg = "Auto-approve activado ✓"
 		} else {
@@ -1182,7 +1186,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusTimer = 40
 				return m, nil
 			}
-			m.settingsRepo.ApplyAutoApprove(m.root, s)
+			if err := m.settingsRepo.ApplyAutoApprove(m.root, s); err != nil {
+				m.statusMsg = "Guardado, pero no se pudo aplicar auto-approve: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			if m.autoApprove {
 				m.statusMsg = "Auto-approve activado ✓"
 			} else {
@@ -1281,7 +1289,11 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Persistir SettingsData no actualiza por sí mismo las configuraciones
 			// de los clientes MCP ya instalados. Igual que los toggles vecinos,
 			// aplicar la lista evita que el estado efectivo quede desfasado.
-			m.settingsRepo.ApplyAutoApprove(m.root, s)
+			if err := m.settingsRepo.ApplyAutoApprove(m.root, s); err != nil {
+				m.statusMsg = "Guardado, pero no se pudo aplicar auto-approve: " + err.Error()
+				m.statusTimer = 40
+				return m, nil
+			}
 			if s.OctopusEnabled {
 				m.statusMsg = "Octopus AAR activado (enrutador adaptativo: decide inline o delegar)"
 			} else {

@@ -84,7 +84,9 @@ func CmdSettings(deps *Deps, args []string) {
 		fail("guardar settings: %v", err)
 	}
 	if autoApproveChanged {
-		deps.SettingsRepo.ApplyAutoApprove(root, settings)
+		if err := deps.SettingsRepo.ApplyAutoApprove(root, settings); err != nil {
+			fail("aplicar auto-approve: %v", err)
+		}
 	}
 	humanln("✅ Settings actualizados")
 	printSettings(deps, root)

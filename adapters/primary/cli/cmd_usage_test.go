@@ -21,8 +21,8 @@ type usageSettingsStub struct {
 func (s usageSettingsStub) Read(string) ports.SettingsData {
 	return ports.SettingsData{UsageWindowTokens: s.windowTokens}
 }
-func (s usageSettingsStub) Write(string, ports.SettingsData) error      { return nil }
-func (s usageSettingsStub) ApplyAutoApprove(string, ports.SettingsData) {}
+func (s usageSettingsStub) Write(string, ports.SettingsData) error            { return nil }
+func (s usageSettingsStub) ApplyAutoApprove(string, ports.SettingsData) error { return nil }
 
 func newUsageTestDeps(t *testing.T, windowTokens int) (*Deps, func()) {
 	t.Helper()

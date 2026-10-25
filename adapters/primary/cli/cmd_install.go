@@ -389,8 +389,11 @@ func CmdInstall(deps *Deps, args []string) {
 	// 7. Apply autoApprove settings if configured
 	settings := deps.SettingsRepo.Read(target)
 	if settings.AutoApprove {
-		deps.SettingsRepo.ApplyAutoApprove(target, settings)
-		humanln("  ✅ Auto-approve aplicado desde settings")
+		if err := deps.SettingsRepo.ApplyAutoApprove(target, settings); err != nil {
+			humanf("  ⚠️  No se pudo aplicar auto-approve: %v\n", err)
+		} else {
+			humanln("  ✅ Auto-approve aplicado desde settings")
+		}
 	}
 
 	humanln()

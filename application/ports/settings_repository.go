@@ -162,5 +162,5 @@ type SettingsData struct {
 type SettingsRepository interface {
 	Read(root string) SettingsData
 	Write(root string, s SettingsData) error
-	ApplyAutoApprove(root string, s SettingsData)
+	ApplyAutoApprove(root string, s SettingsData) error
 }

@@ -2,6 +2,8 @@ package persistence
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -333,69 +335,64 @@ func WriteSettings(root string, s Settings) error {
 	return os.Chmod(path, 0o600)
 }
 
-func ApplyAutoApprove(root string, s Settings) {
-	if !s.AutoApprove || len(s.AutoApproveTools) == 0 {
-		return
+// ApplyAutoApprove escribe (o, con AutoApprove apagado, retira) la lista
+// autoApprove de la entrada gomemory en los .mcp.json del proyecto. Un archivo
+// ausente o sin entrada gomemory no es de gomemory y se deja intacto; un JSON
+// ilegible o una escritura fallida se informan en vez de dar falso éxito. Se
+// reemplaza de forma atómica conservando el modo del archivo, que suele ser
+// compartido con el repositorio.
+func ApplyAutoApprove(root string, s Settings) error {
+	if s.AutoApprove && len(s.AutoApproveTools) == 0 {
+		return nil
 	}
-	tools := s.AutoApproveTools
-	setAAP := func(path string) {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return
-		}
-		var cfg map[string]interface{}
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			return
-		}
-		ms, ok := cfg["mcpServers"].(map[string]interface{})
-		if !ok {
-			return
-		}
-		entry, ok := ms["gomemory"].(map[string]interface{})
-		if !ok {
-			return
-		}
-		entry["autoApprove"] = tools
-		ms["gomemory"] = entry
-		cfg["mcpServers"] = ms
-		out, _ := json.MarshalIndent(cfg, "", "  ")
-		_ = os.WriteFile(path, out, 0644)
-	}
-	removeAAP := func(path string) {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return
-		}
-		var cfg map[string]interface{}
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			return
-		}
-		ms, ok := cfg["mcpServers"].(map[string]interface{})
-		if !ok {
-			return
-		}
-		entry, ok := ms["gomemory"].(map[string]interface{})
-		if !ok {
-			return
-		}
-		delete(entry, "autoApprove")
-		ms["gomemory"] = entry
-		cfg["mcpServers"] = ms
-		out, _ := json.MarshalIndent(cfg, "", "  ")
-		_ = os.WriteFile(path, out, 0644)
-	}
-
-	paths := []string{
+	for _, path := range []string{
 		filepath.Join(root, ".mcp.json"),
 		filepath.Join(root, ".cursor", "mcp.json"),
-	}
-	for _, p := range paths {
-		if s.AutoApprove {
-			setAAP(p)
-		} else {
-			removeAAP(p)
+	} {
+		if err := applyAutoApproveFile(path, s); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
 		}
 	}
+	return nil
+}
+
+func applyAutoApproveFile(path string, s Settings) error {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var cfg map[string]interface{}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	ms, ok := cfg["mcpServers"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	entry, ok := ms["gomemory"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	if s.AutoApprove {
+		entry["autoApprove"] = s.AutoApproveTools
+	} else {
+		if _, had := entry["autoApprove"]; !had {
+			return nil
+		}
+		delete(entry, "autoApprove")
+	}
+	out, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(path, out, info.Mode().Perm())
 }
 
 // ReviewPolicy traduce los ajustes del proyecto a la política que consume el dominio.

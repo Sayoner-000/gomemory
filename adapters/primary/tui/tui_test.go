@@ -725,9 +725,9 @@ func TestOptimizeAllFlow_CompactsEveryGroupUsingSuggestion(t *testing.T) {
 // sin tocar disco.
 type tuiSettingsStub struct{ data *ports.SettingsData }
 
-func (s tuiSettingsStub) Read(string) ports.SettingsData              { return *s.data }
-func (s tuiSettingsStub) Write(_ string, d ports.SettingsData) error  { *s.data = d; return nil }
-func (s tuiSettingsStub) ApplyAutoApprove(string, ports.SettingsData) {}
+func (s tuiSettingsStub) Read(string) ports.SettingsData                    { return *s.data }
+func (s tuiSettingsStub) Write(_ string, d ports.SettingsData) error        { *s.data = d; return nil }
+func (s tuiSettingsStub) ApplyAutoApprove(string, ports.SettingsData) error { return nil }
 
 // TestConfigScreen_MuestraInterruptorDePlanificacionAtomica cubre FR-033: el
 // estado del ajuste debe ser consultable desde la pantalla de configuración.

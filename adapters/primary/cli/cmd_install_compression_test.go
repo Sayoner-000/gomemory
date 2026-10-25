@@ -11,9 +11,9 @@ import (
 // memSettingsRepo guarda los ajustes en memoria para la prueba.
 type memSettingsRepo struct{ s ports.SettingsData }
 
-func (m *memSettingsRepo) Read(string) ports.SettingsData              { return m.s }
-func (m *memSettingsRepo) Write(_ string, s ports.SettingsData) error  { m.s = s; return nil }
-func (m *memSettingsRepo) ApplyAutoApprove(string, ports.SettingsData) {}
+func (m *memSettingsRepo) Read(string) ports.SettingsData                    { return m.s }
+func (m *memSettingsRepo) Write(_ string, s ports.SettingsData) error        { m.s = s; return nil }
+func (m *memSettingsRepo) ApplyAutoApprove(string, ports.SettingsData) error { return nil }
 
 // T046 — instalación nueva → max; existente → sin tocar.
 func TestInstallCompressionDefault(t *testing.T) {

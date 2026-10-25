@@ -303,8 +303,8 @@ func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 	})
 }
 
-func (r *SettingsRepository) ApplyAutoApprove(root string, s ports.SettingsData) {
-	ApplyAutoApprove(root, Settings{
+func (r *SettingsRepository) ApplyAutoApprove(root string, s ports.SettingsData) error {
+	return ApplyAutoApprove(root, Settings{
 		AutoApprove:      s.AutoApprove,
 		AutoApproveTools: s.AutoApproveTools,
 	})

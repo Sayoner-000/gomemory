@@ -34,8 +34,8 @@ type planPromptSettings struct{ disabled bool }
 func (s planPromptSettings) Read(string) ports.SettingsData {
 	return ports.SettingsData{AtomicPlanDisabled: s.disabled}
 }
-func (s planPromptSettings) Write(string, ports.SettingsData) error      { return nil }
-func (s planPromptSettings) ApplyAutoApprove(string, ports.SettingsData) {}
+func (s planPromptSettings) Write(string, ports.SettingsData) error            { return nil }
+func (s planPromptSettings) ApplyAutoApprove(string, ports.SettingsData) error { return nil }
 
 type planPromptContext struct{ doc string }
 
