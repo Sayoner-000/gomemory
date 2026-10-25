@@ -7,6 +7,30 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.40.1] - 2026-10-25
+
+### Fixed
+
+- `mem socratica pending --cancel <id>` con un identificador inexistente dice que el flujo no existe, en vez de mostrar el error interno `sql: no rows in result set`. `--resume` usa el mismo mensaje y ya no presenta un fallo de la base como «no existe».
+- Un flujo de Socratica aprobado que no llegó a ejecutarse ya no ofrece «Editar» en la TUI ni en la CLI: el dominio solo admite editar en revisión y el intento terminaba en error.
+- La TUI permite cancelar una reserva `specify` ya enviada cuyo contenido privado no está en esta instancia. Antes anunciaba «x Cancelar» pero rechazaba la tecla, aunque el dominio y la CLI sí lo permitían.
+
+### Changed
+
+- Las acciones que admite cada estado de un flujo de Socratica se deciden en un único caso de uso (`LocalActions`). La TUI y los menús de la CLI solo las presentan, cada uno con sus teclas y textos de siempre.
+- `review_status` y `mem review show`/`status` obtienen el linaje de una revisión del mismo caso de uso (`BuildReviewStatus`). La salida no cambia.
+- Las entradas de `mem review` y de las tools `review_*` viven en su propio paquete (`adapters/primary/cli/review`), con una base compartida en `adapters/primary/cli/clikit`. La salida no cambia.
+
+### Tests
+
+- Nueva prueba de contrato de las reglas de capas de la arquitectura hexagonal: `domain` sin dependencias internas, `application` solo de `domain` y sus ports, y cruces de adaptador primario a secundario limitados a una lista explícita que solo puede encoger. Corre en `go test ./...`.
+- Prueba de paridad entre las acciones locales de Socratica y las transiciones que acepta el dominio.
+
+### Documentación
+
+- `specs/043-vertical-slices-assessment` recoge la evaluación de la base Go para desarrollar por vertical slices y su roadmap. `docs/architecture.md` refleja el paquete nuevo de Review.
+- Las guías vigentes (`docs/*-v2.40.html`) indican gomemory 2.40.1.
+
 ## [v2.40.0] - 2026-10-24
 
 ### Added
