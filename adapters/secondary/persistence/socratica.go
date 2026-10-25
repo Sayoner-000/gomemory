@@ -296,7 +296,12 @@ func (s *SocraticaStore) CreateFlow(ctx context.Context, f domain.RefinementFlow
 func (s *SocraticaStore) GetFlow(ctx context.Context, id string) (domain.RefinementFlow, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	return scanSocratica(s.q.QueryRowContext(ctx, "SELECT "+socraticaColumns+" FROM socratica_flows WHERE id=?", id))
+	f, e := scanSocratica(s.q.QueryRowContext(ctx, "SELECT "+socraticaColumns+" FROM socratica_flows WHERE id=?", id))
+	if errors.Is(e, sql.ErrNoRows) {
+		// The caller learns the flow is absent, not how storage reports it.
+		return f, fmt.Errorf("%w: %w", domain.ErrNotFound, e)
+	}
+	return f, e
 }
 func (s *SocraticaStore) ActiveFlow(ctx context.Context, project, client string) (domain.RefinementFlow, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)

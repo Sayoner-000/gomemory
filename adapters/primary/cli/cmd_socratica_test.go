@@ -460,3 +460,15 @@ func (l *lockingLauncher) release() {
 		_ = l.tx.Rollback()
 	}
 }
+
+// C-001: un id inexistente se informa igual en --cancel y --resume, sin
+// filtrar el error interno del almacenamiento.
+func TestCmdSocratica_PendingUnknownIDSaysTheFlowDoesNotExist(t *testing.T) {
+	e := newCLIEnv(t)
+	for _, flag := range []string{"--cancel", "--resume"} {
+		code, _, errOut := e.run(false, "", "pending", flag, "no-such-flow")
+		if code != socraticaExitUsage || !strings.Contains(errOut, "no existe el flujo no-such-flow") || strings.Contains(errOut, "sql:") {
+			t.Fatalf("%s = %d %q", flag, code, errOut)
+		}
+	}
+}

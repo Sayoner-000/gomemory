@@ -573,7 +573,7 @@ func (c *socraticaCmd) copy(text string) {
 func (c *socraticaCmd) cancel(id string) int {
 	r, err := c.u.Apply(c.ctx, id, domain.Event{Kind: "cancel"}, usecases.OriginLocal)
 	if err != nil {
-		c.sio.errorf("Error: %v\n", err)
+		c.flowError(id, err)
 		return socraticaExitUsage
 	}
 	if r.Flow.InFlight {
@@ -586,6 +586,16 @@ func (c *socraticaCmd) cancel(id string) int {
 	}
 	c.sio.printf("Cancelado. Tu prompt original:\n%s\n", r.Flow.OriginalPrompt)
 	return socraticaExitOK
+}
+
+// flowError reports a failure to load flow id: an unknown id reads as such,
+// and any other failure keeps its own cause instead of posing as "not found".
+func (c *socraticaCmd) flowError(id string, err error) {
+	if errors.Is(err, domain.ErrNotFound) {
+		c.sio.errorf("Error: no existe el flujo %s\n", id)
+		return
+	}
+	c.sio.errorf("Error: %v\n", err)
 }
 
 // showSpecify only reports a specify flow: its preparation belongs to the
@@ -969,7 +979,7 @@ func (c *socraticaCmd) pending(args []string) int {
 		c.launcher = c.deps.SocraticaExec
 		r, err := c.u.Get(c.ctx, *resume)
 		if err != nil {
-			c.sio.errorf("Error: no existe el flujo %s\n", *resume)
+			c.flowError(*resume, err)
 			return socraticaExitUsage
 		}
 		if r.Flow.Mode == domain.ModeSpecify {
