@@ -194,7 +194,7 @@ func (c *socraticaCmd) refine(args []string) int {
 	promptOut := c.sio.out
 	if c.sio.outScreen {
 		// On a terminal the printed prompt is painted, not piped.
-		promptOut = terminalSafe{promptOut}
+		promptOut = terminalSafe{W: promptOut}
 	}
 	if *printOnly && c.sio.env != nil {
 		// Keep stdout exclusively for the approved prompt.

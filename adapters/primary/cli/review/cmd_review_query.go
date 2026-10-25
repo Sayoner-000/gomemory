@@ -1,7 +1,8 @@
-package cli
+package review
 
 import (
 	"fmt"
+	"mem/adapters/primary/cli/clikit"
 	"os"
 	"strconv"
 	"strings"
@@ -16,7 +17,7 @@ import (
 // cae en «la más reciente»: si la última terminó, decir su veredicto ante un
 // `status` a secas se leería como el estado de un trabajo en curso, que es
 // justo la confusión que esta consulta debe evitar.
-func cmdReviewStatus(deps *Deps, args []string) {
+func cmdReviewStatus(deps *clikit.Deps, args []string) {
 	var review *domain.Review
 	if len(args) > 0 {
 		review = mustGetReview(deps, args[0])
@@ -40,21 +41,21 @@ func cmdReviewStatus(deps *Deps, args []string) {
 }
 
 // cmdReviewHistory implementa `mem review history [--limit N]`.
-func cmdReviewHistory(deps *Deps, args []string) {
+func cmdReviewHistory(deps *clikit.Deps, args []string) {
 	limit := 20
 	if len(args) >= 2 && args[0] == "--limit" {
 		n, err := strconv.Atoi(args[1])
 		if err != nil || n <= 0 {
-			fail("--limit requiere un entero positivo, se recibió %q", args[1])
+			clikit.Fail("--limit requiere un entero positivo, se recibió %q", args[1])
 		}
 		limit = n
 	} else if len(args) > 0 {
-		fail("uso: mem review history [--limit N]")
+		clikit.Fail("uso: mem review history [--limit N]")
 	}
 
 	reviews, err := deps.ReviewRepo.ListReviews(deps.Project, limit)
 	if err != nil {
-		fail("listar revisiones: %v", err)
+		clikit.Fail("listar revisiones: %v", err)
 	}
 	if len(reviews) == 0 {
 		fmt.Println("Este proyecto no tiene revisiones todavía.")
@@ -68,7 +69,7 @@ func cmdReviewHistory(deps *Deps, args []string) {
 		}
 		rows = append(rows, []string{review.ID, string(review.Target.Type), estado, domain.StripTerminalControls(review.Target.Revision)})
 	}
-	if printListPanel("review history", "Revisiones", fmt.Sprint(len(rows)), []string{"ID", "Target", "Estado", "Revisión"}, rows) {
+	if clikit.PrintListPanel("review history", "Revisiones", fmt.Sprint(len(rows)), []string{"ID", "Target", "Estado", "Revisión"}, rows) {
 		return
 	}
 	for _, r := range rows {
@@ -79,14 +80,14 @@ func cmdReviewHistory(deps *Deps, args []string) {
 // cmdReviewShow implementa `mem review show <review-id>`: el linaje completo de
 // data-model.md, que es lo que permite reconstruir qué se revisó, qué se
 // detectó, qué corrección se intentó y cómo acabó.
-func cmdReviewShow(deps *Deps, args []string) {
+func cmdReviewShow(deps *clikit.Deps, args []string) {
 	if len(args) != 1 {
-		fail("uso: mem review show <review-id>")
+		clikit.Fail("uso: mem review show <review-id>")
 	}
 	review := mustGetReview(deps, args[0])
 	// Claims, reasons, revisions and paths come from agents: the report is
 	// plain text, so the whole of it is written without control sequences.
-	out := terminalSafe{os.Stdout}
+	out := clikit.TerminalSafe{W: os.Stdout}
 
 	fmt.Fprintf(out, "# Revisión %s\n\n", review.ID)
 	fmt.Fprintln(out, "## Target")
@@ -109,7 +110,7 @@ func cmdReviewShow(deps *Deps, args []string) {
 
 	estado, err := usecases.BuildReviewStatus(deps.ReviewRepo, deps.ConsensusRepo, deps.Project, review)
 	if err != nil {
-		fail("%v", err)
+		clikit.Fail("%v", err)
 	}
 
 	// El informe humano muestra el historial de todas las rondas.
@@ -187,23 +188,23 @@ func cmdReviewShow(deps *Deps, args []string) {
 // Un identificador inexistente NO puede devolver una revisión vacía: quien
 // consulta leería «sin hallazgos» y concluiría que no hay defectos, cuando lo
 // que pasa es que se equivocó de identificador.
-func mustGetReview(deps *Deps, reviewID string) *domain.Review {
+func mustGetReview(deps *clikit.Deps, reviewID string) *domain.Review {
 	review, err := deps.ReviewRepo.GetReview(deps.Project, reviewID)
 	if err != nil {
-		fail("leer la revisión %s: %v", reviewID, err)
+		clikit.Fail("leer la revisión %s: %v", reviewID, err)
 	}
 	if review == nil {
-		fail("la revisión %s no existe en este proyecto (usa `mem review history`)", reviewID)
+		clikit.Fail("la revisión %s no existe en este proyecto (usa `mem review history`)", reviewID)
 	}
 	return review
 }
 
 // activeReview devuelve la revisión abierta más reciente, o nil si todas
 // terminaron.
-func activeReview(deps *Deps) *domain.Review {
+func activeReview(deps *clikit.Deps) *domain.Review {
 	reviews, err := deps.ReviewRepo.ListReviews(deps.Project, 50)
 	if err != nil {
-		fail("listar revisiones: %v", err)
+		clikit.Fail("listar revisiones: %v", err)
 	}
 	for i := range reviews {
 		if !reviews[i].Status.Terminal() {
@@ -213,10 +214,10 @@ func activeReview(deps *Deps) *domain.Review {
 	return nil
 }
 
-func resumirHallazgos(deps *Deps, review *domain.Review) {
+func resumirHallazgos(deps *clikit.Deps, review *domain.Review) {
 	estado, err := usecases.BuildReviewStatus(deps.ReviewRepo, deps.ConsensusRepo, deps.Project, review)
 	if err != nil {
-		fail("%v", err)
+		clikit.Fail("%v", err)
 	}
 	if len(estado.Findings) == 0 {
 		return

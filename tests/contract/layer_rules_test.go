@@ -53,6 +53,8 @@ func TestLayerRules_DetectaViolaciones(t *testing.T) {
 		"application/usecases":        {"adapters/secondary/persistence"},
 		"adapters/primary/tui":        {"adapters/secondary/generator"},
 		"adapters/secondary/launcher": {"adapters/primary/cli", "infrastructure"},
+		"adapters/primary/cli/review": {"adapters/primary/cli", "adapters/primary/cli/socratica", "adapters/primary/cli/clikit"},
+		"adapters/primary/cli/clikit": {"adapters/primary/cli/review"},
 	}
 	allowed := map[string]string{"adapters/primary/cli -> adapters/secondary/release": "obsoleta"}
 
@@ -64,10 +66,16 @@ func TestLayerRules_DetectaViolaciones(t *testing.T) {
 		"L3: adapters/secondary/launcher importa adapters/primary/cli",
 		"L3: adapters/secondary/launcher importa infrastructure",
 		"excepción obsoleta: adapters/primary/cli -> adapters/secondary/release",
+		"L3: adapters/primary/cli/review importa adapters/primary/cli (",
+		"L3: adapters/primary/cli/review importa adapters/primary/cli/socratica",
+		"L3: adapters/primary/cli/clikit importa adapters/primary/cli/review",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("falta la violación %q en:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "importa adapters/primary/cli/clikit") {
+		t.Errorf("un slice puede importar clikit:\n%s", got)
 	}
 	if n := len(layerViolations(map[string][]string{"application/usecases": {"domain", "application/ports"}}, nil)); n != 0 {
 		t.Errorf("un grafo correcto no debe tener violaciones, tiene %d", n)
@@ -89,6 +97,8 @@ func layerViolations(graph map[string][]string, allowed map[string]string) []str
 				out = append(out, "L2: "+pkg+" importa "+imp+" (application solo depende de domain y de sus ports)")
 			case strings.HasPrefix(pkg, "adapters/") && imp == "infrastructure":
 				out = append(out, "L3: "+pkg+" importa "+imp+" (el composition root no se importa)")
+			case strings.HasPrefix(pkg, cliPkg+"/") && strings.HasPrefix(imp+"/", cliPkg+"/") && !cliSubpackageMayImport(pkg, imp):
+				out = append(out, "L3: "+pkg+" importa "+imp+" (un slice de cli/ solo comparte clikit, y clikit no importa ningún paquete de cli/)")
 			case strings.HasPrefix(pkg, "adapters/secondary/") && strings.HasPrefix(imp, "adapters/primary/"):
 				out = append(out, "L3: "+pkg+" importa "+imp+" (un adaptador secundario no depende de uno primario)")
 			case strings.HasPrefix(pkg, "adapters/primary/") && strings.HasPrefix(imp, "adapters/secondary/"):
@@ -106,6 +116,28 @@ func layerViolations(graph map[string][]string, allowed map[string]string) []str
 		}
 	}
 	return out
+}
+
+// cliPkg agrupa las entradas de la CLI. Cada slice que se extrae vive en
+// cli/<slice> y comparte con el resto solo cli/clikit: si un slice importara
+// cli u otro slice, volvería a acoplarse a todo el paquete (paso 4 de 043).
+const cliPkg = "adapters/primary/cli"
+
+// cliSubpackageMayImport decide una importación entre paquetes de cli/ hecha
+// desde un subpaquete.
+func cliSubpackageMayImport(pkg, imp string) bool {
+	kit := cliPkg + "/clikit"
+	if imp == cliPkg || pkg == kit || strings.HasPrefix(pkg, kit+"/") {
+		return false
+	}
+	return imp == kit || cliSlice(imp) == cliSlice(pkg)
+}
+
+// cliSlice devuelve el primer segmento bajo cli/.
+func cliSlice(pkg string) string {
+	rest := strings.TrimPrefix(pkg, cliPkg+"/")
+	slice, _, _ := strings.Cut(rest, "/")
+	return slice
 }
 
 func allowedInApplication(pkg, imp string) bool {

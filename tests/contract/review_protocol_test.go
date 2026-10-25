@@ -8,7 +8,7 @@ import (
 )
 
 func TestReviewMCPToolContracts(t *testing.T) {
-	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "cmd_mcp_review_tools.go")
+	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "review", "cmd_mcp_review_tools.go")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("leer contrato de tools de revisión: %v", err)
@@ -57,7 +57,7 @@ func TestReviewMCPToolContracts(t *testing.T) {
 }
 
 func TestReviewSubmitPublishesItsOnlyValidStatuses(t *testing.T) {
-	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "cmd_mcp_review_tools.go")
+	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "review", "cmd_mcp_review_tools.go")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("leer contrato de review_submit: %v", err)
@@ -79,7 +79,7 @@ func TestReviewSubmitPublishesItsOnlyValidStatuses(t *testing.T) {
 // review_status devolvía cuatro campos —review_id, status, round, verdict— mientras
 // el contrato de la 027 ya prometía "resumen de hallazgos por estado".
 func TestReviewStatusExponeElLinaje(t *testing.T) {
-	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "cmd_mcp_review_tools.go")
+	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "review", "cmd_mcp_review_tools.go")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -100,10 +100,10 @@ func TestReviewStatusExponeElLinaje(t *testing.T) {
 
 // TestReviewFinalizeMetricasDelContrato comprueba que las ocho métricas publicadas
 // existen con su nombre snake_case. La verificación de la serialización REAL vive en
-// adapters/primary/cli/cmd_mcp_review_metrics_test.go: este test solo evita que un
+// adapters/primary/cli/review/cmd_mcp_review_metrics_test.go: este test solo evita que un
 // campo desaparezca del DTO.
 func TestReviewFinalizeMetricasDelContrato(t *testing.T) {
-	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "cmd_mcp_review_tools.go")
+	path := filepath.Join(repoRootContract(t), "adapters", "primary", "cli", "review", "cmd_mcp_review_tools.go")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

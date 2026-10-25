@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"mem/adapters/primary/cli/clikit"
 	"mem/adapters/primary/console"
 	"mem/domain"
 )
@@ -99,19 +100,16 @@ func commandHelp(command string) bool {
 	return true
 }
 
-// humanTerminal indica salida para una persona: terminal real fuera de CI.
-// Fuera de ella cada comando conserva su texto plano, que agentes y scripts leen.
-func humanTerminal(env console.Env) bool {
-	return env.StdoutTTY && (env.Getenv == nil || env.Getenv("CI") == "")
+// Los helpers de presentación que comparten los slices viven en clikit; aquí
+// quedan con su nombre de siempre para el resto del paquete.
+func humanTerminal(env console.Env) bool { return clikit.HumanTerminal(env) }
+
+func panelTable(l console.Layout, title, meta string, headers []string, rows [][]string) string {
+	return clikit.PanelTable(l, title, meta, headers, rows)
 }
 
-// panelTable compone una tabla dentro de un panel, con las columnas
-// numéricas alineadas a la derecha.
-func panelTable(l console.Layout, title, meta string, headers []string, rows [][]string) string {
-	inner := l.WithWidth(min(l.Width(), 100) - 4)
-	rows = fitLastColumn(inner.Width(), headers, rows)
-	table := strings.TrimRight(inner.Table(headers, rows), "\n")
-	return l.Panel(title, meta, "", strings.Split(table, "\n"))
+func printListPanel(banner, title, meta string, headers []string, rows [][]string) bool {
+	return clikit.PrintListPanel(banner, title, meta, headers, rows)
 }
 
 // printReport imprime la salida de un comando de estado. En terminal humana
@@ -142,52 +140,6 @@ func reportPanel(l console.Layout, title, meta, body string) string {
 	out := l.Report(title, meta, body)
 	if footer != "" {
 		out += "\n" + l.Document("  "+l.Muted(footer)) + "\n"
-	}
-	return out
-}
-
-// printListPanel presenta un listado como tabla en un panel cuando la salida
-// es para una persona. Devuelve false en otro caso: el llamador conserva su
-// formato plano, que agentes y scripts leen.
-func printListPanel(banner, title, meta string, headers []string, rows [][]string) bool {
-	env := console.DetectEnv()
-	if !humanTerminal(env) {
-		return false
-	}
-	if banner != "" {
-		console.PrintBrand(banner)
-	}
-	fmt.Print(panelTable(console.NewLayout(env), title, meta, headers, rows))
-	return true
-}
-
-// fitLastColumn recorta con "…" la columna final de texto libre (resumen,
-// razonamiento) para que el listado siga siendo tabla en vez de fichas.
-func fitLastColumn(width int, headers []string, rows [][]string) [][]string {
-	last := len(headers) - 1
-	if last < 1 {
-		return rows
-	}
-	fixed := 2 * last
-	for i := 0; i < last; i++ {
-		w := ansi.StringWidth(headers[i])
-		for _, row := range rows {
-			if i < len(row) {
-				w = max(w, ansi.StringWidth(row[i]))
-			}
-		}
-		fixed += w
-	}
-	room := width - fixed
-	if room < 12 {
-		return rows
-	}
-	out := make([][]string, len(rows))
-	for i, row := range rows {
-		out[i] = append([]string(nil), row...)
-		if last < len(row) {
-			out[i][last] = ansi.Truncate(row[last], room, "…")
-		}
 	}
 	return out
 }

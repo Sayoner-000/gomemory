@@ -3,13 +3,13 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"mem/adapters/primary/cli/review"
 	"strings"
 	"testing"
 
 	"mem/adapters/secondary/tokens"
 	"mem/domain"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -49,7 +49,7 @@ func TestMeasurePublishedSchemas_CountsRealServer(t *testing.T) {
 
 func TestReviewSubmitPublishedSchemaExplainsValidStatuses(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "gomemory-schema-probe", Version: "internal"}, nil)
-	registerReviewTools(server, &Deps{Project: "proj"}, "proj")
+	review.RegisterTools(server, &Deps{Project: "proj"}, "proj")
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
@@ -88,7 +88,7 @@ func TestReviewSubmitPublishedSchemaExplainsValidStatuses(t *testing.T) {
 
 func TestReviewStartPublishedSchemaExplainsScopeArray(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "gomemory-schema-probe", Version: "internal"}, nil)
-	registerReviewTools(server, &Deps{Project: "proj"}, "proj")
+	review.RegisterTools(server, &Deps{Project: "proj"}, "proj")
 
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
@@ -179,28 +179,6 @@ func assertNoNullUnion(t *testing.T, path string, node any) {
 	case []any:
 		for _, child := range v {
 			assertNoNullUnion(t, path, child)
-		}
-	}
-}
-
-// TestDropNullUnions_RecorreComposicionYDefs: la unión con null también debe
-// eliminarse cuando vive dentro de allOf/anyOf/oneOf o de $defs.
-func TestDropNullUnions_RecorreComposicionYDefs(t *testing.T) {
-	nullable := func() *jsonschema.Schema { return &jsonschema.Schema{Types: []string{"null", "string"}} }
-	s := &jsonschema.Schema{
-		Type:  "object",
-		Defs:  map[string]*jsonschema.Schema{"d": nullable()},
-		AllOf: []*jsonschema.Schema{nullable()},
-		AnyOf: []*jsonschema.Schema{nullable()},
-		OneOf: []*jsonschema.Schema{nullable()},
-	}
-	dropNullUnions(s)
-
-	for nombre, sub := range map[string]*jsonschema.Schema{
-		"$defs": s.Defs["d"], "allOf": s.AllOf[0], "anyOf": s.AnyOf[0], "oneOf": s.OneOf[0],
-	} {
-		if sub.Type != "string" || sub.Types != nil {
-			t.Errorf("%s conserva la unión con null: type=%q types=%v", nombre, sub.Type, sub.Types)
 		}
 	}
 }

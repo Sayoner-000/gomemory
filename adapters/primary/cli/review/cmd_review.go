@@ -1,10 +1,11 @@
-package cli
+package review
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"mem/adapters/primary/cli/clikit"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,9 +16,9 @@ import (
 	"mem/domain"
 )
 
-func CmdReview(deps *Deps, args []string) {
+func Cmd(deps *clikit.Deps, args []string) {
 	if len(args) == 0 {
-		fail("uso: mem review --diff [rango] | --commit <sha> | --file <ruta> | --pending\n" +
+		clikit.Fail("uso: mem review --diff [rango] | --commit <sha> | --file <ruta> | --pending\n" +
 			"     opciones: --read-only\n" +
 			"     mem review status [<review-id>] | history [--limit N] | show <review-id>")
 	}
@@ -34,7 +35,7 @@ func CmdReview(deps *Deps, args []string) {
 	}
 	args = filtrados
 	if len(args) == 0 {
-		fail("--read-only modifica una revisión: indica también el target")
+		clikit.Fail("--read-only modifica una revisión: indica también el target")
 	}
 
 	var targetType domain.TargetType
@@ -54,13 +55,13 @@ func CmdReview(deps *Deps, args []string) {
 		revision, digest, scope, err = resolvePendingTarget(deps.Root)
 	case "--commit":
 		if len(args) != 2 {
-			fail("--commit requiere un SHA o referencia")
+			clikit.Fail("--commit requiere un SHA o referencia")
 		}
 		targetType = domain.TargetCommit
 		revision, digest, err = resolveCommitTarget(deps.Root, args[1])
 	case "--file":
 		if len(args) != 2 {
-			fail("--file requiere una ruta")
+			clikit.Fail("--file requiere una ruta")
 		}
 		targetType = domain.TargetFileSet
 		revision, digest, scope, err = resolveFileTarget(deps.Root, args[1])
@@ -74,13 +75,13 @@ func CmdReview(deps *Deps, args []string) {
 		cmdReviewShow(deps, args[1:])
 		return
 	default:
-		fail("subcomando de review desconocido: %s\n"+
+		clikit.Fail("subcomando de review desconocido: %s\n"+
 			"uso: mem review --diff [rango] | --commit <sha> | --file <ruta> | --pending\n"+
 			"     opciones: --read-only\n"+
 			"     mem review status [<review-id>] | history [--limit N] | show <review-id>", args[0])
 	}
 	if err != nil {
-		fail("resolver target: %v", err)
+		clikit.Fail("resolver target: %v", err)
 	}
 	entrada := usecases.StartReviewInput{
 		Project: deps.Project, TargetType: targetType, Revision: revision, Digest: digest, Scope: scope,
@@ -92,7 +93,7 @@ func CmdReview(deps *Deps, args []string) {
 	}
 	review, err := usecases.StartReview(deps.ReviewRepo, entrada)
 	if err != nil {
-		fail("iniciar revisión: %v", err)
+		clikit.Fail("iniciar revisión: %v", err)
 	}
 	fmt.Println(review.ID)
 	fmt.Printf("target_digest: %s\n", review.Target.Digest())

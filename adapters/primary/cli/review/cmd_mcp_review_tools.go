@@ -1,9 +1,9 @@
-package cli
+package review
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"mem/adapters/primary/cli/clikit"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -61,8 +61,8 @@ type reviewUnmatchedInput struct {
 	Severity string `json:"severity,omitempty"`
 }
 
-func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
-	addTool(server, &mcp.Tool{
+func RegisterTools(server *mcp.Server, deps *clikit.Deps, project string) {
+	clikit.AddTool(server, &mcp.Tool{
 		Name: "review_start",
 		Description: "Congela un target y abre una revisión adversarial sin ejecutar modelos. " +
 			"scope es opcional: si se proporciona, debe ser un arreglo JSON de rutas relativas, " +
@@ -93,7 +93,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return reviewToolResult(map[string]any{
+		return clikit.ToolResult(map[string]any{
 			"review_id": review.ID, "target_digest": review.Target.Digest(),
 			"independence":        map[string]any{"level": review.IndependenceLevel, "reason": review.IndependenceReason},
 			"fix_authorized":      review.FixAuthorized,
@@ -102,7 +102,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		})
 	})
 
-	addTool(server, &mcp.Tool{
+	clikit.AddTool(server, &mcp.Tool{
 		Name: "review_submit",
 		Description: "Registra el resultado final estructurado de un revisor para el target congelado. " +
 			"status debe ser exactamente success (la revisión terminó, incluso sin hallazgos) o failure " +
@@ -132,12 +132,12 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return reviewToolResult(map[string]any{
+		return clikit.ToolResult(map[string]any{
 			"stored": true, "consensus_ready": out.ConsensusReady, "finding_ids": out.FindingIDs,
 		})
 	})
 
-	addTool(server, &mcp.Tool{
+	clikit.AddTool(server, &mcp.Tool{
 		Name:        "review_consensus",
 		Description: "Valida y persiste una clasificación de consenso propuesta por el agente orquestador.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -165,12 +165,12 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return reviewToolResult(map[string]any{
+		return clikit.ToolResult(map[string]any{
 			"consensus_findings": out.Findings, "idempotent": out.Idempotent,
 		})
 	})
 
-	addTool(server, &mcp.Tool{
+	clikit.AddTool(server, &mcp.Tool{
 		Name: "review_fix_record",
 		Description: "Registra una corrección ya aplicada fuera de gomemory y avanza la revisión a re-revisión. " +
 			"Rechaza hallazgos no confirmados, severidades fuera de política sin autorización explícita, " +
@@ -198,10 +198,10 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return reviewToolResult(map[string]any{"fix_delta": delta})
+		return clikit.ToolResult(map[string]any{"fix_delta": delta})
 	})
 
-	addTool(server, &mcp.Tool{
+	clikit.AddTool(server, &mcp.Tool{
 		Name: "review_rejudge",
 		Description: "Registra el resultado de la revalidación de los hallazgos confirmados tras una corrección " +
 			"(RESOLVED, UNRESOLVED o REGRESSED). Exige una corrección previa registrada.",
@@ -237,10 +237,10 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 				"rejudgment_round":   finding.RejudgmentRound,
 			})
 		}
-		return reviewToolResult(map[string]any{"rejudged": salida})
+		return clikit.ToolResult(map[string]any{"rejudged": salida})
 	})
 
-	addTool(server, &mcp.Tool{
+	clikit.AddTool(server, &mcp.Tool{
 		Name:        "review_status",
 		Description: "Consulta el estado persistido de una revisión sin ejecutar transiciones.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -256,7 +256,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		return construirEstadoDeRevision(deps, project, review)
 	})
 
-	addTool(server, &mcp.Tool{
+	clikit.AddTool(server, &mcp.Tool{
 		Name:        "review_finalize",
 		Description: "Deriva el veredicto terminal exclusivamente desde el estado persistido.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
@@ -274,7 +274,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return reviewToolResult(map[string]any{
+		return clikit.ToolResult(map[string]any{
 			"review_id":           review.ID,
 			"verdict":             review.Verdict,
 			"promotable_findings": promotable,
@@ -282,7 +282,7 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		})
 	})
 
-	addTool(server, &mcp.Tool{
+	clikit.AddTool(server, &mcp.Tool{
 		Name: "review_promote_memory",
 		Description: "Convierte defectos confirmados Y resueltos en memoria reutilizable del proyecto. " +
 			"Solo acepta problema, causa raíz, resolución y verificación: no hay dónde poner un transcript " +
@@ -306,23 +306,15 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return reviewToolResult(map[string]any{"promoted": promovidas})
+		return clikit.ToolResult(map[string]any{"promoted": promovidas})
 	})
-}
-
-func reviewToolResult(value any) (*mcp.CallToolResult, any, error) {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil, nil, err
-	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, value, nil
 }
 
 // reviewPolicyDelProyecto lee la política de revisión configurada.
 //
 // Es el punto que faltaba: Settings tenía la política desde la funcionalidad 027 pero
 // ningún llamador la leía, así que configurarla no producía ningún efecto (FR-017).
-func reviewPolicyDelProyecto(deps *Deps) domain.ReviewPolicy {
+func reviewPolicyDelProyecto(deps *clikit.Deps) domain.ReviewPolicy {
 	politica := domain.DefaultReviewPolicy()
 	if deps.SettingsRepo == nil {
 		return politica
@@ -376,7 +368,7 @@ func nuevasMetricasDTO(m usecases.ReviewMetrics) reviewMetricsDTO {
 // estado". SC-006 exige más: reconstruir el recorrido completo de cualquier hallazgo
 // con UNA sola consulta, sin abrir la base ni ningún archivo interno (FR-022, FR-023).
 func construirEstadoDeRevision(
-	deps *Deps, project string, review *domain.Review,
+	deps *clikit.Deps, project string, review *domain.Review,
 ) (*mcp.CallToolResult, any, error) {
 	estado, err := usecases.BuildReviewStatus(deps.ReviewRepo, deps.ConsensusRepo, project, review)
 	if err != nil {
@@ -453,7 +445,7 @@ func construirEstadoDeRevision(
 		revisores = append(revisores, entrada)
 	}
 
-	return reviewToolResult(map[string]any{
+	return clikit.ToolResult(map[string]any{
 		"review_id":      review.ID,
 		"status":         review.Status,
 		"round":          review.Round,

@@ -42,7 +42,7 @@ func TestSocratica_PantallaSinSecuenciasYEntregaExacta(t *testing.T) {
 
 func TestTerminalSafe_EscrituraPorTrozos(t *testing.T) {
 	var b bytes.Buffer
-	w := terminalSafe{&b}
+	w := terminalSafe{W: &b}
 	for _, chunk := range []string{"claim \x1b]0;", "PWNED\x07 fin\r", "\n"} {
 		if n, err := w.Write([]byte(chunk)); err != nil || n != len(chunk) {
 			t.Fatal(n, err)

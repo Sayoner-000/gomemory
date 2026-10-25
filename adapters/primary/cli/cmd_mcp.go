@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"mem/adapters/primary/cli/review"
 	"mem/application/ports"
 	"strings"
 
@@ -132,7 +133,7 @@ func newMCPServer(deps *Deps, root, project string) *mcp.Server {
 }
 
 func registerTools(server *mcp.Server, deps *Deps, project string) {
-	registerReviewTools(server, deps, project)
+	review.RegisterTools(server, deps, project)
 	registerSocraticaTool(server, deps, project)
 
 	addTool(server, &mcp.Tool{

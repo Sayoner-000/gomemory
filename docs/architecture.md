@@ -79,7 +79,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `plan-context` | `adapters/primary/cli/cmd_plan_context.go` | Método de descomposición atómica más historial, para modo plan |
 | `mass` | `adapters/primary/cli/cmd_mass.go` | Ranking de masa (centralidad en el grafo de memorias) |
 | `index` | `adapters/primary/cli/cmd_index.go` | Indexa el grafo de código propio y refresca los grafos externos configurados |
-| `review` | `adapters/primary/cli/cmd_review.go`, `cmd_review_query.go` | Revisión adversarial por consenso: abrir, `status`, `history`, `show` |
+| `review` | `adapters/primary/cli/review/cmd_review.go`, `cmd_review_query.go` (paquete propio; base compartida en `cli/clikit`) | Revisión adversarial por consenso: abrir, `status`, `history`, `show` |
 | `octopus` | `adapters/primary/cli/cmd_octopus*.go` | Enrutamiento Octopus AAR: `route`, `plan`, `status`, `usage`, `history` |
 | `socratica` | `adapters/primary/cli/cmd_socratica.go` | Refinamiento de prompts: `refine`, `history`, `status`, `pending`, `on`/`off`, `private` |
 | `doctor` | `adapters/primary/cli/cmd_doctor*.go` | Diagnóstico de canales, binario, compresión y guard de plan (`--json`, `--strict`) |
@@ -1203,7 +1203,7 @@ testeadas por tabla. Puertos en `application/ports/{review,consensus}_repository
 casos de uso en `application/usecases/{start_review,submit_reviewer_result,
 build_consensus,record_fix,rejudge_review,finalize_review,
 promote_review_memory}.go`. Siete tools MCP en
-`adapters/primary/cli/cmd_mcp_review_tools.go` (`review_start`, `_submit`,
+`adapters/primary/cli/review/cmd_mcp_review_tools.go` (`review_start`, `_submit`,
 `_consensus`, `_fix_record`, `_rejudge`, `_finalize`, `_promote_memory`) más
 `review_status` de solo lectura; CLI equivalente en `cmd_review.go` /
 `cmd_review_query.go` (`mem review --diff|--commit|--file`, `status`,

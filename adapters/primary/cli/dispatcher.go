@@ -2,9 +2,11 @@ package cli
 
 import (
 	"fmt"
+	"mem/adapters/primary/cli/review"
 	"os"
 	"strings"
 
+	"mem/adapters/primary/cli/clikit"
 	"mem/adapters/primary/console"
 	"mem/version"
 )
@@ -48,7 +50,7 @@ func Run(cmd string, args []string, deps *Deps) {
 	case "compare", "judge":
 		CmdCompare(deps, args)
 	case "review":
-		CmdReview(deps, args)
+		review.Cmd(deps, args)
 	case "forget":
 		CmdForget(deps, args)
 	case "project":
@@ -177,12 +179,4 @@ func rejectUnexpectedArgs(cmd string, args []string) {
 	exitProcess(2)
 }
 
-func fail(format string, args ...any) {
-	msg := fmt.Sprintf("Error: "+format+"\n", args...)
-	if env := console.DetectEnv(); humanTerminal(env) {
-		// Mismo color y ajuste que el resto de la salida; sigue en stderr.
-		msg = console.NewLayout(env).Document(msg)
-	}
-	fmt.Fprint(os.Stderr, msg)
-	os.Exit(1)
-}
+func fail(format string, args ...any) { clikit.Fail(format, args...) }

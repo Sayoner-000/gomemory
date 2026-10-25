@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"mem/adapters/primary/cli/clikit"
 	"mem/application/usecases"
 	"mem/domain"
 )
@@ -63,7 +64,7 @@ type socraticaPreparationInput struct {
 func registerSocraticaTool(server *mcp.Server, deps *Deps, project string) {
 	addTool(server, &mcp.Tool{Name: domain.ToolSocraticaFlow, Description: "Gestiona refinamiento, escrutinio y preparación para Spec Kit (mode=specify) con Socratica. Requiere aprobación explícita; ack con dispatch_id y ack_nonce antes de ejecutar. En mode=specify propón secciones con prepare(set) y sigue next, stage y allowed_actions calculados por el servidor. No activa intercepción."}, func(ctx context.Context, req *mcp.CallToolRequest, in socraticaInput) (*mcp.CallToolResult, any, error) {
 		if deps.Socratica == nil {
-			return reviewToolResult(map[string]any{"phase": "unavailable"})
+			return clikit.ToolResult(map[string]any{"phase": "unavailable"})
 		}
 		u := deps.Socratica
 		settings, err := u.ValidatedSettings()
@@ -75,7 +76,7 @@ func registerSocraticaTool(server *mcp.Server, deps *Deps, project string) {
 			if !domain.IsSocraticaClient(in.Client) {
 				return nil, nil, fmt.Errorf("invalid client")
 			}
-			return reviewToolResult(map[string]any{"interception": settings.Interception[in.Client], "private": settings.Private, "capabilities": domain.CapabilitiesForSocratica(in.Client)})
+			return clikit.ToolResult(map[string]any{"interception": settings.Interception[in.Client], "private": settings.Private, "capabilities": domain.CapabilitiesForSocratica(in.Client)})
 		case "history":
 			rows, e := u.History(ctx, project, in.Client)
 			if e != nil {
@@ -84,7 +85,7 @@ func registerSocraticaTool(server *mcp.Server, deps *Deps, project string) {
 			if in.Limit > 0 && in.Limit < len(rows) {
 				rows = rows[:in.Limit]
 			}
-			return reviewToolResult(map[string]any{"history": rows})
+			return clikit.ToolResult(map[string]any{"history": rows})
 		}
 		var result usecases.SocraticaResult
 		if in.Action == "start" {
@@ -206,7 +207,7 @@ func registerSocraticaTool(server *mcp.Server, deps *Deps, project string) {
 		if err != nil {
 			return nil, nil, err
 		}
-		return reviewToolResult(socraticaOutput(result))
+		return clikit.ToolResult(socraticaOutput(result))
 	})
 }
 
