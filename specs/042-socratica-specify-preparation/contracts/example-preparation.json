@@ -1,0 +1,82 @@
+{
+  "intent": {
+    "objective": "Consultar el historial propio fuera de la aplicación",
+    "expected_result": "La persona obtiene un archivo con su historial autorizado",
+    "actors": [
+      {
+        "id": "A1",
+        "name": "Persona titular del historial"
+      }
+    ]
+  },
+  "scope": {
+    "included": [
+      "Exportar el historial propio que la persona está autorizada a consultar"
+    ],
+    "excluded": {
+      "declared": true,
+      "items": [
+        "Exportar historiales de otras personas",
+        "Cambiar los permisos de consulta"
+      ]
+    },
+    "constraints": {
+      "declared": true,
+      "items": [
+        "Conservar las restricciones de acceso vigentes"
+      ]
+    },
+    "assumptions": {
+      "declared": true,
+      "items": [
+        "La aplicación ya permite consultar el historial propio"
+      ]
+    },
+    "pending": {
+      "declared": true,
+      "items": []
+    }
+  },
+  "stories": {
+    "stories": [
+      {
+        "id": "US1",
+        "actor_id": "A1",
+        "need": "Exportar mi historial autorizado",
+        "outcome": "Consultar fuera de la aplicación los mismos registros a los que tengo acceso"
+      }
+    ],
+    "criteria": [
+      {
+        "id": "C1",
+        "story_ids": [
+          "US1"
+        ],
+        "condition": "La persona solicita exportar su historial y tiene registros autorizados",
+        "expected_result": "El archivo contiene esos registros y no incluye registros de otras personas"
+      },
+      {
+        "id": "C2",
+        "story_ids": [
+          "US1"
+        ],
+        "condition": "La persona solicita exportar un historial propio sin registros",
+        "expected_result": "Se comunica que no hay registros para exportar sin incorporar datos ajenos"
+      }
+    ],
+    "deliveries": [
+      {
+        "id": "D1",
+        "title": "Exportación del historial propio",
+        "outcome": "La persona puede obtener y comprobar su historial autorizado",
+        "story_ids": [
+          "US1"
+        ],
+        "criterion_ids": [
+          "C1",
+          "C2"
+        ]
+      }
+    ]
+  }
+}

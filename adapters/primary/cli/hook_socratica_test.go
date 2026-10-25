@@ -55,6 +55,28 @@ func unverified(client string) domain.SocraticaSettings {
 	return domain.SocraticaSettings{Interception: map[string]bool{client: true}, InterceptionUnverified: map[string]bool{client: true}}
 }
 
+// The specify entries (alias, Codex form, natural request) are explicit
+// invocations: they keep the prompt out of general provenance and are never
+// captured by interception, which an agent cannot switch on by itself.
+func TestUserPromptSubmit_SocraticaSpecifyEntries(t *testing.T) {
+	for _, text := range []string{
+		"/socratica-hu Quiero exportar el historial autorizado de cada persona",
+		"$socratica prepara para speckit-specify: Quiero exportar el historial autorizado de cada persona",
+		"Usa Socrática para preparar esta idea como entrada de Spec Kit: exportar el historial autorizado",
+	} {
+		e := newHookSocEnv(t, unverified("codex"))
+		c := classifySocraticaPrompt(e.deps, "p", "codex", usecases.PromptSignals{Text: text})
+		if !c.SkipProvenance || c.Capture || c.Directive != "" || e.spy.active != 0 {
+			t.Errorf("%q: %+v (active reads %d)", text, c, e.spy.active)
+		}
+	}
+	// Without interception enabled nothing changes either, and plain text is not an invocation.
+	off := newHookSocEnv(t, domain.SocraticaSettings{})
+	if c := classifySocraticaPrompt(off.deps, "p", "claude", usecases.PromptSignals{Text: "Usa Socrática para limpiar la caché del servidor"}); c.SkipProvenance || c.Capture {
+		t.Errorf("an unrelated sentence was treated as an invocation: %+v", c)
+	}
+}
+
 // TestUserPromptSubmit_Socratica (T055).
 func TestUserPromptSubmit_Socratica(t *testing.T) {
 	t.Run("capture emits the directive in each dialect", func(t *testing.T) {
@@ -96,7 +118,7 @@ func TestUserPromptSubmit_Socratica(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err = e.store.Ack(ctx, "f", approved.DispatchID, "", "n"); err != nil {
+		if _, err = e.store.Ack(ctx, "f", approved.DispatchID, "", "n"); err != nil {
 			t.Fatal(err)
 		}
 		sig := usecases.PromptSignals{Text: capturable, DispatchID: "d-1"}

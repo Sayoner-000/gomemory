@@ -1,4 +1,4 @@
-user_version=2
+user_version=3
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)
@@ -357,7 +357,7 @@ table|socratica_flows|socratica_flows|CREATE TABLE socratica_flows (
   last_error TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
-)
+, preparation_json TEXT, payload_policy TEXT NOT NULL DEFAULT 'persistent')
 table|socratica_history|socratica_history|CREATE TABLE socratica_history (
   id TEXT PRIMARY KEY,
   flow_id TEXT NOT NULL UNIQUE,
@@ -372,7 +372,7 @@ table|socratica_history|socratica_history|CREATE TABLE socratica_history (
   words_before INTEGER NOT NULL,
   words_after INTEGER NOT NULL,
   completed_at TEXT NOT NULL
-)
+, preparation_json TEXT)
 table|sqlite_sequence|sqlite_sequence|CREATE TABLE sqlite_sequence(name,seq)
 table|usage_records|usage_records|CREATE TABLE usage_records (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -656,6 +656,8 @@ col|socratica_flows|20|approved_hash|TEXT|0||0
 col|socratica_flows|21|last_error|TEXT|0||0
 col|socratica_flows|22|created_at|TEXT|1||0
 col|socratica_flows|23|updated_at|TEXT|1||0
+col|socratica_flows|24|preparation_json|TEXT|0||0
+col|socratica_flows|25|payload_policy|TEXT|1|'persistent'|0
 col|socratica_history|0|id|TEXT|0||1
 col|socratica_history|1|flow_id|TEXT|1||0
 col|socratica_history|2|project|TEXT|1||0
@@ -669,6 +671,7 @@ col|socratica_history|9|additions_json|TEXT|1|'[]'|0
 col|socratica_history|10|words_before|INTEGER|1||0
 col|socratica_history|11|words_after|INTEGER|1||0
 col|socratica_history|12|completed_at|TEXT|1||0
+col|socratica_history|13|preparation_json|TEXT|0||0
 col|sqlite_sequence|0|name||0||0
 col|sqlite_sequence|1|seq||0||0
 col|usage_records|0|id|INTEGER|0||1

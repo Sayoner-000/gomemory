@@ -320,7 +320,8 @@ func TestUpdate_ReinstalaSocratica(t *testing.T) {
 	}
 	skill := filepath.Join(s.Home, ".claude", "skills", "socratica", "SKILL.md")
 	wrapper := filepath.Join(s.Home, ".claude", "commands", "socratic-q.md")
-	for _, f := range []string{skill, wrapper} {
+	alias := filepath.Join(s.Home, ".claude", "commands", "socratica-hu.md")
+	for _, f := range []string{skill, wrapper, alias} {
 		if _, err := os.Stat(f); err != nil {
 			t.Fatalf("la instalación no dejó %s: %v", f, err)
 		}
@@ -337,7 +338,7 @@ func TestUpdate_ReinstalaSocratica(t *testing.T) {
 	if r := s.Run("", p, "update", "--version", "v9.9.9", "--yes"); r.ExitCode != 0 {
 		t.Fatalf("update: code=%d\n%s\n%s", r.ExitCode, r.Stdout, r.Stderr)
 	}
-	for _, f := range []string{skill, wrapper} {
+	for _, f := range []string{skill, wrapper, alias} {
 		if _, err := os.Stat(f); err != nil {
 			t.Errorf("mem update no reinstaló %s: %v", f, err)
 		}

@@ -7,11 +7,26 @@ import (
 )
 
 // socraticaCommands are the explicit invocations recognised in any agent:
-// slash commands (Claude Code, OpenCode) and Codex's $skill form.
-var socraticaCommands = []string{"/socratica", "/socratic-q", "$socratica"}
+// slash commands (Claude Code, OpenCode) and Codex's $skill form. The Codex
+// form of mode=specify ("$socratica prepara para speckit-specify: …") is a
+// $socratica invocation too.
+var socraticaCommands = []string{"/socratica", "/socratic-q", "/socratica-hu", "$socratica"}
+
+// accentFolder lets the natural request match with or without accents.
+var accentFolder = strings.NewReplacer("á", "a", "é", "e", "í", "i", "ó", "o", "ú", "u", "ü", "u")
+
+// isNaturalSpecifyRequest recognises the explicit natural-language entry of
+// mode=specify: a message that starts by asking Socratica to prepare something
+// and names Spec Kit. It is deliberately narrow: a sentence that merely
+// mentions Socratica or Spec Kit elsewhere is not an invocation.
+func isNaturalSpecifyRequest(t string) bool {
+	rest, ok := strings.CutPrefix(accentFolder.Replace(strings.ToLower(t)), "usa socratica para ")
+	return ok && (strings.Contains(rest, "spec kit") || strings.Contains(rest, "speckit"))
+}
 
 // IsSocraticaInvocation reports a prompt that starts with an explicit Socratica
-// command, alone or followed by whitespace.
+// command, alone or followed by whitespace, or that is the natural request for
+// mode=specify.
 func IsSocraticaInvocation(text string) bool {
 	t := strings.TrimSpace(text)
 	for _, cmd := range socraticaCommands {
@@ -19,7 +34,7 @@ func IsSocraticaInvocation(text string) bool {
 			return true
 		}
 	}
-	return false
+	return isNaturalSpecifyRequest(t)
 }
 
 // OriginSocraticaApproved marks a prompt that is the approved text of a

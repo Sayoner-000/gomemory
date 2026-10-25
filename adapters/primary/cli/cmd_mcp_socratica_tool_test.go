@@ -365,6 +365,8 @@ func TestSocraticaSkill_SoloHerramientasRegistradas(t *testing.T) {
 	known := map[string]bool{
 		// Campos de entrada y salida de socratica_flow (contracts/mcp-tool.md).
 		"approved_prompt": true, "dispatch_id": true, "ack_nonce": true, "already_dispatched": true, "in_flight": true,
+		// mode=specify (specs/042-socratica-specify-preparation/contracts/socratica-flow.md).
+		"allowed_actions": true, "pending_checks": true, "questions_used": true, "send_original": true, "revision_conflict": true, "stage_blocked": true, "review_stale": true, "expected_revision": true, "execution_granted": true, "force_resend": true, "mark_dispatched": true,
 		// Octopus solo se registra con Octopus activo; la habilidad lo nombra de forma condicional (G7).
 		"octopus_route_task": true,
 	}

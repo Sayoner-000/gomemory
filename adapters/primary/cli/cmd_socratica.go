@@ -347,6 +347,9 @@ func (c *socraticaCmd) readPrompt(rest []string) (string, error) {
 // explicit exit or the end of the input.
 func (c *socraticaCmd) drive(id string, resume bool) int {
 	r, err := c.u.Get(c.ctx, id)
+	if err == nil && r.Flow.Mode == domain.ModeSpecify {
+		return c.showSpecify(r)
+	}
 	if err == nil && resume && (r.Flow.Phase == domain.PhaseCaptured || r.Flow.Phase == domain.PhaseRewriting) {
 		r, err = c.generate(id, r.Flow.Client, domain.Event{Kind: "resume"})
 	}
@@ -577,7 +580,48 @@ func (c *socraticaCmd) cancel(id string) int {
 		c.sio.printf("Envío en curso: otro proceso está despachando este flujo. No se cambió nada.\n")
 		return socraticaExitUsage
 	}
+	if r.Flow.OriginalPrompt == "" {
+		c.sio.printf("Cancelado. El original no está disponible en esta instancia.\n")
+		return socraticaExitOK
+	}
 	c.sio.printf("Cancelado. Tu prompt original:\n%s\n", r.Flow.OriginalPrompt)
+	return socraticaExitOK
+}
+
+// showSpecify only reports a specify flow: its preparation belongs to the
+// agent, so the generic local routes (generate, review, edit, execute) never
+// see it. Reading starts nothing and consumes nothing.
+func (c *socraticaCmd) showSpecify(r usecases.SocraticaResult) int {
+	f := r.Flow
+	v := usecases.SpecifyView(f)
+	c.sio.printf("Flujo %s · modo specify · %s\n", f.ID, f.Client)
+	if f.PrivateStateUnavailable {
+		c.sio.printf("Reserva privada: el contenido solo existe en la instancia que lo inició; esta consulta no puede mostrarlo ni recuperarlo.\nPuedes cancelar la reserva y empezar de nuevo: mem socratica pending --cancel %s\n", f.ID)
+		return socraticaExitOK
+	}
+	c.sio.printf("Fase: %s · Etapa: %s · Revisión: %d · Preguntas: %d/%d\n", f.Phase, v.Stage, f.Revision, v.QuestionsUsed, domain.MaxSocraticaQuestions)
+	c.sio.printf("Original:\n%s\n", f.OriginalPrompt)
+	switch {
+	case f.InFlight:
+		c.sio.printf("Envío en curso: otro proceso está despachando este flujo.\n")
+	case f.Uncertain:
+		c.sio.printf("Envío incierto: puede que ya se haya enviado; decídelo desde el agente (reenviar o marcar como enviado).\n")
+	case f.Phase == domain.PhaseReview:
+		c.sio.printf("Preparación comprobada: pendiente de que la persona la revise y elija «Aprobar y generar especificación» en el agente.\n")
+	case f.Phase == domain.PhaseApproved:
+		c.sio.printf("Aprobado, sin enviar: el agente confirma y entrega a Spec Kit.\n")
+	case f.Phase == domain.PhaseDispatched:
+		c.sio.printf("Ya enviado (%s).\n", f.DispatchID)
+	}
+	for _, check := range v.PendingChecks {
+		c.sio.printf("  - %s @ %s: %s\n", check.Code, check.Path, check.Message)
+	}
+	// A terminal flow can neither be resumed nor cancelled.
+	if f.Phase.Terminal() {
+		c.sio.printf("Aquí solo se consulta; el resultado o un reenvío se gestionan desde el agente (%s) con socratica_flow.\n", f.Client)
+		return socraticaExitOK
+	}
+	c.sio.printf("Esto se prepara desde el agente: retómalo en %s con socratica_flow (get o resume). Aquí solo se consulta; no se genera ni se ejecuta nada.\nPara descartarlo: mem socratica pending --cancel %s\n", f.Client, f.ID)
 	return socraticaExitOK
 }
 
@@ -784,6 +828,12 @@ func (c *socraticaCmd) showHistory(rows []domain.RefinementHistory, id string) i
 		}
 		// A consumed authorization is never resent automatically (I10).
 		c.sio.printf("\nYa enviado (%s).\n", r.Flow.DispatchID)
+		// A specify flow is resent by the agent only: the local executor refuses
+		// it, and resending here would already have dropped its outcome.
+		if r.Flow.Mode == domain.ModeSpecify {
+			c.sio.printf("El reenvío de specify se decide desde el agente (%s) con socratica_flow; aquí solo se consulta.\n", r.Flow.Client)
+			return socraticaExitOK
+		}
 		if !c.sio.tty {
 			return socraticaExitOK
 		}
@@ -922,6 +972,9 @@ func (c *socraticaCmd) pending(args []string) int {
 			c.sio.errorf("Error: no existe el flujo %s\n", *resume)
 			return socraticaExitUsage
 		}
+		if r.Flow.Mode == domain.ModeSpecify {
+			return c.showSpecify(r)
+		}
 		if r.Flow.Phase == domain.PhaseApproved && !r.Flow.Uncertain && !r.Flow.InFlight {
 			// Approved without ack nor claim: nothing ran, back to review.
 			r, err = c.u.Resume(c.ctx, *resume, usecases.OriginLocal)
@@ -942,6 +995,12 @@ func (c *socraticaCmd) pending(args []string) int {
 	}
 	for _, r := range rows {
 		state := string(r.Flow.Phase)
+		if r.Flow.Mode == domain.ModeSpecify {
+			state = "specify:" + string(usecases.SpecifyView(r.Flow).Stage)
+			if r.Flow.PrivateStateUnavailable {
+				state = "specify:reserva"
+			}
+		}
 		switch {
 		case r.Flow.InFlight:
 			state = "envío en curso"

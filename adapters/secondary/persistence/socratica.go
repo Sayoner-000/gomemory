@@ -8,11 +8,15 @@ import (
 	"fmt"
 	"mem/application/ports"
 	"mem/domain"
+	"reflect"
 	"strings"
 	"time"
 )
 
-var ErrSocraticaConcurrentUpdate = errors.New("concurrent socratica update")
+// ErrSocraticaConcurrentUpdate: the revision CAS lost to another writer. It is a
+// revision conflict for the contract, so callers map it like a stale
+// expected_revision.
+var ErrSocraticaConcurrentUpdate = fmt.Errorf("%w: concurrent socratica update", domain.ErrRevisionConflict)
 var ErrSocraticaAckRejected = ports.ErrAckRejected
 
 type socraticaQuerier interface {
@@ -171,7 +175,7 @@ func protectSocraticaJSON(v any) (string, error) {
 	return string(raw), err
 }
 
-const socraticaColumns = `id,schema_version,project,client,mode,original_prompt,questions_json,answers_json,proposed_prompt,approved_prompt,scrutiny_json,phase,last_stable_phase,revision,dispatch_id,dispatch_ack,dispatch_consumed,dispatch_claimed_at,dispatch_claim_owner,ack_nonce,approved_hash,last_error,created_at,updated_at`
+const socraticaColumns = `id,schema_version,project,client,mode,original_prompt,questions_json,answers_json,proposed_prompt,approved_prompt,scrutiny_json,phase,last_stable_phase,revision,dispatch_id,dispatch_ack,dispatch_consumed,dispatch_claimed_at,dispatch_claim_owner,ack_nonce,approved_hash,last_error,created_at,updated_at,preparation_json,payload_policy`
 
 func socraticaValues(f domain.RefinementFlow) ([]any, error) {
 	q, e := protectSocraticaJSON(f.Questions)
@@ -186,11 +190,45 @@ func socraticaValues(f domain.RefinementFlow) ([]any, error) {
 	if e != nil {
 		return nil, e
 	}
+	prep, e := socraticaPreparationValue(f.Preparation)
+	if e != nil {
+		return nil, e
+	}
 	var claimed any
 	if f.DispatchClaimedAt != nil {
 		claimed = socTime(*f.DispatchClaimedAt)
 	}
-	return []any{f.ID, f.SchemaVersion, f.Project, f.Client, f.Mode, domain.ProtectText(f.OriginalPrompt), q, a, domain.ProtectText(f.ProposedPrompt), domain.ProtectText(f.ApprovedPrompt), sc, f.Phase, f.LastStablePhase, f.Revision, socNullable(f.DispatchID), f.DispatchAck, f.DispatchConsumed, claimed, socNullable(f.DispatchClaimOwner), socNullable(f.AckNonce), f.ApprovedHash, domain.ProtectText(f.LastError), socTime(f.CreatedAt), socTime(f.UpdatedAt)}, nil
+	return []any{f.ID, f.SchemaVersion, f.Project, f.Client, f.Mode, domain.ProtectText(f.OriginalPrompt), q, a, domain.ProtectText(f.ProposedPrompt), domain.ProtectText(f.ApprovedPrompt), sc, f.Phase, f.LastStablePhase, f.Revision, socNullable(f.DispatchID), f.DispatchAck, f.DispatchConsumed, claimed, socNullable(f.DispatchClaimOwner), socNullable(f.AckNonce), f.ApprovedHash, domain.ProtectText(f.LastError), socTime(f.CreatedAt), socTime(f.UpdatedAt), prep, f.EffectivePayloadPolicy()}, nil
+}
+
+// socraticaPreparationValue keeps a missing preparation as SQL NULL, so legacy
+// and refine/scrutiny rows are never read back as prepared.
+func socraticaPreparationValue(p *domain.SpecifyPreparation) (any, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return protectSocraticaJSON(p)
+}
+
+// scanSocraticaPreparation decodes and protects a stored preparation. A newer
+// unsupported version is returned with its version so writers can refuse it.
+func scanSocraticaPreparation(raw sql.NullString) (*domain.SpecifyPreparation, error) {
+	if !raw.Valid {
+		return nil, nil
+	}
+	var p domain.SpecifyPreparation
+	if err := json.Unmarshal([]byte(raw.String), &p); err != nil {
+		return nil, err
+	}
+	safe, err := protectSocraticaJSON(p)
+	if err != nil {
+		return nil, err
+	}
+	var out domain.SpecifyPreparation
+	if err = json.Unmarshal([]byte(safe), &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 type socraticaScanner interface{ Scan(...any) error }
@@ -198,9 +236,12 @@ type socraticaScanner interface{ Scan(...any) error }
 func scanSocratica(row socraticaScanner) (domain.RefinementFlow, error) {
 	var f domain.RefinementFlow
 	var qs, ans, sc, created, updated string
-	var dispatch, owner, nonce, claimed, hash, last sql.NullString
-	err := row.Scan(&f.ID, &f.SchemaVersion, &f.Project, &f.Client, &f.Mode, &f.OriginalPrompt, &qs, &ans, &f.ProposedPrompt, &f.ApprovedPrompt, &sc, &f.Phase, &f.LastStablePhase, &f.Revision, &dispatch, &f.DispatchAck, &f.DispatchConsumed, &claimed, &owner, &nonce, &hash, &last, &created, &updated)
+	var dispatch, owner, nonce, claimed, hash, last, prep sql.NullString
+	err := row.Scan(&f.ID, &f.SchemaVersion, &f.Project, &f.Client, &f.Mode, &f.OriginalPrompt, &qs, &ans, &f.ProposedPrompt, &f.ApprovedPrompt, &sc, &f.Phase, &f.LastStablePhase, &f.Revision, &dispatch, &f.DispatchAck, &f.DispatchConsumed, &claimed, &owner, &nonce, &hash, &last, &created, &updated, &prep, &f.PayloadPolicy)
 	if err != nil {
+		return f, err
+	}
+	if f.Preparation, err = scanSocraticaPreparation(prep); err != nil {
 		return f, err
 	}
 	f.DispatchID = dispatch.String
@@ -267,18 +308,32 @@ func (s *SocraticaStore) ActiveFlow(ctx context.Context, project, client string)
 	return f, e == nil, e
 }
 func (s *SocraticaStore) SaveTransition(ctx context.Context, before, after domain.RefinementFlow) error {
+	// A newer preparation is kept and never rewritten; cancelling it, with the
+	// aggregate untouched, is the only mutation allowed so the slot can be freed.
+	newer := before.Preparation != nil && before.Preparation.SchemaVersion > domain.PreparationSchemaVersion
+	if newer && !(after.Phase == domain.PhaseCancelled && reflect.DeepEqual(before.Preparation, after.Preparation)) {
+		return domain.ErrUnsupportedPreparation
+	}
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	args, e := socraticaValues(after)
+	values, e := socraticaValues(after)
 	if e != nil {
 		return e
 	}
+	// payload_policy is fixed at creation: a transition never rewrites it. A
+	// newer preparation is left as stored: re-encoding it would drop the fields
+	// this binary does not know.
 	cols := strings.Split(socraticaColumns, ",")
 	sets := make([]string, 0, len(cols)-1)
-	for _, col := range cols[1:] {
+	args := make([]any, 0, len(values)+3)
+	for i, col := range cols[1:] {
+		if col == "payload_policy" || (newer && col == "preparation_json") {
+			continue
+		}
 		sets = append(sets, col+"=?")
+		args = append(args, values[i+1])
 	}
-	args = append(args[1:], before.ID, before.Phase, before.Revision, socTime(before.UpdatedAt))
+	args = append(args, before.ID, before.Phase, before.Revision, socTime(before.UpdatedAt))
 	res, e := s.writeContext(ctx, "UPDATE socratica_flows SET "+strings.Join(sets, ",")+" WHERE id=? AND phase=? AND revision=? AND updated_at=?", args...)
 	if e != nil {
 		return e
@@ -290,10 +345,16 @@ func (s *SocraticaStore) SaveTransition(ctx context.Context, before, after domai
 	return e
 }
 func (s *SocraticaStore) Approve(ctx context.Context, id, dispatch, prompt string) (domain.RefinementFlow, bool, error) {
+	prompt = domain.ProtectText(prompt)
+	return s.approveRow(ctx, id, dispatch, prompt, domain.SocraticaPromptHash(prompt))
+}
+
+// approveRow stores the approval; the ephemeral adapter passes an empty prompt
+// and a NULL hash so no private text, nor a digest of it, reaches the disk.
+func (s *SocraticaStore) approveRow(ctx context.Context, id, dispatch, prompt string, hash any) (domain.RefinementFlow, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	prompt = domain.ProtectText(prompt)
-	res, e := s.writeContext(ctx, `UPDATE socratica_flows SET phase='approved',last_stable_phase='approved',dispatch_id=COALESCE(dispatch_id,?),approved_prompt=?,approved_hash=? WHERE id=? AND phase IN ('review','failed')`, dispatch, prompt, domain.SocraticaPromptHash(prompt), id)
+	res, e := s.writeContext(ctx, `UPDATE socratica_flows SET phase='approved',last_stable_phase='approved',dispatch_id=COALESCE(dispatch_id,?),approved_prompt=?,approved_hash=? WHERE id=? AND phase IN ('review','failed')`, dispatch, prompt, hash, id)
 	if e != nil {
 		return domain.RefinementFlow{}, false, e
 	}
@@ -307,34 +368,37 @@ func (s *SocraticaStore) Approve(ctx context.Context, id, dispatch, prompt strin
 	}
 	return f, n == 0, e
 }
-func (s *SocraticaStore) Ack(ctx context.Context, id, dispatch, owner, nonce string) (bool, bool, error) {
+
+// Ack confirms a dispatch. Only the UPDATE that performs the first transition
+// (RowsAffected==1) grants execution; a same-nonce replay is acked without it.
+func (s *SocraticaStore) Ack(ctx context.Context, id, dispatch, owner, nonce string) (ports.AckResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 	res, e := s.writeContext(ctx, `UPDATE socratica_flows SET phase='dispatched',dispatch_ack=1,ack_nonce=? WHERE id=? AND dispatch_id=? AND dispatch_claim_owner IS ? AND phase='approved' AND dispatch_ack=0`, socNullable(nonce), id, dispatch, socNullable(owner))
 	if e != nil {
-		return false, false, e
+		return ports.AckResult{}, e
 	}
 	n, e := res.RowsAffected()
 	if e != nil {
-		return false, false, e
+		return ports.AckResult{}, e
 	}
 	if n == 1 {
-		return true, false, nil
+		return ports.AckResult{Acked: true, Granted: true}, nil
 	}
 	f, e := s.GetFlow(ctx, id)
 	if e != nil {
-		return false, false, e
+		return ports.AckResult{}, e
 	}
 	if f.DispatchID != dispatch || f.DispatchClaimOwner != owner {
-		return false, false, ErrSocraticaAckRejected
+		return ports.AckResult{}, ErrSocraticaAckRejected
 	}
 	if f.DispatchAck {
 		if nonce != "" && f.AckNonce == nonce {
-			return true, false, nil
+			return ports.AckResult{Acked: true}, nil
 		}
-		return false, true, nil
+		return ports.AckResult{AlreadyDispatched: true}, nil
 	}
-	return false, false, ErrSocraticaAckRejected
+	return ports.AckResult{}, ErrSocraticaAckRejected
 }
 func (s *SocraticaStore) ClaimDispatch(ctx context.Context, id, dispatch, owner string, now time.Time) (bool, error) {
 	if owner == "" {
@@ -356,7 +420,13 @@ func (s *SocraticaStore) MarkDispatched(ctx context.Context, id, dispatch string
 	return s.execOne(ctx, `UPDATE socratica_flows SET phase='dispatched',dispatch_ack=1 WHERE id=? AND dispatch_id=? AND phase='approved'`, id, dispatch)
 }
 func (s *SocraticaStore) ForceResend(ctx context.Context, id, oldID, newID string) error {
-	return s.execOne(ctx, `UPDATE socratica_flows SET phase='approved',dispatch_id=?,dispatch_ack=0,ack_nonce=NULL,dispatch_claim_owner=NULL,dispatch_claimed_at=NULL,dispatch_consumed=0 WHERE id=? AND dispatch_id=? AND approved_prompt<>''`, newID, id, oldID)
+	return s.forceResendRow(ctx, id, oldID, newID, " AND approved_prompt<>''")
+}
+
+// forceResendRow lets the ephemeral adapter check the approved text in its
+// payload instead of the column, which it keeps empty.
+func (s *SocraticaStore) forceResendRow(ctx context.Context, id, oldID, newID, guard string) error {
+	return s.execOne(ctx, `UPDATE socratica_flows SET phase='approved',dispatch_id=?,dispatch_ack=0,ack_nonce=NULL,dispatch_claim_owner=NULL,dispatch_claimed_at=NULL,dispatch_consumed=0 WHERE id=? AND dispatch_id=?`+guard, newID, id, oldID)
 }
 func (s *SocraticaStore) DeleteFlow(ctx context.Context, id string) error {
 	return s.execOne(ctx, `DELETE FROM socratica_flows WHERE id=?`, id)
@@ -391,7 +461,7 @@ func (s *SocraticaStore) ConsumeDispatch(ctx context.Context, id, text string) (
 	return n == 1, e
 }
 func (s *SocraticaStore) RedactFlow(ctx context.Context, id string) error {
-	return s.execOne(ctx, `UPDATE socratica_flows SET original_prompt='',proposed_prompt='',approved_prompt='',questions_json='[]',answers_json='[]',scrutiny_json='null',last_error='' WHERE id=?`, id)
+	return s.execOne(ctx, `UPDATE socratica_flows SET original_prompt='',proposed_prompt='',approved_prompt='',questions_json='[]',answers_json='[]',scrutiny_json='null',last_error='',preparation_json=NULL WHERE id=?`, id)
 }
 
 // execOne runs a mutation addressed to one flow and fails with
@@ -432,7 +502,11 @@ func (s *SocraticaStore) UpsertHistory(ctx context.Context, h domain.RefinementH
 		if e != nil {
 			return e
 		}
-		e = tx.exec(ctx, `INSERT INTO socratica_history(id,flow_id,project,client,mode,original_prompt,proposed_prompt,approved_prompt,scrutiny_json,additions_json,words_before,words_after,completed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(flow_id) DO UPDATE SET proposed_prompt=excluded.proposed_prompt,approved_prompt=excluded.approved_prompt,scrutiny_json=excluded.scrutiny_json,additions_json=excluded.additions_json,words_before=excluded.words_before,words_after=excluded.words_after,completed_at=excluded.completed_at`, h.ID, h.FlowID, h.Project, h.Client, h.Mode, domain.ProtectText(h.OriginalPrompt), domain.ProtectText(h.ProposedPrompt), domain.ProtectText(h.ApprovedPrompt), sc, add, h.WordsBefore, h.WordsAfter, socTime(h.CompletedAt))
+		prep, e := socraticaPreparationValue(h.Preparation)
+		if e != nil {
+			return e
+		}
+		e = tx.exec(ctx, `INSERT INTO socratica_history(id,flow_id,project,client,mode,original_prompt,proposed_prompt,approved_prompt,scrutiny_json,additions_json,words_before,words_after,completed_at,preparation_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(flow_id) DO UPDATE SET proposed_prompt=excluded.proposed_prompt,approved_prompt=excluded.approved_prompt,scrutiny_json=excluded.scrutiny_json,additions_json=excluded.additions_json,words_before=excluded.words_before,words_after=excluded.words_after,completed_at=excluded.completed_at,preparation_json=excluded.preparation_json`, h.ID, h.FlowID, h.Project, h.Client, h.Mode, domain.ProtectText(h.OriginalPrompt), domain.ProtectText(h.ProposedPrompt), domain.ProtectText(h.ApprovedPrompt), sc, add, h.WordsBefore, h.WordsAfter, socTime(h.CompletedAt), prep)
 		if e != nil {
 			return e
 		}
@@ -445,7 +519,7 @@ func (s *SocraticaStore) ListHistory(ctx context.Context, project, client string
 	if limit < 1 {
 		limit = domain.DefaultHistoryLimit
 	}
-	rows, e := s.q.QueryContext(ctx, `SELECT id,flow_id,project,client,mode,original_prompt,proposed_prompt,approved_prompt,scrutiny_json,additions_json,words_before,words_after,completed_at FROM socratica_history WHERE project=? AND (?='' OR client=?) ORDER BY completed_at DESC,id DESC LIMIT ?`, project, client, client, limit)
+	rows, e := s.q.QueryContext(ctx, `SELECT id,flow_id,project,client,mode,original_prompt,proposed_prompt,approved_prompt,scrutiny_json,additions_json,words_before,words_after,completed_at,preparation_json FROM socratica_history WHERE project=? AND (?='' OR client=?) ORDER BY completed_at DESC,id DESC LIMIT ?`, project, client, client, limit)
 	if e != nil {
 		return nil, e
 	}
@@ -453,10 +527,13 @@ func (s *SocraticaStore) ListHistory(ctx context.Context, project, client string
 	result := []domain.RefinementHistory{}
 	for rows.Next() {
 		var h domain.RefinementHistory
-		var approved, sc sql.NullString
+		var approved, sc, prep sql.NullString
 		var add, at string
-		e = rows.Scan(&h.ID, &h.FlowID, &h.Project, &h.Client, &h.Mode, &h.OriginalPrompt, &h.ProposedPrompt, &approved, &sc, &add, &h.WordsBefore, &h.WordsAfter, &at)
+		e = rows.Scan(&h.ID, &h.FlowID, &h.Project, &h.Client, &h.Mode, &h.OriginalPrompt, &h.ProposedPrompt, &approved, &sc, &add, &h.WordsBefore, &h.WordsAfter, &at, &prep)
 		if e != nil {
+			return nil, e
+		}
+		if h.Preparation, e = scanSocraticaPreparation(prep); e != nil {
 			return nil, e
 		}
 		h.OriginalPrompt = domain.ProtectText(h.OriginalPrompt)

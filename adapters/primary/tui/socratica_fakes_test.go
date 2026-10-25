@@ -38,7 +38,7 @@ func (r *countingSocraticaRepo) Approve(ctx context.Context, id, d, p string) (d
 	r.c()
 	return r.inner.Approve(ctx, id, d, p)
 }
-func (r *countingSocraticaRepo) Ack(ctx context.Context, id, d, o, n string) (bool, bool, error) {
+func (r *countingSocraticaRepo) Ack(ctx context.Context, id, d, o, n string) (ports.AckResult, error) {
 	r.c()
 	return r.inner.Ack(ctx, id, d, o, n)
 }

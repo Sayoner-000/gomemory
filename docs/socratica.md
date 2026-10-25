@@ -1,6 +1,6 @@
-# Socratica: refinamiento de prompts y escrutinio socrático
+# Socratica: refinamiento de prompts, escrutinio socrático y preparación para Spec Kit
 
-Socratica convierte un prompt en bruto en uno fiel y ejecutable, o examina una propuesta antes de actuar. Hace como máximo tres preguntas con opciones, propone una reescritura y **no ejecuta nada sin tu aprobación explícita**. Si cancelas, recuperas tu original intacto.
+Socratica convierte un prompt en bruto en uno fiel y ejecutable, examina una propuesta antes de actuar o prepara una necesidad para `speckit-specify`. Hace como máximo tres preguntas con opciones, propone una reescritura y **no ejecuta nada sin tu aprobación explícita**. Si cancelas, recuperas tu original intacto.
 
 ## Modos e invocación
 
@@ -8,12 +8,13 @@ Socratica convierte un prompt en bruto en uno fiel y ejecutable, o examina una p
 |---|---|---|
 | `refine` | Aclarar y mejorar un prompt: audiencia, criterio de éxito, restricciones, formato, alcance. Lo que falta queda como `[marcador]`. | `/socratica <texto>` en el agente; `mem socratica refine` en la terminal; tecla `p` → `r` en la TUI |
 | `scrutiny` | Examinar supuestos, evidencia, alternativas y criterios de una propuesta, sin defender por defecto la hipótesis inicial. | `/socratic-q <texto>`; `mem socratica refine --mode scrutiny` |
+| `specify` | Preparar una idea, solicitud o mejora técnica como entrada estructurada y comprobada para Spec Kit. Ver [Preparar una necesidad para Spec Kit](#preparar-una-necesidad-para-spec-kit-specify). | `/socratica-hu <texto>` (Claude Code y OpenCode); `$socratica prepara para speckit-specify: <texto>` (Codex); «Usa Socrática para preparar esto como entrada de Spec Kit: …» en los tres |
 
 La invocación exacta depende del agente (habilidad nativa, comando con nombre o `$socratica` en Codex). La tabla vigente está en la [matriz de compatibilidad](../specs/039-socratica-prompt-refinement/contracts/compatibility-matrix.md). Si un agente no reconoce el comando, pídelo en lenguaje natural («aplica socratica a: …»).
 
 La habilidad se instala en `~/.claude/skills/`, `~/.codex/skills/` y `~/.config/opencode/skills/` con `mem setup-mcp --scope global`, `mem install` (alcance global) y `mem update`, solo en los agentes que ya existen en tu equipo. También puedes copiarla a mano desde [`skills/socratica`](../skills/socratica/).
 
-Junto a la habilidad se escriben envoltorios de comando finos, que solo nombran la habilidad y el modo: `~/.claude/commands/socratic-q.md` (Claude ya expone `/socratica` como habilidad) y `~/.config/opencode/commands/socratica.md` y `socratic-q.md`. Codex no tiene un directorio de comandos verificado, así que no recibe ninguno. Igual que la habilidad, se escriben solo si existe el directorio del agente y el contenido ha cambiado.
+Junto a la habilidad se escriben envoltorios de comando finos, que solo nombran la habilidad y el modo: `~/.claude/commands/socratic-q.md` y `socratica-hu.md` (Claude ya expone `/socratica` como habilidad) y `~/.config/opencode/commands/socratica.md`, `socratic-q.md` y `socratica-hu.md`. Codex no tiene un directorio de comandos verificado, así que no recibe ninguno. Igual que la habilidad, se escriben solo si existe el directorio del agente y el contenido ha cambiado.
 
 ## La aprobación es la compuerta
 
@@ -34,7 +35,55 @@ gomemory registra que la autorización se entregó a un único agente; nunca afi
 
 ### Un solo pendiente por agente
 
-Cada agente tiene como máximo un flujo sin terminar por proyecto. Empezar otro retoma el pendiente; para empezar de cero, cancélalo (`mem socratica pending --cancel <id>`).
+Cada agente tiene como máximo un flujo sin terminar por proyecto. Empezar otro retoma el pendiente con su modo real, sin convertirlo; para empezar de cero, cancélalo (`mem socratica pending --cancel <id>`).
+
+## Preparar una necesidad para Spec Kit (`specify`)
+
+`specify` conduce paso a paso una idea, una petición o una mejora técnica (no hace falta que esté redactada como historia de usuario) hasta una entrada completa, comprobada y aprobada por la persona, que se entrega a `speckit-specify`. Socratica **no genera la especificación ni ejecuta la necesidad**: prepara, comprueba y entrega; la especificación la genera la skill de Spec Kit.
+
+Quién hace qué: el agente conduce la conversación y propone el contenido; gomemory decide la etapa, calcula las comprobaciones y el texto final y controla qué acciones están permitidas. El agente nunca envía validez, huellas ni permisos: se rechazan.
+
+### Recorrido
+
+| Etapa | Qué se prepara | Condición para avanzar |
+|---|---|---|
+| `intent` | Objetivo, resultado esperado y actores (un servicio o proceso es un actor válido). | Campos con información real: ni vacíos, ni relleno (`TBD`, «por definir», solo signos), ni un marcador `[sin resolver]`. |
+| `scope` | Lo incluido y, declaradas expresamente, las listas de excluido, restricciones, supuestos y pendientes. `declared=true` con `items=[]` significa «no se identifica ninguno». | Alcance incluido descrito y listas declaradas; los pendientes pueden seguir abiertos aquí. |
+| `stories` | Historias, criterios verificables y entregas con identificadores únicos. | Referencias existentes; cada historia con al menos un criterio y dentro de una entrega; cada entrega con criterios que comprueban sus historias. |
+| `validation` | Todo el contenido. | Sin pendientes **bloqueantes** abiertos ni marcadores esenciales. Al pasar se genera el texto final y la fase pasa a `review`. |
+
+- Las etapas se comprueban en ese orden: no se puede saltar una (`stage_blocked`) ni apoyarse en una comprobación cuyas entradas cambiaron (cada una guarda la huella de lo que comprobó).
+- `prepare(set)` reemplaza una sección entera y exige la revisión leída (`expected_revision`). Un cambio material sube la revisión e invalida las comprobaciones posteriores, la revisión y cualquier autorización sin consumir; un valor idéntico no cambia nada. Una revisión vieja se rechaza con `revision_conflict`.
+- Un fallo de comprobación no es un error: devuelve `pending_checks` (código, ruta y mensaje) y conserva el borrador.
+- Un pendiente bloqueante abierto no se puede borrar ni degradar en silencio: se resuelve con una nota que identifique la decisión o la evidencia. Omitir una pregunta no lo resuelve y un supuesto tampoco.
+
+### Preguntas
+
+Como máximo **tres en total por flujo**, contando reanudaciones y ediciones; el contador no se reinicia. Cada una lleva de dos a cuatro opciones más «Otra», «Omitir» y «Omitir el resto». Se permiten cero. Agotado el límite, se muestra qué falta y se completa editando o aportando información voluntaria. Al terminar de responder se vuelve a preparar secciones: nunca a una reescritura libre.
+
+### Revisión y aprobación
+
+Con la preparación comprobada, el agente muestra el original y la entrada final **completa** (con supuestos y pendientes no bloqueantes) y ofrece «Aprobar y generar especificación», «Editar», «Copiar» y «Cancelar». Las comprobaciones cubren completitud, relaciones y bloqueos; la persona confirma que el texto refleja su necesidad. Solo esa elección permite llamar a `approve`, con la revisión que se mostró.
+
+- El texto aprobado es, byte a byte, el revisado: la huella (`review_hash`, SHA-256 de los bytes exactos) se distingue de la huella normalizada que usa el hook para reconocer el prompt aprobado.
+- Aprobar, volver a leer o retomar **nunca concede ejecución**. Si el contenido cambió entre la revisión y la aprobación, o la depuración de privacidad lo reescribió, la aprobación se rechaza (`review_stale`).
+- `rewrite`, la edición de texto libre y `send_original` no existen en este modo; las ediciones van por `prepare`.
+
+### Entrega única
+
+1. **Disponibilidad primero.** La skill comprueba que puede cargar e invocar `speckit-specify` en el proyecto (un binario `specify` en el PATH no lo demuestra). Si no puede, conserva la preparación y la aprobación, muestra la dependencia y **no** llama a `ack`: no se consume la autorización.
+2. **Confirmar.** `ack` con `dispatch_id` y un `ack_nonce` nuevo, que se conserva para reintentar.
+3. **Una sola concesión.** Solo la primera confirmación que llega a confirmarse devuelve `execution_granted=true`; solo entonces se invoca `speckit-specify` una vez con exactamente `approved_prompt`. Repetir el mismo nonce (`acked=true` sin concesión), usar otro (`already_dispatched=true`), aprobar de nuevo o leer no vuelven a conceder. Con dos confirmaciones a la vez gana una; con una confirmación revertida no hay ninguna.
+4. **Respuesta perdida.** Si se perdió la primera respuesta y no hay evidencia de que se entregó, no se ejecuta desde el replay: la persona decide entre reenviar (`force_resend`, una autorización nueva) o marcarlo como enviado.
+5. **Resultado comunicado.** El agente abre el `spec.md` y su checklist reales, comprueba el alcance y traza cada criterio a sus historias, y lo comunica con `report` (`completed`, `failed` o `uncertain`, con rutas relativas y trazabilidad). gomemory valida el formato y las referencias, no el contenido del documento, y lo rotula como *comunicado por el agente*. Un acuse o el estado `dispatched` no prueban que se generó nada, y reportar no reabre la autorización.
+
+### Recuperación, consulta local y privacidad
+
+- **Persistente** (por defecto): el estado sobrevive al cierre; al retomar se conservan decisiones, relaciones, pendientes, revisión vigente y preguntas consumidas. Una aprobación sin reclamar sigue siendo válida mientras la revisión lo siga siendo.
+- **Privado** (`mem socratica private on`, antes de iniciar la sesión del agente: el servidor MCP lee el ajuste al arrancar): el contenido (original, preguntas, preparación, revisión, aprobación y rutas del resultado) vive solo en la memoria del proceso MCP que inició el flujo. En la base queda una **reserva sin texto** (identidad, fase, revisión, marcas de despacho) que mantiene el flujo pendiente único entre procesos. No hay historial. La política se fija al empezar: activar o desactivar el modo después no mueve el contenido al disco.
+- **Instancia sin el contenido** (otro proceso o tras una pérdida): solo ve la reserva (`private_state_unavailable`). Puede consultar y cancelar; no puede preparar, aprobar, confirmar, reportar ni reenviar, y nunca reconstruye una autorización. Cancelar la reserva libera el hueco para empezar de nuevo.
+- **Consulta local**: `mem socratica pending --resume <id>` y la TUI (`p`) muestran fase, etapa, revisión, preguntas usadas y lo que falta, e indican retomarlo en el agente. En este modo no generan, no ejecutan, no editan texto y no reenvían; solo permiten cancelar.
+- La depuración histórica (`mem sanitize`) cubre la preparación y su historial: si cambia el contenido de un flujo sin consumir, la revisión y la autorización quedan invalidadas y el flujo vuelve a preparación con una revisión nueva.
 
 ## Intercepción automática (opcional)
 
@@ -59,6 +108,7 @@ Hoy ninguna capacidad tiene evidencia registrada, así que `on` sin `--unverifie
 - Los textos pasan por la misma protección que las memorias: se eliminan las regiones `<private>` y se ocultan credenciales, al escribir y al leer. `mem sanitize` cubre también las tablas de Socratica.
 - `mem socratica private on` desactiva el historial del proyecto. En modo privado, un flujo enviado se **redacta** (se vacían sus textos y se conserva solo lo necesario para reconocer el despacho) y uno cancelado se borra.
 - Los prompts y respuestas de Socratica no quedan como origen de las memorias que se guarden en ese turno.
+- En `specify`, el modo privado no escribe contenido en disco ni historial; véase la sección anterior para la reserva sin texto. Un flujo `specify` conserva la política con la que se creó: si el modo privado se activa después, no se redacta al enviarse (su resultado se puede seguir comunicando con `report`), aunque ya no se registra en el historial.
 - `mem gc` purga los pendientes con más de 7 días (salvo los aprobados sin confirmar) y los terminados con más de 24 horas.
 
 ## Coste en tokens
@@ -124,3 +174,6 @@ Viven en `.memory/settings.json` del proyecto y se validan al cargar: un valor i
 - Ningún agente ofrece paneles nativos para Socratica: la revisión es texto (o la TUI de `mem`).
 - El adaptador OpenCode requiere V2. Usa un agente temporal con todas las herramientas denegadas y conserva la autenticación y el modelo configurados en OpenCode. La aceptación de generación real sigue pendiente: el proveedor configurado respondió `403` (`FreeTierError`) en la prueba local. El error se muestra sin cambiar de modelo ni de harness.
 - Las capacidades por agente (comando con nombre, intercepción, portapapeles, devolver el original al campo de entrada) se habilitan solo con evidencia de aceptación en sesión real; consulta la matriz.
+- `specify`: la puerta automática usa un agente de Spec Kit sintético y comprueba quién puede ejecutar, cuántas veces y con qué texto exacto. El recorrido completo con generación real en Claude Code, Codex y OpenCode se registra por agente en `specs/042-socratica-specify-preparation/evidence/`; mientras un agente no tenga su evidencia, ese recorrido está **pendiente** para él.
+- `specify`: la calidad de las preguntas y del contenido que propone el agente depende del modelo; gomemory comprueba estructura, relaciones y bloqueos, no si el texto refleja el negocio. Esa confirmación es de la persona.
+- `specify` no sustituye a Spec Kit ni lo instala; sin la skill disponible en el agente, la preparación se conserva y la entrega queda en espera.

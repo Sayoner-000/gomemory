@@ -139,6 +139,9 @@ func TestUninstall_SistemaSinRastros(t *testing.T) {
 		filepath.Join(".claude", "commands", "socratic-q.md"),
 		filepath.Join(".config", "opencode", "commands", "socratica.md"),
 		filepath.Join(".config", "opencode", "commands", "socratic-q.md"),
+		// Alias del modo specify (feature 042).
+		filepath.Join(".claude", "commands", "socratica-hu.md"),
+		filepath.Join(".config", "opencode", "commands", "socratica-hu.md"),
 	}
 	for _, rel := range socratica {
 		if _, err := os.Stat(filepath.Join(s.Home, rel)); err != nil {

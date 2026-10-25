@@ -25,8 +25,16 @@ type socraticaSession struct {
 
 func newSocraticaSession(t *testing.T, home string) *socraticaSession {
 	t.Helper()
+	return newSocraticaSessionAt(t, home, t.TempDir(), t.TempDir())
+}
+
+// newSocraticaSessionAt starts one MCP process over a project root and a data
+// home, which several processes may share (two instances of the same project
+// use the same database).
+func newSocraticaSessionAt(t *testing.T, home, target, dataHome string) *socraticaSession {
+	t.Helper()
+	t.Setenv("GOMEMORY_DATA_HOME", dataHome) // the test opens the same database
 	bin := buildMemBinary(t)
-	target := t.TempDir()
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +46,7 @@ func newSocraticaSession(t *testing.T, home string) *socraticaSession {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	t.Cleanup(cancel)
 	cmd := exec.Command(bin, "mcp", "--root", target)
-	cmd.Env = append(os.Environ(), "HOME="+home, "GOMEMORY_DATA_HOME="+t.TempDir())
+	cmd.Env = append(os.Environ(), "HOME="+home, "GOMEMORY_DATA_HOME="+dataHome)
 	client := mcp.NewClient(&mcp.Implementation{Name: "socratica-test", Version: "0"}, nil)
 	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
 	if err != nil {

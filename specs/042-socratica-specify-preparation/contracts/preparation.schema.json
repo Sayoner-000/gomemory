@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SocraticaSpecifyContent",
+  "description": "Forma estructural del contenido completo. Las referencias, bloqueos, huellas y etapas se comprueban en dominio.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "intent": {
+      "$ref": "#/$defs/intent"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "stories": {
+      "$ref": "#/$defs/stories"
+    }
+  },
+  "required": [
+    "intent",
+    "scope",
+    "stories"
+  ],
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1
+    },
+    "declaredList": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "declared": {
+          "const": true
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      },
+      "required": [
+        "declared",
+        "items"
+      ]
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "name": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "pending": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        },
+        "blocking": {
+          "type": "boolean"
+        },
+        "resolution": {
+          "enum": [
+            "open",
+            "resolved"
+          ]
+        },
+        "resolution_note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "blocking",
+        "resolution"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "resolution": {
+                "const": "resolved"
+              }
+            },
+            "required": [
+              "resolution"
+            ]
+          },
+          "then": {
+            "required": [
+              "resolution_note"
+            ],
+            "properties": {
+              "resolution_note": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pendingSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "declared": {
+          "const": true
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pending"
+          }
+        }
+      },
+      "required": [
+        "declared",
+        "items"
+      ]
+    },
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "objective": {
+          "$ref": "#/$defs/text"
+        },
+        "expected_result": {
+          "$ref": "#/$defs/text"
+        },
+        "actors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/actor"
+          }
+        }
+      },
+      "required": [
+        "objective",
+        "expected_result",
+        "actors"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "included": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "excluded": {
+          "$ref": "#/$defs/declaredList"
+        },
+        "constraints": {
+          "$ref": "#/$defs/declaredList"
+        },
+        "assumptions": {
+          "$ref": "#/$defs/declaredList"
+        },
+        "pending": {
+          "$ref": "#/$defs/pendingSection"
+        }
+      },
+      "required": [
+        "included",
+        "excluded",
+        "constraints",
+        "assumptions",
+        "pending"
+      ]
+    },
+    "story": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "actor_id": {
+          "$ref": "#/$defs/text"
+        },
+        "need": {
+          "$ref": "#/$defs/text"
+        },
+        "outcome": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "id",
+        "actor_id",
+        "need",
+        "outcome"
+      ]
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "story_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "condition": {
+          "$ref": "#/$defs/text"
+        },
+        "expected_result": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "id",
+        "story_ids",
+        "condition",
+        "expected_result"
+      ]
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text"
+        },
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "outcome": {
+          "$ref": "#/$defs/text"
+        },
+        "story_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "criterion_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "outcome",
+        "story_ids",
+        "criterion_ids"
+      ]
+    },
+    "stories": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stories": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/story"
+          }
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/criterion"
+          }
+        },
+        "deliveries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/delivery"
+          }
+        }
+      },
+      "required": [
+        "stories",
+        "criteria",
+        "deliveries"
+      ]
+    }
+  }
+}

@@ -9,8 +9,9 @@ import (
 )
 
 var socraticaWrappersDePrueba = map[string]string{
-	"socratica.md":  "---\ndescription: Socratica refine\n---\n\nAplica la habilidad `socratica` en modo refine a: $ARGUMENTS\n",
-	"socratic-q.md": "---\ndescription: Socratica scrutiny\n---\n\nAplica la habilidad `socratica` en modo scrutiny a: $ARGUMENTS\n",
+	"socratica.md":    "---\ndescription: Socratica refine\n---\n\nAplica la habilidad `socratica` en modo refine a: $ARGUMENTS\n",
+	"socratic-q.md":   "---\ndescription: Socratica scrutiny\n---\n\nAplica la habilidad `socratica` en modo scrutiny a: $ARGUMENTS\n",
+	"socratica-hu.md": "---\ndescription: Socratica specify\n---\n\nAplica la habilidad `socratica` en modo specify a: $ARGUMENTS\n",
 }
 
 const socraticaSkillDePrueba = "---\nname: socratica\ndescription: Refina.\n---\n\n## Seguridad y precedencia\n"
@@ -39,9 +40,11 @@ func TestInstallSocraticaSkill(t *testing.T) {
 	}
 	want := []string{
 		filepath.Join(".claude", "commands", "socratic-q.md"),
+		filepath.Join(".claude", "commands", "socratica-hu.md"),
 		filepath.Join(".claude", "skills", "socratica", "SKILL.md"),
 		filepath.Join(".codex", "skills", "socratica", "SKILL.md"),
 		filepath.Join(".config", "opencode", "commands", "socratic-q.md"),
+		filepath.Join(".config", "opencode", "commands", "socratica-hu.md"),
 		filepath.Join(".config", "opencode", "commands", "socratica.md"),
 		filepath.Join(".config", "opencode", "skills", "socratica", "SKILL.md"),
 	}
@@ -54,8 +57,10 @@ func TestInstallSocraticaSkill(t *testing.T) {
 	}
 	for _, w := range []string{
 		filepath.Join(".claude", "commands", "socratic-q.md"),
+		filepath.Join(".claude", "commands", "socratica-hu.md"),
 		filepath.Join(".config", "opencode", "commands", "socratica.md"),
 		filepath.Join(".config", "opencode", "commands", "socratic-q.md"),
+		filepath.Join(".config", "opencode", "commands", "socratica-hu.md"),
 	} {
 		data, err := os.ReadFile(filepath.Join(home, w))
 		if err != nil || strings.Contains(string(data), "## Seguridad y precedencia") || !strings.Contains(string(data), "$ARGUMENTS") {
@@ -93,9 +98,53 @@ func TestGlobalGeneratedArtifacts_IncluyeSocratica(t *testing.T) {
 		filepath.Join(".claude", "commands", "socratic-q.md"),
 		filepath.Join(".config", "opencode", "commands", "socratica.md"),
 		filepath.Join(".config", "opencode", "commands", "socratic-q.md"),
+		// mode=specify (feature 042): Claude Code and OpenCode only.
+		filepath.Join(".claude", "commands", "socratica-hu.md"),
+		filepath.Join(".config", "opencode", "commands", "socratica-hu.md"),
 	} {
 		if !got[want] {
 			t.Errorf("falta %s en GlobalGeneratedArtifacts", want)
 		}
+	}
+}
+
+// Codex has no verified command directory: the new alias is never written there,
+// and an absent agent is never created for it (feature 042).
+func TestInstallSocraticaSkill_AliasSpecifyNoLlegaACodexNiCreaAgentes(t *testing.T) {
+	home := homeFalso(t, ".claude", ".codex")
+	if _, err := InstallSocraticaSkill(socraticaSkillDePrueba, socraticaWrappersDePrueba); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(listarArchivos(t, home), "\n")
+	for _, ausente := range []string{filepath.Join(".codex", "commands"), ".opencode", filepath.Join(".config", "opencode")} {
+		if strings.Contains(got, ausente) {
+			t.Errorf("se creó %s para un agente que no corresponde:\n%s", ausente, got)
+		}
+	}
+	if !strings.Contains(got, filepath.Join(".claude", "commands", "socratica-hu.md")) {
+		t.Errorf("Claude Code no recibió el alias:\n%s", got)
+	}
+}
+
+// El cuerpo real distribuido es un envoltorio fino: nombra la habilidad y el
+// modo, conserva el argumento y no copia reglas del recorrido.
+func TestEnvoltorioSocraticaHU_EsFinoYApuntaAlModoSpecify(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "infrastructure", "templates", "socratica", "commands", "socratica-hu.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuerpo := string(data)
+	for _, want := range []string{"---\ndescription: ", "habilidad `socratica`", "modo specify", "$ARGUMENTS"} {
+		if !strings.Contains(cuerpo, want) {
+			t.Errorf("el envoltorio no contiene %q:\n%s", want, cuerpo)
+		}
+	}
+	for _, regla := range []string{"expected_revision", "ack_nonce", "approve", "preparation", "prepare(", "## "} {
+		if strings.Contains(cuerpo, regla) {
+			t.Errorf("el envoltorio duplica reglas del recorrido (%q)", regla)
+		}
+	}
+	if len(cuerpo) > 400 {
+		t.Errorf("el envoltorio no es fino: %d bytes", len(cuerpo))
 	}
 }

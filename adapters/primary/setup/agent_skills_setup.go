@@ -258,19 +258,23 @@ type socraticaWrapperTarget struct {
 	wrapper string
 }
 
-// Claude Code ya invoca toda habilidad como /<name>, así que solo necesita el
-// envoltorio de /socratic-q; OpenCode necesita los dos. Codex no expone un
-// directorio de comandos verificado (research R2).
+// Claude Code ya invoca toda habilidad como /<name>, así que solo necesita los
+// envoltorios de /socratic-q y /socratica-hu (modo specify, feature 042);
+// OpenCode necesita los tres. Codex no expone un directorio de comandos
+// verificado (research R2): usa la habilidad con «$socratica prepara para
+// speckit-specify: …» o con lenguaje natural.
 var socraticaWrapperTargets = []socraticaWrapperTarget{
 	{agent: "claude", dir: []string{".claude"}, file: []string{"commands", "socratic-q.md"}, wrapper: "socratic-q.md"},
+	{agent: "claude", dir: []string{".claude"}, file: []string{"commands", "socratica-hu.md"}, wrapper: "socratica-hu.md"},
 	{agent: "opencode", dir: []string{".config", "opencode"}, file: []string{"commands", "socratica.md"}, wrapper: "socratica.md"},
 	{agent: "opencode", dir: []string{".config", "opencode"}, file: []string{"commands", "socratic-q.md"}, wrapper: "socratic-q.md"},
+	{agent: "opencode", dir: []string{".config", "opencode"}, file: []string{"commands", "socratica-hu.md"}, wrapper: "socratica-hu.md"},
 }
 
 // InstallSocraticaSkill distribuye la habilidad socratica por el canal común y
 // sus envoltorios de comando, con las mismas garantías: solo donde el agente
 // ya tiene su directorio y solo si el contenido difiere. wrappers se indexa
-// por nombre de archivo (socratica.md, socratic-q.md).
+// por nombre de archivo (socratica.md, socratic-q.md, socratica-hu.md).
 func InstallSocraticaSkill(body string, wrappers map[string]string) ([]string, error) {
 	written, err := InstallAgentSkill(socraticaSkillName, body)
 	if err != nil || strings.TrimSpace(body) == "" {

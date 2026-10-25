@@ -12,11 +12,23 @@ func TestIsSocraticaInvocation(t *testing.T) {
 		"  /socratic-q migrar a X":    true,
 		"$socratica refina esto":      true,
 		"/socratica\nmulti":           true,
-		"/socraticas algo":            false,
-		"/socratic-question":          false,
-		"usa /socratica luego":        false,
-		"hola":                        false,
-		"":                            false,
+		// mode=specify (feature 042): alias, Codex form and a natural request.
+		"/socratica-hu Quiero exportar el historial":                                         true,
+		"  /socratica-hu\nmulti":                                                             true,
+		"$socratica prepara para speckit-specify: Quiero exportar el historial":              true,
+		"Usa Socrática para preparar esta idea como entrada de Spec Kit: exportar historial": true,
+		"usa socratica para preparar esto como entrada de speckit-specify":                   true,
+		"/socratica-hux algo":                                    false,
+		"/socratica-hu2":                                         false,
+		"usa Socrática para limpiar la caché":                    false,
+		"Hoy usa Socrática para preparar la entrada de Spec Kit": false,
+		"No uses Socrática para preparar la entrada de Spec Kit": false,
+		"prepara la entrada de Spec Kit sin Socrática":           false,
+		"/socraticas algo":                                       false,
+		"/socratic-question":                                     false,
+		"usa /socratica luego":                                   false,
+		"hola":                                                   false,
+		"":                                                       false,
 	} {
 		if got := IsSocraticaInvocation(text); got != want {
 			t.Errorf("%q: got %v want %v", text, got, want)
@@ -38,9 +50,16 @@ func TestDecideInterception(t *testing.T) {
 	for name, in := range map[string]InterceptionInput{
 		"comando con barra":     with(func(i *InterceptionInput) { i.Text = "/plan revisa esto ahora mismo" }),
 		"invocación $socratica": with(func(i *InterceptionInput) { i.Text = "$socratica refina esto por favor" }),
-		"adjunto":               with(func(i *InterceptionInput) { i.Attachments = true }),
-		"agente ocupado":        with(func(i *InterceptionInput) { i.Busy = true }),
-		"poca información":      with(func(i *InterceptionInput) { i.Text = "sí, la segunda" }),
+		"alias specify":         with(func(i *InterceptionInput) { i.Text = "/socratica-hu Quiero exportar el historial autorizado" }),
+		"Codex specify": with(func(i *InterceptionInput) {
+			i.Text = "$socratica prepara para speckit-specify: Quiero exportar el historial autorizado"
+		}),
+		"petición natural": with(func(i *InterceptionInput) {
+			i.Text = "Usa Socrática para preparar esta idea como entrada de Spec Kit: exportar el historial autorizado"
+		}),
+		"adjunto":          with(func(i *InterceptionInput) { i.Attachments = true }),
+		"agente ocupado":   with(func(i *InterceptionInput) { i.Busy = true }),
+		"poca información": with(func(i *InterceptionInput) { i.Text = "sí, la segunda" }),
 		"pendiente en preguntas": with(func(i *InterceptionInput) {
 			i.PendingPhase, i.PendingUpdatedAt = PhaseQuestions, now.Add(-time.Minute)
 		}),

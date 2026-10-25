@@ -14,6 +14,13 @@ var ErrAckRejected = errors.New("socratica ack rejected")
 // foreign owner or a state that changed meanwhile). Never reported as success.
 var ErrSocraticaNoMatch = errors.New("socratica: no matching flow")
 
+// AckResult is the internal outcome of an ack. Acked stays idempotent for the
+// same nonce; Granted is true only for the first committed transition, so a
+// replay never authorises a second execution.
+type AckResult struct {
+	Acked, AlreadyDispatched, Granted bool
+}
+
 // Purge and prune methods return the deleted flow ids so callers can drop
 // per-flow host resources (dispatch lock files) after the commit.
 type SocraticaRepository interface {
@@ -22,7 +29,7 @@ type SocraticaRepository interface {
 	ActiveFlow(context.Context, string, string) (domain.RefinementFlow, bool, error)
 	SaveTransition(context.Context, domain.RefinementFlow, domain.RefinementFlow) error
 	Approve(context.Context, string, string, string) (domain.RefinementFlow, bool, error)
-	Ack(context.Context, string, string, string, string) (bool, bool, error)
+	Ack(context.Context, string, string, string, string) (AckResult, error)
 	ClaimDispatch(context.Context, string, string, string, time.Time) (bool, error)
 	ReleaseDispatch(context.Context, string, string) error
 	MarkDispatched(context.Context, string, string) error

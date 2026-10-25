@@ -265,11 +265,13 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	}
 	written = append(written, auditoria...)
 
-	// Socratica: habilidad más envoltorios finos de /socratica y /socratic-q,
+	// Socratica: habilidad más envoltorios finos de /socratica, /socratic-q y /socratica-hu,
 	// por el mismo canal y con el mismo criterio de ámbito.
 	socratica, err := setup.InstallSocraticaSkill(embeddedTemplate("socratica/SKILL.md"), map[string]string{
 		"socratica.md":  embeddedTemplate("socratica/commands/socratica.md"),
 		"socratic-q.md": embeddedTemplate("socratica/commands/socratic-q.md"),
+		// Modo specify (feature 042): Claude Code y OpenCode.
+		"socratica-hu.md": embeddedTemplate("socratica/commands/socratica-hu.md"),
 	})
 	if err != nil {
 		fmt.Printf("  ⚠️  socratica (scope global): %v\n", err)

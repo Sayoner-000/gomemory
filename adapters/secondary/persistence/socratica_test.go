@@ -77,7 +77,7 @@ func TestSocraticaRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = r.Ack(ctx, "f", "foreign", "", "n"); err == nil {
+	if _, err = r.Ack(ctx, "f", "foreign", "", "n"); err == nil {
 		t.Fatal("foreign ack accepted")
 	}
 	wins = 0
@@ -85,11 +85,11 @@ func TestSocraticaRepository(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			ok, _, err := r.Ack(ctx, "f", got.DispatchID, "", fmt.Sprintf("nonce%d", i))
+			res, err := r.Ack(ctx, "f", got.DispatchID, "", fmt.Sprintf("nonce%d", i))
 			if err != nil {
 				t.Error(err)
 			}
-			if ok {
+			if res.Acked {
 				mu.Lock()
 				wins++
 				mu.Unlock()
@@ -104,11 +104,11 @@ func TestSocraticaRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ok, already, err := r.Ack(ctx, "f", got.DispatchID, "", got.AckNonce); err != nil || !ok || already {
-		t.Fatal(ok, already, err)
+	if res, err := r.Ack(ctx, "f", got.DispatchID, "", got.AckNonce); err != nil || !res.Acked || res.AlreadyDispatched || res.Granted {
+		t.Fatal(res, err)
 	}
-	if ok, already, err := r.Ack(ctx, "f", got.DispatchID, "", "new"); err != nil || ok || !already {
-		t.Fatal(ok, already, err)
+	if res, err := r.Ack(ctx, "f", got.DispatchID, "", "new"); err != nil || res.Acked || !res.AlreadyDispatched || res.Granted {
+		t.Fatal(res, err)
 	}
 	if err = r.RedactFlow(ctx, "f"); err != nil {
 		t.Fatal(err)
@@ -233,13 +233,13 @@ func TestSocraticaRepositoryClaimsAndRecovery(t *testing.T) {
 	if ok, err := r.ClaimDispatch(ctx, f.ID, "dispatch", "new", time.Unix(999999, 0)); err != nil || ok {
 		t.Fatal(ok, err)
 	}
-	if _, _, err = r.Ack(ctx, f.ID, "dispatch", "", "nonce"); err == nil {
+	if _, err = r.Ack(ctx, f.ID, "dispatch", "", "nonce"); err == nil {
 		t.Fatal("MCP ack accepted local claim")
 	}
 	if err = r.ForceResend(ctx, f.ID, "dispatch", "new-dispatch"); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = r.Ack(ctx, f.ID, "dispatch", claimed.DispatchClaimOwner, "nonce"); err == nil {
+	if _, err = r.Ack(ctx, f.ID, "dispatch", claimed.DispatchClaimOwner, "nonce"); err == nil {
 		t.Fatal("old owner ack accepted")
 	}
 	if ok, err := r.ClaimDispatch(ctx, f.ID, "new-dispatch", "new", time.Unix(999999, 0)); err != nil || !ok {
@@ -364,12 +364,12 @@ func TestSocraticaRepository_Complementos(t *testing.T) {
 			t.Fatal(ok, err)
 		}
 		for _, tc := range [][2]string{{"d", "other"}, {"x", "owner"}, {"d", ""}} {
-			if _, _, err := r.Ack(ctx, "f", tc[0], tc[1], "n"); !errors.Is(err, ports.ErrAckRejected) {
+			if _, err := r.Ack(ctx, "f", tc[0], tc[1], "n"); !errors.Is(err, ports.ErrAckRejected) {
 				t.Fatal(tc, err)
 			}
 		}
-		if ok, _, err := r.Ack(ctx, "f", "d", "owner", "n"); err != nil || !ok {
-			t.Fatal(ok, err)
+		if res, err := r.Ack(ctx, "f", "d", "owner", "n"); err != nil || !res.Acked || !res.Granted {
+			t.Fatal(res, err)
 		}
 	})
 	t.Run("redact keeps dispatch identity", func(t *testing.T) {

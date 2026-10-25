@@ -316,7 +316,9 @@ func NewContainer(root, channel string) (*Container, error) {
 	if socraticaErr == nil {
 		queryTimeout = time.Duration(*validatedSocratica.QueryTimeoutMS) * time.Millisecond
 	}
-	socraticaRepo := persistence.NewSocraticaStore(db, queryTimeout)
+	// One ephemeral payload store per process: a private specify flow keeps its
+	// texts in this instance's memory and only a reservation in SQLite.
+	socraticaRepo := persistence.NewEphemeralSocraticaStore(persistence.NewSocraticaStore(db, queryTimeout))
 	c.Socratica = &usecases.SocraticaFlow{Repo: socraticaRepo, UOW: socraticaRepo, Lock: persistence.NewSocraticaDispatchLock(root), Generator: socraticaGenerators(validatedSocratica, socraticaErr), Clock: clock.SystemClock{}, NewID: func() string { return uuid.Must(uuid.NewV7()).String() }, Settings: settings.SocraticaSettings, SettingsError: socraticaErr}
 	if dataHome, err := persistence.DataHome(); err == nil {
 		store := persistence.NewPrivacyMaintenanceStore(db)

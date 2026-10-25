@@ -251,8 +251,15 @@ func (m model) handleSocraticaMsg(msg tea.Msg) (tea.Model, tea.Cmd, bool) {
 		switch msg.result.Flow.Phase {
 		case domain.PhaseQuestions:
 			m.screen = screenSocraticaQuestions
+			if msg.result.Flow.Mode == domain.ModeSpecify {
+				m.screen = screenSocraticaDetail
+			}
 		case domain.PhaseCancelled:
 			m.statusMsg = "Cancelado: se conserva tu original"
+			// A private cancel deletes the flow with its content: nothing is kept.
+			if msg.result.Flow.EffectivePayloadPolicy() == domain.PayloadEphemeral || m.settingsRepo.Read(m.root).SocraticaSettings.Private {
+				m.statusMsg = "Cancelado: el flujo privado se descartó con su contenido"
+			}
 			m.statusTimer = 40
 			m.screen = screenSocratica
 			return m, m.socLoad(), true
@@ -383,7 +390,9 @@ func (m model) openSocraticaRow() (tea.Model, tea.Cmd) {
 	if m.soc.cursor < len(m.soc.pending) {
 		r := m.soc.pending[m.soc.cursor]
 		m.soc.current = r
-		if r.Flow.Phase == domain.PhaseQuestions && !r.Flow.Uncertain && !r.Flow.InFlight {
+		// A specify flow asks its questions in the agent conversation: the
+		// local questions screen would answer them on the person's behalf.
+		if r.Flow.Phase == domain.PhaseQuestions && !r.Flow.Uncertain && !r.Flow.InFlight && r.Flow.Mode != domain.ModeSpecify {
 			m.screen = screenSocraticaQuestions
 			return m, nil
 		}
@@ -479,6 +488,9 @@ func (m model) updateSocraticaQuestions(key string) (tea.Model, tea.Cmd) {
 // socraticaActions son las acciones que admite el estado del flujo, alineadas
 // con el next de contracts/mcp-tool.md (I11).
 func socraticaActions(f domain.RefinementFlow, hasFlow bool) (label string, keys string) {
+	if hasFlow && f.Mode == domain.ModeSpecify {
+		return socraticaSpecifyActions(f)
+	}
 	switch {
 	case !hasFlow:
 		return "", ""
@@ -506,6 +518,14 @@ func (m model) updateSocraticaDetail(key string) (tea.Model, tea.Cmd) {
 	}
 	f := m.soc.current.Flow
 	if f.ID == "" || m.soc.busy != "" || f.InFlight {
+		return m, nil
+	}
+	if f.Mode == domain.ModeSpecify {
+		// The only local action is the explicit cancel: preparation, review and
+		// delivery belong to the agent conversation.
+		if key == "x" && !f.Phase.Terminal() {
+			return m, m.socApply(f.ID, domain.Event{Kind: "cancel"})
+		}
 		return m, nil
 	}
 	if f.Uncertain {
@@ -755,6 +775,12 @@ func (m model) socraticaListView() string {
 		b.WriteString(lipgloss.NewStyle().Foreground(socLabel).Render("Pendientes") + "\n")
 		for _, r := range m.soc.pending {
 			state := string(r.Flow.Phase)
+			if r.Flow.Mode == domain.ModeSpecify {
+				state = "specify · " + string(usecases.SpecifyView(r.Flow).Stage)
+				if r.Flow.PrivateStateUnavailable {
+					state = "specify · reserva privada"
+				}
+			}
 			switch {
 			case r.Flow.InFlight:
 				state = "envío en curso"
@@ -874,6 +900,10 @@ func (m model) socraticaDetailView() string {
 		b.WriteString(lipgloss.NewStyle().Foreground(socFg).Background(socControl).Render(ansi.Hardwrap(ansi.Wrap(" "+keys+" ", width, ""), width, false)) + "\n")
 	}
 	b.WriteString("\n")
+	if hasFlow && f.Mode == domain.ModeSpecify {
+		b.WriteString(m.socraticaSpecifyBody(f, width))
+		return b.String() + m.socFooter("esc volver", width)
+	}
 	if width < 60 {
 		b.WriteString(lipgloss.NewStyle().Foreground(socWarn).Render(socTrunc("Ventana demasiado estrecha: original conservado", width)) + "\n")
 		line := strings.ReplaceAll(domain.StripTerminalControls(domain.ProtectText(original)), "\n", " ")
@@ -896,4 +926,54 @@ func (m model) socraticaDetailView() string {
 	summary := fmt.Sprintf("Palabras: %d → %d · adiciones: %d", domain.WordCount(original), domain.WordCount(proposed), len(f.Additions))
 	b.WriteString(lipgloss.NewStyle().Foreground(socLabel).Render(socTrunc(summary, width)) + "\n")
 	return b.String() + m.socFooter("esc volver", width)
+}
+
+// socraticaSpecifyActions: the local view of a specify flow only reads and can
+// cancel. Preparation, review and delivery happen in the agent conversation, so
+// none of the generic actions (execute, edit, copy, retry, resend) is offered.
+func socraticaSpecifyActions(f domain.RefinementFlow) (label string, keys string) {
+	switch {
+	case f.InFlight:
+		return "Envío en curso", ""
+	case f.PrivateStateUnavailable:
+		return "Reserva privada: sin contenido en esta instancia", "x Cancelar"
+	case f.Uncertain:
+		return "Puede que ya se haya enviado: decídelo desde el agente", "x Cancelar"
+	case f.Phase == domain.PhaseDispatched:
+		return "Ya enviado", ""
+	case f.Phase.Terminal():
+		return "", ""
+	}
+	return "", "x Cancelar"
+}
+
+// socraticaSpecifyBody is a pure view of a specify flow: stage, revision, what
+// is still missing and where to continue. It reads only the flow in the model.
+func (m model) socraticaSpecifyBody(f domain.RefinementFlow, width int) string {
+	var b strings.Builder
+	if f.PrivateStateUnavailable {
+		note := "El contenido privado solo existe en la instancia que lo inició; esta vista no puede mostrarlo ni recuperarlo. Puedes cancelar la reserva y empezar de nuevo."
+		b.WriteString(ansi.Hardwrap(ansi.Wrap(note, width, ""), width, false) + "\n")
+		return b.String()
+	}
+	v := usecases.SpecifyView(f)
+	summary := fmt.Sprintf("specify · Fase %s · Etapa %s · Revisión %d · Preguntas %d/%d", f.Phase, v.Stage, f.Revision, v.QuestionsUsed, domain.MaxSocraticaQuestions)
+	b.WriteString(lipgloss.NewStyle().Foreground(socLabel).Render(socTrunc(summary, width)) + "\n")
+	original := domain.StripTerminalControls(domain.ProtectText(f.OriginalPrompt))
+	if width < 60 {
+		b.WriteString(socTrunc(strings.ReplaceAll(original, "\n", " "), width) + "\n")
+	} else {
+		b.WriteString(m.socraticaCard("Original", original, false, width) + "\n")
+	}
+	const shown = 6
+	for i, c := range v.PendingChecks {
+		if i == shown {
+			b.WriteString(socTrunc(fmt.Sprintf("  … y %d más", len(v.PendingChecks)-shown), width) + "\n")
+			break
+		}
+		b.WriteString(socTrunc("  - "+c.Code+" @ "+c.Path, width) + "\n")
+	}
+	note := "Se prepara desde el agente: retómalo en " + f.Client + " con socratica_flow (get o resume). Aquí solo se consulta."
+	b.WriteString(lipgloss.NewStyle().Foreground(socLabel).Render(ansi.Hardwrap(ansi.Wrap(note, width, ""), width, false)) + "\n")
+	return b.String()
 }

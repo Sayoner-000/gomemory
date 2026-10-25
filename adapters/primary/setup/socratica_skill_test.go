@@ -125,3 +125,18 @@ func TestSocraticaSkill_Escrutinio(t *testing.T) {
 		t.Error("la conversión a especificación debe ser opcional y no invocar /speckit-specify")
 	}
 }
+
+// Las entradas del modo specify (alias, forma Codex y petición natural) están
+// en el contrato de la skill y no sustituyen a las de los otros modos (T056).
+func TestSocraticaSkill_EntradasDelModoSpecify(t *testing.T) {
+	cuerpo := leerSkillSocratica(t)
+	exigirFrases(t, "Contrato", seccion(t, cuerpo, "## Contrato"),
+		"`/socratica-hu [texto]`",
+		"`$socratica prepara para speckit-specify: …`",
+		"«Usa Socrática para preparar esto como entrada de Spec Kit: …»",
+		"`/socratica [texto]`", "`/socratic-q [texto]`",
+	)
+	if !strings.Contains(seccion(t, cuerpo, "## Flujo specify"), "`socratica_flow(action=start, mode=specify") {
+		t.Error("el flujo specify debe iniciar con mode=specify")
+	}
+}

@@ -316,7 +316,7 @@ func TestInstallDefensiveQASkill_AlcanzaLosTresAgentesSinReescribir(t *testing.T
 // coincidir con el directorio o el agente no la empareja.
 func TestSkillsEmbebidas_FrontmatterYCopiaDescargable(t *testing.T) {
 	raiz := filepath.Join("..", "..", "..")
-	for _, nombre := range []string{adversarialReviewSkillName, defensiveQASkillName} {
+	for _, nombre := range []string{adversarialReviewSkillName, defensiveQASkillName, socraticaSkillName} {
 		embebida, err := os.ReadFile(filepath.Join(raiz, "infrastructure", "templates", nombre, "SKILL.md"))
 		if err != nil {
 			t.Fatalf("leer la skill embebida %s: %v", nombre, err)

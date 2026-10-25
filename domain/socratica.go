@@ -80,7 +80,15 @@ type RefinementFlow struct {
 	DispatchConsumed                                                    bool
 	LastError                                                           string
 	CreatedAt, UpdatedAt                                                time.Time
+	PayloadPolicy                                                       PayloadPolicy
+	Preparation                                                         *SpecifyPreparation
 	Duplicate, AlreadyDispatched, Acked, Recovered, Uncertain, InFlight bool
+	// ExecutionGranted is only true in the response to the first committed
+	// ack of a specify flow; it is never stored nor recovered by a read.
+	ExecutionGranted bool
+	// PrivateStateUnavailable: an ephemeral flow whose payload this instance
+	// does not hold. Only reading and explicit cancellation are allowed.
+	PrivateStateUnavailable bool
 }
 type RefinementHistory struct {
 	ID, FlowID, Project, Client                    string
@@ -88,6 +96,7 @@ type RefinementHistory struct {
 	OriginalPrompt, ProposedPrompt, ApprovedPrompt string
 	Scrutiny                                       *ScrutinySynthesis
 	Additions                                      []string
+	Preparation                                    *SpecifyPreparation
 	WordsBefore, WordsAfter                        int
 	CompletedAt                                    time.Time
 }
@@ -100,6 +109,15 @@ type Event struct {
 	Additions                       []string
 	DispatchID, Owner, Nonce, Error string
 	Private, LockHeld               bool
+	// prepare_set (specify): the section replaced wholesale, the revision the
+	// agent read, and the parsed content holding only that section.
+	Section          SpecifyStage
+	ExpectedRevision int
+	Content          SpecifyContent
+	// report (specify): the outcome the agent communicates for DispatchID, and
+	// whether it explicitly corrects a previous one.
+	Outcome         SpecifyOutcome
+	CorrectPrevious bool
 }
 type Effect string
 
@@ -119,6 +137,9 @@ var ErrInvalidTransition = errors.New("invalid socratica transition")
 func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (RefinementFlow, Effect, error) {
 	before := f
 	f.Answers = append([]Answer(nil), f.Answers...)
+	f.Preparation = f.Preparation.Clone()
+	f.ExecutionGranted = false
+	f.PrivateStateUnavailable = false
 	f.Duplicate = false
 	f.AlreadyDispatched = false
 	f.Acked = false
@@ -127,6 +148,11 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 	f.InFlight = false
 	effect := EffectNone
 	invalid := func() (RefinementFlow, Effect, error) { return before, EffectNone, ErrInvalidTransition }
+	// A reservation without its private payload can only be cancelled: nothing
+	// is rebuilt from input and no authorization is created or used.
+	if before.PrivateStateUnavailable && ev.Kind != "cancel" {
+		return before, EffectNone, ErrPrivateStateUnavailable
+	}
 	if f.DispatchClaimOwner != "" && ev.LockHeld && (ev.Kind == "cancel" || ev.Kind == "force_resend" || ev.Kind == "mark_dispatched") {
 		f.InFlight = true
 		return f, effect, nil
@@ -141,6 +167,7 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 		f.LastStablePhase = PhaseApproved
 		effect = EffectRecordHistory
 	}
+	specify := f.Mode == ModeSpecify
 	switch ev.Kind {
 	case "questions_generated":
 		if f.Phase != PhaseCaptured || len(ev.Questions) > 3 {
@@ -150,6 +177,19 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 			if strings.TrimSpace(q.Text) == "" || len(q.Options) < 2 || len(q.Options) > 4 {
 				return invalid()
 			}
+		}
+		if specify {
+			// Budget of three per flow, never reset; no new question while one
+			// is unanswered. Zero questions stay in preparation.
+			if len(f.Answers) != len(f.Questions) || len(f.Questions)+len(ev.Questions) > MaxSocraticaQuestions {
+				return invalid()
+			}
+			if len(ev.Questions) > 0 {
+				f.Questions = append(cloneSocraticaQuestions(f.Questions), cloneSocraticaQuestions(ev.Questions)...)
+				f.Phase = PhaseQuestions
+				f.LastStablePhase = PhaseQuestions
+			}
+			break
 		}
 		f.Questions = cloneSocraticaQuestions(ev.Questions)
 		if ev.Scrutiny != nil {
@@ -196,11 +236,17 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 			f.Answers = append(f.Answers, a)
 		}
 		if len(f.Answers) == len(f.Questions) {
-			f.Phase = PhaseRewriting
-			effect = EffectGenerateRewrite
+			if specify {
+				// Back to preparation: answers inform sections, never a free rewrite.
+				f.Phase = PhaseCaptured
+				f.LastStablePhase = PhaseCaptured
+			} else {
+				f.Phase = PhaseRewriting
+				effect = EffectGenerateRewrite
+			}
 		}
 	case "rewrite_ready":
-		if f.Phase != PhaseRewriting || strings.TrimSpace(ev.Proposed) == "" {
+		if specify || f.Phase != PhaseRewriting || strings.TrimSpace(ev.Proposed) == "" {
 			return invalid()
 		}
 		f.ProposedPrompt = ev.Proposed
@@ -210,13 +256,45 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 		f.LastStablePhase = PhaseReview
 		effect = EffectRecordHistory
 	case "edit":
-		if f.Phase != PhaseReview || strings.TrimSpace(ev.Proposed) == "" {
+		if specify || f.Phase != PhaseReview || strings.TrimSpace(ev.Proposed) == "" {
 			return invalid()
 		}
 		f.ProposedPrompt = ev.Proposed
 		f.Revision++
 		effect = EffectRecordHistory
 	case "approve":
+		if specify {
+			// The approval binds to the reviewed text of the current revision;
+			// the agent can only name the revision it showed.
+			// A stale revision wins over the phase: after a concurrent edit the
+			// useful answer is "read again", not an invalid transition.
+			if ev.ExpectedRevision != f.Revision {
+				return before, EffectNone, ErrRevisionConflict
+			}
+			if f.Phase != PhaseReview && f.Phase != PhaseApproved && f.Phase != PhaseDispatched {
+				return invalid()
+			}
+			switch f.Phase {
+			case PhaseReview:
+				if err := specifyIdentity(f, f.ProposedPrompt); err != nil {
+					return before, EffectNone, err
+				}
+				approve(f.ProposedPrompt)
+				f.Preparation.Stage = StageApproved
+			case PhaseApproved:
+				if f.DispatchClaimOwner != "" {
+					return invalid()
+				}
+				if err := specifyIdentity(f, f.ApprovedPrompt); err != nil {
+					return before, EffectNone, err
+				}
+				f.Duplicate = true
+			case PhaseDispatched:
+				f.Duplicate = true
+				f.AlreadyDispatched = true
+			}
+			break
+		}
 		switch f.Phase {
 		case PhaseReview:
 			if strings.TrimSpace(f.ProposedPrompt) == "" {
@@ -249,21 +327,31 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 		if f.Phase != PhaseApproved {
 			return invalid()
 		}
+		// The first ack re-checks that content, checks, revision and approved
+		// text still match; a replay of a consumed dispatch never gets here.
+		if specify {
+			if err := specifyIdentity(f, f.ApprovedPrompt); err != nil {
+				return before, EffectNone, err
+			}
+		}
 		f.Phase = PhaseDispatched
 		f.DispatchAck = true
 		f.Acked = true
 		f.AckNonce = ev.Nonce
-		if ev.Private {
+		// A specify flow keeps the payload policy it was created with, whatever
+		// the private setting says now, so its outcome can still be reported: an
+		// ephemeral payload is never on disk, a persistent one stays as stored.
+		if ev.Private && !specify {
 			effect = EffectRedactFlow
 		}
 	case "model_error", "fail":
-		if f.Phase != PhaseCaptured && f.Phase != PhaseRewriting {
+		if specify || (f.Phase != PhaseCaptured && f.Phase != PhaseRewriting) {
 			return invalid()
 		}
 		f.Phase = PhaseFailed
 		f.LastError = ev.Error
 	case "retry":
-		if f.Phase != PhaseFailed {
+		if specify || f.Phase != PhaseFailed {
 			return invalid()
 		}
 		switch f.LastStablePhase {
@@ -278,16 +366,21 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 		}
 		f.LastError = ""
 	case "send_original":
-		if f.Phase != PhaseFailed {
+		if specify || f.Phase != PhaseFailed {
 			return invalid()
 		}
 		approve(f.OriginalPrompt)
 	case "cancel":
-		if f.Phase.Terminal() {
+		// A dispatched reservation whose private payload is gone can still be
+		// discarded explicitly: nothing else is possible on it.
+		if f.Phase.Terminal() && !(before.PrivateStateUnavailable && f.Phase == PhaseDispatched) {
 			return invalid()
 		}
 		f.Phase = PhaseCancelled
 		f.ProposedPrompt = ""
+		if specify {
+			withdrawSpecifyPreparation(&f)
+		}
 		effect = EffectRestoreOriginal
 		if ev.Private {
 			effect = EffectDeleteFlow
@@ -298,13 +391,23 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 			if f.DispatchClaimOwner != "" {
 				f.InFlight = ev.LockHeld
 				f.Uncertain = !ev.LockHeld
+			} else if specify {
+				// A valid approval of this revision survives a resume; an
+				// outdated one is dropped, never executed.
+				if specifyIdentity(f, f.ApprovedPrompt) == nil {
+					f.Recovered = true
+				} else {
+					dropSpecifyApproval(&f)
+				}
 			} else {
 				f.Phase = PhaseReview
 				f.LastStablePhase = PhaseReview
 				f.Recovered = true
 			}
 		case PhaseCaptured:
-			effect = EffectGenerateQuestions
+			if !specify {
+				effect = EffectGenerateQuestions
+			}
 		case PhaseRewriting:
 			effect = EffectGenerateRewrite
 		case PhaseQuestions, PhaseReview:
@@ -317,7 +420,7 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 		}
 		f.Phase = PhaseDispatched
 		f.DispatchAck = true
-		if ev.Private {
+		if ev.Private && !specify {
 			effect = EffectRedactFlow
 		}
 	case "force_resend":
@@ -327,6 +430,14 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 		if strings.TrimSpace(f.ApprovedPrompt) == "" {
 			return invalid()
 		}
+		if specify {
+			// A new authorization is only created for content that still matches
+			// what was reviewed; the old outcome belonged to the old dispatch.
+			if err := specifyIdentity(f, f.ApprovedPrompt); err != nil {
+				return before, EffectNone, err
+			}
+			f.Preparation.Outcome = nil
+		}
 		f.Phase = PhaseApproved
 		f.DispatchID = newID()
 		f.DispatchAck = false
@@ -334,6 +445,29 @@ func Reduce(f RefinementFlow, ev Event, now time.Time, newID func() string) (Ref
 		f.DispatchClaimOwner = ""
 		f.DispatchClaimedAt = nil
 		f.DispatchConsumed = false
+	case "report":
+		next, changed, err := reportOutcome(f, ev)
+		if err != nil {
+			return before, EffectNone, err
+		}
+		f = next
+		if changed {
+			effect = EffectRecordHistory
+		} else {
+			f.Duplicate = true
+		}
+	case "prepare_set", "prepare_validate":
+		var next RefinementFlow
+		var err error
+		if ev.Kind == "prepare_set" {
+			next, err = prepareSet(f, ev)
+		} else {
+			next, err = prepareValidate(f, ev)
+		}
+		if err != nil {
+			return before, EffectNone, err
+		}
+		f = next
 	default:
 		return invalid()
 	}

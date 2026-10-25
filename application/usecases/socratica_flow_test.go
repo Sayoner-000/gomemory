@@ -124,7 +124,7 @@ func TestSocraticaFlowUseCase(t *testing.T) {
 		if _, err = u.Execute(ctx, "f", "claude", l); err != nil || l.calls != 1 {
 			t.Fatal(l.calls, err)
 		}
-		if _, _, err = r.Ack(ctx, "f", "old", "A", "late"); !errors.Is(err, ports.ErrAckRejected) {
+		if _, err = r.Ack(ctx, "f", "old", "A", "late"); !errors.Is(err, ports.ErrAckRejected) {
 			t.Fatal("late ack accepted", err)
 		}
 	})
@@ -309,4 +309,60 @@ func TestSocraticaFlowUseCase(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+// T009: execution_granted is the first committed ack of a specify flow only;
+// a replay of the same nonce and refine/scrutiny never report it.
+func TestSocraticaFlow_AckGrantsExecutionOnceForSpecify(t *testing.T) {
+	ctx := context.Background()
+	type scenario struct {
+		mode  domain.SocraticaMode
+		setup func(t *testing.T) (*SocraticaFlow, string, string)
+	}
+	for _, sc := range []scenario{
+		{domain.ModeSpecify, func(t *testing.T) (*SocraticaFlow, string, string) {
+			u, _, id := reviewedSpecify(t)
+			approved, err := u.ApproveSpecify(ctx, id, 3)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return u, id, approved.Flow.DispatchID
+		}},
+		{domain.ModeRefine, func(t *testing.T) (*SocraticaFlow, string, string) {
+			u, r := socraticaFixture()
+			r.flow.Phase, r.flow.LastStablePhase, r.flow.DispatchID = domain.PhaseApproved, domain.PhaseApproved, "d1"
+			return u, "f", "d1"
+		}},
+	} {
+		u, id, dispatch := sc.setup(t)
+		ack := domain.Event{Kind: "ack", DispatchID: dispatch, Nonce: "n1"}
+		first, err := u.Apply(ctx, id, ack, OriginMCP)
+		if err != nil || !first.Flow.Acked {
+			t.Fatalf("%s first ack = %+v, %v", sc.mode, first.Flow, err)
+		}
+		if want := sc.mode == domain.ModeSpecify; first.Flow.ExecutionGranted != want {
+			t.Fatalf("%s first ack granted = %v, want %v", sc.mode, first.Flow.ExecutionGranted, want)
+		}
+		replay, err := u.Apply(ctx, id, ack, OriginMCP)
+		if err != nil || !replay.Flow.Acked || replay.Flow.ExecutionGranted {
+			t.Fatalf("%s replay = %+v, %v; want acked without grant", sc.mode, replay.Flow, err)
+		}
+		got, err := u.Get(ctx, id)
+		if err != nil || got.Flow.ExecutionGranted {
+			t.Fatalf("%s get = %+v, %v; a read never grants", sc.mode, got.Flow, err)
+		}
+	}
+}
+
+// T011: refine/scrutiny keep the persistent policy even in private mode.
+func TestSocraticaFlow_StartFixesPayloadPolicy(t *testing.T) {
+	for _, private := range []bool{false, true} {
+		u, r := socraticaFixture()
+		r.flow = domain.RefinementFlow{}
+		u.Settings.Private = private
+		res, err := u.Start(context.Background(), "p", "claude", domain.ModeRefine, "hola")
+		if err != nil || res.Flow.PayloadPolicy != domain.PayloadPersistent || r.flow.PayloadPolicy != domain.PayloadPersistent {
+			t.Fatalf("private=%v: policy = %q stored %q, %v", private, res.Flow.PayloadPolicy, r.flow.PayloadPolicy, err)
+		}
+	}
 }

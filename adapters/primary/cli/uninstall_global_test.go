@@ -141,6 +141,38 @@ func TestRemoveProtocolBlockFile(t *testing.T) {
 	}
 }
 
+// La retirada concreta el alias de specify (feature 042) en Claude Code y
+// OpenCode, y conserva los contenedores compartidos y los comandos ajenos.
+func TestGlobalGeneratedArtifacts_AliasSpecifyYAjenos(t *testing.T) {
+	home := t.TempDir()
+	nuestros := []string{
+		filepath.Join(home, ".claude", "commands", "socratica-hu.md"),
+		filepath.Join(home, ".config", "opencode", "commands", "socratica-hu.md"),
+	}
+	ajenos := []string{
+		filepath.Join(home, ".claude", "commands", "mio.md"),
+		filepath.Join(home, ".config", "opencode", "commands", "otro.md"),
+		filepath.Join(home, ".codex", "config.toml"),
+	}
+	for _, p := range append(append([]string{}, nuestros...), ajenos...) {
+		writeFile(t, p, "x")
+	}
+	removed, errs := removeGlobalGeneratedArtifacts(home)
+	if len(errs) != 0 || len(removed) != 2 {
+		t.Fatalf("retirados = %v (errores %v)", removed, errs)
+	}
+	for _, p := range nuestros {
+		if _, err := os.Stat(p); !os.IsNotExist(err) {
+			t.Errorf("%s sigue en disco", p)
+		}
+	}
+	for _, p := range append(ajenos, filepath.Dir(ajenos[0]), filepath.Dir(ajenos[1])) {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("se retiró algo ajeno o un contenedor compartido: %s", p)
+		}
+	}
+}
+
 // Solo se retiran las habilidades y envoltorios que escribe gomemory; los
 // ajenos en el mismo directorio se conservan.
 func TestGlobalGeneratedArtifacts_SoloLosNuestros(t *testing.T) {

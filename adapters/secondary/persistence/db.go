@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 type schemaExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -244,6 +244,9 @@ func migrateSchema(ex schemaExecer) error {
 	}
 	if _, err := ex.Exec(socraticaSchema); err != nil {
 		return fmt.Errorf("migrate socratica: %w", err)
+	}
+	if err := addSocraticaSpecifyColumns(ex); err != nil {
+		return err
 	}
 	schema := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS memories (
@@ -570,36 +573,62 @@ func migrateSchema(ex schemaExecer) error {
 	// Columnas aditivas sobre tablas ya existentes. El esquema usa
 	// `CREATE TABLE IF NOT EXISTS`, así que en bases previas estas columnas no se
 	// crean solas: se agregan con ALTER idempotente (ignora "duplicate column").
-	addColumnIfMissing(ex, "memories", "origin_prompt", "TEXT")
-	addColumnIfMissing(ex, "sessions", "last_prompt", "TEXT")
+	if err := addColumnIfMissing(ex, "memories", "origin_prompt", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "sessions", "last_prompt", "TEXT"); err != nil {
+		return err
+	}
 	// Feature 035: las salidas sin ganancia se cuentan aparte; no son una
 	// degradación y antes inflaban esa columna en mem pack savings.
-	addColumnIfMissing(ex, "compression_stats", "no_gains", "INTEGER NOT NULL DEFAULT 0")
+	if err := addColumnIfMissing(ex, "compression_stats", "no_gains", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
 
 	// Feature 028: el ledger de revisión gana el target vigente, la autorización de
 	// corrección, la identidad esperada de cada revisor y la huella de la ronda de
 	// consenso. Todas nullable a propósito: una base anterior a 028 sigue abriendo,
 	// su target vigente se interpreta como el original y su corrección como
 	// autorizada, que es su comportamiento histórico.
-	addColumnIfMissing(ex, "reviews", "current_target_digest", "TEXT")
-	addColumnIfMissing(ex, "reviews", "fix_authorized", "INTEGER")
-	addColumnIfMissing(ex, "reviews", "reviewer_a_provider", "TEXT")
-	addColumnIfMissing(ex, "reviews", "reviewer_a_model", "TEXT")
-	addColumnIfMissing(ex, "reviews", "reviewer_b_provider", "TEXT")
-	addColumnIfMissing(ex, "reviews", "reviewer_b_model", "TEXT")
-	addColumnIfMissing(ex, "consensus_findings", "round_fingerprint", "TEXT")
+	if err := addColumnIfMissing(ex, "reviews", "current_target_digest", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "reviews", "fix_authorized", "INTEGER"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "reviews", "reviewer_a_provider", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "reviews", "reviewer_a_model", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "reviews", "reviewer_b_provider", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "reviews", "reviewer_b_model", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "consensus_findings", "round_fingerprint", "TEXT"); err != nil {
+		return err
+	}
 
 	// rejudgment_round fecha el estado agregado de re-juicio. Nullable a propósito:
 	// una base anterior la interpreta como ronda 0, que nunca es la ronda vigente de
 	// una re-revisión, así que sus hallazgos confirmados vuelven a exigir re-juicio
 	// en vez de aprobarse con el veredicto de una corrección pasada.
-	addColumnIfMissing(ex, "consensus_findings", "rejudgment_round", "INTEGER")
+	if err := addColumnIfMissing(ex, "consensus_findings", "rejudgment_round", "INTEGER"); err != nil {
+		return err
+	}
 
 	// topic_key (feature 008): agrupa memorias por tópico para el upsert de dedup.
 	// El índice va DESPUÉS del ALTER (referencia la columna recién creada) y es
 	// parcial: solo indexa filas con tópico. Idempotente (IF NOT EXISTS).
-	addColumnIfMissing(ex, "memories", "topic_key", "TEXT")
-	addColumnIfMissing(ex, "memories", "source_review_id", "INTEGER")
+	if err := addColumnIfMissing(ex, "memories", "topic_key", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "memories", "source_review_id", "INTEGER"); err != nil {
+		return err
+	}
 	_, _ = ex.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
 
 	// Unique index sobre el par de una relación. Best-effort: si la base ya
@@ -627,9 +656,13 @@ func migrateSchema(ex schemaExecer) error {
 }
 
 // addColumnIfMissing agrega una columna a una tabla si aún no existe. Es
-// idempotente: SQLite no soporta `ADD COLUMN IF NOT EXISTS`, así que el error de
-// columna duplicada (base ya migrada) se ignora en silencio. Best-effort: no
-// debe romper la migración del resto del esquema.
-func addColumnIfMissing(ex schemaExecer, table, column, typ string) {
-	_, _ = ex.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, typ))
+// idempotente: SQLite no soporta `ADD COLUMN IF NOT EXISTS`, así que solo se
+// ignora el error de columna duplicada (base ya migrada). Cualquier otro fallo
+// aborta la migración: marcar user_version sin la columna dejaría lecturas rotas
+// y sin reintento.
+func addColumnIfMissing(ex schemaExecer, table, column, typ string) error {
+	if _, err := ex.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, typ)); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("add column %s.%s: %w", table, column, err)
+	}
+	return nil
 }

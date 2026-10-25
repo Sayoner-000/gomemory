@@ -48,3 +48,15 @@ CREATE TABLE IF NOT EXISTS socratica_history (
 );
 CREATE INDEX IF NOT EXISTS idx_socratica_history_scope ON socratica_history(project, client, completed_at DESC);
 `
+
+// addSocraticaSpecifyColumns adds the feature 042 columns (catalog 3). Old rows
+// keep a NULL preparation and the persistent policy they were stored with.
+func addSocraticaSpecifyColumns(ex schemaExecer) error {
+	if err := addColumnIfMissing(ex, "socratica_flows", "preparation_json", "TEXT"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(ex, "socratica_flows", "payload_policy", "TEXT NOT NULL DEFAULT 'persistent'"); err != nil {
+		return err
+	}
+	return addColumnIfMissing(ex, "socratica_history", "preparation_json", "TEXT")
+}

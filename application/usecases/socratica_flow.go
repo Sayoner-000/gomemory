@@ -20,6 +20,12 @@ var (
 	ErrDispatchUncertain   = errors.New("dispatch uncertain: explicit reconciliation required")
 	ErrDispatchUnconfirmed = errors.New("agent started but dispatch could not be confirmed")
 	ErrNoGenerator         = ports.ErrNoGenerator
+	// ErrSpecifyAgentOnly: a specify flow is prepared and delivered by the
+	// agent through socratica_flow; no local generic route runs it.
+	ErrSpecifyAgentOnly = errors.New("specify flows are delivered by the agent, not by the local executor")
+	// ErrResendPendingExists: resending a dispatched flow reopens it, and only
+	// one flow per project and agent may be pending.
+	ErrResendPendingExists = errors.New("another flow is pending for this agent: finish or cancel it before resending")
 )
 
 type SocraticaResult struct {
@@ -165,14 +171,17 @@ func (u *SocraticaFlow) dropOrphanLocks(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 func (u *SocraticaFlow) Start(ctx context.Context, project, client string, mode domain.SocraticaMode, prompt string) (SocraticaResult, error) {
-	if _, err := u.settings(); err != nil {
+	settings, err := u.settings()
+	if err != nil {
 		return SocraticaResult{}, err
 	}
-	if !domain.IsSocraticaClient(client) || (mode != domain.ModeRefine && mode != domain.ModeScrutiny) || strings.TrimSpace(prompt) == "" {
+	if !domain.IsSocraticaClient(client) || (mode != domain.ModeRefine && mode != domain.ModeScrutiny && mode != domain.ModeSpecify) || strings.TrimSpace(prompt) == "" {
 		return SocraticaResult{}, fmt.Errorf("invalid socratica input")
 	}
 	var f domain.RefinementFlow
-	err := u.UOW.WithTransaction(ctx, func(repo ports.SocraticaRepository) error {
+	// The pending check reads the shared reservation, so an ephemeral flow of
+	// another instance also blocks a second pending flow for this agent.
+	err = u.UOW.WithTransaction(ctx, func(repo ports.SocraticaRepository) error {
 		active, found, err := repo.ActiveFlow(ctx, project, client)
 		if err != nil {
 			return err
@@ -186,7 +195,12 @@ func (u *SocraticaFlow) Start(ctx context.Context, project, client string, mode 
 			return nil
 		}
 		now := u.Clock.Now()
-		f = domain.RefinementFlow{ID: u.NewID(), SchemaVersion: 1, Project: project, Client: client, Mode: mode, OriginalPrompt: domain.ProtectText(prompt), Phase: domain.PhaseCaptured, LastStablePhase: domain.PhaseCaptured, CreatedAt: now, UpdatedAt: now}
+		// The payload policy is fixed here and never follows later toggles of
+		// the private setting.
+		f = domain.RefinementFlow{ID: u.NewID(), SchemaVersion: 1, Project: project, Client: client, Mode: mode, OriginalPrompt: domain.ProtectText(prompt), Phase: domain.PhaseCaptured, LastStablePhase: domain.PhaseCaptured, CreatedAt: now, UpdatedAt: now, PayloadPolicy: domain.PayloadPolicyFor(mode, settings.Private)}
+		if mode == domain.ModeSpecify {
+			f.Preparation = domain.NewSpecifyPreparation()
+		}
 		return repo.CreateFlow(ctx, f)
 	})
 	return SocraticaResult{Flow: f, Next: SocraticaNext(f)}, err
@@ -211,7 +225,7 @@ func (u *SocraticaFlow) Get(ctx context.Context, id string) (SocraticaResult, er
 		}
 	}
 	f.AlreadyDispatched = f.DispatchAck
-	if SocraticaRecoverable(f) {
+	if f.Mode != domain.ModeSpecify && SocraticaRecoverable(f) {
 		return SocraticaResult{Flow: f, Next: NextRecoverable}, nil
 	}
 	return SocraticaResult{Flow: f, Next: SocraticaNext(f)}, nil
@@ -240,6 +254,7 @@ func (u *SocraticaFlow) Apply(ctx context.Context, id string, ev domain.Event, o
 	var flow domain.RefinementFlow
 	var effect domain.Effect
 	var purged []string
+	var granted bool
 	err = u.UOW.WithTransaction(ctx, func(repo ports.SocraticaRepository) error {
 		before, e := repo.GetFlow(ctx, id)
 		if e != nil {
@@ -254,16 +269,41 @@ func (u *SocraticaFlow) Apply(ctx context.Context, id string, ev domain.Event, o
 		}
 		switch ev.Kind {
 		case "approve", "send_original":
+			if flow.Mode == domain.ModeSpecify {
+				// The approval of a specify flow is the reduced state saved
+				// under the same CAS as any edit (phase, revision, date), so
+				// it can only land on the version that was reviewed.
+				if !flow.Duplicate {
+					e = repo.SaveTransition(ctx, before, flow)
+				}
+				break
+			}
 			var dup bool
 			flow, dup, e = repo.Approve(ctx, id, flow.DispatchID, flow.ApprovedPrompt)
 			flow.Duplicate = dup
 			flow.AlreadyDispatched = flow.DispatchAck
 		case "ack":
-			var acked, already bool
-			acked, already, e = repo.Ack(ctx, id, ev.DispatchID, ev.Owner, ev.Nonce)
-			flow.Acked = acked
-			flow.AlreadyDispatched = already
+			var res ports.AckResult
+			res, e = repo.Ack(ctx, id, ev.DispatchID, ev.Owner, ev.Nonce)
+			flow.Acked = res.Acked
+			flow.AlreadyDispatched = res.AlreadyDispatched
+			granted = res.Granted
 		case "force_resend":
+			if before.Phase == domain.PhaseDispatched {
+				active, found, ae := repo.ActiveFlow(ctx, flow.Project, flow.Client)
+				if ae != nil {
+					return ae
+				}
+				if found && active.ID != id {
+					return ErrResendPendingExists
+				}
+			}
+			if flow.Mode == domain.ModeSpecify {
+				// Saved as a whole so the outcome of the old dispatch is dropped
+				// with it, under the CAS of every other edit.
+				e = repo.SaveTransition(ctx, before, flow)
+				break
+			}
 			e = repo.ForceResend(ctx, id, before.DispatchID, flow.DispatchID)
 		case "mark_dispatched":
 			e = repo.MarkDispatched(ctx, id, before.DispatchID)
@@ -273,7 +313,9 @@ func (u *SocraticaFlow) Apply(ctx context.Context, id string, ev domain.Event, o
 		if e != nil {
 			return e
 		}
-		if effect == domain.EffectRecordHistory && !settings.Private {
+		// The payload policy is fixed at creation: an ephemeral flow never records
+		// history, whatever the private setting says now.
+		if effect == domain.EffectRecordHistory && !settings.Private && flow.EffectivePayloadPolicy() != domain.PayloadEphemeral {
 			if e = u.record(ctx, repo, flow, *settings.HistoryLimit); e != nil {
 				return e
 			}
@@ -297,6 +339,7 @@ func (u *SocraticaFlow) Apply(ctx context.Context, id string, ev domain.Event, o
 			flow.Questions = nil
 			flow.Answers = nil
 			flow.Scrutiny = nil
+			flow.Preparation = nil
 			flow.LastError = ""
 		}
 		return nil
@@ -307,6 +350,9 @@ func (u *SocraticaFlow) Apply(ctx context.Context, id string, ev domain.Event, o
 	if err = u.dropLocks(purged); err != nil {
 		return SocraticaResult{}, err
 	}
+	// The grant is reported only once the transaction committed, and only for
+	// specify: refine/scrutiny keep their public ack flags unchanged.
+	flow.ExecutionGranted = granted && flow.Mode == domain.ModeSpecify
 	result := SocraticaResult{Flow: flow, Next: SocraticaNext(flow)}
 	if origin != OriginLocal {
 		return result, nil
@@ -334,7 +380,7 @@ func (u *SocraticaFlow) Apply(ctx context.Context, id string, ev domain.Event, o
 	return result, nil
 }
 func (u *SocraticaFlow) record(ctx context.Context, repo ports.SocraticaRepository, f domain.RefinementFlow, limit int) error {
-	return repo.UpsertHistory(ctx, domain.RefinementHistory{ID: f.ID, FlowID: f.ID, Project: f.Project, Client: f.Client, Mode: f.Mode, OriginalPrompt: f.OriginalPrompt, ProposedPrompt: f.ProposedPrompt, ApprovedPrompt: f.ApprovedPrompt, Scrutiny: f.Scrutiny, Additions: f.Additions, WordsBefore: domain.WordCount(f.OriginalPrompt), WordsAfter: domain.WordCount(f.ProposedPrompt), CompletedAt: u.Clock.Now()}, limit)
+	return repo.UpsertHistory(ctx, domain.RefinementHistory{ID: f.ID, FlowID: f.ID, Project: f.Project, Client: f.Client, Mode: f.Mode, OriginalPrompt: f.OriginalPrompt, ProposedPrompt: f.ProposedPrompt, ApprovedPrompt: f.ApprovedPrompt, Scrutiny: f.Scrutiny, Additions: f.Additions, Preparation: f.Preparation, WordsBefore: domain.WordCount(f.OriginalPrompt), WordsAfter: domain.WordCount(f.ProposedPrompt), CompletedAt: u.Clock.Now()}, limit)
 }
 func (u *SocraticaFlow) Execute(ctx context.Context, id, target string, launcher ports.AgentLauncher) (ExecuteResult, error) {
 	settings, err := u.settings()
@@ -352,6 +398,9 @@ func (u *SocraticaFlow) Execute(ctx context.Context, id, target string, launcher
 	f, err := u.Repo.GetFlow(ctx, id)
 	if err != nil {
 		return ExecuteResult{}, err
+	}
+	if f.Mode == domain.ModeSpecify {
+		return ExecuteResult{Flow: f}, ErrSpecifyAgentOnly
 	}
 	if f.DispatchAck {
 		f.AlreadyDispatched = true
@@ -389,11 +438,11 @@ func (u *SocraticaFlow) Execute(ctx context.Context, id, target string, launcher
 	var purged []string
 	confirm := func() error {
 		return u.UOW.WithTransaction(ctx, func(repo ports.SocraticaRepository) error {
-			acked, already, e := repo.Ack(ctx, id, f.DispatchID, owner, nonce)
+			res, e := repo.Ack(ctx, id, f.DispatchID, owner, nonce)
 			if e != nil {
 				return e
 			}
-			if !acked && !already {
+			if !res.Acked && !res.AlreadyDispatched {
 				return ErrDispatchUnconfirmed
 			}
 			if purged, e = repo.PruneTerminal(ctx, f.Project, f.Client, *settings.HistoryLimit); e != nil {
@@ -547,6 +596,9 @@ const (
 	NextConsumed    = "NO ejecutes: ya fue enviado; si la persona confirma que la tarea no empezó, ofrece reenviar (force_resend)"
 	NextReadyToAck  = "llama a ack con este dispatch_id y un ack_nonce antes de ejecutar"
 	NextExecute     = "ejecuta exactamente el prompt aprobado una sola vez"
+	// NextCancelledWithoutOriginal: the cancelled flow kept no original in this
+	// instance (ephemeral payload dropped), so there is nothing to return.
+	NextCancelledWithoutOriginal = "cancelado; el original no está disponible en esta instancia; no ejecutes"
 )
 
 // SocraticaRecoverable: approved but neither acked nor claimed, so nothing ran.
@@ -559,6 +611,11 @@ func SocraticaNext(f domain.RefinementFlow) string {
 	}
 	if f.Uncertain {
 		return NextUncertain
+	}
+	// Approved, dispatched and cancelled keep the shared texts; any other phase of
+	// a specify flow must never suggest the closed generic routes (retry, original).
+	if f.PrivateStateUnavailable || (f.Mode == domain.ModeSpecify && f.Phase != domain.PhaseCancelled) {
+		return SpecifyNext(f)
 	}
 	switch f.Phase {
 	case domain.PhaseCaptured:
@@ -582,6 +639,10 @@ func SocraticaNext(f domain.RefinementFlow) string {
 	case domain.PhaseFailed:
 		return "conserva el original; ofrece Reintentar, Enviar mi original o Cancelar"
 	case domain.PhaseCancelled:
+		// A cancelled ephemeral flow drops its payload: there is no original to return.
+		if f.OriginalPrompt == "" {
+			return NextCancelledWithoutOriginal
+		}
 		return "devuelve el original; no ejecutes"
 	}
 	return "no ejecutes"

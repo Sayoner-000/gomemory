@@ -103,22 +103,23 @@ func (r *socraticaFakeRepo) ReleaseDispatch(_ context.Context, _, owner string) 
 	}
 	return nil
 }
-func (r *socraticaFakeRepo) Ack(_ context.Context, _, id, owner, nonce string) (bool, bool, error) {
+func (r *socraticaFakeRepo) Ack(_ context.Context, _, id, owner, nonce string) (ports.AckResult, error) {
 	r.touch()
 	if r.ackFailures > 0 {
 		r.ackFailures--
-		return false, false, errors.New("ack unavailable")
+		return ports.AckResult{}, errors.New("ack unavailable")
 	}
 	if id != r.flow.DispatchID || owner != r.flow.DispatchClaimOwner {
-		return false, false, ports.ErrAckRejected
+		return ports.AckResult{}, ports.ErrAckRejected
 	}
 	if r.flow.DispatchAck {
-		return nonce != "" && nonce == r.flow.AckNonce, nonce == "" || nonce != r.flow.AckNonce, nil
+		replay := nonce != "" && nonce == r.flow.AckNonce
+		return ports.AckResult{Acked: replay, AlreadyDispatched: !replay}, nil
 	}
 	r.flow.DispatchAck = true
 	r.flow.Phase = domain.PhaseDispatched
 	r.flow.AckNonce = nonce
-	return true, false, nil
+	return ports.AckResult{Acked: true, Granted: true}, nil
 }
 func (r *socraticaFakeRepo) MarkDispatched(_ context.Context, _, dispatch string) error {
 	r.touch()

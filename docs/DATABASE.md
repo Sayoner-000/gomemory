@@ -27,6 +27,24 @@ Retención: historial podado a `socratica_history_limit` (20) por `(project, cli
 
 Privacidad: todas las columnas de texto y los strings dentro de los JSON pasan por `ProtectText` al escribir y al leer. `mem sanitize` las recorre por columna (categorías `socratica_flow_*` y `socratica_history_*`), respetando el proyecto. En modo privado no se escribe historial y un flujo enviado se redacta conservando solo `dispatch_id`, `approved_hash` y `dispatch_consumed`.
 
+### Preparación para Spec Kit (feature 042, catálogo 3)
+
+La versión 3 es aditiva (`addColumnIfMissing`, dentro de la misma transacción de preparación): una base de catálogo 2 o una vacía se abre sin tocar sus datos, y un fallo a medias revierte las columnas y deja la versión 2.
+
+| Tabla | Columna | Contenido |
+|---|---|---|
+| `socratica_flows` | `preparation_json` (nulo) | Agregado de preparación: etapa, secciones `intent`, `scope` y `stories`, comprobaciones con la huella de sus entradas, revisión `{revision, prompt_hash}` y resultado comunicado. `NULL` en `refine`/`scrutiny` y en las filas anteriores: nunca se infiere que estuvieran preparadas. |
+| `socratica_flows` | `payload_policy` (`persistent` por defecto) | Fijada al crear el flujo y nunca reescrita por una transición. `ephemeral` solo para `specify` iniciado en modo privado. |
+| `socratica_history` | `preparation_json` (nulo) | Instantánea de la preparación al aprobar y al comunicar el resultado, solo en modo no privado. |
+
+- La `revision` de la fila es la fuente única de la revisión del contenido de `specify`; cada cambio material la incrementa. El control de concurrencia de `SaveTransition` (fase, revisión y fecha) también cubre ediciones y aprobación.
+- Una `preparation_json` con `schema_version` mayor que la que entiende el binario se conserva y se rechaza al intentar mutarla, sin sobrescribirla; solo se permite cancelarla, sin tocar el agregado, para liberar el hueco.
+- La aprobación, el reenvío y el resultado se guardan con la transición completa. La primera confirmación (`Ack`) sigue siendo una sentencia condicional: su `RowsAffected==1` es lo único que concede ejecución, y la concesión no se guarda ni se recupera.
+
+**Reserva frente a payload efímero.** Para un `specify` con `payload_policy='ephemeral'`, la fila contiene solo identidad, proyecto, cliente, modo, política, fases, revisión, fechas y marcas de despacho: `original_prompt`, `proposed_prompt`, `approved_prompt`, `questions_json`, `answers_json`, `last_error` y `approved_hash` quedan vacíos y `preparation_json` es `NULL`. El contenido vive en un depósito en memoria del proceso MCP que lo creó (`EphemeralSocraticaStore`): se prepara dentro de la transacción, se publica solo después del *commit* (un *rollback* no publica nada) y no se escribe en archivos temporales, locks ni historial. Si el proceso se pierde, el contenido se pierde con él: otra instancia ve la reserva como `private_state_unavailable`, solo puede consultar o cancelar y nunca reconstruye una autorización. El índice `idx_socratica_one_pending` impide otro pendiente del mismo proyecto y cliente entre procesos.
+
+**Saneamiento y retención.** `mem sanitize` añade las categorías `socratica_flow_preparation` y `socratica_history_preparation`. Si el saneamiento cambia la preparación de un flujo sin consumir (`review` o `approved` sin reclamo ni ack), se devuelve a `captured` con la revisión incrementada y se vacían propuesta, texto aprobado, huella y `dispatch_id`; si ya se consumió o está reclamado, solo se protegen los textos y se conservan las marcas de despacho. Una preparación de versión mayor se protege hoja a hoja sin reinterpretarla. `RedactFlow` también anula `preparation_json`. Borrar un flujo (retención, purga o `mem gc`) elimina su agregado completo y descarta su payload efímero.
+
 ## Expand: estadísticas, idempotencia y registro global (040)
 
 `instinct_stats` vive en el mem.db del proyecto. Su clave primaria `(project, slug)` identifica el patrón; conserva tipo, descripción redactada (la muestra de la última observación), observaciones, correcciones, confianza, alcance, estado y fechas. `last_seen` decide la ventana de 30 días tras la que un instinct deja de inyectarse. `instinct_folded`, con clave `(project, obs_id)`, registra los UUID ya contados en la misma transacción que actualiza las estadísticas. Se purga después de siete días.
@@ -39,7 +57,7 @@ La cola transitoria `.memory/expand-observations.ndjson` tiene límite de 256 Ki
 
 La apertura prepara el esquema de forma aditiva en una sola transacción inmediata. La versión se guarda en `PRAGMA user_version`: si es mayor o igual que `schemaVersion`, la apertura omite la transacción y el DDL, por lo que una base preparada no espera el bloqueo de otro escritor. Una versión mayor, escrita por un binario más nuevo, nunca se reduce. Dentro de la transacción se vuelve a leer la versión antes de crear estructuras, para cubrir aperturas concurrentes.
 
-Cada cambio del catálogo exige aumentar `schemaVersion` y regenerar `adapters/secondary/persistence/testdata/schema.golden` en el mismo cambio. El golden incluye la versión, el catálogo y las columnas; su guarda rechaza cambios del catálogo sin aumento de versión. La versión 1 introduce la preparación transaccional y la versión 2 añade el índice no único `idx_sessions_project_created ON sessions(project, created_at)`, utilizado para contar sesiones, consultar la activa y listar las recientes. Un error no tolerado revierte toda la preparación y conserva la versión anterior. Las ampliaciones opcionales conservan sus tolerancias históricas; si fallan, no se vuelven a intentar hasta la siguiente subida de versión.
+Cada cambio del catálogo exige aumentar `schemaVersion` y regenerar `adapters/secondary/persistence/testdata/schema.golden` en el mismo cambio. El golden incluye la versión, el catálogo y las columnas; su guarda rechaza cambios del catálogo sin aumento de versión. La versión 1 introduce la preparación transaccional, la versión 2 añade el índice no único `idx_sessions_project_created ON sessions(project, created_at)`, utilizado para contar sesiones, consultar la activa y listar las recientes, y la versión 3 añade las columnas de la preparación para Spec Kit (véase la sección de Socratica). Un error no tolerado revierte toda la preparación y conserva la versión anterior. Las ampliaciones opcionales conservan sus tolerancias históricas; si fallan, no se vuelven a intentar hasta la siguiente subida de versión.
 
 `sqliteDSN` aplica estos ajustes a cada conexión del pool, incluida la apertura del almacén legado durante su traslado:
 

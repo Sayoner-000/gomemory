@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +29,7 @@ type socTUI struct {
 	gen      *tuiGen
 	launcher *tuiLauncher
 	root     string
+	db       *sql.DB
 }
 
 func newSocTUI(t *testing.T) *socTUI {
@@ -50,7 +52,7 @@ func newSocTUI(t *testing.T) *socTUI {
 	m.project = "p"
 	m.settingsRepo = persistence.NewSettingsRepository()
 	m.soc = newSocraticaState(SocraticaDeps{Flow: flow, Launcher: l})
-	return &socTUI{t: t, m: m, repo: repo, store: store, gen: gen, launcher: l, root: root}
+	return &socTUI{t: t, m: m, repo: repo, store: store, gen: gen, launcher: l, root: root, db: db}
 }
 
 // press envía una tecla y ejecuta los tea.Cmd resultantes hasta agotarlos,
