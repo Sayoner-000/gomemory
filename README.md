@@ -152,8 +152,9 @@ On top of memory, gomemory ships tools for the work agents do with it:
   providers are optional: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
   and [CodeGraph](https://github.com/colbymchenry/codegraph).
 - `mem install` and `mem update` keep a set of skills and guardrails current:
-  `defensive-qa-audit`, `socratica` prompt refinement and the `expand`
-  protection rules.
+  `defensive-qa-audit`, `socratica` (prompt refinement, and `/socratica-hu`
+  to prepare a checked, approved input for Spec Kit's `speckit-specify`) and
+  the `expand` protection rules.
 - Octopus AAR (opt-in) recommends whether to keep a task inline or hand it to a
   subagent, and says why. It never launches agents itself.
 
@@ -225,7 +226,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.39.html`](docs/Guia-Tecnica_GOMEMORY-v2.39.html) · [`docs/Guia-SDD_GOMEMERY-v2.39.html`](docs/Guia-SDD_GOMEMERY-v2.39.html) | Printable technical and SDD guides (Spanish; previous editions in `docs/editions/`) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.40.html`](docs/Guia-Tecnica_GOMEMORY-v2.40.html) · [`docs/Guia-SDD_GOMEMERY-v2.40.html`](docs/Guia-SDD_GOMEMERY-v2.40.html) | Printable technical and SDD guides (Spanish; previous editions in `docs/editions/`) |
 
 ## Contributing
 

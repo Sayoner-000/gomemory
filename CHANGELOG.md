@@ -7,6 +7,37 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.40.0] - 2026-10-24
+
+### Added
+
+- Socratica tiene un modo nuevo, `specify`, que prepara una idea, una petición o una mejora técnica como entrada de `speckit-specify`. El agente completa por etapas la intención, el alcance (incluido, excluido, restricciones, supuestos y pendientes) y las historias con sus criterios y entregas. gomemory comprueba cada etapa en orden, genera el texto final y lo ata a la revisión que la persona aprueba con «Aprobar y generar especificación». Solo el primer `ack` confirmado concede la ejecución (`execution_granted=true`). Con esa concesión, el agente invoca `speckit-specify` una vez con el texto aprobado y comunica el resultado con `report`. Socratica no escribe la especificación ni ejecuta la necesidad.
+- Se invoca con `/socratica-hu <texto>` en Claude Code y OpenCode, y con `$socratica prepara para speckit-specify: <texto>` en Codex. `mem install`, `mem setup-mcp --scope global` y `mem update` instalan el envoltorio `socratica-hu`.
+- Modo privado para `specify`: el contenido vive solo en la memoria del proceso MCP que inició el flujo, y la base guarda una reserva sin texto. Otra instancia solo puede consultar o cancelar esa reserva.
+- `mem socratica pending` y la TUI muestran la etapa, la revisión, las preguntas usadas y lo que falta de un flujo `specify`. Solo permiten cancelarlo.
+
+### Changed
+
+- El catálogo de la base pasa a la versión 3. La migración es aditiva: `preparation_json` en flujos e historial y `payload_policy` en flujos. Un `ALTER` que falla ahora aborta la migración, en vez de dejar `user_version` marcado sobre un esquema incompleto. Esto vale para todas las columnas añadidas por migración.
+- Un flujo `specify` conserva la política con la que se creó: activar el modo privado después no lo redacta al enviarse, y su resultado se puede seguir comunicando.
+- Una actualización concurrente de un flujo se informa como `revision_conflict`, la misma categoría que una revisión vieja.
+
+### Fixed
+
+- Desactivar auto-approve vuelve a retirar la lista `autoApprove` de `.mcp.json` y `.cursor/mcp.json`. Una salida anticipada hacía inalcanzable ese camino.
+- `mem settings`, `mem install` y la TUI informan cuando no pueden aplicar auto-approve (JSON ilegible o escritura fallida), en vez de dar un falso éxito.
+- Reenviar un flujo ya enviado mientras hay otro pendiente para el mismo agente devuelve un error claro, en vez de `UNIQUE constraint failed` de SQLite.
+- Cancelar un flujo con una preparación de una versión más nueva la conserva intacta, campos desconocidos incluidos.
+
+### Seguridad
+
+- Auto-approve reescribe la configuración MCP de forma atómica y conserva su modo, en lugar de forzar 0644. Rechaza un `.mcp.json` o un `.cursor/` enlazados dentro del proyecto, para no sustituir el enlace ni escribir fuera del repositorio. La regla de enlaces vive ahora en `adapters/secondary/configpath`, compartida con `setup`.
+
+### Documentación
+
+- `docs/socratica.md` documenta el modo `specify`: recorrido, preguntas, revisión, entrega única, recuperación y privacidad. `docs/DATABASE.md` documenta el catálogo 3, y `MANUAL.md` y `architecture.md` recogen los cambios de este release.
+- Nueva edición de las guías: SDD, edición 7, y técnica, edición 5 (`docs/*-v2.40.html`). Las de v2.39 pasan a `docs/editions/`.
+
 ## [v2.39.0] - 2026-10-24
 
 ### Changed

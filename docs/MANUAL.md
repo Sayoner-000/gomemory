@@ -1523,9 +1523,20 @@ examina los supuestos, la evidencia y las alternativas de una propuesta
 (`scrutiny`). Hace como máximo tres preguntas con opciones y **no ejecuta nada
 sin aprobación explícita**; al cancelar se conserva el original intacto.
 
+El modo `specify` (2.40) prepara una idea, petición o mejora técnica como
+entrada de `speckit-specify`: el agente completa por etapas la intención, el
+alcance y las historias con sus criterios y entregas; gomemory comprueba cada
+etapa, genera el texto final y lo ata a la revisión que la persona aprueba. Tras
+un único `ack` concedido, el agente invoca `speckit-specify` una vez con ese
+texto y comunica el resultado con `report`. Socratica no escribe la
+especificación ni ejecuta la necesidad. Se pide desde el agente con
+`/socratica-hu <texto>` (Claude Code y OpenCode) o
+`$socratica prepara para speckit-specify: <texto>` (Codex); la terminal y la TUI
+solo lo consultan y cancelan.
+
 | Dónde | Cómo |
 |---|---|
-| Dentro del agente | `/socratica <texto>` o `/socratic-q <texto>` (habilidad instalada en `~/.claude/skills/`, `~/.codex/skills/` y `~/.config/opencode/skills/` por `mem install` global, `mem setup-mcp --scope global` y `mem update`) |
+| Dentro del agente | `/socratica <texto>`, `/socratic-q <texto>` o `/socratica-hu <texto>` (habilidad instalada en `~/.claude/skills/`, `~/.codex/skills/` y `~/.config/opencode/skills/` por `mem install` global, `mem setup-mcp --scope global` y `mem update`) |
 | Terminal | `mem socratica refine [--mode refine\|scrutiny] [--client <agente>] [--print] [texto\|-]` |
 | TUI | Tecla `p` en la lista principal; `r` abre el selector de harness y después el prompt |
 | MCP | Herramienta única `socratica_flow` con campo `action`; exige `approve` y después `ack` antes de ejecutar |
