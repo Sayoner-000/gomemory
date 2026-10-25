@@ -270,14 +270,14 @@ func registerReviewTools(server *mcp.Server, deps *Deps, project string) {
 		// redacta el agente con review_promote_memory. Informarlo aquí evita
 		// que la regla de promoción dependa de que el agente la recuerde, sin
 		// que gomemory tenga que inventar un conocimiento que no posee.
-		findings, err := deps.ConsensusRepo.ListAllConsensusFindings(project, in.ReviewID)
+		promotable, err := usecases.PromotableReviewFindings(deps.ConsensusRepo, project, in.ReviewID, review.Round)
 		if err != nil {
 			return nil, nil, err
 		}
 		return reviewToolResult(map[string]any{
 			"review_id":           review.ID,
 			"verdict":             review.Verdict,
-			"promotable_findings": domain.PromotableFindings(findings, review.Round),
+			"promotable_findings": promotable,
 			"metrics":             nuevasMetricasDTO(metrics),
 		})
 	})
@@ -378,27 +378,15 @@ func nuevasMetricasDTO(m usecases.ReviewMetrics) reviewMetricsDTO {
 func construirEstadoDeRevision(
 	deps *Deps, project string, review *domain.Review,
 ) (*mcp.CallToolResult, any, error) {
-	findings, err := deps.ConsensusRepo.ListAllConsensusFindings(project, review.ID)
+	estado, err := usecases.BuildReviewStatus(deps.ReviewRepo, deps.ConsensusRepo, project, review)
 	if err != nil {
 		return nil, nil, err
 	}
-	fixes, err := deps.ConsensusRepo.ListFixDeltas(project, review.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-	results, err := deps.ReviewRepo.ListReviewerResults(project, review.ID, review.Round)
-	if err != nil {
-		return nil, nil, err
-	}
+	// review_status informa del estado de cada revisor en la ronda vigente.
+	results := estado.ResultsByRound[review.Round]
 
-	// Qué ronda abordó cada hallazgo: es la mitad del linaje que un auditor
-	// necesita y no estaba en ninguna respuesta.
-	abordadoPor := map[string]int{}
-	rondas := make([]map[string]any, 0, len(fixes))
-	for _, fix := range fixes {
-		for _, localID := range fix.AddressedConsensusIDs {
-			abordadoPor[localID] = fix.Round
-		}
+	rondas := make([]map[string]any, 0, len(estado.Fixes))
+	for _, fix := range estado.Fixes {
 		rondas = append(rondas, map[string]any{
 			"round": fix.Round, "base_target_digest": fix.BaseTargetDigest,
 			"fixed_target_digest":     fix.FixedTargetDigest,
@@ -408,32 +396,27 @@ func construirEstadoDeRevision(
 	}
 
 	porEstado := map[string]int{"CONFIRMED": 0, "SUSPECT": 0, "CONTRADICTION": 0, "INFO": 0}
+	for k, n := range estado.Counts.ByStatus {
+		porEstado[string(k)] += n
+	}
 	porSeveridad := map[string]int{"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
-	porReJuicio := map[string]int{"RESOLVED": 0, "UNRESOLVED": 0, "REGRESSED": 0, "PENDING": 0}
-	detalle := make([]map[string]any, 0, len(findings))
-	for _, finding := range findings {
-		porEstado[string(finding.Status)]++
-		porSeveridad[string(finding.Severity)]++
-		// Con el MISMO criterio de vigencia que aplica el veredicto. Contar la columna
-		// a secas presentaba como RESOLVED lo que la finalización considera pendiente.
-		vigente := finding.EstadoVigente(review.Round)
-		if vigente == "" {
-			porReJuicio["PENDING"]++
-		} else {
-			porReJuicio[string(vigente)]++
-		}
-		reJuicios, err := usecases.ReJudgmentsByReviewer(
-			deps.ConsensusRepo, project, review.ID, finding.ConsensusLocalID, review.Round)
-		if err != nil {
-			return nil, nil, err
-		}
+	for k, n := range estado.Counts.BySeverity {
+		porSeveridad[string(k)] += n
+	}
+	porReJuicio := map[string]int{"RESOLVED": 0, "UNRESOLVED": 0, "REGRESSED": 0, "PENDING": estado.Counts.Pending}
+	for k, n := range estado.Counts.ByRejudgment {
+		porReJuicio[string(k)] += n
+	}
+	detalle := make([]map[string]any, 0, len(estado.Findings))
+	for _, finding := range estado.Findings {
+		vigente := finding.Vigente
 		entrada := map[string]any{
 			"consensus_local_id": finding.ConsensusLocalID,
 			"status":             finding.Status,
 			"severity":           finding.Severity,
 			"round":              finding.Round,
 			"source_finding_ids": finding.SourceFindingIDs,
-			"rejudgments":        reJuicios,
+			"rejudgments":        finding.ByReviewer,
 			"aggregate_state":    vigente,
 			// La ronda del re-juicio se publica: sin ella no hay forma de explicar por
 			// qué un hallazgo con re-juicios registrados cuenta como pendiente.
@@ -445,8 +428,10 @@ func construirEstadoDeRevision(
 				"verificado en la ronda %d; la ronda vigente es la %d y exige volver a verificarlo",
 				finding.RejudgmentRound, review.Round)
 		}
-		if ronda, ok := abordadoPor[finding.ConsensusLocalID]; ok {
-			entrada["addressed_by_round"] = ronda
+		// Qué ronda abordó cada hallazgo: es la mitad del linaje que un auditor
+		// necesita y no estaba en ninguna respuesta.
+		if finding.Addressed {
+			entrada["addressed_by_round"] = finding.AddressedByRound
 		}
 		detalle = append(detalle, entrada)
 	}

@@ -36,7 +36,7 @@ func cmdReviewStatus(deps *Deps, args []string) {
 		fmt.Printf("etapa: %s (ronda %d de %d)\n", review.Status, review.Round, review.MaxFixRounds)
 	}
 	fmt.Printf("alcance: %s\n", alcanceDeRevision(review.FixAuthorized))
-	resumirHallazgos(deps, review.ID, review.Round)
+	resumirHallazgos(deps, review)
 }
 
 // cmdReviewHistory implementa `mem review history [--limit N]`.
@@ -107,13 +107,15 @@ func cmdReviewShow(deps *Deps, args []string) {
 		alcanceDeRevision(review.FixAuthorized), review.MaxFixRounds,
 		severidadesLegibles(review.AutoFixSeverities))
 
+	estado, err := usecases.BuildReviewStatus(deps.ReviewRepo, deps.ConsensusRepo, deps.Project, review)
+	if err != nil {
+		fail("%v", err)
+	}
+
+	// El informe humano muestra el historial de todas las rondas.
 	fmt.Fprintln(out, "\n## Revisores")
 	huboAlguno := false
-	for ronda := 0; ronda <= review.Round; ronda++ {
-		results, err := deps.ReviewRepo.ListReviewerResults(deps.Project, review.ID, ronda)
-		if err != nil {
-			fail("listar resultados de revisor: %v", err)
-		}
+	for ronda, results := range estado.ResultsByRound {
 		for _, result := range results {
 			huboAlguno = true
 			fmt.Fprintf(out, "- ronda %d · revisor %s · %s · %d hallazgo(s)\n",
@@ -125,45 +127,25 @@ func cmdReviewShow(deps *Deps, args []string) {
 	}
 
 	fmt.Fprintln(out, "\n## Consenso")
-	findings, err := deps.ConsensusRepo.ListAllConsensusFindings(deps.Project, review.ID)
-	if err != nil {
-		fail("listar consenso: %v", err)
-	}
-	if len(findings) == 0 {
+	if len(estado.Findings) == 0 {
 		fmt.Fprintln(out, "- (sin consenso calculado)")
 	}
-	fixesPorHallazgo := map[string]int{}
-	deltas, err := deps.ConsensusRepo.ListFixDeltas(deps.Project, review.ID)
-	if err != nil {
-		fail("listar correcciones: %v", err)
-	}
-	for _, delta := range deltas {
-		for _, localID := range delta.AddressedConsensusIDs {
-			fixesPorHallazgo[localID] = delta.Round
-		}
-	}
-	for _, finding := range findings {
+	for _, finding := range estado.Findings {
 		fmt.Fprintf(out, "- %s · %s · %s", finding.ConsensusLocalID, finding.Status, finding.Severity)
 		if len(finding.SourceFindingIDs) > 0 {
 			fmt.Fprintf(out, " · fuentes %s", idsLegibles(finding.SourceFindingIDs))
 		}
-		if ronda, ok := fixesPorHallazgo[finding.ConsensusLocalID]; ok {
-			fmt.Fprintf(out, " · corregido en ronda %d", ronda)
+		if finding.Addressed {
+			fmt.Fprintf(out, " · corregido en ronda %d", finding.AddressedByRound)
 		} else if finding.Status == domain.ConsensusConfirmed {
 			fmt.Fprint(out, " · sin corregir")
 		}
 		fmt.Fprintln(out)
 		// El linaje por revisor es la mitad de la auditoría: sin él no se puede
 		// saber si un RESOLVED lo respaldan dos revisores o uno solo (FR-023).
-		porRevisor, err := usecases.ReJudgmentsByReviewer(
-			deps.ConsensusRepo, deps.Project, review.ID, finding.ConsensusLocalID, review.Round)
-		if err != nil {
-			fail("listar re-juicios: %v", err)
-		}
+		porRevisor := finding.ByReviewer
 		if len(porRevisor) > 0 || finding.RejudgmentState != "" {
-			// Con el MISMO criterio de vigencia que el veredicto: mostrar la columna a
-			// secas anunciaba como resuelto lo que la finalización cuenta como pendiente.
-			vigente := finding.EstadoVigente(review.Round)
+			vigente := finding.Vigente
 			fmt.Fprintf(out, "  re-juicio  A=%s  B=%s  ·  agregado: %s\n",
 				estadoOGuion(porRevisor[domain.ReviewerA]),
 				estadoOGuion(porRevisor[domain.ReviewerB]),
@@ -179,7 +161,7 @@ func cmdReviewShow(deps *Deps, args []string) {
 	}
 
 	fmt.Fprintln(out, "\n## Correcciones")
-	fixes := deltas
+	fixes := estado.Fixes
 	if len(fixes) == 0 {
 		fmt.Fprintln(out, "- (ninguna)")
 	}
@@ -231,29 +213,18 @@ func activeReview(deps *Deps) *domain.Review {
 	return nil
 }
 
-func resumirHallazgos(deps *Deps, reviewID string, ronda int) {
-	findings, err := deps.ConsensusRepo.ListAllConsensusFindings(deps.Project, reviewID)
+func resumirHallazgos(deps *Deps, review *domain.Review) {
+	estado, err := usecases.BuildReviewStatus(deps.ReviewRepo, deps.ConsensusRepo, deps.Project, review)
 	if err != nil {
-		fail("listar consenso: %v", err)
+		fail("%v", err)
 	}
-	if len(findings) == 0 {
+	if len(estado.Findings) == 0 {
 		return
 	}
-	porEstado := map[domain.ConsensusStatus]int{}
-	porSeveridad := map[domain.Severity]int{}
-	porReJuicio := map[domain.ReJudgmentState]int{}
-	pendientes := 0
-	for _, finding := range findings {
-		porEstado[finding.Status]++
-		porSeveridad[finding.Severity]++
-		// La ronda vigente decide, igual que en el veredicto: un re-juicio de una
-		// ronda anterior cuenta como pendiente, no como resuelto.
-		if vigente := finding.EstadoVigente(ronda); vigente == "" {
-			pendientes++
-		} else {
-			porReJuicio[vigente]++
-		}
-	}
+	porEstado := estado.Counts.ByStatus
+	porSeveridad := estado.Counts.BySeverity
+	porReJuicio := estado.Counts.ByRejudgment
+	pendientes := estado.Counts.Pending
 	fmt.Printf("hallazgos: %d confirmado(s), %d sospechoso(s), %d contradicción(es), %d informativo(s)\n",
 		porEstado[domain.ConsensusConfirmed],
 		porEstado[domain.ConsensusSuspect],

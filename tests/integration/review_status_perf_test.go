@@ -61,20 +61,14 @@ func TestReviewStatusYFinalizeConMilHallazgos(t *testing.T) {
 		}
 	}
 
-	// Lectura equivalente a la que arma review_status: todos los hallazgos más el
-	// linaje de re-juicios de cada uno.
+	// La misma lectura que hacen review_status y `mem review show`.
 	inicio := time.Now()
-	findings, err := ledger.ListAllConsensusFindings(project, review.ID)
+	estado, err := usecases.BuildReviewStatus(reviews, ledger, project, review)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(findings) != total {
-		t.Fatalf("se leyeron %d hallazgos, se esperaban %d", len(findings), total)
-	}
-	for _, finding := range findings {
-		if _, err := usecases.ReJudgmentsByReviewer(ledger, project, review.ID, finding.ConsensusLocalID, review.Round); err != nil {
-			t.Fatal(err)
-		}
+	if len(estado.Findings) != total {
+		t.Fatalf("se leyeron %d hallazgos, se esperaban %d", len(estado.Findings), total)
 	}
 	if transcurrido := time.Since(inicio); transcurrido > 2*time.Second {
 		t.Errorf("el estado con %d hallazgos tardó %v, el límite es 2s", total, transcurrido)
