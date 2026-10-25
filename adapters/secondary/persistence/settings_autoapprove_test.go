@@ -102,3 +102,43 @@ func TestApplyAutoApprove_ReportsUnreadableJSONAndWriteFailures(t *testing.T) {
 		t.Fatal("a failed write changed the file")
 	}
 }
+
+// A linked project config is refused, and the link and its target stay intact:
+// replacing with rename would turn the link into a plain copy (H-01, ADM r2).
+func TestApplyAutoApprove_RefusesLinkedProjectConfigs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need extra privileges on Windows")
+	}
+	on := Settings{AutoApprove: true, AutoApproveTools: []string{"get_context"}}
+	cases := map[string]func(root, shared string) (link, target string){
+		"linked .mcp.json": func(root, shared string) (string, string) {
+			target := filepath.Join(shared, "mcp.json")
+			return filepath.Join(root, ".mcp.json"), target
+		},
+		"linked .cursor directory": func(root, shared string) (string, string) {
+			return filepath.Join(root, ".cursor"), shared
+		},
+	}
+	for name, layout := range cases {
+		t.Run(name, func(t *testing.T) {
+			root, shared := t.TempDir(), t.TempDir()
+			sharedFile := filepath.Join(shared, "mcp.json")
+			if err := os.WriteFile(sharedFile, []byte(mcpWithGomemory), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			link, target := layout(root, shared)
+			if err := os.Symlink(target, link); err != nil {
+				t.Fatal(err)
+			}
+			if err := ApplyAutoApprove(root, on); err == nil {
+				t.Fatal("writing through a linked project config reported success")
+			}
+			if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+				t.Fatalf("the link was replaced: %v, %v", info, err)
+			}
+			if data, _ := os.ReadFile(sharedFile); string(data) != mcpWithGomemory {
+				t.Fatalf("the shared target changed: %s", data)
+			}
+		})
+	}
+}

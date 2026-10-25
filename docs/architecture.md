@@ -688,7 +688,10 @@ no oculte los demás. Si el global se activa después que el proyecto,
   temporal y `rename` conservando el modo existente. En el HOME,
   `ClaudeSettingsPath`, `ClaudePluginDir` y `GlobalConfigPath` siguen el
   enlace y escriben en su destino, para no sustituir un enlace de dotfiles por
-  un archivo normal.
+  un archivo normal. La regla vive en `adapters/secondary/configpath`
+  (`Project`, `Global`, `ForRoot`), a la que delegan esas funciones de `setup`,
+  para que también la use `persistence.ApplyAutoApprove` al reescribir
+  `.mcp.json` y `.cursor/mcp.json` (`setup` importa `persistence`, no al revés).
 - **Autoactualización**: `publishBinary` (`cmd_update.go`) publica el binario
   con `rename`; en Windows, si el destino está en ejecución, lo aparta como
   `mem.exe.old`, publica el nuevo y lo restaura si falla. `removeStaleBinary`

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"mem/adapters/secondary/configpath"
 	"mem/domain"
 )
 
@@ -340,15 +341,18 @@ func WriteSettings(root string, s Settings) error {
 // ausente o sin entrada gomemory no es de gomemory y se deja intacto; un JSON
 // ilegible o una escritura fallida se informan en vez de dar falso éxito. Se
 // reemplaza de forma atómica conservando el modo del archivo, que suele ser
-// compartido con el repositorio.
+// compartido con el repositorio. El reemplazo con rename sustituiría un enlace
+// simbólico por un archivo normal: en un proyecto se rechaza cualquier tramo
+// enlazado y en el HOME se escribe en el destino (configpath.ForRoot).
 func ApplyAutoApprove(root string, s Settings) error {
 	if s.AutoApprove && len(s.AutoApproveTools) == 0 {
 		return nil
 	}
-	for _, path := range []string{
-		filepath.Join(root, ".mcp.json"),
-		filepath.Join(root, ".cursor", "mcp.json"),
-	} {
+	for _, rel := range [][]string{{".mcp.json"}, {".cursor", "mcp.json"}} {
+		path, err := configpath.ForRoot(root, rel...)
+		if err != nil {
+			return err
+		}
 		if err := applyAutoApproveFile(path, s); err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}

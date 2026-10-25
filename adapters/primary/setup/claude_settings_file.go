@@ -1,30 +1,18 @@
 package setup
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"mem/adapters/secondary/configpath"
 )
 
 // ProjectConfigPath devuelve root/rel… y se niega a seguir un symlink en
 // cualquiera de sus componentes bajo root: el destino puede estar fuera del
 // repositorio (o ser la configuración global del agente), e install, update y
-// uninstall lo reescribirían (ADM 2026-10-22).
+// uninstall lo reescribirían (ADM 2026-10-22). Ver configpath.Project.
 func ProjectConfigPath(root string, rel ...string) (string, error) {
-	path := root
-	var parts []string
-	for _, r := range rel {
-		// Un rel con varios tramos (".cursor/mcp.json") se comprueba tramo a tramo.
-		parts = append(parts, strings.Split(filepath.ToSlash(r), "/")...)
-	}
-	for _, part := range parts {
-		path = filepath.Join(path, part)
-		if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("%s es un enlace simbólico: gomemory no escribe a través de él porque modificaría un archivo fuera del proyecto", path)
-		}
-	}
-	return path, nil
+	return configpath.Project(root, rel...)
 }
 
 // ClaudeSettingsPath devuelve el .claude/settings.json de root con la misma
@@ -51,14 +39,10 @@ func ClaudePluginDir(root string) (string, error) {
 // GlobalConfigPath resuelve una configuración de ámbito usuario hasta su
 // destino real. WriteConfigFile reemplaza con rename la entrada que recibe: si
 // recibiera el enlace de dotfiles, lo sustituiría por un archivo normal y la
-// configuración de la persona dejaría de apuntar a su repositorio.
+// configuración de la persona dejaría de apuntar a su repositorio. Ver
+// configpath.Global.
 func GlobalConfigPath(path string) string {
-	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
-		if real, err := filepath.EvalSymlinks(path); err == nil {
-			return real
-		}
-	}
-	return path
+	return configpath.Global(path)
 }
 
 // WriteConfigFile escribe data en path con un temporal y rename, que
