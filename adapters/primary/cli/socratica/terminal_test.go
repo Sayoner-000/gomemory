@@ -1,4 +1,4 @@
-package cli
+package socratica
 
 import (
 	"bufio"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"mem/adapters/primary/cli/clikit"
 	"mem/domain"
 )
 
@@ -42,7 +43,7 @@ func TestSocratica_PantallaSinSecuenciasYEntregaExacta(t *testing.T) {
 
 func TestTerminalSafe_EscrituraPorTrozos(t *testing.T) {
 	var b bytes.Buffer
-	w := terminalSafe{W: &b}
+	w := clikit.TerminalSafe{W: &b}
 	for _, chunk := range []string{"claim \x1b]0;", "PWNED\x07 fin\r", "\n"} {
 		if n, err := w.Write([]byte(chunk)); err != nil || n != len(chunk) {
 			t.Fatal(n, err)

@@ -1,0 +1,4 @@
+Fecha: 2026-10-26
+Comando: go test ./adapters/primary/cli -run 'Socratica|Bounded|Hook.*(Socratica|Expand)|Expand.*Evolve' -count=1
+Resultado: PASS (ok mem/adapters/primary/cli 2.514s)
+Notas: baseline antes de mover código; tests seleccionados cubren Socrática CLI/MCP, lectura acotada, hooks y evolve según regexp.

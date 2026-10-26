@@ -1,0 +1,13 @@
+Fecha: 2026-10-26
+
+PASS — go test ./adapters/primary/cli -run 'Socratica|Bounded|Hook.*(Socratica|Expand)|Expand.*Evolve' -count=1
+PASS — go test ./tests/contract -run TestLayerRules -count=1
+PASS — go test ./adapters/primary/cli/clikit ./adapters/primary/cli/socratica ./adapters/primary/cli ./adapters/primary/cli/review
+PASS — go test ./... -count=1
+PASS — go test -race ./adapters/primary/cli/clikit ./adapters/primary/cli/socratica ./adapters/primary/cli/review
+PASS — go test -race ./...
+PASS — go vet ./...
+PASS — go build ./...
+PASS — git diff --check
+
+La suite completa se ejecutó con acceso a loopback porque el sandbox bloqueaba el listener local usado por una prueba existente. Se usaron GOCACHE/GOMODCACHE bajo /private/tmp; no se alteró el código por esta condición.

@@ -81,7 +81,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `index` | `adapters/primary/cli/cmd_index.go` | Indexa el grafo de código propio y refresca los grafos externos configurados |
 | `review` | `adapters/primary/cli/review/cmd_review.go`, `cmd_review_query.go` (paquete propio; base compartida en `cli/clikit`) | Revisión adversarial por consenso: abrir, `status`, `history`, `show` |
 | `octopus` | `adapters/primary/cli/cmd_octopus*.go` | Enrutamiento Octopus AAR: `route`, `plan`, `status`, `usage`, `history` |
-| `socratica` | `adapters/primary/cli/cmd_socratica.go` | Refinamiento de prompts: `refine`, `history`, `status`, `pending`, `on`/`off`, `private` |
+| `socratica` | `adapters/primary/cli/socratica/cmd_socratica.go` | Refinamiento de prompts: `refine`, `history`, `status`, `pending`, `on`/`off`, `private`; usa `cli/clikit` |
 | `doctor` | `adapters/primary/cli/cmd_doctor*.go` | Diagnóstico de canales, binario, compresión y guard de plan (`--json`, `--strict`) |
 | `update` / `update-check` | `adapters/primary/cli/cmd_update.go`, `cmd_update_check.go` | Actualiza binario e integración con verificación SHA-256 / comprobación de versión en segundo plano (interno) |
 | `docs` / `seed` / `constitution` / `rules` | `adapters/primary/cli/cmd_docs.go`, `seeds.go`, `cmd_constitution.go` | Documentos fijados en memoria: listar, ver, exportar, importar, restablecer y sembrar los que falten |
@@ -107,6 +107,8 @@ os.Args → infrastructure/main.go → NewContainer() → cli.Run(cmd, args, dep
                                                        ↓
                                           adapters/secondary/persistence/
 ```
+
+Los comandos grandes viven en paquetes de slice bajo `cli/`. `review` y `socratica` son los slices extraídos actualmente; ambos comparten `cli/clikit` para dependencias y utilidades de borde. El paquete `cli` raíz conserva el dispatcher y el composition root MCP. Los slices no se importan entre sí ni importan el paquete raíz; `clikit` no importa slices. `socratica.RegisterTools` registra `socratica_flow`; `expand evolve` usa el selector de harness compartido.
 
 ### 2. TUI (`adapters/primary/tui/tui.go`)
 
@@ -925,7 +927,7 @@ Guía de uso: [socratica.md](socratica.md). La habilidad canónica es `infrastru
 - **Puertos** (`application/ports/`): `SocraticaRepository` y `SocraticaUnitOfWork` (persistencia y transacción), `SocraticGenerator` (preguntas y reescritura fuera del agente), `AgentLauncher` (entrega bloqueante del prompt aprobado: arrancar → `onStarted` → esperar) y `SocraticaDispatchLock` (lock de archivo por flujo).
 - **Caso de uso** (`application/usecases/socratica_flow.go`): `Apply` reduce y persiste cada evento en una transacción; con origen MCP nunca llama al generador (devuelve `next` para el agente activo), con origen local sí. `ClassifyPrompt` es la única decisión de los hooks (procedencia, captura, `>`, marca de despacho).
 - **Execute**: retiene el lock del flujo durante todo el despacho → `approve` (tx) → `ClaimDispatch` exclusivo → `Launch` fuera de transacción con el ack (condicionado al propietario) dentro de `onStarted` → espera al agente. Si el arranque falla, libera su propio reclamo; si el agente arrancó y el ack falla, reintenta tras la espera y, si vuelve a fallar, deja el flujo incierto para que la persona decida.
-- **Adaptadores**: herramienta MCP única `socratica_flow`; `mem socratica` (CLI, con `console.Flow` y selectores compartidos); pantallas de la TUI (detección y cambios de estado en `tea.Cmd`, Ejecutar con `tea.Exec`); generadores `claude`/`codex`/`opencode` (`adapters/secondary/generator`); lanzadores `Exec` y `Print` (`adapters/secondary/launcher`); `mem hook socratica-decide` para el plugin de OpenCode, que solo aplica la decisión.
+- **Adaptadores**: herramienta MCP única `socratica_flow` y `mem socratica` (CLI, con `console.Flow` y selectores compartidos), ambas en el slice `adapters/primary/cli/socratica` (`mcp.go`, `cmd_socratica.go`; feature 044); pantallas de la TUI (detección y cambios de estado en `tea.Cmd`, Ejecutar con `tea.Exec`); generadores `claude`/`codex`/`opencode` (`adapters/secondary/generator`); lanzadores `Exec` y `Print` (`adapters/secondary/launcher`); `mem hook socratica-decide` para el plugin de OpenCode, que solo aplica la decisión.
 - **Selección local**: `SocraticHarnessCatalog` informa disponibilidad; cada flujo fija `Flow.Client` para preguntas, reescritura y ejecución. El registro conserva el nombre histórico `FirstAvailable`, pero enruta por cliente sin reemplazo automático. El esquema canónico se adapta en el límite del harness: Claude omite `$schema`; Codex requiere las propiedades opcionales como anulables. OpenCode V2 usa un directorio temporal con un agente que deniega todas las herramientas y un parser de eventos JSON. Su generación real está pendiente de aceptación por un error 403 del proveedor local.
 - **Recuperación**: `SocraticFailureExplainer` traduce los rechazos del proveedor y distingue reintentos útiles. `ChangeHarness` conserva el original e impide reemplazar otro pendiente. `Assist` abre el harness para refinar conversacionalmente sin llamar a `Execute` ni aprobar o confirmar el despacho de la tarea; la TUI entrega la terminal mediante `tea.Exec`.
 
@@ -1492,7 +1494,10 @@ gomemory/
 │   │   │   ├── cmd_index.go        #       mem index — índice Go propio y reindexado de proveedores externos
 │   │   │   ├── cmd_update.go       #       mem update — auto-actualización del binario
 │   │   │   ├── transcript.go       #       extractor de actividad de turno (checkpoints)
-│   │   │   └── transcript_test.go  #       tests del extractor de checkpoints
+│   │   │   ├── transcript_test.go  #       tests del extractor de checkpoints
+│   │   │   ├── clikit/             #       base compartida de los slices: Deps, lecturas acotadas, selector de harness Socratica
+│   │   │   ├── review/             #       slice mem review + tools MCP review_* (feature 043)
+│   │   │   └── socratica/          #       slice mem socratica + tool MCP socratica_flow (feature 044)
 │   │   ├── tui/                     #     TUI (Bubbletea)
 │   │   │   └── tui.go
 │   │   └── setup/                   #     Setup de plugins (plugin + hooks)

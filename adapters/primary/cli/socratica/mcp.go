@@ -1,4 +1,4 @@
-package cli
+package socratica
 
 import (
 	"context"
@@ -61,8 +61,8 @@ type socraticaPreparationInput struct {
 	Stage     string `json:"stage,omitempty"`
 }
 
-func registerSocraticaTool(server *mcp.Server, deps *Deps, project string) {
-	addTool(server, &mcp.Tool{Name: domain.ToolSocraticaFlow, Description: "Gestiona refinamiento, escrutinio y preparación para Spec Kit (mode=specify) con Socratica. Requiere aprobación explícita; ack con dispatch_id y ack_nonce antes de ejecutar. En mode=specify propón secciones con prepare(set) y sigue next, stage y allowed_actions calculados por el servidor. No activa intercepción."}, func(ctx context.Context, req *mcp.CallToolRequest, in socraticaInput) (*mcp.CallToolResult, any, error) {
+func RegisterTools(server *mcp.Server, deps *clikit.Deps, project string) {
+	clikit.AddTool(server, &mcp.Tool{Name: domain.ToolSocraticaFlow, Description: "Gestiona refinamiento, escrutinio y preparación para Spec Kit (mode=specify) con Socratica. Requiere aprobación explícita; ack con dispatch_id y ack_nonce antes de ejecutar. En mode=specify propón secciones con prepare(set) y sigue next, stage y allowed_actions calculados por el servidor. No activa intercepción."}, func(ctx context.Context, req *mcp.CallToolRequest, in socraticaInput) (*mcp.CallToolResult, any, error) {
 		if deps.Socratica == nil {
 			return clikit.ToolResult(map[string]any{"phase": "unavailable"})
 		}

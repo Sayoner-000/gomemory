@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"mem/adapters/primary/cli/clikit"
 	"mem/adapters/primary/setup"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
@@ -1282,19 +1283,12 @@ func readHookStdinRaw() []byte {
 // herramienta real; existe para que un pipe anómalo no agote la memoria.
 const hookStdinMax = 8 << 20
 
-var errPayloadTooLarge = errors.New("payload excede el tope")
+var errPayloadTooLarge = clikit.ErrPayloadTooLarge
 
 // readBounded lee r entero hasta limit bytes. Si hay más, no los acumula:
 // devuelve errPayloadTooLarge en vez de un contenido truncado.
 func readBounded(r io.Reader, limit int64) ([]byte, error) {
-	data, err := io.ReadAll(io.LimitReader(r, limit+1))
-	if err != nil {
-		return nil, err
-	}
-	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("%w de %d MB", errPayloadTooLarge, limit>>20)
-	}
-	return data, nil
+	return clikit.ReadBounded(r, limit)
 }
 
 // stdin solo puede leerse una vez por proceso: la guarda de reentrada lo lee

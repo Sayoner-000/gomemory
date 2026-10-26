@@ -1,4 +1,4 @@
-package cli
+package socratica
 
 import (
 	"bufio"
@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"mem/adapters/primary/cli/clikit"
 	"mem/adapters/secondary/clock"
 	"mem/adapters/secondary/launcher"
 	"mem/adapters/secondary/persistence"
@@ -96,7 +97,7 @@ type cliEnv struct {
 	repo  *persistence.SocraticaStore
 	u     *usecases.SocraticaFlow
 	gen   *cliGen
-	deps  *Deps
+	deps  *clikit.Deps
 	out   *syncBuffer
 	agent string // directorio del PATH con agentes falsos
 }
@@ -116,7 +117,7 @@ func newCLIEnv(t *testing.T) *cliEnv {
 	u := &usecases.SocraticaFlow{Repo: repo, UOW: repo, Lock: persistence.NewSocraticaDispatchLock(root), Generator: gen, Clock: clock.SystemClock{}, NewID: func() string { return uuid.Must(uuid.NewV7()).String() }}
 	agentDir := t.TempDir()
 	t.Setenv("PATH", agentDir+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
-	deps := &Deps{Root: root, Project: "p", Socratica: u, SettingsRepo: persistence.NewSettingsRepository(),
+	deps := &clikit.Deps{Root: root, Project: "p", Socratica: u, SettingsRepo: persistence.NewSettingsRepository(),
 		SocraticaExec:  launcher.NewExec(strings.NewReader(""), io.Discard, io.Discard),
 		SocraticaPrint: func(w io.Writer, raw bool) ports.AgentLauncher { return launcher.NewPrint(w, raw) }}
 	return &cliEnv{t: t, root: root, db: db, repo: repo, u: u, gen: gen, deps: deps, out: out, agent: agentDir}
@@ -422,7 +423,7 @@ func TestCmdSocratica(t *testing.T) {
 	})
 	t.Run("storage unavailable and invalid settings", func(t *testing.T) {
 		var errOut bytes.Buffer
-		if code := runSocratica(&Deps{}, []string{"status"}, socraticaIO{in: bufio.NewReader(strings.NewReader("")), out: io.Discard, err: &errOut}); code != 3 {
+		if code := runSocratica(&clikit.Deps{}, []string{"status"}, socraticaIO{in: bufio.NewReader(strings.NewReader("")), out: io.Discard, err: &errOut}); code != 3 {
 			t.Fatal(code)
 		}
 		e := newCLIEnv(t)

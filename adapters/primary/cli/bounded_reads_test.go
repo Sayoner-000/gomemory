@@ -1,29 +1,12 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"io"
-	"strings"
 	"testing"
 	"testing/iotest"
 )
-
-// TestSocraticaRefine_StdinAcotado cierra H-03 (auditoría 2026-10-16): `refine -`
-// no acumula un stdin sin límite; por encima del tope falla limpio.
-func TestSocraticaRefine_StdinAcotado(t *testing.T) {
-	e := newCLIEnv(t)
-	big := strings.Repeat("a", socraticaPromptMax+1)
-	var errOut bytes.Buffer
-	code := runSocratica(e.deps, []string{"refine", "-"}, socraticaIO{in: bufio.NewReader(strings.NewReader(big)), out: io.Discard, err: &errOut})
-	if code != socraticaExitUsage || !strings.Contains(errOut.String(), errPayloadTooLarge.Error()) {
-		t.Fatalf("code=%d err=%q", code, errOut.String())
-	}
-	if e.gen.seen != nil {
-		t.Fatal("llamó al generador con una entrada fuera del tope")
-	}
-}
 
 type oneByteSeeker struct {
 	io.Reader

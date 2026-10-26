@@ -1,0 +1,12 @@
+Comparación de binarios construidos desde HEAD y el árbol de trabajo 044.
+HEAD: /private/tmp/mem-h04-before
+Nuevo: /private/tmp/mem-h04-after
+Entorno: GOMEMORY_DATA_HOME=/private/tmp/gomemory-h04-parity; stdout, stderr y exit code capturados.
+
+MATCH: mem socratica --help (exit 0)
+MATCH: mem socratica refine --help (exit 1)
+MATCH: mem socratica status (exit 0)
+MATCH: mem socratica pending (exit 0)
+MATCH: mem socratica unknown-subcommand (exit 1)
+
+Resultado: igualdad byte a byte de stdout/stderr y del código de salida en los cinco escenarios.

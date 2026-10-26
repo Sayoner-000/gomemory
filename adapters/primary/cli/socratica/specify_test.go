@@ -1,4 +1,4 @@
-package cli
+package socratica
 
 import (
 	"context"

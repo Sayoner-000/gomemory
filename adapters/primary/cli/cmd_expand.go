@@ -1,13 +1,13 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/charmbracelet/x/term"
 	"io"
+	"mem/adapters/primary/cli/clikit"
 	"mem/adapters/primary/console"
 	"os"
 	"strings"
@@ -326,8 +326,9 @@ func runExpandEvolve(d *Deps, args []string, x expandIO) int {
 	if ui == nil {
 		ui = console.NewPlain(x.in, x.out)
 	}
-	c := socraticaCmd{deps: d, u: d.Socratica, sio: socraticaIO{in: bufio.NewReader(x.in), out: x.out, err: x.err, tty: true, ui: ui}}
-	client, err := c.chooseHarness()
+	client, err := clikit.SelectSocraticHarness(d.Socratica.Harnesses(), ui, x.in, x.out, func(label, reason string) {
+		fmt.Fprint(x.out, domain.ProtectText(fmt.Sprintf("  − %s: %s\n", label, reason)))
+	})
 	if err != nil {
 		if errors.Is(err, console.ErrCanceled) {
 			return 3
