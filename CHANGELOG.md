@@ -7,6 +7,22 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.40.2] - 2026-10-26
+
+### Changed
+
+- Las entradas de `mem socratica` y de la tool MCP `socratica_flow` viven en su propio paquete (`adapters/primary/cli/socratica`), igual que Review. El paquete `cli` raíz conserva solo el envoltorio `CmdSocratica`, que mantiene los códigos de salida, y registra la tool con `socratica.RegisterTools`. La salida no cambia.
+- La base compartida `adapters/primary/cli/clikit` incorpora la lectura acotada de entradas (`ReadBounded`, `ErrPayloadTooLarge`) y el selector de harness de Socratica (`SelectSocraticHarness`), que ahora usa también `mem expand evolve`.
+
+### Tests
+
+- Las pruebas de Socratica (CLI, `specify`, selector de harness, salida segura en terminal y stdin acotado) se mueven al paquete del slice; las de lectura acotada y del selector, a `clikit`.
+
+### Documentación
+
+- `specs/044-cli-socratica-slice` recoge la especificación, el plan, las tareas y la evidencia de la extracción. `docs/architecture.md` describe los slices `review` y `socratica`, sus reglas de dependencia y el árbol de `cli/`.
+- Las guías vigentes (`docs/*-v2.40.html`) indican gomemory 2.40.2.
+
 ## [v2.40.1] - 2026-10-25
 
 ### Fixed
