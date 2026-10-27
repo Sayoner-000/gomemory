@@ -7,6 +7,25 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.40.3] - 2026-10-27
+
+### Fixed
+
+- OpenCode 2.x: la política de delegación Octopus y el protocolo de memoria nombran las tools como las ve Code Mode, dentro de la tool `execute` (`tools.gomemory.<tool>`, `tools["codebase-memory-mcp"].<tool>`). Antes daban el nombre de 1.x (`gomemory_<tool>`) y el agente recibía `Unknown tool`. El protocolo indica también cómo llamarlas si el servidor tiene `codemode: false`.
+- La política Octopus lista las claves exactas del schema de `octopus_route_task` (`objective` obligatoria, `task_class`, `complexity`, `risk`, `files`, `dependencies`, `read_only`, `context_tokens` y `subagents`). Descritas en prosa, el agente inventaba claves como `goal` o `budget_context`, y la tool las rechazaba por faltar `objective`.
+- En OpenCode 2.x la política indica que la tool `subagent` exige `agent` (por ejemplo `general`), `description` y `prompt`.
+- Octopus ya no marca como trabajo duplicado cualquier objetivo cuando el proyecto tiene una memoria extensa, como una constitución. Los términos del objetivo deben coincidir dentro de un pasaje de 64 tokens significativos; una memoria larga que sí contiene el objetivo sigue contando.
+- Octopus expande los globs del alcance (`files: ["app/routes/*.py"]`). Antes se leían como rutas literales, el contexto medido se quedaba en el texto del objetivo y la delegación quedaba vetada por debajo del mínimo delegable.
+
+### Tests
+
+- Pruebas de la política Octopus por runtime y contra el schema real, del protocolo y la política en el camino v2 del plugin, de la cobertura por pasaje de `trabajoCubierto` y de la expansión de globs en `leerAlcance`.
+
+### Documentación
+
+- `docs/MANUAL.md` describe los nombres de tool en Code Mode de OpenCode 2.x y cómo mide Octopus el alcance y el trabajo duplicado.
+- Las guías vigentes (`docs/*-v2.40.html`) indican gomemory 2.40.3.
+
 ## [v2.40.2] - 2026-10-26
 
 ### Changed

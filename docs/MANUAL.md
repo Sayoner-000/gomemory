@@ -194,6 +194,13 @@ mismo objeto. Verificado con los binarios reales 1.17.0, 1.18.20, 1.18.32 y
 - En OpenCode 2.x el fin de turno llega como `session.execution.*` y las tools
   `shell`/`subagent` reemplazan a `bash`/`task`. El plugin lo traduce solo, así
   que el checkpoint automático y la captura de subagentes funcionan igual.
+- En OpenCode 2.x las tools MCP se exponen en Code Mode: el agente las llama
+  dentro de la tool `execute` como `tools.gomemory.<tool>` (y
+  `tools["codebase-memory-mcp"].<tool>`), no como `gomemory_<tool>`. El plugin
+  inyecta el protocolo y la regla Octopus con esos nombres; si un servidor se
+  configura con `codemode: false`, vuelven a ser `gomemory_<tool>`. La tool de
+  subagentes de 2.x exige `agent` (por ejemplo `general`), `description` y
+  `prompt`.
 
 ### Eventos de OpenCode — para qué sirve cada uno
 
@@ -1392,6 +1399,12 @@ mem octopus history -n 20
 ```
 
 Las tools MCP disponibles al activar el módulo son `octopus_route_task`, `octopus_route_plan`, `octopus_report` y `octopus_status`.
+
+Cómo mide Octopus la unidad antes de decidir:
+
+- **Alcance.** El contexto se mide con el objetivo más el contenido de `files`. Las rutas relativas se resuelven contra la raíz del proyecto y los globs (`app/routes/*.py`) se expanden a sus archivos. Si el alcance no se puede leer, el contexto queda en el texto del objetivo, y por debajo de 500 tokens la unidad no se delega.
+- **Trabajo duplicado.** Una unidad sale INLINE como «trabajo equivalente ya completado» cuando una memoria curada (no un checkpoint) reúne al menos el 80 % de los términos del objetivo dentro de un mismo pasaje de 64 tokens significativos. Las palabras sueltas repartidas por un documento largo, como la constitución, no cuentan.
+- **Parámetros.** La regla de delegación que reciben los agentes lista las claves exactas de `octopus_route_task`: `objective` es obligatoria y el schema rechaza cualquier clave que no conozca.
 
 ---
 
