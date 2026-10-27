@@ -227,3 +227,26 @@ Ver plan completo: /Users/josegomezj/.claude/plans/generic-growing-valley.md
   - `go test ./...`: una ejecución falló de forma intermitente en `tests/integration` (salida no conservada); después, tres ejecuciones aisladas y dos completas pasaron sin fallos. No reproducido.
   - **Pendiente fuera de T082 (post-release):** SC-001 en la máquina real exige que el global sea la versión con la feature 034 y abrir cada proyecto. Las 6 copias antiguas registradas arriba siguen presentes y no se modificaron (escenario 8, solo lectura).
 - **T083 — completo.** El análisis cruzado precisó FR-022a y FR-023, el plan y T072/T073 para alcance global y selección vacía; alineó la estrategia de releases, el scanner de CI y los documentos obligatorios. La brecha constitucional de cobertura se cerró con 80,8 % global combinado, medido desde cero por `scripts/coverage.sh` con la suite y el binario instrumentado. T082/SC-001 sigue pendiente por las seis copias reales.
+
+## Fix: errores de OpenCode 2.x al pedir ACR (política Octopus) — 2026-10-27
+
+- [x] T1 (TDD) Prueba roja: la política solo nombra claves que existen en el schema de `octopus_route_task` e incluye `objective` y `subagents`.
+- [x] T2 (TDD) Prueba roja: `octopusRouteToolFor` nombra la tool por runtime (Claude / `opencode` / `opencode-v2`).
+- [x] T3 (TDD) Prueba roja: solo en `opencode-v2`, la política indica que `subagent` exige `agent`.
+- [x] T4 (TDD) Prueba roja JS: el camino v2 pide la política como `opencode-v2`; v1 sigue con `opencode`.
+- [x] T5 Extraer `octopusRouteTaskInput` (schema con nombre) en `cmd_mcp_octopus_tools.go`.
+- [x] T6 Reescribir `octopusDelegationReminder` con claves literales; firma por runtime; añadir `octopusRouteToolFor`.
+- [x] T7 Plugin: `v2MemArgs` traduce el runtime en `createV2Setup` sin tocar la fábrica v1 (FR-002).
+- [x] T8 Verificación: `go vet ./...`, `go test ./...` y `node --test` (59/59) en verde; salida real de `mem hook octopus-delegation-policy opencode-v2` revisada.
+- [x] T9a En vivo (OpenCode 2.1.4, ses_e832019f2ffehdZF1Z5oskzrQp): `tools.gomemory.octopus_route_task` vía `execute` con `objective` y solo claves del schema, sin errores; ruta INLINE.
+- [x] T9b En vivo (revisión high/medium): Octopus vía `execute` correcto otra vez, sin errores.
+- [x] T13 (TDD) Prueba roja: un documento largo con los términos dispersos no es trabajo duplicado; se conservan los casos de memoria larga que contiene el objetivo, memoria breve equivalente y checkpoint.
+- [x] T14 `trabajoCubierto` mide con `passageCoverage` (pasaje de 64 tokens significativos); `significantTokens` es compartido con `tokenize`.
+- [x] T15 Verificación: `go vet ./...` y `go test ./...` en verde; `mem octopus route` en front-b2b-freya ya no da duplicado para objetivos nuevos y sí para el que repite la memoria 189.
+- [x] T9c En vivo: sin duplicado, pero INLINE por omisión: `files` con globs no se leía y el contexto medido era 24 tokens (< MinDelegableContextTokens).
+- [x] T16 (TDD) Prueba roja: `leerAlcance` expande globs y no lee lo que el glob excluye.
+- [x] T17 `expandirAlcance` con `filepath.Glob` solo si hay metacaracteres; suite completa en verde; `mem octopus route` con globs → DELEGATE.
+- [x] T9d En vivo (ses_e83134218ffestHHs7w376i8no): Octopus → DELEGATE («investigación independiente con contexto fuertemente aislable», contexto 67 075); `subagent` con `agent: "general"` completado a la primera (ses_e8312de86ffePyhmug2SyqHrY2). Sin errores de tool.
+- [x] T10 (TDD) Prueba roja JS: en 2.x el protocolo nombra las tools como `tools.gomemory.<tool>` / `tools["codebase-memory-mcp"].<tool>` y explica `execute` y `codemode: false`; v1 sin cambios.
+- [x] T11 `MEMORY_PROTOCOL_V2` derivado de `MEMORY_PROTOCOL` y `v2SystemText` en el gancho `context` de 2.x (fábrica v1 intacta).
+- [x] T12 Verificación: `go vet ./...`, `go test ./...` y `node --test` (60/60) en verde; plugin reinstalado.

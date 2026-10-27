@@ -102,8 +102,11 @@ func (uc *RouteTaskUseCase) Route(req RouteTaskRequest) (domain.RouteDecision, e
 }
 
 // trabajoCubierto exige que al menos el 80 % de los términos significativos del
-// objetivo esté presente en una memoria encontrada. No usa Jaccard: una memoria
-// extensa que contiene el objetivo completo no debe perder por su longitud.
+// objetivo aparezca junto en un pasaje de una memoria encontrada. No usa
+// Jaccard: una memoria extensa que contiene el objetivo completo no debe perder
+// por su longitud. Tampoco mide sobre el texto entero: un documento largo (la
+// constitución de un proyecto real) reúne casi cualquier palabra repartida por
+// su texto, y eso no es haber hecho el trabajo.
 func (uc *RouteTaskUseCase) trabajoCubierto(project, objetivo string) bool {
 	if uc.memRepo == nil || project == "" || objetivo == "" {
 		return false
@@ -114,11 +117,41 @@ func (uc *RouteTaskUseCase) trabajoCubierto(project, objetivo string) bool {
 	}
 	objetivoTokens := tokenize(objetivo)
 	for _, m := range mems {
-		if m.Type != domain.Checkpoint && tokenCoverage(objetivoTokens, tokenize(m.Title+" "+m.Content)) >= 0.80 {
+		if m.Type != domain.Checkpoint && passageCoverage(objetivoTokens, m.Title+" "+m.Content, coveragePassageTokens) >= 0.80 {
 			return true
 		}
 	}
 	return false
+}
+
+// coveragePassageTokens es el largo del pasaje en el que deben coincidir los
+// términos del objetivo: un párrafo. Calibrado con memorias reales, la
+// constitución baja de 0,80 a 0,40 y una memoria del mismo trabajo sigue en 1,0.
+const coveragePassageTokens = 64
+
+// passageCoverage es la mayor cobertura de needles dentro de cualquier pasaje
+// de window tokens significativos consecutivos del texto.
+func passageCoverage(needles map[string]struct{}, text string, window int) float64 {
+	if len(needles) == 0 {
+		return 1
+	}
+	seq := significantTokens(text)
+	enVentana := map[string]int{}
+	best := 0
+	for i, tok := range seq {
+		if _, ok := needles[tok]; ok {
+			enVentana[tok]++
+		}
+		if i >= window {
+			if old := seq[i-window]; enVentana[old] > 0 {
+				if enVentana[old]--; enVentana[old] == 0 {
+					delete(enVentana, old)
+				}
+			}
+		}
+		best = max(best, len(enVentana))
+	}
+	return float64(best) / float64(len(needles))
 }
 
 // buildInput traduce la petición a la entrada del dominio, midiendo lo que haya

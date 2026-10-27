@@ -290,7 +290,7 @@ func conjuntoDesdeLista(items []string) map[string]bool {
 // y el alcance real queda sin leer en silencio: el objetivo cae a ~40 tokens,
 // la unidad nunca alcanza el mínimo delegable y la ruta se decide con una
 // medición que nunca existió (ACR 029, hallazgo A-002). Una ruta absoluta se
-// respeta tal cual. Concatena el contenido de los archivos del alcance que existen y
+// respeta tal cual, y un glob se expande a sus archivos. Concatena el contenido de los archivos del alcance que existen y
 // son legibles. Best-effort a propósito: medir mal es mejor que no enrutar, y un
 // archivo que falta no es un error del usuario (FR-032).
 func leerAlcance(root string, files []string) string {
@@ -302,13 +302,30 @@ func leerAlcance(root string, files []string) string {
 		if !filepath.IsAbs(f) {
 			f = filepath.Join(root, f)
 		}
-		data, err := os.ReadFile(f)
-		if err != nil {
-			continue
+		for _, path := range expandirAlcance(f) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			b.Write(data)
 		}
-		b.Write(data)
 	}
 	return b.String()
+}
+
+// expandirAlcance resuelve un glob (`app/routes/*.py`, la forma en que los
+// agentes suelen declarar el alcance) a sus archivos. Leído como ruta literal,
+// el ReadFile fallaba en silencio y el contexto caía de nuevo al objetivo, el
+// mismo síntoma de A-002. Una ruta sin metacaracteres se devuelve tal cual.
+func expandirAlcance(path string) []string {
+	if !strings.ContainsAny(path, "*?[") {
+		return []string{path}
+	}
+	matches, err := filepath.Glob(path)
+	if err != nil {
+		return nil
+	}
+	return matches
 }
 
 // contratoDe arma el contrato cuando la decisión es delegada, para que la salida

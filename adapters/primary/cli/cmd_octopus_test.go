@@ -235,3 +235,30 @@ func TestLeerAlcance_ResuelveContraRootNoContraCwd(t *testing.T) {
 		t.Fatalf("una ruta absoluta debe respetarse tal cual, sin unirla a root: got %q", got)
 	}
 }
+
+// Mismo síntoma que A-002, por otra vía: los agentes declaran el alcance con
+// globs (`app/routes/*.py`, visto en vivo en OpenCode). leerAlcance los leía
+// como rutas literales, el ReadFile fallaba en silencio y el contexto medido
+// caía al objetivo (24 tokens): por debajo del mínimo delegable, Octopus
+// nunca delegaba.
+func TestLeerAlcance_ExpandeGlobs(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(root+"/app/routes", 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	for name, body := range map[string]string{"auth.py": "def login(): pass", "mcp.py": "def call(): pass", "notas.txt": "fuera del glob"} {
+		if err := os.WriteFile(root+"/app/routes/"+name, []byte(body), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+
+	got := leerAlcance(root, []string{"app/routes/*.py"})
+	for _, want := range []string{"def login", "def call"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("leerAlcance con glob debe leer %q: got %q", want, got)
+		}
+	}
+	if strings.Contains(got, "fuera del glob") {
+		t.Errorf("leerAlcance no debe leer archivos que el glob no incluye: got %q", got)
+	}
+}

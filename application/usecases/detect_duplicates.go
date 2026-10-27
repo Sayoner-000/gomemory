@@ -174,6 +174,16 @@ func clusterBySimilarity(mems []domain.Memory, threshold float64) [][]domain.Mem
 // minTokenLength runas.
 func tokenize(s string) map[string]struct{} {
 	set := make(map[string]struct{})
+	for _, tok := range significantTokens(s) {
+		set[tok] = struct{}{}
+	}
+	return set
+}
+
+// significantTokens devuelve, en orden, los tokens que tokenize considera
+// significativos; passageCoverage necesita el orden para medir por pasajes.
+func significantTokens(s string) []string {
+	var toks []string
 	for _, tok := range tokenPattern.FindAllString(strings.ToLower(s), -1) {
 		if len([]rune(tok)) < minTokenLength {
 			continue
@@ -181,9 +191,9 @@ func tokenize(s string) map[string]struct{} {
 		if _, stop := spanishStopwords[tok]; stop {
 			continue
 		}
-		set[tok] = struct{}{}
+		toks = append(toks, tok)
 	}
-	return set
+	return toks
 }
 
 // jaccardSimilarity es |A∩B| / |A∪B|. Dos sets vacíos se consideran sin
