@@ -1623,14 +1623,20 @@ func buildMemoryToolBootstrap(includeCodeGraphProvider, octopusEnabled bool) str
 select:` + strings.Join(names, ",") + `
 Luego llama a get_context() para cargar la memoria previa del proyecto antes de continuar.
 Si entras en modo plan, llama además a get_plan_context() ANTES de redactar el plan.` +
-		octopusDelegationPolicy(octopusEnabled, "mcp__gomemory__octopus_route_task")
+		octopusDelegationPolicy(octopusEnabled, "")
 }
 
 // octopusDelegationReminder es la única fuente de la regla de consulta previa
 // a delegar, sin separadores propios — cada llamador decide cómo unirla al
 // resto. El runtime conserva la ejecución de subagentes; Octopus solo decide
-// la ruta y el agente debe respetarla. routeTool cambia únicamente el prefijo
-// que cada runtime usa para la misma tool MCP.
+// la ruta y el agente debe respetarla. runtime cambia únicamente cómo se nombra
+// la misma tool MCP (octopusRouteToolFor) y, en OpenCode 2.x, añade cómo se
+// llama a su tool de subagentes.
+//
+// Los parámetros se listan con sus claves literales del schema
+// (octopusRouteTaskInput): descritos en prosa, el agente los traducía a claves
+// inventadas (`goal`, `budget_context`) y la tool los rechazaba por faltar
+// `objective`.
 //
 // El último párrafo (propagación manual) existe porque no hay ningún hook
 // que reinyecte esta regla en un subagente de Codex: Codex no registra
@@ -1639,17 +1645,22 @@ Si entras en modo plan, llama además a get_plan_context() ANTES de redactar el 
 // (codex_setup.go). Sin esta instrucción, esos subagentes no tienen forma de
 // enterarse de la regla — con ella, queda en manos del agente raíz seguirla
 // (best-effort, no verificable por un hook; ACR 029, hallazgo C-001).
-func octopusDelegationReminder(octopusEnabled bool, routeTool string) (string, bool) {
+func octopusDelegationReminder(octopusEnabled bool, runtime string) (string, bool) {
 	if !octopusEnabled {
 		return "", false
 	}
+	subagentHint := ""
+	if runtime == runtimeOpenCodeV2 {
+		subagentHint = "\nEn OpenCode la tool `subagent` exige `agent` (p. ej. `general`), `description` y `prompt`."
+	}
 	return `OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN: antes de crear cualquier subagente,
-llama a ` + routeTool + ` con el objetivo, task_class, complejidad, riesgo, alcance
-(files), dependencias y presupuesto/contexto conocidos; declara subagents=true si el
-runtime los admite. Respeta su ruta: DELEGATE es la única autorización para crear el
+llama a ` + octopusRouteToolFor(runtime) + ` con los datos conocidos de la unidad.
+Parámetros (claves exactas del schema; no inventes otras): ` + "`objective`" + ` (obligatorio), ` +
+		"`task_class`, `complexity`, `risk`, `files`, `dependencies`, `read_only`, `context_tokens` y `subagents`" + `=true
+si el runtime los admite. Respeta su ruta: DELEGATE es la única autorización para crear el
 subagente; INLINE se ejecuta aquí; WAIT espera las dependencias; REJECT no se ejecuta
 y se informa la razón. Octopus recomienda política: no crea ni bloquea subagentes por sí
-mismo.
+mismo.` + subagentHint + `
 
 Si el subagente que vas a crear no arranca su propia sesión con hooks de gomemory
 (por ejemplo, un subproceso no interactivo tipo ` + "`codex exec`" + `, que no dispara
@@ -1658,11 +1669,31 @@ prompt que le des: es la única forma de que reciba la regla, porque ningún
 hook se la va a inyectar por su cuenta.`, true
 }
 
+// runtimeOpenCodeV2 identifica a OpenCode 2.x en `mem hook
+// octopus-delegation-policy`. El plugin lo pasa desde su camino v2
+// (createV2Setup); 1.x sigue pasando "opencode".
+const runtimeOpenCodeV2 = "opencode-v2"
+
+// octopusRouteToolFor nombra octopus_route_task como la ve cada runtime:
+// Claude Code con prefijo mcp__, OpenCode 1.x con prefijo de servidor y
+// OpenCode 2.x en modo código, dentro de su tool `execute` (allí el nombre
+// plano da "Unknown tool").
+func octopusRouteToolFor(runtime string) string {
+	switch runtime {
+	case "opencode":
+		return "gomemory_octopus_route_task"
+	case runtimeOpenCodeV2:
+		return "`tools.gomemory.octopus_route_task({...})` (dentro de la tool `execute`)"
+	default:
+		return "mcp__gomemory__octopus_route_task"
+	}
+}
+
 // octopusDelegationPolicy envuelve octopusDelegationReminder con los
 // separadores que necesita al concatenarse al final del bootstrap completo
 // (buildMemoryToolBootstrap) o al imprimirse solo (hookOctopusDelegationPolicy).
-func octopusDelegationPolicy(octopusEnabled bool, routeTool string) string {
-	msg, ok := octopusDelegationReminder(octopusEnabled, routeTool)
+func octopusDelegationPolicy(octopusEnabled bool, runtime string) string {
+	msg, ok := octopusDelegationReminder(octopusEnabled, runtime)
 	if !ok {
 		return ""
 	}
@@ -1678,11 +1709,7 @@ func hookOctopusDelegationPolicy(deps *Deps, args []string) {
 	if err != nil {
 		return
 	}
-	routeTool := "mcp__gomemory__octopus_route_task"
-	if firstOr(args, 0, "") == "opencode" {
-		routeTool = "gomemory_octopus_route_task"
-	}
-	fmt.Print(octopusDelegationPolicy(deps.SettingsRepo.Read(root).OctopusEnabled, routeTool))
+	fmt.Print(octopusDelegationPolicy(deps.SettingsRepo.Read(root).OctopusEnabled, firstOr(args, 0, "")))
 }
 
 // subagentContextNotice avisa al subagente de que comparte la sesión de

@@ -98,7 +98,8 @@ func TestOpenCode_ObtieneLaPoliticaOctopusDelGeneradorComun(t *testing.T) {
 
 // TestOpenCodeV2_ContextDelegaEnLaPoliticaOctopus: en 2.x la política Octopus
 // llega por el mismo transform v1 que la pide al generador común; el gancho v2
-// "context" solo traduce el formato de las partes del system.
+// "context" traduce el formato de las partes del system y, con v2SystemText,
+// los nombres de tool del protocolo al Code Mode de 2.x.
 func TestOpenCodeV2_ContextDelegaEnLaPoliticaOctopus(t *testing.T) {
 	bloque := v2Block(t, gomemoryPluginSource(t), "context")
 	if !strings.Contains(bloque, `hooks["experimental.chat.system.transform"]`) {

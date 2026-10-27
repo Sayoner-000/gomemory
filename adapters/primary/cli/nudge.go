@@ -166,7 +166,7 @@ func octopusDelegationReminderOnChange(root string, enabled bool) (string, bool)
 		return "", false
 	}
 	recordOctopusEmitted(root, enabled)
-	return octopusDelegationReminder(enabled, "mcp__gomemory__octopus_route_task")
+	return octopusDelegationReminder(enabled, "")
 }
 
 // saveNudgeDue decide si toca recordar que guarde. age es la antigüedad de la

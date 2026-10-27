@@ -10,6 +10,39 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// octopusRouteTaskInput es el schema de octopus_route_task. Tiene nombre
+// para que la política de delegación pueda comprobar que solo nombra claves
+// que existen (octopusDelegationReminder).
+type octopusRouteTaskInput struct {
+	Objective     string   `json:"objective" jsonschema:"Objetivo de la unidad de trabajo"`
+	TaskID        string   `json:"task_id,omitempty" jsonschema:"Identificador de la tarea (default T001)"`
+	TaskClass     string   `json:"task_class,omitempty" jsonschema:"Clase: investigation|implementation|documentation|testing|research|review|architecture|migration|integration|validation|local-change|trivial|repository-exploration"`
+	Dependencies  []string `json:"dependencies,omitempty" jsonschema:"Identificadores de tareas de las que depende"`
+	Resolved      []string `json:"resolved,omitempty" jsonschema:"Dependencias ya completadas"`
+	Files         []string `json:"files,omitempty" jsonschema:"Artefactos del alcance"`
+	ReadOnly      bool     `json:"read_only,omitempty" jsonschema:"El trabajo solo lee, no escribe"`
+	Complexity    string   `json:"complexity,omitempty" jsonschema:"trivial|low|medium|high (default medium)"`
+	Risk          string   `json:"risk,omitempty" jsonschema:"trivial|low|medium|high (default medium)"`
+	ContextTokens int      `json:"context_tokens,omitempty" jsonschema:"Contexto estimado de la unidad, en tokens"`
+	Optional      bool     `json:"optional,omitempty" jsonschema:"El plan puede completarse sin esta unidad"`
+
+	Subagents       bool `json:"subagents,omitempty" jsonschema:"El runtime admite subagentes (ausente = NO, default conservador)"`
+	Parallel        bool `json:"parallel,omitempty" jsonschema:"El runtime admite ejecución paralela"`
+	IsolatedContext bool `json:"isolated_context,omitempty" jsonschema:"El runtime aísla el contexto de los subagentes"`
+	MaxParallel     int  `json:"max_parallel,omitempty" jsonschema:"Tope de concurrencia del runtime"`
+
+	TotalTokens        int  `json:"total_tokens,omitempty" jsonschema:"Presupuesto total de tokens de la sesión"`
+	DelegationSpent    int  `json:"delegation_spent,omitempty" jsonschema:"Tokens ya consumidos del fondo de delegación"`
+	DelegationDisabled bool `json:"delegation_disabled,omitempty" jsonschema:"Forzar ejecución inline"`
+	DelegationForced   bool `json:"delegation_forced,omitempty" jsonschema:"Preferir delegación (sujeto a capacidades y seguridad)"`
+	PreferInline       bool `json:"prefer_inline,omitempty" jsonschema:"Inclinar el desempate hacia inline"`
+	MaxSubagents       int  `json:"max_subagents,omitempty" jsonschema:"Tope de agentes delegados"`
+	MaxDepth           int  `json:"max_depth,omitempty" jsonschema:"Profundidad máxima de delegación"`
+	Depth              int  `json:"depth,omitempty" jsonschema:"Profundidad actual (0 = agente principal)"`
+
+	AllowValidationReserve bool `json:"allow_validation_reserve,omitempty" jsonschema:"Autoriza explícitamente consumir la reserva de validación (FR-031)"`
+}
+
 // registerOctopusTools expone el enrutador adaptativo como tools MCP (feature
 // 027).
 //
@@ -28,35 +61,7 @@ func registerOctopusTools(server *mcp.Server, deps *Deps) {
 			"delegarse a un subagente (DELEGATE), esperar dependencias (WAIT) o rechazarse (REJECT). " +
 			"Devuelve la ruta con una razón explicable y, si delega, el presupuesto de contexto y de " +
 			"salida. NO ejecuta subagentes: eso es responsabilidad del runtime.",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
-		Objective     string   `json:"objective" jsonschema:"Objetivo de la unidad de trabajo"`
-		TaskID        string   `json:"task_id,omitempty" jsonschema:"Identificador de la tarea (default T001)"`
-		TaskClass     string   `json:"task_class,omitempty" jsonschema:"Clase: investigation|implementation|documentation|testing|research|review|architecture|migration|integration|validation|local-change|trivial|repository-exploration"`
-		Dependencies  []string `json:"dependencies,omitempty" jsonschema:"Identificadores de tareas de las que depende"`
-		Resolved      []string `json:"resolved,omitempty" jsonschema:"Dependencias ya completadas"`
-		Files         []string `json:"files,omitempty" jsonschema:"Artefactos del alcance"`
-		ReadOnly      bool     `json:"read_only,omitempty" jsonschema:"El trabajo solo lee, no escribe"`
-		Complexity    string   `json:"complexity,omitempty" jsonschema:"trivial|low|medium|high (default medium)"`
-		Risk          string   `json:"risk,omitempty" jsonschema:"trivial|low|medium|high (default medium)"`
-		ContextTokens int      `json:"context_tokens,omitempty" jsonschema:"Contexto estimado de la unidad, en tokens"`
-		Optional      bool     `json:"optional,omitempty" jsonschema:"El plan puede completarse sin esta unidad"`
-
-		Subagents       bool `json:"subagents,omitempty" jsonschema:"El runtime admite subagentes (ausente = NO, default conservador)"`
-		Parallel        bool `json:"parallel,omitempty" jsonschema:"El runtime admite ejecución paralela"`
-		IsolatedContext bool `json:"isolated_context,omitempty" jsonschema:"El runtime aísla el contexto de los subagentes"`
-		MaxParallel     int  `json:"max_parallel,omitempty" jsonschema:"Tope de concurrencia del runtime"`
-
-		TotalTokens        int  `json:"total_tokens,omitempty" jsonschema:"Presupuesto total de tokens de la sesión"`
-		DelegationSpent    int  `json:"delegation_spent,omitempty" jsonschema:"Tokens ya consumidos del fondo de delegación"`
-		DelegationDisabled bool `json:"delegation_disabled,omitempty" jsonschema:"Forzar ejecución inline"`
-		DelegationForced   bool `json:"delegation_forced,omitempty" jsonschema:"Preferir delegación (sujeto a capacidades y seguridad)"`
-		PreferInline       bool `json:"prefer_inline,omitempty" jsonschema:"Inclinar el desempate hacia inline"`
-		MaxSubagents       int  `json:"max_subagents,omitempty" jsonschema:"Tope de agentes delegados"`
-		MaxDepth           int  `json:"max_depth,omitempty" jsonschema:"Profundidad máxima de delegación"`
-		Depth              int  `json:"depth,omitempty" jsonschema:"Profundidad actual (0 = agente principal)"`
-
-		AllowValidationReserve bool `json:"allow_validation_reserve,omitempty" jsonschema:"Autoriza explícitamente consumir la reserva de validación (FR-031)"`
-	}) (*mcp.CallToolResult, any, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, in octopusRouteTaskInput) (*mcp.CallToolResult, any, error) {
 		taskID := in.TaskID
 		if taskID == "" {
 			taskID = "T001"

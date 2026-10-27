@@ -235,6 +235,33 @@ test('v2: context hook injects protocol and project memory as text parts', async
   await f.cleanup();
 });
 
+test('v2: context asks for the octopus policy as opencode-v2, v1 keeps opencode', async () => {
+  const f = await v2Fixture();
+  await f.system('context');
+  assert.deepEqual(f.hookCalls('octopus-delegation-policy').map(c => c.args[2]), ['opencode-v2']);
+  await f.cleanup();
+  const v1 = await fixture();
+  await v1.hooks['experimental.chat.system.transform']({ sessionID: 's1' }, { system: [] });
+  assert.deepEqual(v1.calls.filter(c => c.args[1] === 'octopus-delegation-policy').map(c => c.args[2]), ['opencode']);
+});
+
+test('v2: the protocol names MCP tools as Code Mode sees them, v1 keeps prefixed names', async () => {
+  const f = await v2Fixture();
+  const protocol = (await f.system('context')).find(t => t.includes('Memory Protocol'));
+  assert.ok(protocol.includes('tools.gomemory.save_memory'));
+  assert.ok(protocol.includes('tools["codebase-memory-mcp"].search_graph'));
+  assert.ok(protocol.includes('`execute`'));
+  assert.ok(protocol.includes('codemode'));
+  assert.doesNotMatch(protocol.replace(/`gomemory_<tool>`/g, ''), /\bgomemory_[a-z]/);
+  await f.cleanup();
+  const v1 = await fixture();
+  const out = { system: [] };
+  await v1.hooks['experimental.chat.system.transform']({ sessionID: 's1' }, out);
+  const v1Protocol = out.system.find(t => t.includes('Memory Protocol'));
+  assert.ok(v1Protocol.includes('gomemory_save_memory'));
+  assert.ok(!v1Protocol.includes('tools.gomemory.'));
+});
+
 test('v2: cleanup stops the subscription and closes the session', async () => {
   const f = await v2Fixture();
   await f.cleanup();

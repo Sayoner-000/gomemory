@@ -624,6 +624,23 @@ scope: . or any other bare path.
 SESSION CLOSE: before saying "done", call ${T_END_SESSION}(summary) with Goal /
 Discoveries / Accomplished / Next Steps / Relevant Files.`;
 
+// OpenCode 2.x expone por defecto las tools MCP en Code Mode: se llaman dentro
+// de la tool `execute` como tools.<servidor>.<tool>, y el nombre prefijado de
+// 1.x da "Unknown tool". Se deriva del mismo texto para no mantener dos
+// protocolos; un servidor con `codemode: false` vuelve al nombre prefijado, y
+// la nota lo dice para que el agente no se quede sin salida.
+const MEMORY_PROTOCOL_V2 =
+  MEMORY_PROTOCOL.replace(/\bgomemory_([a-z_]+)/g, "tools.gomemory.$1").replace(
+    /\bcodebase-memory-mcp_([a-z_]+)/g,
+    'tools["codebase-memory-mcp"].$1',
+  ) +
+  `
+
+TOOL NAMES (OpenCode 2.x): the MCP tools above run inside the \`execute\` tool
+in Code Mode, e.g. tools.gomemory.save_memory({...}). If a server is configured
+with codemode: false, call them directly as \`gomemory_<tool>\` instead.`;
+const v2SystemText = (text: string): string => (text === MEMORY_PROTOCOL ? MEMORY_PROTOCOL_V2 : text);
+
 // ── OpenCode 2.x ────────────────────────────────────────────────────────────
 //
 // v2 ya no ejecuta la fábrica de arriba: exige `export default { id, setup }`
@@ -740,6 +757,15 @@ const bunShellShim = (exec: Exec) => (_strings: TemplateStringsArray, bin: strin
 // para la captura de subagentes. Las demás conservan su nombre.
 const V1_TOOL_NAMES: Record<string, string> = { shell: "bash", subagent: "task" };
 const v1ToolName = (name: string): string => V1_TOOL_NAMES[name] ?? name;
+
+// La fábrica v1 pide la política Octopus como runtime "opencode" y no se toca
+// (FR-002). En 2.x las tools MCP se llaman dentro de `execute` como
+// tools.gomemory.<tool> y `subagent` exige `agent`: el camino v2 traduce el
+// runtime para que el generador común nombre la tool como la ve el agente.
+const v2MemArgs = (args: string[]): string[] =>
+  args[0] === "hook" && args[1] === "octopus-delegation-policy" && args[2] === "opencode"
+    ? ["hook", "octopus-delegation-policy", "opencode-v2"]
+    : args;
 
 // Traduce los mensajes v2 (@opencode/client SessionMessageInfo) a la forma v1
 // que recorre la fábrica: { info: { id, role, mode, summary }, parts }. Una
@@ -874,7 +900,8 @@ const createV2Setup = (exec: Exec, options: { closeBudgetMs?: number } = {}) => 
   let finalSignal: AbortSignal | null = null;
   const ops = new Set<Promise<unknown>>();
 
-  const lifecycleExec: Exec = (bin, args, opts) => {
+  const lifecycleExec: Exec = (bin, rawArgs, opts) => {
+    const args = v2MemArgs(rawArgs);
     if (finalSignal) return exec(bin, args, { ...opts, signal: finalSignal });
     if (state === "closing" || state === "closed") return Promise.reject(abortError());
     return exec(bin, args, { ...opts, signal: operations.signal });
@@ -990,7 +1017,10 @@ const createV2Setup = (exec: Exec, options: { closeBudgetMs?: number } = {}) => 
           const out = { system: [] as string[] };
           await hooks["experimental.chat.system.transform"]({ sessionID: ev.sessionID }, out);
           if (closing()) return;
-          for (const text of out.system) ev.system.push({ type: "text", text });
+          for (const raw of out.system) {
+            const text = v2SystemText(raw);
+            ev.system.push({ type: "text", text });
+          }
         }),
       ),
     );
