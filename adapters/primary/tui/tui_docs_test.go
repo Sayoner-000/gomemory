@@ -25,7 +25,7 @@ func TestSpecificationGuideAvailableFromMainList(t *testing.T) {
 		t.Fatal("main list does not expose specification")
 	}
 	view := ansi.Strip(m.renderView())
-	for _, text := range []string{"HCD Playbook", "Spec Kit", "/hcd", "/speckit-specify"} {
+	for _, text := range []string{"HCD Vía rápida", "HCD ceremonia completa", "Spec Kit", "/hcd", "/speckit-specify"} {
 		if !strings.Contains(view, text) {
 			t.Fatalf("guide lacks %s: %s", text, view)
 		}

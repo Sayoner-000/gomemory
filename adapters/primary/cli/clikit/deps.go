@@ -1,7 +1,6 @@
 package clikit
 
 import (
-	"context"
 	"io"
 
 	"mem/application/ports"
@@ -9,9 +8,8 @@ import (
 )
 
 type Deps struct {
-	HCDHeartbeat func(context.Context, usecases.HCDHeartbeatInput) error
-	Socratica    *usecases.SocraticaFlow
-	HCD          *usecases.HCD
+	Socratica *usecases.SocraticaFlow
+	HCD       *usecases.HCD
 	// SocraticaExec lanza el agente destino con el prompt aprobado y
 	// SocraticaPrint construye el lanzador de --print (feature 039, R4).
 	SocraticaExec  ports.AgentLauncher

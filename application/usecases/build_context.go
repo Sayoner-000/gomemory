@@ -365,18 +365,11 @@ func (b *Builder) build() (string, error) {
 	var sb strings.Builder
 	sb.WriteString("# Memoria del Proyecto\n\n")
 	if b.HCD != nil {
-		active, e := b.HCD.ActiveHCDUnit(context.Background())
-		if e != nil && !errors.Is(e, domain.ErrNotFound) {
+		info, ok, e := b.HCD.ActiveHCDContext(context.Background())
+		if e != nil {
 			return "", e
 		}
-		if e == nil {
-			info := domain.HCDActiveContext{Unit: active, Stage: domain.StageFor(active), NextAction: domain.NextAction(active, nil)}
-			if rich, ok := b.HCD.(ports.HCDContextDetailRepository); ok {
-				info, e = rich.ActiveHCDContext(context.Background())
-				if e != nil {
-					return "", e
-				}
-			}
+		if ok {
 			section := formatHCDActiveContext(info)
 			if b.fits(&sb, len(section)) {
 				sb.WriteString(section)

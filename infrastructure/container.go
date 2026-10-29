@@ -143,35 +143,13 @@ func NewContainer(root, channel string) (*Container, error) {
 	}
 	instinctUC := &usecases.Instincts{Queue: expandstate.NewQueue(filepath.Join(root, persistence.MemDir)), Repo: instinctRepo, Global: instinctGlobalPort, Project: project, Ephemeral: underTempDir(root, os.TempDir()), Memories: memRepo}
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
-	hcdRepo := persistence.NewHCDStore(db, project)
-	hcdArtifacts, err := hcdfiles.NewStore(root)
+	unitTemplate, err := templatesFS.ReadFile("templates/hcd/unit/unit.md")
 	if err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	hcdUC := usecases.NewHCD(hcdRepo, hcdRepo, hcdArtifacts, hcdRepo, clock.SystemClock{}, func() string { return uuid.Must(uuid.NewV7()).String() })
-	var hcdTopics ports.MemoryTopicQuerier
-	if topics, ok := memRepo.(ports.MemoryTopicQuerier); ok {
-		hcdTopics = topics
-	}
-	definitionTemplate, _ := templatesFS.ReadFile("templates/hcd/playbook/templates/definition.md")
-	playbookTemplate, _ := templatesFS.ReadFile("templates/hcd/hcd-playbook.md")
-	constitutionTemplate, _ := templatesFS.ReadFile("templates/speckit-constitution-gen.md")
-	if err := hcdUC.ConfigureSettings(settings.HCDSettings); err != nil {
-		db.Close()
-		return nil, err
-	}
-	hcdUC.ConfigureSpecKitReader(speckit.Reader{})
-	hcdUC.ConfigureMemory(memRepo, relRepo)
-	hcdUC.ConfigureSubjectInspector(hcdfiles.SubjectInspector{Root: root}.Current)
-	hcdUC.ConfigureSubjectRef(hcdfiles.SubjectInspector{Root: root}.TreeRef)
-	hcdUC.ConfigureEvidenceParser(hcdfiles.ParseEvidence)
-	hcdUC.ConfigureDeliveryCodec(hcdfiles.ParseDelivery, hcdfiles.RenderDelivery)
-	hcdUC.ConfigureDocuments(project, hcdTopics, string(definitionTemplate), string(playbookTemplate), string(constitutionTemplate))
-	hcdUC.ConfigureDefinitionParser(func(data []byte) (domain.Definition, error) {
-		def, _, err := hcdfiles.ParseDefinition(data)
-		return def, err
-	})
+	hcdUC := usecases.NewHCD(persistence.NewHCDStore(db, project), hcdfiles.Workspace{Root: root}, clock.SystemClock{}, func() string { return uuid.Must(uuid.NewV7()).String() }, string(unitTemplate))
+	hcdUC.ConfigureDecisions(memRepo, project)
 	contextBuilder.HCD = hcdUC
 	contextBuilder.Instincts = instinctRepo
 	if instinctGlobalErr == nil {

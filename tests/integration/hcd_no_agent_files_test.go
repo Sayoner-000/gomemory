@@ -10,11 +10,8 @@ import (
 	"testing"
 )
 
-func TestHCDPreservesFilesOutsideArtifactsAndDatabase(t *testing.T) {
-	runHCDBinaryMinimalFlow(t, true)
-}
-
-// FR-041a explicitly permits the GoMemory database outside hcd/.
+// hcdProjectSnapshot fotografía el proyecto fuera de hcd/ y de la base de
+// GoMemory, que son lo único que HCD puede escribir (FR-026).
 func hcdProjectSnapshot(t *testing.T, root string) map[string]string {
 	t.Helper()
 	out := map[string]string{}

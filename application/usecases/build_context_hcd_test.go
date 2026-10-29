@@ -8,28 +8,30 @@ import (
 	"testing"
 )
 
-func TestBuildHCDContextOnlyWithFocusAndWithinBudget(t *testing.T) {
-	uc, _, db, _, root := newHCDFlow(t)
-	b := usecases.New(persistence.NewMemoryRepository(db), persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "project")
-	b.HCD = uc
+func TestBuildHCDContextOnlyWithActiveUnitAndWithinBudget(t *testing.T) {
+	env := newHCDEnv(t)
+	b := usecases.New(persistence.NewMemoryRepository(env.db), persistence.NewSessionRepository(env.db), persistence.NewRelationRepository(env.db), env.root, "p")
+	b.HCD = env.uc
 	b.Budget = 4000
-	before, e := b.Build()
-	if e != nil {
-		t.Fatal(e)
+	before, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
 	}
 	if strings.Contains(before, "## HCD activo") {
-		t.Fatal("active context without focus")
+		t.Fatal("active context without an active unit")
 	}
-	u, e := uc.Start(context.Background(), HCDStartInputForTest())
-	if e != nil {
-		t.Fatal(e)
+	view, err := env.uc.Start(context.Background(), usecases.HCDStartInput{Kind: "fix", Lane: "fast", Title: "Guardar", Why: "w", Intent: "i"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	after, e := b.Build()
-	if e != nil {
-		t.Fatal(e)
+	after, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(after, "## HCD activo") || !strings.Contains(after, u.ID) || !strings.Contains(after, "/hcd-define") {
-		t.Fatalf("missing HCD context:\n%s", after)
+	for _, want := range []string{"## HCD activo", view.Unit.ID, "paso `define`", view.Unit.DocPath, "Siguiente: `/hcd-define`"} {
+		if !strings.Contains(after, want) {
+			t.Fatalf("missing %q in HCD context:\n%s", want, after)
+		}
 	}
 	if len(after) > b.Budget {
 		t.Fatalf("budget exceeded %d", len(after))

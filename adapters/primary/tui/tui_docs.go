@@ -14,7 +14,7 @@ import (
 )
 
 // specificationGuide documents the ceremony available from the main list (h).
-const specificationGuide = "HCD crea un borrador con título, tipo e implementador. Continúa con /hcd o $hcd para definirlo y solicitar aprobación. Spec Kit continúa con /speckit-specify o /socratica-hu."
+const specificationGuide = "HCD crea la unidad y su documento en hcd/: la Vía rápida para el trabajo ordinario o la ceremonia completa (define, clarify, approve, slice, tasks, implement, verify, close). Continúa con /hcd o $hcd. Spec Kit sigue aparte: /speckit-specify o /socratica-hu."
 
 // ─── Documentos fijados (feature 021, US5) ──────────────────────────────────
 //

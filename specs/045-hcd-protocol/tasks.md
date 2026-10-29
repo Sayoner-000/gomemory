@@ -21,20 +21,20 @@
 
 ## Fase 4: Casos de uso
 
-- [ ] T009 Borrar casos de uso y puertos v1
-- [ ] T010 `usecases/hcd.go`: start, show, clarify, approve, verify, analyze, close, cancel y promote
-- [ ] T011 Tests: ceremonia completa paso a paso, Vía rápida, edición tras aprobar, evidencia caducada, rojo y análisis
-- [ ] T012 Adaptador `hcdfiles` (documento, huella, ejecución)
+- [X] T009 Borrar casos de uso y puertos v1
+- [X] T010 `usecases/hcd.go`: start, show, clarify, approve, verify, analyze, close, cancel y promote
+- [X] T011 Tests: ceremonia completa paso a paso, Vía rápida, edición tras aprobar, evidencia caducada, rojo y análisis
+- [X] T012 Adaptador `hcdfiles` (documento, huella, ejecución)
 
 ## Fase 5: Motor
 
-- [ ] T013 `cli/hcd` con los 10 comandos y `contracts/engine-cli.md`, con tests de contrato
+- [X] T013 `cli/hcd` con los 10 comandos y `contracts/engine-cli.md`, con tests de contrato
 
 ## Fase 6: Skills, hook y TUI
 
 - [ ] T014 10 skills, wrappers OpenCode y `contracts/skills.md`; borrar las plantillas retiradas
 - [ ] T015 Retirar el heartbeat y `HCDSettings`; aviso pre-edición en `PreToolUse`
-- [ ] T016 Formulario «Especificación» de la TUI con carril
+- [X] T016 Formulario «Especificación» de la TUI con carril
 
 ## Fase 7: Documentación
 

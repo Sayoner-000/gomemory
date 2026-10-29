@@ -76,14 +76,14 @@ func TestSessionDeltaSearchAndWhole(t *testing.T) {
 
 func TestHCDActiveContextDeltaDeduplicates(t *testing.T) {
 	d := SessionDelta{Blocks: &memBlocks{seen: map[string]bool{}}}
-	doc := "# Memoria del Proyecto\n\n## HCD activo\n\n- **HCD-001**: draft\n- Siguiente: hcd-define\n\n"
+	doc := "# Memoria del Proyecto\n\n## HCD activo\n\n- **HCD-001 · fix · fast · «x»** — paso `define`\n- Siguiente: `/hcd-define`\n\n"
 	d.ApplyContext(context.Background(), doc)
 	second := d.ApplyContext(context.Background(), doc)
-	if strings.Contains(second, "draft") {
+	if strings.Contains(second, "paso `define`") {
 		t.Fatalf("unchanged HCD context repeated: %s", second)
 	}
-	third := d.ApplyContext(context.Background(), strings.ReplaceAll(doc, "draft", "ready"))
-	if !strings.Contains(third, "ready") {
+	third := d.ApplyContext(context.Background(), strings.ReplaceAll(doc, "paso `define`", "paso `implement`"))
+	if !strings.Contains(third, "paso `implement`") {
 		t.Fatalf("changed HCD context omitted: %s", third)
 	}
 }

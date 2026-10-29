@@ -8,22 +8,21 @@ import (
 	"os"
 )
 
-const usage = "Uso: mem hcd <start|list|show|resume|status|next|define|validate|clarify|approve|slice|tasks|check|run|report|verify|close|cancel|decision|block|memory|classify|focus|heartbeat|exception|playbook|migrate|subject> [unit] [flags] [--json] [--client CLIENT]\n"
+const usage = `Uso: mem hcd <comando> [unidad] [flags] [--json] [--client CLIENTE]
+  start   --kind fix|feature|evolution|technical --lane fast|full --title T --why MOTIVO [--intent I]
+  show    [unidad]                 paso, tareas y siguiente skill (no escribe)
+  next    [unidad]                 alias de show
+  clarify [unidad] --ask 'pregunta' | --id Qn --answer 'respuesta'
+  approve [unidad] --quote 'cita'  aprueba la revisión de la definición (solo carril full)
+  verify  [unidad] --task N[,M] [--expect-fail] -- 'comando'
+  verify  [unidad] --task N --manual 'observación'
+  analyze [unidad]                 coherencia de la unidad (no escribe)
+  close   [unidad] --quote 'cita del Implementador'
+  cancel  [unidad] --quote 'motivo'
+  promote [unidad]                 de la Vía rápida a la ceremonia completa
+`
 
 func Run(deps *clikit.Deps, args []string) int { return run(deps, args, os.Stdout, os.Stderr) }
-
-// stdin es la entrada de `--file -`; las pruebas la sustituyen.
-var stdin io.Reader = os.Stdin
-
-// readFileFlag lee --file desde disco, o desde stdin con «-». Con stdin el
-// agente pasa el contenido en un heredoc y no necesita un archivo temporal,
-// que los sandboxes de Codex y OpenCode suelen bloquear fuera del proyecto.
-func readFileFlag(path string) ([]byte, error) {
-	if path == "-" {
-		return clikit.ReadBounded(stdin, 4<<20)
-	}
-	return os.ReadFile(path)
-}
 
 func run(deps *clikit.Deps, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
@@ -35,7 +34,7 @@ func run(deps *clikit.Deps, args []string, stdout, stderr io.Writer) int {
 
 func emitError(stdout, stderr io.Writer, jsonMode bool, code, message string) int {
 	if jsonMode {
-		_ = emitJSON(stdout, Response{ProtocolVersion: 1, OK: false, Error: &Error{Code: code, Message: message}, AllowedActions: []string{}, PendingChecks: []PendingCheck{}, Blockers: []string{}, Data: map[string]any{}})
+		_ = emitJSON(stdout, Response{ProtocolVersion: ProtocolVersion, OK: false, Error: &Error{Code: code, Message: message}})
 		return ExitCode(code)
 	}
 	_, _ = fmt.Fprintln(stderr, message)
@@ -43,14 +42,20 @@ func emitError(stdout, stderr io.Writer, jsonMode bool, code, message string) in
 }
 
 func emitJSON(w io.Writer, response Response) error {
-	if response.AllowedActions == nil {
-		response.AllowedActions = []string{}
+	if response.Tasks == nil {
+		response.Tasks = []Task{}
 	}
 	if response.PendingChecks == nil {
 		response.PendingChecks = []PendingCheck{}
 	}
-	if response.Blockers == nil {
-		response.Blockers = []string{}
+	if response.Findings == nil {
+		response.Findings = []Finding{}
+	}
+	if response.RedMissing == nil {
+		response.RedMissing = []string{}
+	}
+	if response.Warnings == nil {
+		response.Warnings = []string{}
 	}
 	if response.Data == nil {
 		response.Data = map[string]any{}
