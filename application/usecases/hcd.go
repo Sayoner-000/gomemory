@@ -20,6 +20,40 @@ type HCD struct {
 	template  string
 	decisions HCDDecisionSink
 	project   string
+	norms     hcdNorms
+}
+
+// hcdNorms resuelve la Constitución y el Playbook vigentes del proyecto: el
+// documento fijado de la memoria o, si no hay, la plantilla por defecto.
+type hcdNorms struct {
+	topics                               ports.MemoryTopicQuerier
+	project                              string
+	constitutionDefault, playbookDefault string
+	configured                           bool
+}
+
+// ConfigureNorms hace que HCD conozca las normas vigentes: cada aprobación
+// guarda su huella y analyze avisa si cambian (FR-029).
+func (h *HCD) ConfigureNorms(topics ports.MemoryTopicQuerier, project, constitutionDefault, playbookDefault string) {
+	h.norms = hcdNorms{topics: topics, project: project, constitutionDefault: constitutionDefault, playbookDefault: playbookDefault, configured: true}
+}
+
+func (n hcdNorms) revisions() (constitution, playbook string, err error) {
+	if !n.configured {
+		return "", "", nil
+	}
+	rev := func(topic, fallback string) (string, error) {
+		doc, err := ResolvePinnedDoc(n.topics, n.project, topic, fallback)
+		if err != nil {
+			return "", err
+		}
+		return domain.ContentRevision([]byte(strings.TrimSpace(doc.Content))), nil
+	}
+	if constitution, err = rev(domain.TopicConstitution, n.constitutionDefault); err != nil {
+		return "", "", err
+	}
+	playbook, err = rev(domain.TopicHCDPlaybook, n.playbookDefault)
+	return constitution, playbook, err
 }
 
 // HCDDecisionSink es la parte de MemoryRepository que HCD necesita: las
@@ -117,6 +151,9 @@ func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
 	if s.Approvals, err = h.store.Approvals(ctx, unit.ID); err != nil {
 		return HCDView{}, err
 	}
+	if s.ConstitutionRev, s.PlaybookRev, err = h.norms.revisions(); err != nil {
+		return HCDView{}, err
+	}
 	return viewOf(s), nil
 }
 
@@ -196,7 +233,8 @@ func (h *HCD) Approve(ctx context.Context, in HCDApproveInput) (HCDView, error) 
 	if view.Unit.Lane != domain.LaneFull {
 		return view, fmt.Errorf("%w: la Vía rápida no aprueba la definición; se aprueba al cerrar", domain.ErrNotAllowed)
 	}
-	if view.Stage != domain.StageApprove {
+	// También se reaprueba si las normas cambiaron desde la última aprobación.
+	if view.Stage != domain.StageApprove && !view.State.NormsChanged() {
 		return view, fmt.Errorf("%w: la unidad está en %s: %s", domain.ErrNotAllowed, view.Stage, view.Next.Why)
 	}
 	if !domain.ValidQuote(in.Quote, view.DefinitionRevision) {
@@ -205,7 +243,7 @@ func (h *HCD) Approve(ctx context.Context, in HCDApproveInput) (HCDView, error) 
 	if err = h.approve(ctx, view, domain.ApprovalApprove, view.DefinitionRevision, in.Quote, in.Client); err != nil {
 		return view, err
 	}
-	h.recordDecision(view.Unit, "definición aprobada", "Definición aprobada sobre la revisión "+view.DefinitionRevision+".")
+	h.recordDecision(view.Unit, "definición aprobada", "Definición aprobada sobre la revisión "+view.DefinitionRevision+" (Constitución "+view.State.ConstitutionRev+", Playbook "+view.State.PlaybookRev+").")
 	return h.Show(ctx, view.Unit.ID)
 }
 
@@ -409,7 +447,7 @@ func (h *HCD) approve(ctx context.Context, view HCDView, action, revision, quote
 	if client == "" || client == "terminal" {
 		client, origin = "terminal", "terminal"
 	}
-	return h.store.AddApproval(ctx, domain.Approval{ID: h.newID(), UnitID: view.Unit.ID, Action: action, Revision: revision, Fingerprint: view.State.Fingerprint, Origin: origin, Client: client, Quote: domain.ProtectHCDField(quote), CreatedAt: h.clock.Now()})
+	return h.store.AddApproval(ctx, domain.Approval{ID: h.newID(), UnitID: view.Unit.ID, Action: action, Revision: revision, Fingerprint: view.State.Fingerprint, Origin: origin, Client: client, Quote: domain.ProtectHCDField(quote), ConstitutionRev: view.State.ConstitutionRev, PlaybookRev: view.State.PlaybookRev, CreatedAt: h.clock.Now()})
 }
 
 func (h *HCD) finish(ctx context.Context, view HCDView, verb, next string) (HCDView, error) {

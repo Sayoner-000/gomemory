@@ -38,8 +38,5 @@ TUI; `mem settings --show` prints the live values for the current project.
 | `socratica_history_limit` | `20` | Refinements kept per agent (1–1000) |
 | `socratica_generators` | `["claude","codex","opencode"]` | Enabled harnesses; each new CLI/TUI flow asks you to choose one for refinement and approved execution, without automatic fallback |
 | `socratica_generator_timeout_seconds` · `socratica_query_timeout_ms` | `120` · `5000` | Generator timeout and per-query store timeout (minimum 100 ms) |
-| `hcd_heartbeat_timeout_ms` | `200` | HCD turn-end heartbeat timeout in milliseconds (minimum 50) |
-| `hcd_grant_timeout_hours` | `24` | HCD execution grant lifetime in hours (minimum 1) |
-| `hcd_inactive_days` | `7` | HCD inactivity threshold in days (minimum 1) |
 
 `agents` and `agent_scope` are written by `mem install` to remember your selection. The `context_default_budget`, `context_min_relevance`, `context_max_items` and `context_dedup_disabled` keys are reserved but not read yet: `mem pack build` always takes `--task`/`--max-tokens` explicitly. An invalid `socratica_*` value fails fast with the key and value instead of being replaced by a default.

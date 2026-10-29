@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 5
+const schemaVersion = 6
 
 type schemaExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -244,6 +244,9 @@ func migrate(db *sql.DB) error {
 func migrateSchema(ex schemaExecer) error {
 	if _, err := ex.Exec(hcdSchema); err != nil {
 		return fmt.Errorf("migrate hcd: %w", err)
+	}
+	if err := addHCDNormColumns(ex); err != nil {
+		return err
 	}
 	if _, err := ex.Exec(instinctSchema); err != nil {
 		return fmt.Errorf("migrate instincts: %w", err)

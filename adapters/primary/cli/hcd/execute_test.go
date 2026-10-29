@@ -106,7 +106,7 @@ func TestEngineJSONFlowAndExitCodes(t *testing.T) {
 	if code, r = call(t, deps, "close", "--quote", "apruebo", "--client", "claude"); code != 0 || r.State != "closed" || r.Stage != "closed" {
 		t.Fatalf("close = %d %+v", code, r)
 	}
-	for _, field := range []string{"protocol_version", "ok", "unit_id", "kind", "lane", "state", "stage", "doc_path", "definition_revision", "work_revision", "approved", "fingerprint", "tasks", "pending_checks", "red_missing", "findings", "next_action", "warnings", "data"} {
+	for _, field := range []string{"protocol_version", "ok", "unit_id", "kind", "lane", "state", "stage", "doc_path", "definition_revision", "work_revision", "approved", "constitution_revision", "playbook_revision", "norms_changed", "fingerprint", "tasks", "pending_checks", "red_missing", "findings", "next_action", "warnings", "data"} {
 		var out, errOut bytes.Buffer
 		run(deps, []string{"show", "HCD-001", "--json"}, &out, &errOut)
 		var raw map[string]json.RawMessage

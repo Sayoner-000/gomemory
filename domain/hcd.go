@@ -158,7 +158,11 @@ type Approval struct {
 	Origin      string
 	Client      string
 	Quote       string
-	CreatedAt   time.Time
+	// ConstitutionRev y PlaybookRev son las huellas de las normas vigentes al
+	// aprobar: si cambian después, analyze lo reporta (FR-029).
+	ConstitutionRev string
+	PlaybookRev     string
+	CreatedAt       time.Time
 }
 
 type NextStep struct{ Skill, Command, Why string }

@@ -17,7 +17,7 @@ Sin unidad, cada comando usa la unidad activa del proyecto. Las mutaciones dejan
 | `start` | `--kind` `--lane fast\|full` `--title` `--why` `[--intent]` | sí | Crea la unidad y su documento en `hcd/` y la deja activa. Sin `--why` → `validation`. |
 | `show`, `next` | — | **no** | Paso, tareas, faltantes, rojo pendiente y siguiente skill. |
 | `clarify` | `--ask 'pregunta'` \| `--id Qn --answer 'respuesta'` | sí | Abre o resuelve una aclaración en el documento; la respuesta se guarda como memoria `decision`. |
-| `approve` | `--quote 'cita'` | sí | Solo carril `full` y paso `approve`: aprueba la revisión exacta de la definición. |
+| `approve` | `--quote 'cita'` | sí | Solo carril `full`, en el paso `approve` o con `norms_changed`: aprueba la revisión exacta de la definición con las normas vigentes. |
 | `verify` | `--task N[,M]` `[--expect-fail]` `-- 'comando'` | sí | Ejecuta el comando en la raíz y guarda la evidencia con la revisión de trabajo y la huella. |
 | `verify` | `--task N` `--manual 'observación'` | sí | Evidencia manual, marcada como tal. |
 | `analyze` | — | **no** | Hallazgos de coherencia con severidad `CRITICAL`, `HIGH` o `MEDIUM`. |
@@ -44,6 +44,7 @@ Todo lo que sigue a `--` es el comando de `verify` y se pasa a `sh -c` (`cmd /C`
   "unit_id": "HCD-001", "kind": "feature", "lane": "full", "state": "active",
   "stage": "approve", "doc_path": "hcd/HCD-001-exportar-csv.md",
   "definition_revision": "1a2b3c4d5e6f", "work_revision": "9f8e7d6c5b4a", "approved": false,
+  "constitution_revision": "0c1d2e3f4a5b", "playbook_revision": "6b7c8d9e0f1a", "norms_changed": false,
   "fingerprint": "a811d1e54b31+e3b0c44298fc",
   "tasks": [{"id": "1", "text": "…", "check": "…", "status": "pending|unverified|failed|verified"}],
   "pending_checks": [{"code": "DOC-MISSING", "field": "Intención", "message": "…"}],
@@ -73,4 +74,5 @@ Todo lo que sigue a `--` es el comando de `verify` y se pasa a `sh -c` (`cmd /C`
 - **Evidencia** (FR-014): una tarea está `verified` solo si su evidencia más reciente con la revisión de trabajo y la huella actuales pasó. Una evidencia roja nunca verifica.
 - **Rojo** (FR-015): en `fix`, la tarea 1 exige un rojo observado sobre una huella distinta de la de su verde; fuera de git, anterior al verde (aviso en `warnings`). En los demás tipos, solo las tareas que ya registraron un intento rojo.
 - **Cierre** (FR-018): paso `close`, cero `CRITICAL` y cita válida. La aprobación guarda revisión de trabajo, huella, origen (`terminal` si `--client terminal`, si no `conversation`), cliente y cita protegida.
+- **Normas** (FR-029): cada aprobación guarda la revisión de la Constitución y del Playbook vigentes. Si cambian tras aprobar la definición, `norms_changed` es `true`, `analyze` lo reporta (`HIGH`; `CRITICAL` en `close`) y `next_action` vuelve a `hcd-approve`.
 - **Huella**: `HEAD` más el contenido de los archivos cambiados y sin rastrear, excluyendo `hcd/`.

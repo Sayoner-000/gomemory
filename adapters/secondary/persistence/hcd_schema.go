@@ -53,6 +53,16 @@ CREATE TABLE IF NOT EXISTS hcd_approvals (
 );
 `
 
+// addHCDNormColumns (v6) guarda en cada aprobación las huellas de la
+// Constitución y del Playbook vigentes. Va siempre por ALTER aditivo para que
+// una base nueva y una migrada desde v5 tengan el mismo catálogo.
+func addHCDNormColumns(ex schemaExecer) error {
+	if err := addColumnIfMissing(ex, "hcd_approvals", "constitution_rev", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
+	}
+	return addColumnIfMissing(ex, "hcd_approvals", "playbook_rev", "TEXT NOT NULL DEFAULT ''")
+}
+
 // hcdV1Tables es el catálogo HCD v1, que solo existió en el schema v4 y nunca
 // se publicó en una release. ADR 0003: única excepción a «nunca DROP».
 var hcdV1Tables = []string{

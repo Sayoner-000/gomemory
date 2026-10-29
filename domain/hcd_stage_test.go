@@ -250,3 +250,38 @@ func TestIsHCDCodePath(t *testing.T) {
 		}
 	}
 }
+
+func TestNormsChangedAfterApproval(t *testing.T) {
+	doc := withTask(withSlice(fill(render(t, KindFeature, LaneFull), LaneFull)))
+	s := stateOf(t, doc, KindFeature, LaneFull)
+	s.ConstitutionRev, s.PlaybookRev = "c1", "p1"
+	a := approve(s)
+	a.ConstitutionRev, a.PlaybookRev = "c1", "p1"
+	s.Approvals = []Approval{a}
+	if s.NormsChanged() || codes(s.Analyze())["NORMS-CHANGED:c1/p1"] != "" {
+		t.Fatal("unchanged norms reported as changed")
+	}
+	s.ConstitutionRev = "c2"
+	if !s.NormsChanged() || codes(s.Analyze())["NORMS-CHANGED:c2/p1"] != SeverityHigh {
+		t.Fatalf("changed constitution must be HIGH while working: %v", codes(s.Analyze()))
+	}
+	// Al cerrar pasa a CRITICAL y la siguiente skill vuelve a aprobar.
+	s.Doc.Tasks[0].Done = true
+	s.Evidence = []Evidence{green(s, "f1", t0, "1")}
+	if s.Stage() != StageClose || codes(s.Analyze())["NORMS-CHANGED:c2/p1"] != SeverityCritical || s.NextAction().Skill != "hcd-approve" {
+		t.Fatalf("close with changed norms: %s %v %+v", s.Stage(), codes(s.Analyze()), s.NextAction())
+	}
+	// Reaprobar con las normas nuevas lo resuelve.
+	re := approve(s)
+	re.ConstitutionRev, re.PlaybookRev = "c2", "p1"
+	s.Approvals = append(s.Approvals, re)
+	if s.NormsChanged() || HasCritical(s.Analyze()) {
+		t.Fatalf("re-approval did not clear the change: %v", codes(s.Analyze()))
+	}
+	// La Vía rápida no aprueba definición: no aplica.
+	f := stateOf(t, withTask(fill(render(t, KindFeature, LaneFast), LaneFast)), KindFeature, LaneFast)
+	f.ConstitutionRev = "c9"
+	if f.NormsChanged() {
+		t.Fatal("fast lane has no definition approval to compare")
+	}
+}

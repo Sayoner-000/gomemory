@@ -1,107 +1,45 @@
-# Contrato: formato parseable de artefactos HCD
+# Contrato: documento de la unidad HCD (v2)
 
-**Cubre**: FR-015, FR-020, FR-021, FR-052, FR-053; research R5.
+**Cubre**: FR-005 a FR-012, FR-016. **v1**: `git show a0503b0:specs/045-hcd-protocol/contracts/artifact-format.md`. **Implementación**: `domain/hcd_doc.go` (`ParseUnitDoc`), plantilla `infrastructure/templates/hcd/unit/unit.md`.
 
 ## Reglas generales
 
-- Markdown UTF-8 con finales de línea LF.
-- Un elemento empieza con un encabezado que lleva su ID seguido de punto: `## US1.`, `### C-01.`, `## VS-01.`, `### T-001.`.
-- Justo debajo van líneas `Clave: valor`. Una clave admite una lista separada por comas (`Historias: US1, US2`).
-- Las subsecciones `#### Nombre` son texto libre y pertenecen al elemento.
-- Una clave desconocida produce un aviso; una clave obligatoria ausente produce un `pending_check`.
-- Las revisiones son SHA-256 del contenido normalizado (LF, sin espacio al final de línea), abreviado a 12 hexadecimales.
+- Un archivo por unidad: `hcd/HCD-NNN-<slug>.md`, Markdown UTF-8.
+- Antes de la primera sección van `# Título` y las líneas `ID:`, `Tipo:`, `Carril:` y `Motivo:`.
+- Cada sección empieza con `## Nombre`. Los comentarios HTML (`<!-- … -->`) se ignoran.
+- Un valor vacío, `pendiente`, `[pendiente]`, `TODO` o `…` cuenta como faltante (`pending_checks`).
+- `[NEEDS CLARIFICATION: …]` en una sección obligatoria cuenta como aclaración abierta, no como faltante.
 
-## `definition.md`
+## Secciones
 
-```markdown
-# {Título}
+| Sección | Carril | Sintaxis | Faltante si… |
+|---|---|---|---|
+| `## Intención` | ambos | texto | vacía |
+| `## Reproducción` | ambos, solo `fix` | comando o pasos que hoy fallan | vacía |
+| `## Alcance` | ambos | `Incluido: …` y `Excluido: …` | falta cualquiera de las dos |
+| `## ¿Qué pasa si no lo hacemos?` | ambos | texto | vacía |
+| `## Alternativa más barata` | ambos | texto | vacía |
+| `## Historias` | `full` | `### USn. título`, una línea «Como…, quiero…, para…» y `- C-NN: Dado…, cuando…, entonces…` | sin historias, historia sin texto o sin criterios, criterio vacío |
+| `## Aclaraciones` | ambos | `- [ ] Qn. pregunta` (abierta) · `- [x] Qn. pregunta → respuesta` | — (las abiertas llevan al paso `clarify`) |
+| `## Slices` | `full` | `### VS-NN. comportamiento`, `Tareas: 1, 2`, `Criterios: C-01` | — (sin slices, paso `slice`) |
+| `## Checklist` | ambos | `- [ ] N. tarea → comprobación` (también `->`) | línea con otro formato o sin comprobación |
+| `## Evidencia` | ambos | la escribe `mem hcd verify`; lo escrito a mano no cuenta | — |
+| `## Siguiente` | ambos | texto libre | — |
 
-ID: HCD-001
-Tipo: fix
-Enfoque: hcd
-Implementador: {persona}
-Playbook: {revisión}
+Un `fix` nace con la tarea `- [ ] 1. La reproducción ya no falla → re-ejecutar la reproducción`.
 
-## Intención
-Problema: …
-Actor: …
-Resultado esperado: …
+## Revisiones
 
-## Alcance
-Incluido: …
-Excluido: …
-Restricciones: …
+Las dos son `ContentRevision` (SHA-256 abreviado a 12 hexadecimales) de las secciones citadas, sin comentarios ni espacios finales:
 
-## Particular del tipo
-Fallo observado: …                 # fix
-Reproducción: …                    # fix
-Causa raíz: pendiente | …          # fix
+- **Definición**: Intención, Reproducción, Alcance, Historias y Aclaraciones. Es la que aprueba `approve`.
+- **Trabajo**: la definición más Slices y Checklist, con las casillas `[x]` del checklist normalizadas a `[ ]`. Es la que usan la evidencia y el cierre.
 
-## US1. {Título de la historia}
-Actor: …
-Texto: Como …, quiero …, para …
+Evidencia y Siguiente no forman parte de ninguna revisión, para que el motor pueda reescribirlas sin caducar lo que acaba de registrar.
 
-### C-01. {Condición}
-Historias: US1
-Verificación: automated
-Condición: Dado …, cuando …, entonces …
+## Escrituras del motor
 
-## Decisiones pendientes
-- …
-
-## Referencias
-- …
-```
-
-**Marcadores de pendiente** (FR-016a): un valor `pendiente`, `[pendiente]`, `TODO` o `[NEEDS CLARIFICATION: …]` (sin distinguir mayúsculas) cuenta como vacío. `validate` lo informa como `pending_check` `DEF-PENDING` con el campo afectado. La única excepción es `Causa raíz: pendiente` en una unidad `fix`, que es válida hasta el cierre.
-
-**Obligatorios para `validate`** (FR-015): ID, Tipo, Título, Implementador, Problema, Actor, Resultado esperado, Incluido, Excluido, Restricciones, al menos una historia, al menos un criterio por historia, Verificación de cada criterio, Playbook y los campos particulares del tipo (FR-014).
-
-## `delivery.md`
-
-```markdown
-# Entrega HCD-001
-
-## VS-01. {Comportamiento entregable}
-Historias: US1
-Criterios: C-01
-Dependencias: ninguna
-#### Comportamiento observable
-#### Límites
-#### Impacto arquitectónico conocido
-#### Verificación esperada
-#### Incertidumbres
-
-### T-001. Rechazar una tarea con referencias inexistentes
-Slice: VS-01
-Historias: US1
-Criterios: C-01
-Tipo: implementation
-Dependencias: ninguna
-Reglas: HCD-TRACE-01
-Resultado: …
-Alcance: …
-Excluido: …
-Verificación: …
-Evidencia esperada: …
-```
-
-Los estados **no** se escriben en `delivery.md`: viven en el estado de control y se muestran en `verification.md`. Así una edición manual no puede marcar trabajo como verificado.
-
-## Evidencia (`report --file`)
-
-```markdown
-Cubre: T-001, C-01
-Resultado: pass
-Procedimiento: go test ./domain -run TestHCDAtomicity
-Entorno: darwin/arm64, go1.x
-Sujeto: commit abc1234 | tree:9f8e7d6c5b4a (archivos: …)
-Inspeccionable: salida adjunta abajo
-Ejecutor: claude
----
-{salida}
-```
-
-## `verification.md` (generado)
-
-Cabecera `<!-- GENERADO por mem hcd verify; no editar -->`, resultado global PASS, FAIL o BLOCKED, secciones Protocolo, Trazabilidad, Criterios, Evidencias (vigentes y desactualizadas), Aprobaciones (origen y cita), Excepciones, Bloqueos y Acción requerida. Si alguien la edita, la edición se descarta en la siguiente regeneración y el motor la avisa.
+- `clarify` añade o resuelve líneas `Qn` en Aclaraciones.
+- `verify` marca `[x]` las tareas que pasaron y reescribe Evidencia, con cada salida sangrada para que nunca abra una sección.
+- `close` y `cancel` reescriben Siguiente.
+- `promote` añade Historias y Slices si faltan.

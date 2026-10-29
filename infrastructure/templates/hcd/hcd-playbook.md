@@ -2,168 +2,138 @@
 
 ## 1. Propósito
 
-Este Playbook fija el protocolo HCD de GoMemory para conducir una unidad desde la intención hasta la entrega verificada. Las skills acompañan al Implementador y delegan cada transición al motor `mem hcd`; el motor conserva el estado de control y aplica sus invariantes.
+Este Playbook fija cómo se recorre la ceremonia HCD de GoMemory, desde la intención hasta la entrega verificada y cerrada con la aprobación del Implementador. Las skills acompañan cada paso; el motor `mem hcd` deriva el paso, aplica los gates y es el único que registra aclaraciones, aprobaciones, evidencia y cierres. El Playbook remite a la Constitución y no puede relajarla.
 
 ## 2. Principios HCD y terminología
 
 1. Intención antes que solución: definir el resultado antes del diseño técnico.
-2. Comportamiento verificable: cada historia tiene criterios observables.
-3. Entrega incremental: preparar el siguiente slice sin diseñar toda la unidad.
-4. Atomicidad antes de ejecutar: no iniciar tareas ambiguas ni agrupar resultados independientes.
-5. Pruebas desde los criterios: definir la verificación antes de implementar.
-6. Evidencia para verificar: un cambio de código por sí solo no demuestra cumplimiento.
-7. Memoria con procedencia: cada decisión persistida identifica ámbito y origen.
-8. Alcance explícito: no añadir capacidades por conveniencia técnica.
-9. Bloqueo localizado: detener solo el trabajo afectado por incertidumbre.
-10. Un solo enfoque activo: no ejecutar HCD y Spec Kit simultáneamente sobre una unidad.
-11. Proporcionalidad: cada paso obligatorio aclara, decide, limita o verifica.
-12. Continuidad: retomar no repite acciones ya ejecutadas.
+2. Comportamiento verificable: cada historia tiene criterios observables y cada tarea dice qué la demuestra.
+3. La casilla no es la prueba: solo cuenta la comprobación observada por el motor.
+4. Fricción proporcional al riesgo: la Vía rápida para lo ordinario, la ceremonia completa donde el fallo es caro.
+5. El tamaño no elige el carril: lo elige la ambigüedad o el riesgo de decisiones interdependientes.
+6. Entrega incremental: preparar el siguiente slice sin diseñar toda la unidad.
+7. Atomicidad antes de ejecutar: no iniciar tareas ambiguas ni agrupar resultados independientes.
+8. Promover, no reiniciar: lo hecho en la Vía rápida pasa entero a la ceremonia completa.
+9. Memoria con procedencia: cada decisión persistida identifica unidad y origen.
+10. Alcance explícito: no añadir capacidades por conveniencia técnica.
 
-Unidad de trabajo: feature, evolución, corrección o mejora técnica. Enfoque: protocolo activo (`hcd`, `speckit` o `unclassified`). Playbook: estas reglas fijadas y versionadas. Core HCD: modelo y reglas de definición, decisiones, trazabilidad, estados y verificación. Harness HCD: componente que conduce el protocolo y aplica controles. Adaptador: skill, TUI o CLI que usa el mismo core. Vertical slice: incremento comprobable que atraviesa las capas necesarias. Tarea atómica: acción acotada con resultado y verificación concretos. Evidencia: registro reproducible o inspeccionable. Aprobación: decisión explícita del Implementador sobre un objeto y revisión determinados.
+Unidad de trabajo: feature, evolución, corrección o mejora técnica. Carril: `full` (ceremonia completa: `define → clarify → approve → slice → tasks → implement → verify → close`) o `fast` (Vía rápida, sin `approve` ni `slice`). Documento de la unidad: `hcd/HCD-NNN-<slug>.md`, único artefacto. Vertical slice: incremento comprobable que atraviesa las capas necesarias. Tarea atómica: acción acotada con resultado y comprobación concretos. Evidencia: comprobación ejecutada por el motor, o una observación manual declarada como tal. Aprobación: decisión explícita del Implementador sobre una revisión determinada.
 
-## 3. Ceremonia de especificación y selección de enfoque
+## 3. Carril y ceremonia
 
-### HCD-FLOW-01. Selección única de enfoque
-Descripción: Cada unidad comienza con una selección explícita de HCD o Spec Kit; una unidad no usa ambos enfoques simultáneamente.
-Ámbito: creación y clasificación de unidades.
-Comprobación: review
-Evidencia: enfoque registrado en el estado de control y artefactos de la unidad.
-Excepción: no admite excepción por unidad.
-Origen: FR-001–FR-006
+### HCD-FLOW-01. Elegir el carril por riesgo, no por tamaño
+Descripción: Cada unidad declara su carril y el motivo. La ceremonia completa se elige por decisiones abiertas que se afectan entre sí, riesgo alto o petición del Implementador; el tamaño no cuenta. Una unidad rápida que descubre ambigüedad se promueve sin reiniciar.
+Ámbito: `mem hcd start` y `mem hcd promote`.
+Comprobación: structural
+Evidencia: carril y motivo en `hcd_units` y en la memoria `decision` del carril.
+Excepción: ninguna.
+Origen: FR-001, FR-002, FR-020
 
 ### HCD-FLOW-02. Aclarar antes de inferir
-Descripción: Las ambigüedades que afectan alcance, comportamiento o aprobación se convierten en preguntas explícitas para el Implementador.
-Ámbito: definición, tareas y decisiones.
-Comprobación: review
-Evidencia: aclaración registrada con pregunta, respuesta y decisión relacionada.
-Excepción: no admite excepción si la ambigüedad bloquea el resultado.
-Origen: FR-016a
+Descripción: Las ambigüedades que afectan alcance, comportamiento, datos, seguridad o contrato se convierten en aclaraciones (`- [ ] Qn.` o `[NEEDS CLARIFICATION: …]`) y se resuelven con el Implementador, una pregunta a la vez.
+Ámbito: definición, slices y tareas.
+Comprobación: structural
+Evidencia: aclaración resuelta en el documento y memoria `decision` con la respuesta.
+Excepción: no admite avance mientras haya aclaraciones abiertas.
+Origen: FR-010
 
 ### HCD-FLOW-03. Aprobación citada
-Descripción: Una aprobación identifica el objeto y revisión mostrados y conserva la respuesta citada, el origen, el entorno y la fecha. La garantía es auditable y se basa en la confianza en el agente.
-Ámbito: toda acción que requiere aprobación del Implementador.
+Descripción: Una aprobación liga la respuesta literal del Implementador a una revisión exacta: la de la definición en `approve` y la de trabajo en `close`. Registra origen, cliente, fecha y las normas vigentes. La garantía es auditable y se basa en la confianza en el agente.
+Ámbito: `approve`, `close` y `cancel`.
 Comprobación: structural
-Evidencia: registro de aprobación asociado al objeto y a su revisión.
+Evidencia: registro en `hcd_approvals`.
 Excepción: no admite aprobación sin cita.
-Origen: FR-017–FR-017b
+Origen: FR-011, FR-018, FR-019
+
+Riesgo residual: el registro demuestra qué texto recibió el motor, pero no prueba que lo haya escrito una persona y no un agente.
 
 ## 4. Unidades de trabajo y sus tipos
 
-### HCD-DEF-01. Tipo y campos particulares
-Descripción: Cada unidad declara uno de los tipos `feature`, `evolution`, `fix` o `technical` y completa los campos particulares definidos para ese tipo.
-Ámbito: `definition.md`.
+### HCD-DEF-01. Tipo y secciones obligatorias
+Descripción: Cada unidad declara `feature`, `evolution`, `fix` o `technical` y completa Intención, Alcance, «¿Qué pasa si no lo hacemos?» y «Alternativa más barata». Un `fix` añade Reproducción y nace con la tarea «La reproducción ya no falla».
+Ámbito: documento de la unidad.
 Comprobación: structural
-Evidencia: resultado de `validate` con tipo y campos comprobados.
-Excepción: causa raíz pendiente solo se admite temporalmente en una unidad `fix`.
-Origen: FR-014
+Evidencia: `pending_checks` vacío en `mem hcd show`.
+Excepción: ninguna.
+Origen: FR-003, FR-005, FR-007
 
 ## 5. Historias y criterios
 
 ### HCD-TRACE-01. Criterios verificables
-Descripción: Cada historia incluye uno o más criterios observables y cada criterio declara una forma de verificación.
-Ámbito: definición y trazabilidad.
+Descripción: En la ceremonia completa, cada historia incluye uno o más criterios observables («Dado…, cuando…, entonces…»).
+Ámbito: sección Historias.
 Comprobación: structural
-Evidencia: enlaces de historia a criterio y criterio a verificación.
+Evidencia: `pending_checks` y `analyze` sin historias sin criterio.
 Excepción: no admite excepción para aprobar una definición.
+Origen: FR-006, FR-017
+
+## 6. Vertical slicing
+
+### HCD-SLICE-01. Slice observable y trazable
+Descripción: Cada slice entrega un comportamiento observable y cita sus tareas y criterios. Entre todos cubren todos los criterios.
+Ámbito: sección Slices (ceremonia completa).
+Comprobación: structural
+Evidencia: `analyze` sin criterios sin cubrir, tareas huérfanas ni referencias inexistentes.
+Excepción: agrupaciones horizontales solo como habilitantes que digan qué desbloquean.
+Origen: FR-012, FR-017
+
+## 7. Tareas atómicas
+
+### HCD-TASK-01. Tareas atómicas con comprobación
+Descripción: Una tarea tiene verbo y objeto concretos, un resultado inspeccionable y la comprobación que la demuestra (`- [ ] N. tarea → comprobación`).
+Ámbito: sección Checklist.
+Comprobación: structural
+Evidencia: `pending_checks` sin `CHECK-MISSING`.
+Excepción: ninguna.
+Origen: FR-007
+
+## 8. Pruebas, evidencia y vigencia
+
+### HCD-EVIDENCE-01. Evidencia vigente
+Descripción: Una tarea solo está verificada con evidencia del motor cuya revisión de trabajo y huella del código coinciden con las actuales. La evidencia caducada se conserva y no cuenta.
+Ámbito: `mem hcd verify` y cierre.
+Comprobación: structural
+Evidencia: bloque Evidencia del documento y `hcd_evidence`.
+Excepción: la evidencia manual se admite, marcada como tal y reportada por `analyze`.
+Origen: FR-013, FR-014, FR-016
+
+### HCD-TDD-01. Rojo antes del verde
+Descripción: En un `fix`, la comprobación de la tarea 1 se ejecuta con `--expect-fail` sobre el código sin el cambio y debe fallar; el verde llega después sobre el código corregido. En los demás tipos, toda tarea con un intento rojo debe tener un rojo real.
+Ámbito: `hcd-implement` y `hcd-verify`.
+Comprobación: structural
+Evidencia: `red_missing` vacío al cerrar.
+Excepción: fuera de git el rojo se acepta por orden, con aviso.
 Origen: FR-015
 
-## 6. Aclaración
+## 9. Análisis y cierre
 
-### HCD-CLARIFY-01. Registrar aclaraciones bloqueantes
-Descripción: Una ambigüedad bloqueante se registra como aclaración abierta; validar o aprobar el objeto afectado se bloquea hasta responderla.
-Ámbito: definiciones y tareas.
+### HCD-CLOSE-01. Cierre sin hallazgos críticos
+Descripción: Solo se cierra en el paso `close`, sin hallazgos `CRITICAL` de `analyze` y con la aprobación citada sobre la revisión de trabajo.
+Ámbito: `mem hcd analyze` y `mem hcd close`.
 Comprobación: structural
-Evidencia: aclaración, respuesta y decisión asociada.
-Excepción: no admite avance sobre el objeto bloqueado.
-Origen: FR-016a
+Evidencia: aprobación `close` en `hcd_approvals` y memoria `decision` del cierre.
+Excepción: cancelar requiere una cita con el motivo.
+Origen: FR-017, FR-018, FR-019
 
-## 7. Aprobación citada
+## 10. Reglas para agentes
 
-### HCD-APPROVAL-01. Registrar origen y cita
-Descripción: El motor registra si la aprobación vino de conversación o terminal, junto con la cita literal, cliente, fecha y revisión.
-Ámbito: aprobaciones de definición, excepción, cierre, cancelación, clasificación, adopción y migración.
-Comprobación: structural
-Evidencia: registro de aprobación visible en `verification.md`.
-Excepción: no admite aprobación sin respuesta citada.
-Origen: FR-017a–FR-017c
-
-Riesgo residual: el registro demuestra qué texto recibió el motor, pero no prueba que una persona y no un agente lo haya producido. La garantía depende de la confianza en el agente y deja evidencia auditable.
-
-## 8. Vertical slicing
-
-### HCD-SLICE-01. Slice observable
-Descripción: Cada slice declara comportamiento observable, historias y criterios, límites, impacto arquitectónico conocido, verificación esperada, incertidumbres y dependencias.
-Ámbito: `delivery.md` y planificación incremental.
-Comprobación: structural
-Evidencia: slice enlazado con criterios y tareas.
-Excepción: agrupaciones horizontales solo pueden ser habilitantes y justificar qué desbloquean.
-Origen: FR-020
-
-## 9. Tareas atómicas y trazabilidad
-
-### HCD-TASK-01. Admitir solo tareas atómicas enlazadas
-Descripción: Una tarea tiene verbo y objeto concretos, un resultado inspeccionable, verificación, alcance, exclusiones, dependencias resueltas, slice, justificación y reglas aplicables.
-Ámbito: admisión e inicio de tareas.
-Comprobación: structural
-Evidencia: resultado de `check` y enlaces historia → criterio → slice → tarea.
-Excepción: una tarea habilitante debe declarar qué slice u obligación desbloquea y cómo se verifica.
-Origen: FR-021–FR-024, FR-036
-
-### HCD-TRACE-02. Mantener trazabilidad navegable
-Descripción: El estado de control enlaza historias, criterios, slices, tareas, controles, evidencias y decisiones sin duplicar estados en Markdown.
-Ámbito: todo el ciclo de vida.
-Comprobación: structural
-Evidencia: recorrido del grafo HCD y `verification.md` generado.
-Excepción: ninguna.
-Origen: FR-022–FR-024
-
-## 10. Pruebas, evidencia y vigencia
-
-### HCD-EVIDENCE-01. Verificación con evidencia vigente
-Descripción: Cada criterio se asocia a una prueba o control y el motor invalida evidencia cuando cambian sus revisiones de entrada.
-Ámbito: ejecución, reporte y verificación.
-Comprobación: structural
-Evidencia: procedimiento reproducible, entorno, sujeto y resultado inspeccionable.
-Excepción: evidencia obsoleta se conserva, pero no cuenta para PASS ni cierre.
-Origen: FR-029–FR-032
-
-### HCD-MEM-01. Cierre con memoria no disponible
-Descripción: La sesión solo se cierra si la memoria requerida está disponible y sincronizada; ante fallo se conserva el artefacto y la sincronización queda pendiente.
-Ámbito: cierre de sesión y sincronización de decisiones.
-Comprobación: structural
-Evidencia: estado de sincronización y reintento idempotente registrado.
-Excepción: solo mediante una excepción HCD aprobada y vigente, con alcance y revisión explícitos.
-Origen: FR-038–FR-043
-
-## 11. Verificación y cierre
-
-### HCD-CLOSE-01. Cierre desde verificación reproducible
-Descripción: El estado global se calcula desde criterios, controles y evidencias vigentes; no se deriva de marcas manuales en `delivery.md`.
-Ámbito: `verify`, `status` y cierre.
-Comprobación: structural
-Evidencia: `verification.md` generado con resultado, trazabilidad y acción requerida.
-Excepción: cierre rechazado o cancelado requiere una aprobación citada cuando corresponda.
-Origen: FR-033–FR-035
-
-## 12. Reglas para agentes
-
-### HCD-AGENT-01. Las skills delegan mutaciones al motor
-Descripción: Las skills explican, solicitan aprobación cuando aplica y presentan respuestas; cada mutación se ejecuta exclusivamente mediante `mem hcd … --json` (o `./mem` si corresponde). Si el motor rechaza, no se edita el estado para compensarlo.
+### HCD-AGENT-01. Las skills delegan en el motor
+Descripción: Las skills redactan el documento y conversan; cada aclaración, aprobación, evidencia y cierre pasa por `mem hcd … --json` (o `./mem`). Si el motor rechaza, no se edita el estado para compensarlo.
 Ámbito: Claude Code, Codex, OpenCode, TUI y CLI.
 Comprobación: structural
 Evidencia: pruebas de contrato de las skills y del motor.
 Excepción: ninguna.
-Origen: `contracts/skills.md` §2
+Origen: FR-023, FR-024, `contracts/skills.md` §2
 
-## 13. Memoria, unidad activa y heartbeat
-
-### HCD-MEM-02. Unidad activa interna
-Descripción: La unidad activa vive en el estado de control HCD y nunca en archivos de contexto del agente ni en marcadores `SPECKIT`.
-Ámbito: arranque, reanudación y fin de turno.
+### HCD-AGENT-02. Unidad activa interna
+Descripción: La unidad activa vive en `hcd_units` y nunca en archivos de contexto del agente ni en marcadores `SPECKIT`. En Claude Code, editar código sin unidad activa avisa una vez por sesión, sin bloquear.
+Ámbito: arranque, reanudación y edición.
 Comprobación: structural
-Evidencia: `hcd_focus` y heartbeat por entorno.
+Evidencia: sección «HCD activo» del contexto y aviso del hook `expand pre-tool`.
 Excepción: ninguna.
-Origen: FR-041–FR-043
+Origen: FR-021, FR-025, FR-026
+
+## 11. Diseño
 
 ### HCD-CLEAN-01. Dependencias hacia el dominio
 Descripción: Las dependencias de código apuntan hacia el dominio, preservando sus reglas frente a detalles externos.
@@ -244,38 +214,20 @@ Origen: Playbook; remite a §3
 | §3 | HCD-CLEAN-01–04, HCD-SOLID-* | Capas y límites | Guarda estructural y revisión técnica |
 | §5 | HCD-EVIDENCE-01 | Persistencia y transacciones | Pruebas de contrato e integración |
 | §6 | HCD-EVIDENCE-01 | Migraciones | Prueba de migración aditiva |
-| §10 | HCD-EVIDENCE-01 | Pruebas y cobertura | Evidencia reproducible |
+| §10 | HCD-EVIDENCE-01, HCD-TDD-01 | Pruebas y cobertura | Evidencia vigente y rojo observado |
 | §16 | HCD-TRACE-01 | Cambios y commits | Revisión de entrega |
+| §18 | HCD-DEF-01 | Artefactos por enfoque | Documento único `hcd/HCD-NNN-<slug>.md` |
 | §20 | HCD-AGENT-01 | Dependencias y secretos | Revisión de alcance y pruebas |
-| §21 | HCD-TASK-01, HCD-TRACE-02 | Ciclo de vida | Contrato del motor y trazabilidad |
-| §23 | HCD-CLOSE-01 | Excepciones | Registro aprobado y vigente |
+| §21 | HCD-TASK-01, HCD-SLICE-01 | Ciclo de vida | Contrato del motor y `analyze` |
 
 La tabla remite a las secciones vigentes de la Constitución; no las reproduce ni las sustituye.
 
-## 14. Migración desde Spec Kit
+## 12. Precedencia normativa
 
-### HCD-MIGRATE-01. Migración explícita y no inferencial
-Descripción: La propuesta de migración clasifica cada elemento y no convierte inferencias ni tareas terminadas de Spec Kit en decisiones o verificaciones aprobadas.
-Ámbito: vista previa y activación de migración.
+### HCD-GOV-01. Precedencia y cambio de normas
+Descripción: Se respeta la precedencia de seguridad y cumplimiento, Constitución, Playbook, decisiones de la unidad, definición, slices y tareas. Cada aprobación guarda la revisión de la Constitución y del Playbook vigentes; si cambian tras aprobar la definición, la unidad se revisa con las reglas nuevas y se reaprueba antes de cerrar.
+Ámbito: todas las reglas y unidades.
 Comprobación: structural
-Evidencia: propuesta, clasificación, referencias y aprobación citada de activación.
-Excepción: ninguna.
-Origen: FR-054–FR-056
-
-## 15. Gobierno de excepciones y evolución del Playbook
-
-### HCD-GOV-01. Precedencia normativa
-Descripción: Se respeta la precedencia de seguridad y cumplimiento, Constitución, Playbook y extensiones aprobadas, decisiones de unidad, definición, slices y tareas.
-Ámbito: todas las reglas y excepciones.
-Comprobación: review
-Evidencia: validación del Playbook, registro de excepción y verificación HCD.
+Evidencia: `norms_changed` y el hallazgo `NORMS-CHANGED` de `analyze`.
 Excepción: una regla constitucional solo se exceptúa por el mecanismo de la Constitución.
-Origen: FR-011–FR-013, FR-037
-
-### HCD-GOV-02. Adopción explícita de revisiones
-Descripción: Cada unidad fija las revisiones normativa de Playbook y Constitución; una revisión nueva solo se adopta tras mostrar diferencias e impacto y registrar motivo, responsable y cita.
-Ámbito: documentos normativos fijados.
-Comprobación: structural
-Evidencia: revisiones conservadas, diff mostrado y adopción por unidad.
-Excepción: ninguna adopción implícita.
-Origen: FR-012
+Origen: FR-029

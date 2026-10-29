@@ -28,6 +28,7 @@
 - Q: ¿Se avisa al editar código sin unidad activa? → A: (D3) Sí, con un aviso no bloqueante del hook, una vez por sesión.
 - Q: ¿HCD aplica TDD? → A: En `fix` es obligatorio observar el rojo: antes del cambio, `verify --expect-fail` registra que la reproducción falla; el cierre exige ese rojo y un verde posterior. En los demás tipos, `--expect-fail` es opcional por tarea.
 - Q: ¿Qué pasa con `hcd-exception`, `hcd-playbook` y `hcd-migrate`? → A: Se retiran como parte de la maquinaria. El Playbook sigue como documento fijado (`mem playbook`).
+- Q: ¿La Constitución que se carga por la TUI aplica a HCD? → A: Sí, de forma transversal (FR-029): regla común en las skills y gate ligero en el motor (huellas de las normas en cada aprobación; cambio tras aprobar → `HIGH`, y `CRITICAL` al cerrar hasta reaprobar).
 - Q: ¿Cómo se trata el schema v4 que el binario de la rama ya aplicó a 85 BD? → A: Schema v5 con una excepción acotada a «solo aditivo»: DROP de las 16 tablas `hcd_*` v1 (nunca publicadas) y creación de las 3 nuevas en la misma transacción. Las memorias no se tocan (ADR 0003).
 
 ### Session 2026-10-27 (vigente de v1)
@@ -202,13 +203,14 @@ Como Implementador, quiero pasar una unidad de la Vía rápida a la ceremonia co
 - **FR-025**: En Claude Code, el hook pre-edición DEBE avisar, sin bloquear y una vez por sesión, cuando se edita código sin unidad activa. En Codex y OpenCode la regla viaja en la skill `hcd`.
 - **FR-026**: HCD NO DEBE escribir fuera de `hcd/` ni en archivos de contexto del agente, y NO DEBE guardar secretos.
 - **FR-027**: Spec Kit, sus skills y `adapters/secondary/speckit` NO DEBEN modificarse.
-- **FR-028**: El esquema DEBE pasar a v5: desde v4 se eliminan las 16 tablas `hcd_*` v1 y se crean `hcd_units`, `hcd_evidence` y `hcd_approvals` en la misma transacción, sin tocar otras tablas.
+- **FR-028**: El esquema DEBE pasar a v6: desde v4 se eliminan las 16 tablas `hcd_*` v1 y se crean `hcd_units`, `hcd_evidence` y `hcd_approvals` en la misma transacción, sin tocar otras tablas; la v6 añade a `hcd_approvals` las huellas de la Constitución y del Playbook (FR-029).
+- **FR-029**: La Constitución y el Playbook DEBEN aplicar de forma transversal: cada skill los lee antes de definir, aprobar, implementar y cerrar; cada aprobación guarda las huellas de sus versiones vigentes; si cambian después de aprobar la definición (carril `full`), `analyze` lo reporta como `HIGH` mientras se trabaja y `CRITICAL` en el paso `close`, y volver a aprobar la definición con las normas nuevas lo resuelve.
 
 ### Key Entities
 
 - **Unidad** (`hcd_units`): id, número, título, slug, tipo, carril, motivo, estado (`active`, `closed`, `cancelled`), activa, ruta del documento.
 - **Evidencia** (`hcd_evidence`): unidad, tareas, tipo, rojo esperado, comando u observación, código de salida, extracto, revisión de trabajo, huella, fecha.
-- **Aprobación** (`hcd_approvals`): unidad, acción (`approve`, `close`, `cancel`), revisión, huella, origen, cliente, cita protegida, fecha.
+- **Aprobación** (`hcd_approvals`): unidad, acción (`approve`, `close`, `cancel`), revisión, huella, origen, cliente, cita protegida, huellas de la Constitución y del Playbook, fecha.
 
 ## Success Criteria *(mandatory)*
 
@@ -224,6 +226,7 @@ Como Implementador, quiero pasar una unidad de la Vía rápida a la ceremonia co
 - **SC-008**: Una BD v4 con el catálogo v1 migra a v5 conservando el 100 % de las memorias.
 - **SC-009**: Spec Kit queda con cero bytes modificados y ningún archivo fuera de `hcd/` cambia por causa de HCD.
 - **SC-010**: El código de producción HCD se mide antes y después y se publica en el CHANGELOG.
+- **SC-011**: Cambiar la Constitución o el Playbook después de aprobar la definición bloquea el cierre en el 100 % de los casos probados hasta reaprobarla.
 
 ## Assumptions
 

@@ -15,8 +15,9 @@ description: Paso implement de HCD: implementa las tareas con TDD, observando el
 6. **La casilla no es la prueba.** Una tarea solo está hecha cuando `mem hcd verify` registró su comprobación vigente. Si cambias código después, la evidencia caduca y hay que volver a verificar.
 7. **Siguiente paso.** Termina cada respuesta con el `next_action` del motor: la skill siguiente y por qué.
 8. **Privacidad.** No pongas secretos en el documento, las evidencias ni las citas.
+9. **La Constitución y el Playbook mandan.** Antes de definir, aprobar, implementar y cerrar, lee `mem constitution` y `mem playbook` y cita las secciones que aplican. Si `norms_changed` es `true`, las normas cambiaron desde la aprobación: revisa la definición con las reglas nuevas y vuelve a aprobarla con `/hcd-approve`.
 
-1. Consulta la guía de diseño del proyecto con `mem playbook` (Arquitectura Limpia, SOLID) y `mem constitution`.
+1. Aplica la Constitución y el Playbook (Arquitectura Limpia, SOLID): capas, estilo y pruebas.
 2. **Rojo antes del cambio.** En un `fix` es obligatorio para la tarea 1; en los demás tipos, úsalo en las tareas con un test natural:
    `mem hcd verify --task N --expect-fail --json --client <agente> -- '<comprobación>'`. Debe salir `red_observed: true`; si no, la comprobación no demuestra el fallo y hay que corregirla.
 3. Implementa **una tarea a la vez**, dentro del alcance aprobado. Una ampliación de alcance pasa por `/hcd-clarify`.

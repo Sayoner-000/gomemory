@@ -15,6 +15,7 @@ description: Entrada de HCD: elige el carril (Vía rápida o ceremonia completa)
 6. **La casilla no es la prueba.** Una tarea solo está hecha cuando `mem hcd verify` registró su comprobación vigente. Si cambias código después, la evidencia caduca y hay que volver a verificar.
 7. **Siguiente paso.** Termina cada respuesta con el `next_action` del motor: la skill siguiente y por qué.
 8. **Privacidad.** No pongas secretos en el documento, las evidencias ni las citas.
+9. **La Constitución y el Playbook mandan.** Antes de definir, aprobar, implementar y cerrar, lee `mem constitution` y `mem playbook` y cita las secciones que aplican. Si `norms_changed` es `true`, las normas cambiaron desde la aprobación: revisa la definición con las reglas nuevas y vuelve a aprobarla con `/hcd-approve`.
 
 ## 1. Elige el carril y dilo en una línea
 

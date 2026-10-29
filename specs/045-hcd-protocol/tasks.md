@@ -38,8 +38,8 @@
 
 ## Fase 7: Documentación
 
-- [ ] T017 MANUAL, ARQUITECTURA, DATABASE, CONFIGURATION, README, ADR 0002 y CHANGELOG
-- [ ] T018 §18 de la Constitución: artefacto HCD único (requiere aprobación de la persona)
+- [X] T017 MANUAL, ARQUITECTURA, DATABASE, CONFIGURATION, README, ADR 0002 y CHANGELOG
+- [X] T018 §18 de la Constitución: artefacto HCD único (requiere aprobación de la persona)
 
 ## Fase 8: Verificación real
 

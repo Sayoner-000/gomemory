@@ -327,3 +327,47 @@ func TestHCDCancelNeedsQuote(t *testing.T) {
 		t.Fatalf("mutation on a cancelled unit = %v", err)
 	}
 }
+
+type hcdTopics map[string]string
+
+func (t hcdTopics) ByTopicKey(_, key string) (*domain.Memory, error) {
+	if body, ok := t[key]; ok {
+		return &domain.Memory{Content: body}, nil
+	}
+	return nil, nil
+}
+
+// FR-029: cambiar la Constitución tras aprobar se reporta y bloquea el cierre
+// hasta reaprobar la definición con las reglas nuevas.
+func TestHCDConstitutionChangeRequiresReapproval(t *testing.T) {
+	env, ctx := newHCDEnv(t), context.Background()
+	topics := hcdTopics{domain.TopicConstitution: "Constitución v1"}
+	env.uc.ConfigureNorms(topics, "p", "plantilla constitución", "plantilla playbook")
+	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "full", Title: "Normas", Why: "riesgo alto", Intent: "i"})
+	editDoc(t, env, view, append(append(commonFill, storyFill...), "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → true\n")...)
+	if view.State.ConstitutionRev == "" || view.State.PlaybookRev == "" {
+		t.Fatalf("norm revisions not resolved: %+v", view.State)
+	}
+	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "true"}); err != nil {
+		t.Fatal(err)
+	}
+	topics[domain.TopicConstitution] = "Constitución v2"
+	view = stage(t, env, domain.StageClose, "hcd-approve")
+	if _, err := env.uc.Close(ctx, usecases.HCDCloseInput{Quote: "apruebo"}); !errors.Is(err, domain.ErrNotAllowed) || !strings.Contains(err.Error(), "Constitución") {
+		t.Fatalf("close with changed constitution = %v", err)
+	}
+	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
+		t.Fatalf("re-approval with new norms = %v", err)
+	}
+	stage(t, env, domain.StageClose, "hcd-close")
+	if view, err := env.uc.Close(ctx, usecases.HCDCloseInput{Quote: "apruebo"}); err != nil || view.Unit.State != domain.UnitClosed {
+		t.Fatalf("close after re-approval = %+v %v", view.Unit, err)
+	}
+	// Sin cambio de normas, approve fuera de su paso sigue rechazado.
+	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{ID: view.Unit.ID, Quote: "apruebo"}); !errors.Is(err, domain.ErrNotAllowed) {
+		t.Fatalf("approve on a closed unit = %v", err)
+	}
+}

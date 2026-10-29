@@ -59,12 +59,12 @@ func TestHCDStoreUnitEvidenceApproval(t *testing.T) {
 		t.Fatalf("Evidence = %+v %v", list, err)
 	}
 	for i, action := range []string{domain.ApprovalApprove, domain.ApprovalClose} {
-		if err := s.AddApproval(ctx, domain.Approval{ID: action, UnitID: "HCD-002", Action: action, Revision: "r", Fingerprint: "f", Origin: "conversation", Client: "claude", Quote: "apruebo", CreatedAt: now.Add(time.Duration(i) * time.Second)}); err != nil {
+		if err := s.AddApproval(ctx, domain.Approval{ID: action, UnitID: "HCD-002", Action: action, Revision: "r", Fingerprint: "f", Origin: "conversation", Client: "claude", Quote: "apruebo", ConstitutionRev: "c1", PlaybookRev: "p1", CreatedAt: now.Add(time.Duration(i) * time.Second)}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	approvals, err := s.Approvals(ctx, "HCD-002")
-	if err != nil || len(approvals) != 2 || approvals[0].Action != domain.ApprovalApprove || approvals[1].Quote != "apruebo" {
+	if err != nil || len(approvals) != 2 || approvals[0].Action != domain.ApprovalApprove || approvals[1].Quote != "apruebo" || approvals[0].ConstitutionRev != "c1" || approvals[0].PlaybookRev != "p1" {
 		t.Fatalf("Approvals = %+v %v", approvals, err)
 	}
 	if other, _ := other.Approvals(ctx, "HCD-002"); len(other) != 0 {

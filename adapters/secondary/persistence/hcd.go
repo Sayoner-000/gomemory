@@ -114,13 +114,13 @@ func (s *HCDStore) Evidence(ctx context.Context, unitID string) ([]domain.Eviden
 }
 
 func (s *HCDStore) AddApproval(ctx context.Context, a domain.Approval) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO hcd_approvals(id, project, unit_id, action, revision, fingerprint, origin, client, quote, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
-		a.ID, s.project, a.UnitID, a.Action, a.Revision, a.Fingerprint, a.Origin, a.Client, a.Quote, a.CreatedAt.UTC().Format(hcdTime))
+	_, err := s.db.ExecContext(ctx, `INSERT INTO hcd_approvals(id, project, unit_id, action, revision, fingerprint, origin, client, quote, constitution_rev, playbook_rev, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+		a.ID, s.project, a.UnitID, a.Action, a.Revision, a.Fingerprint, a.Origin, a.Client, a.Quote, a.ConstitutionRev, a.PlaybookRev, a.CreatedAt.UTC().Format(hcdTime))
 	return err
 }
 
 func (s *HCDStore) Approvals(ctx context.Context, unitID string) ([]domain.Approval, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, action, revision, fingerprint, origin, client, quote, created_at FROM hcd_approvals WHERE project = ? AND unit_id = ? ORDER BY created_at, id`, s.project, unitID)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, action, revision, fingerprint, origin, client, quote, constitution_rev, playbook_rev, created_at FROM hcd_approvals WHERE project = ? AND unit_id = ? ORDER BY created_at, id`, s.project, unitID)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (s *HCDStore) Approvals(ctx context.Context, unitID string) ([]domain.Appro
 	for rows.Next() {
 		a := domain.Approval{UnitID: unitID}
 		var created string
-		if err := rows.Scan(&a.ID, &a.Action, &a.Revision, &a.Fingerprint, &a.Origin, &a.Client, &a.Quote, &created); err != nil {
+		if err := rows.Scan(&a.ID, &a.Action, &a.Revision, &a.Fingerprint, &a.Origin, &a.Client, &a.Quote, &a.ConstitutionRev, &a.PlaybookRev, &created); err != nil {
 			return nil, err
 		}
 		a.CreatedAt, _ = time.Parse(hcdTime, created)

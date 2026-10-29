@@ -500,7 +500,7 @@
       <div class="eco-block"><div class="eco-label">Estructura</div><div class="eco-title">Grafos de código</div><div class="eco-ver">codebase-memory-mcp · CodeGraph</div></div>
     </div>
 
-    <p class="cover-tags"><span>specify → plan → tasks → implement</span><span>/hcd → define → approve → verify → close</span><span>/speckit-converge</span><span>Extensiones y hooks</span><span>Workflows con aprobación por fase</span><span>Memoria SQLite local</span><span>CodeGraph</span><span>Context packs</span><span>Revisión adversarial</span><span>Guardarraíles expand</span><span>Socratica</span><span>Constitución en memoria</span><span>MCP stdio</span></p>
+    <p class="cover-tags"><span>specify → plan → tasks → implement</span><span>/hcd → define → clarify → approve → slice → tasks → implement → verify → close</span><span>Vía rápida HCD</span><span>/speckit-converge</span><span>Extensiones y hooks</span><span>Workflows con aprobación por fase</span><span>Memoria SQLite local</span><span>CodeGraph</span><span>Context packs</span><span>Revisión adversarial</span><span>Guardarraíles expand</span><span>Socratica</span><span>Constitución en memoria</span><span>MCP stdio</span></p>
 
     <div class="cover-meta">
       <p><strong>Propósito</strong>Pasar de una idea a código verificable con especificación, plan y tareas atómicas, y que el agente recuerde decisiones entre sesiones</p>
@@ -534,18 +534,18 @@
       <a href="#cap-13"><span class="pool-n" aria-hidden="true">13</span><span class="pool-t">Flujo completo</span><span class="pool-s">De un repo vacío a un feature integrado</span></a>
       <a href="#cap-14"><span class="pool-n" aria-hidden="true">14</span><span class="pool-t">Estructura generada</span><span class="pool-s">Qué crea cada herramienta y qué conviene versionar</span></a>
       <a href="#cap-15"><span class="pool-n" aria-hidden="true">15</span><span class="pool-t">Reglas de campo y tips</span><span class="pool-s">Cuándo no usar SDD y cómo comprobar que un cambio funciona</span></a>
-      <a href="#cap-16"><span class="pool-n" aria-hidden="true">16</span><span class="pool-t">La ceremonia HCD</span><span class="pool-s">De la intención a la entrega verificada con /hcd y las skills hcd-*</span></a>
-      <a href="#cap-17"><span class="pool-n" aria-hidden="true">17</span><span class="pool-t">Convivencia SDD_HCD</span><span class="pool-s">Spec Kit y HCD en el mismo repo: cuál usar y cómo migrar</span></a>
+      <a href="#cap-16"><span class="pool-n" aria-hidden="true">16</span><span class="pool-t">La ceremonia HCD</span><span class="pool-s">Ceremonia completa y Vía rápida con /hcd y las skills hcd-*</span></a>
+      <a href="#cap-17"><span class="pool-n" aria-hidden="true">17</span><span class="pool-t">Convivencia SDD_HCD</span><span class="pool-s">Spec Kit y HCD en el mismo repo: cuál usar y qué normas mandan</span></a>
     </div>
   </nav>
 
   <section class="edition" aria-label="Esta edición">
     <div><h3>Qué cambia en la <span>edición 8</span></h3>
-    <p>La guía pasa a llamarse SDD_HCD: suma HCD, el protocolo propio de gomemory, y explica cómo convive con Spec Kit. El recorrido HCD se comprobó de punta a punta con Claude Code, Codex y OpenCode en proyectos aislados antes de documentarlo.</p></div>
+    <p>La guía pasa a llamarse SDD_HCD: suma HCD, el protocolo propio de gomemory, y explica cómo convive con Spec Kit. El motor HCD se comprobó de punta a punta con el binario compilado, en la Vía rápida y en la ceremonia completa; el recorrido dentro de cada agente está pendiente.</p></div>
     <ul>
-      <li><strong>Ceremonia HCD.</strong> <code>/hcd</code> y doce skills llevan una unidad de la intención al cierre, con aprobación citada y evidencia que caduca si el código cambia. Capítulo 16.</li>
-      <li><strong>Convivencia.</strong> Cuándo usar cada enfoque, la §18 de la constitución 2.2.0 y cómo migrar una feature de <code>specs/</code>. Capítulo 17.</li>
-      <li><strong>Constitución 2.2.0.</strong> La §18 admite los dos enfoques y la §25.2 registra el composition root en <code>infrastructure/container.go</code>.</li>
+      <li><strong>Ceremonia HCD.</strong> <code>/hcd</code> y diez skills llevan una unidad de la intención al cierre, por la ceremonia completa o por la Vía rápida, con aprobación citada, rojo antes del verde y evidencia que caduca si el código cambia. Capítulo 16.</li>
+      <li><strong>Convivencia.</strong> Cuándo usar cada enfoque, la §18 de la Constitución y cómo la Constitución y el Playbook se aplican a HCD. Capítulo 17.</li>
+      <li><strong>Constitución.</strong> La §18 admite los dos enfoques, con un documento único por unidad HCD.</li>
       <li><strong>Lo de la edición 7 sigue vigente.</strong> Guardarraíles con <code>mem expand</code>, Socratica con <code>/socratica-hu</code> y Spec Kit 1.2.</li>
     </ul>
   </section>
@@ -1237,20 +1237,21 @@ claude</pre></div>
 
 <!-- ═══ 16 ═══ -->
 <div class="page" id="cap-16">
-  <div class="chapter" style="--rot:200deg"><div class="chapter-inner"><span class="dropnum">16</span><div><h2>La ceremonia <span>HCD</span></h2><p class="pg-sub">Una unidad de trabajo, de la intención a la entrega verificada, sin escribir comandos de consola.</p></div></div></div>
+  <div class="chapter" style="--rot:200deg"><div class="chapter-inner"><span class="dropnum">16</span><div><h2>La ceremonia <span>HCD</span></h2><p class="pg-sub">Una unidad de trabajo, de la intención a la entrega verificada y cerrada con tu aprobación, sin escribir comandos de consola.</p></div></div></div>
 
-  <p class="lead"><strong>HCD (Harness Continual Development)</strong> es el protocolo propio de gomemory para llevar una unidad de trabajo (una corrección, una feature, una evolución o una mejora técnica) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tú hablas con el agente. El agente sigue las skills <code>hcd-*</code>. Las skills llaman al motor <code>mem hcd</code>, que es quien guarda el estado y decide qué paso toca.</p>
-  <p>La diferencia con el ciclo SDD del capítulo 9 no es la cantidad de documentos, sino quién lleva la cuenta. En Spec Kit, el estado vive en los archivos y en la buena fe del agente. En HCD, el estado de control vive en SQLite y el agente no puede marcar nada como hecho: aprobar, ejecutar, verificar y cerrar son operaciones del motor, y cada una deja rastro.</p>
+  <p class="lead"><strong>HCD (Harness Continual Development)</strong> es el protocolo propio de gomemory para llevar una unidad de trabajo (una corrección, una feature, una evolución o una mejora técnica) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tú hablas con el agente. El agente sigue las skills <code>hcd-*</code>. Las skills llaman al motor <code>mem hcd</code>, que deriva el paso y es el único que registra aclaraciones, aprobaciones, evidencia y cierres.</p>
+  <p>La diferencia con el ciclo SDD del capítulo 9 no es la cantidad de documentos, sino quién lleva la cuenta. En Spec Kit, una casilla marcada en <code>tasks.md</code> dice que algo está hecho. En HCD, <strong>la casilla no es la prueba</strong>: una tarea solo cuenta cuando el motor ejecutó su comprobación y pasó, y esa evidencia caduca si cambia el código.</p>
 
   <div class="grid g4">
     <div class="card azure"><div class="card-title">Tú</div><div class="card-body">Describes la intención, respondes las aclaraciones y apruebas con tus palabras. Tu respuesta literal queda como cita.</div></div>
-    <div class="card mint"><div class="card-title">El agente</div><div class="card-body">Sigue las skills <code>hcd-*</code>: redacta, pregunta, implementa y presenta. No inventa estados.</div></div>
-    <div class="card violet"><div class="card-title">El motor</div><div class="card-body"><code>mem hcd</code> valida, concede ejecuciones, registra evidencia y dice el siguiente paso en <code>next_action</code>.</div></div>
-    <div class="card amber"><div class="card-title">Los artefactos</div><div class="card-body"><code>hcd/features/NNN-nombre/</code>: <code>definition.md</code>, <code>delivery.md</code> y <code>verification.md</code> (este último lo genera el motor).</div></div>
+    <div class="card mint"><div class="card-title">El agente</div><div class="card-body">Sigue las skills <code>hcd-*</code>: elige el carril, redacta el documento, pregunta, implementa y presenta. No marca nada como hecho.</div></div>
+    <div class="card violet"><div class="card-title">El motor</div><div class="card-body"><code>mem hcd</code> deriva el paso, ejecuta las comprobaciones, registra la evidencia y dice la siguiente skill en <code>next_action</code>.</div></div>
+    <div class="card amber"><div class="card-title">El documento</div><div class="card-body">Uno por unidad: <code>hcd/HCD-NNN-&lt;slug&gt;.md</code>, con intención, alcance, historias, aclaraciones, slices, tareas y evidencia. Viaja en el PR.</div></div>
   </div>
 
-  <div class="sub"><h4>El recorrido, en orden</h4></div>
-  <div class="flow" role="img" aria-label="hcd, define, clarify si hace falta, approve, slice, tasks, implement, verify, close">
+  <div class="sub"><h4>Dos carriles</h4></div>
+  <p>El agente elige el carril al empezar y lo dice en una línea. La <strong>ceremonia completa</strong> es para decisiones abiertas que se afectan entre sí, riesgo alto o cuando tú la pides. La <strong>Vía rápida</strong> es el mismo protocolo sin <code>approve</code> ni <code>slice</code>, para el trabajo ordinario; su única aprobación es la del cierre. El tamaño nunca elige el carril.</p>
+  <div class="flow" role="img" aria-label="Ceremonia completa: hcd, define, clarify, approve, slice, tasks, implement, verify, close">
     <span class="fl-node hl">/hcd</span><span class="fl-arrow">→</span>
     <span class="fl-node hl">define</span><span class="fl-arrow">→</span>
     <span class="fl-node opt">clarify</span><span class="fl-arrow">→</span>
@@ -1261,48 +1262,57 @@ claude</pre></div>
     <span class="fl-node hl">verify</span><span class="fl-arrow">→</span>
     <span class="fl-node new">close</span>
   </div>
+  <div class="flow" role="img" aria-label="Vía rápida: hcd, define, tasks, implement, verify, close">
+    <span class="fl-node hl">/hcd</span><span class="fl-arrow">→</span>
+    <span class="fl-node hl">define</span><span class="fl-arrow">→</span>
+    <span class="fl-node hl">tasks</span><span class="fl-arrow">→</span>
+    <span class="fl-node hl">implement</span><span class="fl-arrow">→</span>
+    <span class="fl-node hl">verify</span><span class="fl-arrow">→</span>
+    <span class="fl-node new">close</span>
+  </div>
+  <p>Si una unidad de la Vía rápida resulta tener decisiones interdependientes, el agente la promueve (<code>promote</code>): el documento gana Historias y Slices, la evidencia se conserva y la unidad entra en la ceremonia completa.</p>
 
   <ol class="steps">
     <li>
       <h4>Arrancar: <code>/hcd</code></h4>
-      <p class="why">Sin argumentos retoma la unidad activa. Con un pedido nuevo, el agente propone el tipo (<code>fix</code>, <code>feature</code>, <code>evolution</code> o <code>technical</code>) y un título, y espera a que confirmes antes de crear la unidad.</p>
+      <p class="why">Sin argumentos retoma la unidad activa. Con un pedido nuevo, el agente propone el tipo (<code>fix</code>, <code>feature</code>, <code>evolution</code> o <code>technical</code>), el título y el carril, y espera a que confirmes antes de crear la unidad.</p>
       <div class="code"><div class="code-head"><span>en el agente</span><button class="copy" type="button">Copiar</button></div><pre>/hcd inicia una corrección: Resume en store.go entra en pánico con un id inexistente
 <span class="c"># Codex usa $hcd en lugar de /hcd</span></pre></div>
-      <p class="check">el agente propone tipo y título, y la unidad <code>HCD-001</code> aparece en estado <code>draft</code> cuando confirmas.</p>
+      <p class="check">el agente anuncia «Carril: Vía rápida — fix con reproducción clara» y aparece <code>hcd/HCD-001-resume-entra-en-panico.md</code>.</p>
     </li>
     <li>
       <h4>Definir: <code>/hcd-define</code></h4>
-      <p class="why">El agente lee el código real, reproduce el fallo si es un <code>fix</code> y redacta <code>definition.md</code>, que pasa al motor por stdin (<code>--file -</code>) sin crear archivos temporales: problema, actor, resultado esperado, alcance incluido y excluido, historias y criterios. El motor valida y lista lo que falta con <code>DEF-PENDING</code>.</p>
-      <p class="check"><code>validate</code> no devuelve pendientes y la etapa pasa a <code>approval</code>.</p>
+      <p class="why">El agente redacta el documento: intención, alcance incluido y excluido, «¿qué pasa si no lo hacemos?», «alternativa más barata» y, en un <code>fix</code>, la reproducción. En la ceremonia completa añade historias con criterios «Dado…, cuando…, entonces…». El motor lista lo que falta.</p>
+      <p class="check"><code>mem hcd show</code> ya no devuelve <code>pending_checks</code>.</p>
     </li>
     <li>
       <h4>Aclarar cuando haga falta: <code>/hcd-clarify</code></h4>
-      <p class="why">Si algo cambia un contrato, los datos, la seguridad o el alcance, el agente no elige por ti. Hace una pregunta, con dos a cuatro opciones y su recomendación. Una aclaración bloqueante impide aprobar hasta que respondas.</p>
+      <p class="why">Si algo cambia un contrato, los datos, la seguridad o el alcance, el agente no elige por ti. Abre una aclaración (<code>Q1</code>), te hace una pregunta con dos a cuatro opciones y su recomendación, y registra tu respuesta en el documento y en la memoria.</p>
     </li>
     <li>
-      <h4>Aprobar: <code>/hcd-approve</code></h4>
-      <p class="why">El agente te muestra la revisión exacta de la definición (12 caracteres hexadecimales). Tu respuesta se guarda tal cual, con su origen, el cliente y la fecha. Si en el mismo mensaje pides más cosas, el mensaje entero queda como cita: conviene aprobar en un mensaje aparte.</p>
-      <div class="code"><div class="code-head"><span>tu respuesta</span><button class="copy" type="button">Copiar</button></div><pre>apruebo 3633b5f1c2fb</pre></div>
-      <p class="check">la unidad pasa a <code>ready</code>. Si la definición cambia después, la aprobación se anula sola.</p>
+      <h4>Aprobar la definición: <code>/hcd-approve</code> (ceremonia completa)</h4>
+      <p class="why">El agente te muestra la revisión exacta de la definición (12 caracteres hexadecimales) y las secciones de la Constitución y del Playbook que aplican. Tu respuesta se guarda tal cual. Si la definición cambia después, vuelves a este paso; añadir slices o tareas no anula la aprobación.</p>
+      <div class="code"><div class="code-head"><span>tu respuesta</span><button class="copy" type="button">Copiar</button></div><pre>apruebo</pre></div>
     </li>
     <li>
       <h4>Cortar la entrega: <code>/hcd-slice</code> y <code>/hcd-tasks</code></h4>
-      <p class="why">Un slice (<code>VS-01</code>) es el siguiente incremento con comportamiento observable, límites y una verificación prevista. Las tareas (<code>T-001</code>) son atómicas: un verbo, un resultado y un alcance. El motor rechaza con <code>ATOM-*</code> una tarea que apunta a un criterio inexistente o que mezcla resultados.</p>
+      <p class="why">Un slice (<code>VS-01</code>) es el siguiente incremento con comportamiento observable; cita sus tareas y criterios. Las tareas son atómicas y cada una dice qué la demuestra: <code>- [ ] 1. verbo + objeto → comprobación</code>. En la Vía rápida solo hay tareas.</p>
     </li>
     <li>
-      <h4>Implementar: <code>/hcd-implement T-001</code></h4>
-      <p class="why">El agente pide una ejecución (<code>run</code>), hace el cambio, corre la verificación declarada y registra la evidencia (<code>report</code>). El sujeto de la evidencia lo calcula el motor con <code>mem hcd subject</code>, así que nadie tiene que inventarse un hash.</p>
+      <h4>Implementar con TDD: <code>/hcd-implement</code></h4>
+      <p class="why">Antes del cambio, el agente ejecuta la comprobación con <code>--expect-fail</code> y el motor registra que falla: el rojo. En un <code>fix</code> es obligatorio. Después implementa una tarea a la vez, dentro del alcance aprobado.</p>
+      <div class="code"><div class="code-head"><span>lo que ejecuta el agente</span><button class="copy" type="button">Copiar</button></div><pre>mem hcd verify --task 1 --expect-fail --json -- 'go test ./store -run TestResume'</pre></div>
     </li>
     <li>
       <h4>Verificar: <code>/hcd-verify</code></h4>
-      <p class="why">El motor cruza criterios, tareas, evidencia vigente, aprobaciones, bloqueos y excepciones, y genera <code>verification.md</code>. PASS no cierra la unidad.</p>
-      <p class="check">la verificación da PASS y el siguiente paso es <code>hcd-close</code>.</p>
+      <p class="why">El motor ejecuta la comprobación sobre el código corregido, guarda la salida con la revisión y la huella del código, marca la casilla y reescribe la sección Evidencia del documento.</p>
+      <p class="check">la tarea aparece <code>verified</code> y el paso pasa a <code>close</code>.</p>
     </li>
     <li>
-      <h4>Cerrar: <code>/hcd-close</code></h4>
-      <p class="why">Pide tu aceptación del cierre, otra vez con la revisión en la cita. Si entre tu respuesta y el cierre la verificación deja de pasar, el cierre se rechaza y la aceptación queda retirada.</p>
-      <div class="code"><div class="code-head"><span>tu respuesta</span><button class="copy" type="button">Copiar</button></div><pre>cierro HCD-001 3633b5f1c2fb</pre></div>
-      <p class="check">la unidad queda <code>completed</code>, la unidad activa se libera y no aparece ninguna carpeta en <code>specs/</code>.</p>
+      <h4>Analizar y cerrar: <code>/hcd-analyze</code> y <code>/hcd-close</code></h4>
+      <p class="why"><code>analyze</code> no escribe nada: clasifica los hallazgos en <code>CRITICAL</code>, <code>HIGH</code> y <code>MEDIUM</code> (trazabilidad, aprobación, aclaraciones, evidencia y normas). Con algún <code>CRITICAL</code> el cierre se rechaza. El cierre pide tu cita sobre la revisión de trabajo.</p>
+      <div class="code"><div class="code-head"><span>tu respuesta</span><button class="copy" type="button">Copiar</button></div><pre>apruebo</pre></div>
+      <p class="check">la unidad queda <code>closed</code>, la unidad activa se libera y el documento queda listo para el PR.</p>
     </li>
   </ol>
 
@@ -1310,18 +1320,16 @@ claude</pre></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Skill</th><th>Cuándo</th><th>Qué hace con el motor</th></tr></thead>
     <tbody>
-      <tr><td><code>hcd</code></td><td>Siempre al empezar</td><td><code>resume</code> de la unidad activa, o <code>start</code> tras confirmar tipo y título</td></tr>
-      <tr><td><code>hcd-define</code></td><td>Unidad en <code>draft</code></td><td><code>define --file</code> y <code>validate</code></td></tr>
-      <tr><td><code>hcd-clarify</code></td><td>Una ambigüedad que cambia el resultado</td><td><code>clarify</code>: abre la pregunta y registra tu respuesta como decisión</td></tr>
-      <tr><td><code>hcd-approve</code></td><td>Definición validada</td><td><code>approve</code> con tu cita</td></tr>
-      <tr><td><code>hcd-slice</code></td><td>Unidad <code>ready</code></td><td><code>slice --file</code> con encabezados <code>## VS-NN.</code></td></tr>
-      <tr><td><code>hcd-tasks</code></td><td>Slice listo</td><td><code>tasks --slice VS-NN --file</code> y <code>check</code> de cada tarea</td></tr>
-      <tr><td><code>hcd-implement</code></td><td>Tarea admitida</td><td><code>run</code>, <code>subject</code> y <code>report</code></td></tr>
-      <tr><td><code>hcd-verify</code></td><td>Trabajo informado</td><td><code>verify</code></td></tr>
-      <tr><td><code>hcd-close</code></td><td>Verificación PASS</td><td><code>close</code> con tu cita</td></tr>
-      <tr><td><code>hcd-exception</code></td><td>Hay que desviarse de una regla</td><td><code>exception</code> con responsable, controles y vencimiento</td></tr>
-      <tr><td><code>hcd-playbook</code></td><td>Cambió el Playbook HCD</td><td><code>playbook show|validate|adopt</code></td></tr>
-      <tr><td><code>hcd-migrate</code></td><td>Pasar una feature de <code>specs/</code> a HCD</td><td><code>migrate --preview</code> y <code>--activate</code></td></tr>
+      <tr><td><code>hcd</code></td><td>Siempre al empezar</td><td>Elige el carril, <code>start</code> o <code>show</code>, y <code>promote</code> si hace falta</td></tr>
+      <tr><td><code>hcd-define</code></td><td>Paso <code>define</code></td><td>Redacta el documento hasta que <code>show</code> no liste faltantes</td></tr>
+      <tr><td><code>hcd-clarify</code></td><td>Paso <code>clarify</code></td><td><code>clarify --ask</code> y <code>clarify --id Qn --answer</code></td></tr>
+      <tr><td><code>hcd-approve</code></td><td>Paso <code>approve</code> o normas cambiadas</td><td><code>approve</code> con tu cita</td></tr>
+      <tr><td><code>hcd-slice</code></td><td>Paso <code>slice</code></td><td>Escribe los <code>### VS-NN.</code> con sus tareas y criterios</td></tr>
+      <tr><td><code>hcd-tasks</code></td><td>Paso <code>tasks</code></td><td>Escribe el checklist atómico</td></tr>
+      <tr><td><code>hcd-implement</code></td><td>Paso <code>implement</code></td><td><code>verify --expect-fail</code> antes del cambio</td></tr>
+      <tr><td><code>hcd-verify</code></td><td>Paso <code>verify</code></td><td><code>verify</code> con el comando o <code>--manual</code></td></tr>
+      <tr><td><code>hcd-analyze</code></td><td>Antes de implementar y de cerrar</td><td><code>analyze</code> (consulta)</td></tr>
+      <tr><td><code>hcd-close</code></td><td>Paso <code>close</code></td><td><code>close</code> o <code>cancel</code> con tu cita</td></tr>
     </tbody>
   </table></div>
 
@@ -1329,13 +1337,11 @@ claude</pre></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Lo que pasa</th><th>Por qué</th><th>Qué hacer</th></tr></thead>
     <tbody>
-      <tr><td>La aprobación responde <code>invalid_quote</code></td><td>La cita no contiene la revisión ni un «apruebo» explícito</td><td>Responde con la revisión, por ejemplo «acepto D-06 3633b5f1c2fb»</td></tr>
-      <tr><td>Una tarea quedó mal planteada</td><td><code>tasks</code> solo añade o actualiza; <code>block</code> no la saca del cálculo</td><td>Pide retirarla: el agente propone una decisión <code>task_cancelled</code> y tú la aceptas con cita</td></tr>
-      <tr><td>La evidencia aparece <code>stale</code></td><td>Cambió el código evaluado, la definición o la entrega</td><td>El agente pide otra ejecución de la misma tarea y registra evidencia nueva</td></tr>
-      <tr><td><code>slice</code> responde <code>SLICE-EMPTY</code></td><td>El archivo no tiene encabezados <code>## VS-NN.</code></td><td>La skill trae la plantilla exacta; el agente corrige el formato</td></tr>
-      <tr><td><code>report</code> responde <code>EVIDENCE-FIELDS</code></td><td>Falta una línea de la evidencia</td><td>El detalle nombra el campo; el agente lo añade</td></tr>
-      <tr><td>Aviso <code>files_without_execution</code></td><td>Se tocaron archivos sin una ejecución concedida</td><td>Es un aviso, no bloquea. Revisa si hubo cambios fuera de <code>/hcd-implement</code></td></tr>
-      <tr><td>El motor responde <code>revision_conflict</code></td><td>Alguien editó <code>definition.md</code> o <code>delivery.md</code> a mano</td><td>La unidad vuelve a <code>draft</code>; revisa el cambio y vuelve a aprobar</td></tr>
+      <tr><td>La aprobación responde <code>invalid_quote</code></td><td>La cita no es «apruebo», «aprobar» ni la revisión</td><td>Responde con una de esas tres formas</td></tr>
+      <tr><td>Una tarea vuelve a <code>unverified</code></td><td>Cambió el código o las tareas después de verificarla</td><td>El agente la vuelve a verificar; la evidencia anterior queda como «caducada»</td></tr>
+      <tr><td>El cierre de un <code>fix</code> se rechaza</td><td>No hay un rojo observado antes del verde</td><td>Ejecuta la reproducción con <code>--expect-fail</code> sobre el código sin el cambio (por ejemplo, con <code>git stash</code>)</td></tr>
+      <tr><td><code>analyze</code> muestra <code>NORMS-CHANGED</code></td><td>Cambiaste la Constitución o el Playbook después de aprobar la definición</td><td>Revisa la definición con las reglas nuevas y vuelve a aprobarla con <code>/hcd-approve</code></td></tr>
+      <tr><td>Aviso «sin una unidad HCD activa»</td><td>Claude Code va a editar código sin unidad</td><td>Es un aviso una vez por sesión; si es un cambio, empieza con <code>/hcd</code></td></tr>
     </tbody>
   </table></div>
 
@@ -1343,9 +1349,9 @@ claude</pre></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Agente</th><th>Invocación</th><th>Comprobado</th><th>Ten en cuenta</th></tr></thead>
     <tbody>
-      <tr><td>Claude Code</td><td><code>/hcd</code>, <code>/hcd-define</code>…</td><td>Recorrido completo, 2026-10-28</td><td>Nada especial</td></tr>
-      <tr><td>Codex</td><td><code>$hcd</code>, <code>$hcd-define</code>…</td><td>Recorrido completo, 2026-10-28</td><td>El sandbox <code>workspace-write</code> no deja escribir la base de gomemory. Añade <code>~/.local/share/gomemory</code> como raíz escribible (abajo)</td></tr>
-      <tr><td>OpenCode</td><td><code>/hcd</code>, <code>/hcd-define</code>…</td><td>Recorrido completo, 2026-10-28 (con <code>opencode run</code>)</td><td>En <code>opencode run</code> (no interactivo), un mensaje que empieza por <code>/hcd</code> se quedó esperando; «carga la skill hcd y …» funciona. Si su permiso <code>external_directory</code> está cerrado, no hay problema: las skills pasan los artefactos por stdin</td></tr>
+      <tr><td>Claude Code</td><td><code>/hcd</code>, <code>/hcd-define</code>…</td><td>Motor de extremo a extremo con el binario; recorrido en el agente pendiente</td><td>El aviso pre-edición solo existe aquí</td></tr>
+      <tr><td>Codex</td><td><code>$hcd</code>, <code>$hcd-define</code>…</td><td>Igual</td><td>El sandbox <code>workspace-write</code> no deja escribir la base de gomemory. Añade <code>~/.local/share/gomemory</code> como raíz escribible (abajo)</td></tr>
+      <tr><td>OpenCode</td><td><code>/hcd</code>, <code>/hcd-define</code>…</td><td>Igual</td><td>Sin hook pre-edición: la regla va en la skill <code>hcd</code></td></tr>
     </tbody>
   </table></div>
 
@@ -1356,15 +1362,13 @@ writable_roots = ["/Users/tu-usuario/.local/share/gomemory"]   <span class="c">#
   <div class="infobox amber"><span class="lbl">Lo que HCD no garantiza</span><p>El motor comprueba estructura y evidencia, no que el código sea correcto. No sabe cuándo un cambio amplía el alcance: eso es obligación del agente y está escrito en las skills. La cita es auditable, pero depende de que el agente copie tus palabras sin retocarlas.</p></div>
 
   <div class="sub"><h4>Respaldo desde la terminal</h4></div>
-  <p>Las skills son la vía principal. Si un agente no puede seguirlas, el mismo motor responde desde la terminal; <code>mem hcd --help</code> lista cada comando con sus opciones.</p>
-  <div class="code"><div class="code-head"><span>bash</span><button class="copy" type="button">Copiar</button></div><pre>mem hcd list                                  <span class="c"># unidades y estado</span>
-mem hcd status HCD-001 --json                 <span class="c"># etapa, pendientes y next_action</span>
-mem hcd resume HCD-001                        <span class="c"># fija la unidad activa (no cambia la revisión)</span>
-mem hcd subject --files store.go,store_test.go  <span class="c"># sujeto tree: para la evidencia</span>
-mem hcd define HCD-001 --file - &lt;&lt;'EOF'        <span class="c"># --file - lee de stdin: sin archivo temporal</span>
-# Título de la unidad
-…
-EOF</pre></div>
+  <p>Las skills son la vía principal. Si un agente no puede seguirlas, el mismo motor responde desde la terminal; <code>mem hcd</code> sin argumentos muestra el uso. <code>--json</code> y <code>--client</code> van antes de <code>--</code>.</p>
+  <div class="code"><div class="code-head"><span>bash</span><button class="copy" type="button">Copiar</button></div><pre>mem hcd start --kind fix --lane fast --title "Resume entra en pánico" --why "fix claro"
+mem hcd show --json                           <span class="c"># paso, tareas y siguiente skill</span>
+mem hcd verify --task 1 --expect-fail -- 'go test ./store -run TestResume'   <span class="c"># rojo</span>
+mem hcd verify --task 1 -- 'go test ./store -run TestResume'                 <span class="c"># verde</span>
+mem hcd analyze --json
+mem hcd close --quote "apruebo"</pre></div>
   <div class="footer"><span>Guía SDD_HCD · Edición 8</span><span>Capítulo 16</span></div>
 </div>
 
@@ -1372,38 +1376,37 @@ EOF</pre></div>
 <div class="page" id="cap-17">
   <div class="chapter" style="--rot:240deg"><div class="chapter-inner"><span class="dropnum">17</span><div><h2>Convivencia <span>SDD_HCD</span></h2><p class="pg-sub">Spec Kit y HCD en el mismo repositorio, cada unidad con un solo enfoque.</p></div></div></div>
 
-  <p class="lead">HCD no reemplaza a Spec Kit. Las features que ya viven en <code>specs/</code> siguen siendo Spec Kit hasta que alguien decida migrarlas, y el motor HCD nunca escribe en <code>specs/</code> ni en la integración de Spec Kit. Por eso esta guía se llama SDD_HCD: mientras dure la convivencia, los dos enfoques comparten repositorio, constitución y memoria.</p>
+  <p class="lead">HCD no reemplaza a Spec Kit. Las features que ya viven en <code>specs/</code> siguen siendo Spec Kit, y el motor HCD nunca escribe en <code>specs/</code> ni en la integración de Spec Kit. Por eso esta guía se llama SDD_HCD: los dos enfoques comparten repositorio, Constitución y memoria.</p>
 
-  <div class="sub"><h4>Qué dice la constitución (§18, versión 2.2.0)</h4></div>
+  <div class="sub"><h4>Qué dice la Constitución (§18)</h4></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Enfoque</th><th>Ubicación</th><th>Obligatorios</th><th>Opcionales</th></tr></thead>
     <tbody>
       <tr><td>Spec Kit (legado)</td><td><code>specs/{NNN}-{name}/</code></td><td><code>spec.md</code>, <code>plan.md</code>, <code>tasks.md</code>, <code>checklists/requirements.md</code></td><td><code>contracts/</code>, <code>data-model.md</code>, <code>research.md</code>, <code>quickstart.md</code></td></tr>
-      <tr><td>HCD</td><td><code>hcd/features/{NNN}-{name}/</code></td><td><code>definition.md</code>, <code>delivery.md</code>, <code>verification.md</code> (generado)</td><td>Archivos que aporten una decisión o evidencia concreta, justificados en <code>delivery.md</code></td></tr>
+      <tr><td>HCD</td><td><code>hcd/</code></td><td><code>HCD-NNN-&lt;slug&gt;.md</code>: un documento por unidad (la evidencia la escribe el motor)</td><td>Archivos que aporten una decisión o evidencia concreta, citados en el documento de la unidad</td></tr>
     </tbody>
   </table></div>
-  <p>Una unidad tiene un solo enfoque. Las reglas de idioma valen para los dos. El protocolo y las excepciones de HCD los rige el Playbook HCD (<code>mem playbook</code>), que remite a la constitución y no puede relajarla.</p>
+  <p>Una unidad tiene un solo enfoque. Las reglas de idioma valen para los dos. El protocolo y los controles de HCD los rige el Playbook HCD (<code>mem playbook</code>), que remite a la Constitución y no puede relajarla.</p>
+
+  <div class="sub"><h4>La Constitución y el Playbook mandan</h4></div>
+  <p>La Constitución que cargas desde la TUI (o con <code>mem docs import constitution</code>) y el Playbook se aplican de forma transversal: cada skill HCD los lee antes de definir, aprobar, implementar y cerrar. Cada aprobación guarda la revisión de las dos normas; si cambias alguna después de aprobar la definición, <code>analyze</code> lo reporta y el cierre pide volver a aprobarla con las reglas nuevas.</p>
 
   <div class="sub"><h4>Cuál usar</h4></div>
   <div class="table-wrap"><table>
     <thead><tr><th>Situación</th><th>Enfoque</th><th>Por qué</th></tr></thead>
     <tbody>
       <tr><td>Continuar una feature que ya está en <code>specs/</code></td><td>Spec Kit</td><td>No se mezcla: la unidad ya tiene enfoque</td></tr>
-      <tr><td>Una corrección o un cambio acotado nuevo</td><td>HCD</td><td>Recorrido corto, aprobación citada y evidencia que caduca si el código cambia</td></tr>
-      <tr><td>Una feature grande con investigación, contratos y modelo de datos</td><td>Spec Kit o HCD</td><td>Spec Kit si el equipo necesita <code>plan.md</code> y <code>research.md</code> como entregables; HCD si prefieres incrementos verificados uno a uno</td></tr>
+      <tr><td>Una corrección o un cambio ordinario nuevo</td><td>HCD, Vía rápida</td><td>Un documento, rojo y verde observados, y una sola aprobación al cerrar</td></tr>
+      <tr><td>Decisiones interdependientes o riesgo alto</td><td>HCD, ceremonia completa</td><td>Definición aprobada, slices trazables y <code>analyze</code> antes de cerrar</td></tr>
+      <tr><td>El equipo necesita <code>plan.md</code>, <code>research.md</code> y <code>data-model.md</code> como entregables</td><td>Spec Kit</td><td>Son artefactos propios de Spec Kit</td></tr>
       <tr><td>Un bug de un sistema que ya corre</td><td>Ninguno al principio</td><td>Primero reprodúcelo contra el sistema en ejecución (capítulo 15). La ceremonia viene después, si hace falta</td></tr>
     </tbody>
   </table></div>
 
-  <div class="sub"><h4>Migrar una feature de Spec Kit a HCD</h4></div>
-  <p><code>/hcd-migrate</code> lee la carpeta de <code>specs/</code> y propone una unidad HCD equivalente. La migración se activa solo con tu aprobación citada. La carpeta original no se toca.</p>
-  <div class="code"><div class="code-head"><span>en el agente</span><button class="copy" type="button">Copiar</button></div><pre>/hcd-migrate specs/044-mi-feature
-<span class="c"># el agente muestra la propuesta (M-01) y su revisión, y espera tu cita</span></pre></div>
+  <div class="sub"><h4>Unidad activa y continuidad</h4></div>
+  <p>Cada proyecto tiene como máximo una unidad HCD activa. Al abrir otra sesión, en cualquiera de los tres agentes, el contexto de arranque trae la sección <strong>HCD activo</strong> con la unidad, el carril, el paso, las tareas sin verificar y la siguiente skill, y <code>/hcd</code> sin argumentos la retoma. En Claude Code, editar código sin unidad activa muestra un aviso una vez por sesión, sin bloquear.</p>
 
-  <div class="sub"><h4>Unidad activa y heartbeat</h4></div>
-  <p>Cada proyecto tiene como máximo una unidad HCD activa. Al terminar cada turno, el hook de gomemory registra un heartbeat y señala desvíos estructurales: archivos tocados sin una ejecución concedida, una ejecución concedida sin informe o una unidad sin actividad durante <code>hcd_inactive_days</code> días (7 por defecto). Los desvíos son avisos y nunca bloquean el turno. Al abrir otra sesión, en cualquiera de los tres agentes, el contexto de arranque trae la sección <strong>HCD activo</strong> con la unidad, el paso, la siguiente acción y las últimas decisiones, y <code>/hcd</code> sin argumentos la retoma.</p>
-
-  <div class="infobox mint"><span class="lbl">Memoria compartida</span><p>Las decisiones aceptadas en HCD (aprobaciones, aclaraciones, retiradas de tareas, cierres) se reflejan en gomemory como memorias <code>type=decision</code>. Las encuentras con <code>search_memories</code> igual que las de cualquier feature de Spec Kit.</p></div>
+  <div class="infobox mint"><span class="lbl">Memoria compartida</span><p>Las decisiones de HCD (carril, aclaraciones, aprobación, promoción y cierre) se reflejan en gomemory como memorias <code>type=decision</code>. Las encuentras con <code>search_memories</code> igual que las de cualquier feature de Spec Kit.</p></div>
 <div class="colophon">
     <div class="brand"><svg class="logo" viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="lg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient></defs><path fill="url(#lg3)" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/><ellipse cx="13" cy="24" rx="3" ry="6" fill="#fff" opacity=".35"/></svg><b>Guía <em>SDD_HCD</em></b></div>
     <p class="colophon-voice">Si un comando cambia, <span>se corrige aquí.</span></p>

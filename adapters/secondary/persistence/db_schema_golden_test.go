@@ -172,13 +172,13 @@ func seedMemoryAtVersion(t *testing.T, db *sql.DB, version int) {
 	}
 }
 
-func assertMigratedToV5(t *testing.T, db *sql.DB) {
+func assertMigratedToCurrent(t *testing.T, db *sql.DB) {
 	t.Helper()
 	if err := migrate(db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if got := userVersion(t, db); got != 5 {
-		t.Fatalf("user_version = %d, want 5", got)
+	if got := userVersion(t, db); got != schemaVersion {
+		t.Fatalf("user_version = %d, want %d", got, schemaVersion)
 	}
 	var content string
 	if err := db.QueryRow("SELECT content FROM memories WHERE project = ? AND title = ?", "p", "keep").Scan(&content); err != nil || content != "preserved" {
@@ -192,7 +192,7 @@ func assertMigratedToV5(t *testing.T, db *sql.DB) {
 	}
 }
 
-func TestMigrate_V3ToV5PreservesRowsAndCreatesHCDCatalog(t *testing.T) {
+func TestMigrate_V3ToCurrentPreservesRowsAndCreatesHCDCatalog(t *testing.T) {
 	db, err := openDBFile(filepath.Join(t.TempDir(), "mem.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -204,7 +204,7 @@ func TestMigrate_V3ToV5PreservesRowsAndCreatesHCDCatalog(t *testing.T) {
 		}
 	}
 	seedMemoryAtVersion(t, db, 3)
-	assertMigratedToV5(t, db)
+	assertMigratedToCurrent(t, db)
 }
 
 // Una base v4 trae el catálogo HCD v1 que el binario de la rama 045 llegó a
@@ -229,7 +229,7 @@ func TestMigrate_V4WithHCDV1CatalogDropsItAndKeepsMemories(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedMemoryAtVersion(t, db, 4)
-	assertMigratedToV5(t, db)
+	assertMigratedToCurrent(t, db)
 }
 
 // Una base nueva o v3 nunca pasa por el DROP: solo una v4 tuvo el catálogo v1.
@@ -257,4 +257,28 @@ type recordingExecer struct{ calls *[]string }
 func (r recordingExecer) Exec(query string, _ ...any) (sql.Result, error) {
 	*r.calls = append(*r.calls, query)
 	return nil, nil
+}
+
+// v6 añade a hcd_approvals las huellas de las normas sin tocar sus filas.
+func TestMigrate_V5ToV6AddsNormColumnsAndKeepsApprovals(t *testing.T) {
+	db, err := openDBFile(filepath.Join(t.TempDir(), "mem.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec("DROP TABLE hcd_approvals"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE hcd_approvals (id TEXT PRIMARY KEY, project TEXT NOT NULL, unit_id TEXT NOT NULL, action TEXT NOT NULL, revision TEXT NOT NULL, fingerprint TEXT NOT NULL, origin TEXT NOT NULL, client TEXT NOT NULL, quote TEXT NOT NULL, created_at TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO hcd_approvals VALUES('a1','p','HCD-001','approve','r','f','terminal','terminal','apruebo','x')`); err != nil {
+		t.Fatal(err)
+	}
+	seedMemoryAtVersion(t, db, 5)
+	assertMigratedToCurrent(t, db)
+	var quote, constitution string
+	if err := db.QueryRow(`SELECT quote, constitution_rev FROM hcd_approvals WHERE id = 'a1'`).Scan(&quote, &constitution); err != nil || quote != "apruebo" || constitution != "" {
+		t.Fatalf("approval after v6 = %q %q %v", quote, constitution, err)
+	}
 }

@@ -21,12 +21,12 @@ func TestHCDSkillsShareRulesAndCoverMVPCommands(t *testing.T) {
 	section := strings.SplitN(strings.SplitN(string(contract), "## 2. Reglas comunes", 2)[1], "## 3.", 2)[0]
 	var literalRules []string
 	for _, line := range strings.Split(section, "\n") {
-		if len(line) > 2 && line[0] >= '1' && line[0] <= '8' && line[1] == '.' {
+		if len(line) > 2 && line[0] >= '1' && line[0] <= '9' && line[1] == '.' {
 			literalRules = append(literalRules, line)
 		}
 	}
 	var bodies []string
-	common := []string{"**Motor primero.**", "**Sin motor no hay avance.**", "**Las mutaciones van por el motor.**", "**Preguntar antes que suponer.**", "**Aprobación citada.**", "**La casilla no es la prueba.**", "**Siguiente paso.**", "**Privacidad.**"}
+	common := []string{"**Motor primero.**", "**Sin motor no hay avance.**", "**Las mutaciones van por el motor.**", "**Preguntar antes que suponer.**", "**Aprobación citada.**", "**La casilla no es la prueba.**", "**Siguiente paso.**", "**Privacidad.**", "**La Constitución y el Playbook mandan.**"}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue

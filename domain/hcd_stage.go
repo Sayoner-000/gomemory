@@ -27,6 +27,10 @@ type HCDState struct {
 	Evidence    []Evidence
 	Approvals   []Approval
 	Fingerprint string
+	// ConstitutionRev y PlaybookRev son las huellas de las normas vigentes;
+	// vacías si el motor no las conoce.
+	ConstitutionRev string
+	PlaybookRev     string
 }
 
 func (s HCDState) DefinitionRevision() string { return DefinitionRevision(s.Doc) }
@@ -42,6 +46,22 @@ func (s HCDState) Approved() bool {
 		}
 	}
 	return rev != "" && rev == s.DefinitionRevision()
+}
+
+// NormsChanged: la definición aprobada (carril completo) se aprobó con otra
+// Constitución u otro Playbook que los vigentes. La persona debe revisarla
+// con las reglas nuevas y volver a aprobarla.
+func (s HCDState) NormsChanged() bool {
+	if s.Unit.Lane != LaneFull || !s.Approved() || (s.ConstitutionRev == "" && s.PlaybookRev == "") {
+		return false
+	}
+	var last Approval
+	for _, a := range s.Approvals {
+		if a.Action == ApprovalApprove {
+			last = a
+		}
+	}
+	return last.ConstitutionRev != s.ConstitutionRev || last.PlaybookRev != s.PlaybookRev
 }
 
 // TaskStatuses aplica el gate de evidencia: una tarea solo está verificada si
@@ -188,6 +208,9 @@ func (s HCDState) NextAction() NextStep {
 		}
 		return NextStep{Skill: "hcd-verify", Command: "verify", Why: "falta el rojo observado de la tarea " + strings.Join(s.RedMissing(), ", ") + ": ejecútala con --expect-fail sobre el código sin el cambio"}
 	case StageClose:
+		if s.NormsChanged() {
+			return NextStep{Skill: "hcd-approve", Command: "approve", Why: "la Constitución o el Playbook cambiaron desde que se aprobó la definición: revísala con las reglas nuevas y vuelve a aprobarla"}
+		}
 		return NextStep{Skill: "hcd-close", Command: "close", Why: "todo verificado; ejecuta analyze y pide la aprobación del cierre"}
 	default:
 		return NextStep{Skill: "hcd", Command: "start", Why: "la unidad está terminada; inicia o retoma otra"}
@@ -223,6 +246,13 @@ func (s HCDState) Analyze() []HCDFinding {
 			add(SeverityCritical, "APPROVAL-MISSING", s.DefinitionRevision(), "la definición actual no tiene aprobación vigente")
 		}
 		s.analyzeTraceability(add)
+		if s.NormsChanged() {
+			sev := SeverityHigh
+			if s.Stage() == StageClose {
+				sev = SeverityCritical
+			}
+			add(sev, "NORMS-CHANGED", s.ConstitutionRev+"/"+s.PlaybookRev, "la Constitución o el Playbook cambiaron desde la aprobación de la definición; revísala y vuelve a aprobarla")
+		}
 	}
 	// La evidencia solo es crítica cuando ya toca cerrar; antes es avance normal.
 	sev := SeverityMedium

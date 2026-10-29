@@ -150,6 +150,11 @@ func NewContainer(root, channel string) (*Container, error) {
 	}
 	hcdUC := usecases.NewHCD(persistence.NewHCDStore(db, project), hcdfiles.Workspace{Root: root}, clock.SystemClock{}, func() string { return uuid.Must(uuid.NewV7()).String() }, string(unitTemplate))
 	hcdUC.ConfigureDecisions(memRepo, project)
+	if topics, ok := memRepo.(ports.MemoryTopicQuerier); ok {
+		constitutionDefault, _ := templatesFS.ReadFile("templates/speckit-constitution-gen.md")
+		playbookDefault, _ := templatesFS.ReadFile("templates/hcd/hcd-playbook.md")
+		hcdUC.ConfigureNorms(topics, project, string(constitutionDefault), string(playbookDefault))
+	}
 	contextBuilder.HCD = hcdUC
 	contextBuilder.Instincts = instinctRepo
 	if instinctGlobalErr == nil {

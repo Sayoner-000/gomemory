@@ -160,7 +160,7 @@ func errorCode(err error) string {
 }
 
 func toResponse(v usecases.HCDView, findings []domain.HCDFinding, data map[string]any) Response {
-	r := Response{ProtocolVersion: ProtocolVersion, OK: true, UnitID: v.Unit.ID, Kind: string(v.Unit.Kind), Lane: string(v.Unit.Lane), State: string(v.Unit.State), Stage: string(v.Stage), DocPath: v.Unit.DocPath, DefinitionRev: v.DefinitionRevision, WorkRev: v.WorkRevision, Approved: v.Approved, Fingerprint: v.State.Fingerprint, RedMissing: v.RedMissing, NextAction: NextAction{Skill: v.Next.Skill, Command: v.Next.Command, Why: v.Next.Why}, Warnings: v.Warnings, Data: data}
+	r := Response{ProtocolVersion: ProtocolVersion, OK: true, UnitID: v.Unit.ID, Kind: string(v.Unit.Kind), Lane: string(v.Unit.Lane), State: string(v.Unit.State), Stage: string(v.Stage), DocPath: v.Unit.DocPath, DefinitionRev: v.DefinitionRevision, WorkRev: v.WorkRevision, Approved: v.Approved, ConstitutionRev: v.State.ConstitutionRev, PlaybookRev: v.State.PlaybookRev, NormsChanged: v.State.NormsChanged(), Fingerprint: v.State.Fingerprint, RedMissing: v.RedMissing, NextAction: NextAction{Skill: v.Next.Skill, Command: v.Next.Command, Why: v.Next.Why}, Warnings: v.Warnings, Data: data}
 	for _, t := range v.Tasks {
 		r.Tasks = append(r.Tasks, Task{ID: t.ID, Text: t.Text, Check: t.Check, Status: string(t.Status)})
 	}

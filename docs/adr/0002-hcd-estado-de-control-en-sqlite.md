@@ -1,9 +1,9 @@
 # ADR 0002: el estado de control HCD vive en SQLite
 
-- **Estado**: propuesto
+- **Estado**: aceptado; catálogo revisado por la ADR 0003 (2026-10-29)
 - **Fecha**: 2026-10-27
 - **Responsable**: josegomezJ3810
-- **Excepción de la constitución**: §25.2, composition root en `infrastructure/container.go` (pendiente de aprobación)
+- **Excepción de la constitución**: §25.2, composition root en `infrastructure/container.go` (aprobada con la Constitución 2.2.0)
 - **Referencias**: feature 045, `specs/045-hcd-protocol/`
 
 ## Contexto
@@ -32,6 +32,15 @@ El composition root vigente es `infrastructure/container.go` (`NewContainer`). M
 - Las mutaciones usarán `HCDUnitOfWork`; los artefactos se escribirán atómicamente bajo `hcd/`.
 - La Constitución y el Playbook conservarán precedencia normativa sobre las reglas de unidades.
 - La excepción §25.2 no se considera vigente hasta su aprobación formal.
+
+## Revisión v2 (2026-10-29)
+
+La decisión se mantiene: el estado de control vive en SQLite, el contenido en Markdown bajo `hcd/` y la unidad activa en el control interno, nunca en archivos de contexto del agente. Lo que cambia es el alcance de ese estado:
+
+- El catálogo pasa de 16 tablas a 3 (`hcd_units`, `hcd_evidence` y `hcd_approvals`), según la ADR 0003. Las decisiones se reflejan como memorias, sin tabla propia.
+- `HCDUnitOfWork`, la idempotencia por operación, `hcd_focus` y el heartbeat desaparecen. La unidad activa es una columna de `hcd_units`.
+- Los artefactos `definition.md`, `delivery.md` y `verification.md` se sustituyen por un único documento, `hcd/HCD-NNN-<slug>.md`.
+- La alternativa R1 («solo Markdown») sigue descartada por lo mismo de entonces: la evidencia observada y las aprobaciones citadas no deben poder fabricarse editando un archivo.
 
 ## Responsable y fecha
 

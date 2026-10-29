@@ -103,11 +103,12 @@ var PinnedDocs = []PinnedDoc{
 		Title:    "Constitución del proyecto (spec-kit)",
 		Label:    "Constitución",
 		Template: "speckit-constitution-gen.md",
-		// Constitución técnica 2.1.0 (§18 por enfoque Spec Kit/HCD). Las
-		// anteriores son la 2.0.0 y, por commit, 8edbddd, a873463, 77a1a11 y
-		// 4514061.
-		DefaultSHA256: "f2444b759902f13c92ab2c65b9584fc0ad4933147b5998e305bec122654aeedc",
+		// Constitución técnica 2.1.1 (§18: artefacto HCD único). Las
+		// anteriores son la 2.1.0 (§18 por enfoque Spec Kit/HCD), la 2.0.0 y,
+		// por commit, 8edbddd, a873463, 77a1a11 y 4514061.
+		DefaultSHA256: "6a8f82da75b80de481922392980921f1b0f9e04205755b877c7823a9e60866ef",
 		PreviousDefaultSHA256: []string{
+			"f2444b759902f13c92ab2c65b9584fc0ad4933147b5998e305bec122654aeedc",
 			"6903740dcb4f1f631c14954b7f54a337dac37da62169bbd0d5a8cf719bdcc3f7",
 			"7acc79bc12fe8351afcc8a02e0aa933996b0606b439f4710fcafafa0c6e50a79",
 			"ce0774314fe7d124325e7716a7b024b95e4f826dd567138b815a1bef2d635759",
@@ -116,13 +117,16 @@ var PinnedDocs = []PinnedDoc{
 		},
 	},
 	{
-		Alias:         "playbook",
-		TopicKey:      TopicHCDPlaybook,
-		Type:          Architecture,
-		Title:         "Playbook HCD del proyecto",
-		Label:         "Playbook HCD",
-		Template:      "hcd/hcd-playbook.md",
-		DefaultSHA256: "a95745faa018d6114b7a85e74c9b3dcb119aa8a30a8e99ac782f38ed1f437cea",
+		Alias:    "playbook",
+		TopicKey: TopicHCDPlaybook,
+		Type:     Architecture,
+		Title:    "Playbook HCD del proyecto",
+		Label:    "Playbook HCD",
+		Template: "hcd/hcd-playbook.md",
+		// Playbook HCD v2 (ceremonia sobre núcleo ligero). La anterior es la
+		// v1 de la rama 045, nunca publicada.
+		DefaultSHA256:         "fd576035ef3f94b8c8f075998a06d9cf385b0d5433d2251f58d8fc8dc6a17cbe",
+		PreviousDefaultSHA256: []string{"a95745faa018d6114b7a85e74c9b3dcb119aa8a30a8e99ac782f38ed1f437cea"},
 	},
 }
 

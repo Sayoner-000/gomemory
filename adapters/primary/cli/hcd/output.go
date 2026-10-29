@@ -54,6 +54,9 @@ type Response struct {
 	DefinitionRev   string         `json:"definition_revision"`
 	WorkRev         string         `json:"work_revision"`
 	Approved        bool           `json:"approved"`
+	ConstitutionRev string         `json:"constitution_revision"`
+	PlaybookRev     string         `json:"playbook_revision"`
+	NormsChanged    bool           `json:"norms_changed"`
 	Fingerprint     string         `json:"fingerprint"`
 	Tasks           []Task         `json:"tasks"`
 	PendingChecks   []PendingCheck `json:"pending_checks"`

@@ -1,4 +1,4 @@
-user_version=5
+user_version=6
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)
@@ -231,7 +231,7 @@ table|hcd_approvals|hcd_approvals|CREATE TABLE hcd_approvals (
 	client TEXT NOT NULL,
 	quote TEXT NOT NULL,
 	created_at TEXT NOT NULL
-)
+, constitution_rev TEXT NOT NULL DEFAULT '', playbook_rev TEXT NOT NULL DEFAULT '')
 table|hcd_evidence|hcd_evidence|CREATE TABLE hcd_evidence (
 	id TEXT PRIMARY KEY,
 	project TEXT NOT NULL,
@@ -572,6 +572,8 @@ col|hcd_approvals|6|origin|TEXT|1||0
 col|hcd_approvals|7|client|TEXT|1||0
 col|hcd_approvals|8|quote|TEXT|1||0
 col|hcd_approvals|9|created_at|TEXT|1||0
+col|hcd_approvals|10|constitution_rev|TEXT|1|''|0
+col|hcd_approvals|11|playbook_rev|TEXT|1|''|0
 col|hcd_evidence|0|id|TEXT|0||1
 col|hcd_evidence|1|project|TEXT|1||0
 col|hcd_evidence|2|unit_id|TEXT|1||0

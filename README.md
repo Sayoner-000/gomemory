@@ -164,49 +164,45 @@ On top of memory, gomemory ships tools for the work agents do with it:
 ### HCD (Harness Continual Development)
 
 HCD is gomemory's own protocol for taking one unit of work (a feature, an
-evolution, a fix or a technical improvement) from intent to verified delivery.
-It sits next to Spec Kit and never replaces it: existing Spec Kit units stay
-Spec Kit until you migrate them on purpose.
+evolution, a fix or a technical improvement) from intent to a verified delivery
+closed with your approval. It runs next to Spec Kit and never writes to `specs/`.
 
+- **Two lanes.** The full ceremony is `define → clarify → approve → slice →
+  tasks → implement → verify → close`. The fast track skips `approve` and
+  `slice` for ordinary work; its only approval is at closing. The agent picks
+  the lane and says why in one line: open decisions that affect each other, or
+  high risk, pick the full ceremony; size never does. A fast unit can be
+  promoted to the full ceremony without losing its work.
 - **How you drive it.** Type `/hcd` in Claude Code or OpenCode, or `$hcd` in
-  Codex. The agent finds the unit, reads its state from the `mem hcd` engine and
-  moves to the next step. You don't type console commands. `mem install` (both
-  `project` and `global` scope) and `mem update` add the skills: `hcd`, `hcd-define`, `hcd-clarify`, `hcd-approve`,
-  `hcd-slice`, `hcd-tasks`, `hcd-implement`, `hcd-verify`, `hcd-close`,
-  `hcd-exception`, `hcd-playbook` and `hcd-migrate`.
-- **What the engine keeps.** Control state lives in SQLite (`hcd_*` tables);
-  `definition.md`, `delivery.md` and the generated `verification.md` live under
-  `hcd/features/`. Decisions are mirrored into memory as `type=decision`.
-  A Playbook (rules, exceptions with an owner and an expiry) is pinned per unit;
-  a new revision changes nothing until you adopt it.
-- **MCP-only environments.** An agent that only has the MCP server sees the
-  "HCD activo" section of `get_context` and gets assistance. Managed execution
-  (grants, reports, verification) needs the skills and the engine.
-- **Active unit and heartbeat.** One unit is active per project. The end-of-turn
-  hook records a heartbeat and flags structural drift (files touched without a
-  granted run, a granted run with no report, a unit idle for `hcd_inactive_days`).
-  Drift appears as a warning; it never blocks the turn.
+  Codex. Each skill calls the `mem hcd` engine, which derives the step and the
+  next skill. `mem install` and `mem update` add ten skills: `hcd`,
+  `hcd-define`, `hcd-clarify`, `hcd-approve`, `hcd-slice`, `hcd-tasks`,
+  `hcd-implement`, `hcd-verify`, `hcd-analyze` and `hcd-close`.
+- **One document per unit.** Intent, scope, stories, clarifications, slices,
+  tasks and evidence live in `hcd/HCD-NNN-<slug>.md`, which travels in your PR.
+  SQLite keeps only control state in three tables (`hcd_units`, `hcd_evidence`,
+  `hcd_approvals`); decisions are mirrored into memory as `type=decision`.
+- **Gates the engine enforces.** A task counts as done only when `mem hcd
+  verify` ran its check and it passed; evidence expires when the code or the
+  tasks change. A fix needs an observed failing run (`--expect-fail`) before
+  the change. Approving binds to the exact definition revision; closing binds
+  to the exact work revision and is refused while `analyze` reports a
+  `CRITICAL` finding.
+- **Editing without a unit.** In Claude Code, editing code with no active unit
+  shows a one-time warning per session. It never blocks.
 - **What it doesn't guarantee.** It checks structure and evidence, not that the
-  code is correct. Whether an agent follows the skills is up to the agent. The
-  engine can't tell when a change widens the scope; the skills make that the
-  agent's duty.
-- **The risk of the quote.** Approvals need your literal reply, recorded with its
-  origin (`conversation` or `terminal`), client, date and revision. That is
-  auditable, but it relies on trusting the agent to pass your words faithfully.
-  The TUI starts and shows units; it does not approve.
-
-Support per agent is declared only where there is a recorded end-to-end run
-under `specs/045-hcd-protocol/evidence/`:
+  code is correct. Approvals record your literal reply with its origin and
+  revision: auditable, but it relies on the agent passing your words faithfully.
 
 | Agent | Invocation | Status |
 |---|---|---|
-| Claude Code | `/hcd` | Supported: full run from `start` to `completed` (`mvp-claude.md`) |
-| Codex | `$hcd` | Supported: full run (`env-codex.md`). Its `workspace-write` sandbox must be allowed to write `~/.local/share/gomemory`: add it to `[sandbox_workspace_write] writable_roots` in `~/.codex/config.toml`, or start with `codex --add-dir ~/.local/share/gomemory` |
-| OpenCode | `/hcd` | Supported: full run (`env-opencode.md`). In non-interactive `opencode run`, a message that starts with `/hcd` hung; asking it to load the `hcd` skill works |
+| Claude Code | `/hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending |
+| Codex | `$hcd` | Same. Its `workspace-write` sandbox must be allowed to write `~/.local/share/gomemory`: add it to `[sandbox_workspace_write] writable_roots` in `~/.codex/config.toml`, or start with `codex --add-dir ~/.local/share/gomemory` |
+| OpenCode | `/hcd` | Same |
 
-`mem hcd --help` lists every engine command. The Spanish
+`mem hcd` with no arguments prints the engine usage. The Spanish
 [SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.40.html) walks through the
-ceremony step by step (chapters 16 and 17). See
+ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
 ## Reference
