@@ -25,21 +25,13 @@ git diff --check
 
 El release debe apuntar a un commit ya integrado en `main`.
 
-### Versionar las guías HTML
+### Mantener las guías HTML vigentes
 
-Cada release lleva su edición de la guía SDD y de la guía técnica:
-
-1. Mueve las ediciones vigentes de `docs/` a `docs/editions/` sin cambiarles
-   el nombre (`Guia-SDD_HCD_GOMEMORY-vX.Y.html`, `Guia-Tecnica_GOMEMORY-vX.Y.html`;
-   hasta la edición 7 la guía se llamaba `Guia-SDD_GOMEMORY-vX.Y.html`).
-2. Crea las nuevas con la versión del release en el nombre, a partir de la
-   edición anterior: conserva la plantilla y actualiza versiones, recuentos
-   (herramientas MCP, hooks, tablas) y los capítulos de los mecanismos que
-   cambiaron. Cada comando se comprueba en un proyecto con HOME aislado.
-3. Mientras el tag no exista, la portada indica «pendiente del tag»; al
-   publicarlo, ese estado se retira.
-4. Actualiza los enlaces de `README.md`, `docs/ARQUITECTURA.md` y
-   `docs/editions/README.md`.
+El repositorio publica una sola edición de cada guía: `Guia-SDD_HCD_GOMEMORY-vX.Y.html`
+y `Guia-Tecnica_GOMEMORY-vX.Y.html` en `docs/`. Para cada release, actualiza ambas
+guías desde la edición vigente, revisa los capítulos y recuentos afectados por el
+cambio, y elimina las guías de versión anterior. Actualiza sus enlaces en
+`README.md` y `docs/ARQUITECTURA.md`. No mantengas un archivo histórico de ediciones.
 
 ## 2. Crear y enviar el tag
 

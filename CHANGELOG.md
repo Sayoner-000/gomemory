@@ -5,7 +5,7 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [v2.41.0] - 2026-10-29
 
 ### Added
 
@@ -38,10 +38,17 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
 
+### Fixed
+
+- La reaprobación de una definición HCD se rechaza si faltan secciones obligatorias o hay aclaraciones abiertas.
+- Los marcadores de aclaración en historias, slices o tareas también bloquean la aprobación.
+
 ### Documentación
 
-- La guía SDD pasa a llamarse `Guia-SDD_HCD_GOMEMORY-v2.40.html` (edición 8) mientras Spec Kit y HCD convivan. La edición 7 queda en `docs/editions/`.
+- Se actualizan las guías SDD_HCD y técnica a gomemory 2.41, y se conserva solo la edición vigente.
 - `docs/MANUAL.md` suma la sección 22 (HCD). ADR 0002 (estado de control en SQLite) y ADR 0003 (retirada del catálogo HCD de desarrollo).
+
+## [Unreleased]
 
 ## [v2.40.3] - 2026-10-27
 
@@ -132,7 +139,7 @@ La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
 ### Documentación
 
 - `docs/socratica.md` documenta el modo `specify`: recorrido, preguntas, revisión, entrega única, recuperación y privacidad. `docs/DATABASE.md` documenta el catálogo 3, y `MANUAL.md` y `architecture.md` recogen los cambios de este release.
-- Nueva edición de las guías: SDD, edición 7, y técnica, edición 5 (`docs/*-v2.40.html`). Las de v2.39 pasan a `docs/editions/`.
+- Nueva edición de las guías: SDD, edición 7, y técnica, edición 5 (`docs/*-v2.40.html`); reemplaza las guías v2.39.
 
 ## [v2.39.0] - 2026-10-24
 
@@ -153,7 +160,7 @@ La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
 ### Documentación
 
 - El diagrama «How it works» y la tabla de agentes del README dejan de mostrar Cursor, que ya no se usa en el proyecto. El código lo sigue soportando y `INSTALLATION.md` lo documenta.
-- Nueva edición de las guías: SDD, edición 6, y técnica, edición 4 (`docs/*-v2.39.html`). Las de v2.38 pasan a `docs/editions/`. El manual, la arquitectura, `expand.md`, `socratica.md` y `DATABASE.md` recogen los cambios de este release.
+- Nueva edición de las guías: SDD, edición 6, y técnica, edición 4 (`docs/*-v2.39.html`); reemplaza las guías v2.38. El manual, la arquitectura, `expand.md`, `socratica.md` y `DATABASE.md` recogen los cambios de este release.
 
 ## [v2.38.0] - 2026-10-23
 
@@ -164,7 +171,7 @@ La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
 ### Documentación
 
 - El README se reorganiza en torno al problema, el inicio rápido y el funcionamiento, con un diagrama Mermaid de la arquitectura actual y un logo transparente para los temas claro y oscuro. Corrige además una afirmación: el proyecto sí recibe una carpeta `.memory/`, que `mem install` añade a `.gitignore`.
-- Nueva edición de las guías: SDD, edición 5, y técnica, edición 3 (`docs/*-v2.38.html`). Las de v2.37 pasan a `docs/editions/`. `INSTALLATION.md`, el manual, la arquitectura y el protocolo de memoria ya no mencionan Windsurf ni Cline como soportados.
+- Nueva edición de las guías: SDD, edición 5, y técnica, edición 3 (`docs/*-v2.38.html`); reemplaza las guías v2.37. `INSTALLATION.md`, el manual, la arquitectura y el protocolo de memoria ya no mencionan Windsurf ni Cline como soportados.
 
 ## [v2.37.0] - 2026-10-23
 
@@ -184,7 +191,7 @@ La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
 
 ### Documentación
 
-- Nueva edición de las guías: SDD, edición 4, y técnica, edición 2 (`docs/*-v2.37.html`). Las ediciones de v2.36 pasan a `docs/editions/`. La guía técnica describe la preparación versionada de la base; las dos documentan la instalación en Windows con el binario del release.
+- Nueva edición de las guías: SDD, edición 4, y técnica, edición 2 (`docs/*-v2.37.html`); reemplaza las guías v2.36. La guía técnica describe la preparación versionada de la base; las dos documentan la instalación en Windows con el binario del release.
 
 ## [v2.36.4] - 2026-10-23
 
@@ -274,7 +281,7 @@ La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
 
 ### Documentación
 
-- Guía SDD, edición 3 (Spec Kit 1.2.2, gomemory 2.36), y nueva guía técnica con la misma plantilla; las ediciones anteriores se archivan en `docs/editions/` y cada release versiona las dos.
+- Guía SDD, edición 3 (Spec Kit 1.2.2, gomemory 2.36), y nueva guía técnica con la misma plantilla; cada release actualiza las dos guías vigentes.
 - `expand.md`, `architecture.md` y `MANUAL.md` describen las supertools y los nuevos límites del guardarraíl de shell.
 
 ## [v2.35.0] - 2026-10-17
