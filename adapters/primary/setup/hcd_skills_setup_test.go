@@ -9,6 +9,7 @@ import (
 func TestInstallHCDSkillsOnlyExistingAgentsAndIdempotent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	for _, root := range []string{".codex", ".config/opencode"} {
 		if e := os.MkdirAll(filepath.Join(home, root), 0755); e != nil {
 			t.Fatal(e)
@@ -49,6 +50,7 @@ func TestInstallHCDSkillsRefusesSymlinkDestinations(t *testing.T) {
 		t.Run(dest, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
 			for _, root := range []string{".codex", ".config/opencode"} {
 				if e := os.MkdirAll(filepath.Join(home, root), 0755); e != nil {
 					t.Fatal(e)
