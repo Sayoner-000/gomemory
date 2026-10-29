@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guía rápida HCD</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sistema de las guías de gomemory (docs/Guia-*.html): printbar fija, documento de 1040px sobre backdrop, portada abismo y bandas de capítulo con gota numerada. */
+:root{
+  --abyss:#061328; --abyss-2:#0c1d3a; --abyss-3:#13284d;
+  --cyan:#06c1ee; --glow:#22e3f7; --azure:#2c8ff0; --indigo:#3926e3; --violet:#6b56d4; --blush:#ff8fa3;
+  --grad:linear-gradient(90deg,var(--glow) 0%,var(--azure) 48%,var(--violet) 100%);
+  --grad-v:linear-gradient(180deg,var(--glow) 0%,var(--azure) 55%,var(--violet) 100%);
+  --ink:#0d1526; --slate:#2c374c; --soft:#4b566b; --faint:#68728a;
+  --paper:#f6f9fd; --paper-2:#e9eff8; --surface:#ffffff; --line:#d9e1ee; --backdrop:#dfe6f2;
+  --cyan-ink:#006d8a; --cyan-soft:#dcf5fc; --cyan-on:#06394a;
+  --azure-ink:#1557b0; --azure-soft:#e2eefd; --azure-on:#0f2f5e;
+  --violet-ink:#4a37a8; --violet-soft:#ece8fb; --violet-on:#2d2068;
+  --mint:#0f9f7b; --mint-ink:#0b7a5f; --mint-soft:#daf4ec; --mint-on:#07493a;
+  --rose:#d23c5a; --rose-ink:#a32640; --rose-soft:#fde5ea; --rose-on:#6a1426;
+  --amber:#c98a06; --amber-ink:#8a5c00; --amber-soft:#fcf0d2; --amber-on:#523700;
+  --code-bg:#071833; --code-ink:#dce8fb; --code-faint:#7d8fb0; --code-hl:#22e3f7; --code-hl2:#b9a9ff;
+  --zone-a:#eef3fa; --zone-b:#e4f5fb;
+  --display:'Nunito','DM Sans',system-ui,sans-serif;
+  --sans:'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --drop:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 48'%3E%3Cpath d='M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z'/%3E%3C/svg%3E");
+  --pad:56px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ink:#e9effb; --slate:#c4cee2; --soft:#9ba8c0; --faint:#7c89a3;
+  --paper:#0a1730; --paper-2:#11213f; --surface:#0e1c38; --line:#21345a; --backdrop:#040c1b;
+  --cyan-ink:#6fe3fb; --cyan-soft:#0b2c40; --cyan-on:#c9f3fd;
+  --azure-ink:#8cc0ff; --azure-soft:#10284d; --azure-on:#d3e5ff;
+  --violet-ink:#c2b6ff; --violet-soft:#211a4d; --violet-on:#e3ddff;
+  --mint-ink:#5fe0bb; --mint-soft:#0b3229; --mint-on:#c8f5e7;
+  --rose-ink:#ff9cb0; --rose-soft:#3d1420; --rose-on:#ffd9e1;
+  --amber-ink:#ffd27a; --amber-soft:#33260a; --amber-on:#ffeec7;
+  --code-bg:#040e22; --zone-a:#0d1b36; --zone-b:#0b2238;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ink:#e9effb; --slate:#c4cee2; --soft:#9ba8c0; --faint:#7c89a3;
+  --paper:#0a1730; --paper-2:#11213f; --surface:#0e1c38; --line:#21345a; --backdrop:#040c1b;
+  --cyan-ink:#6fe3fb; --cyan-soft:#0b2c40; --cyan-on:#c9f3fd;
+  --azure-ink:#8cc0ff; --azure-soft:#10284d; --azure-on:#d3e5ff;
+  --violet-ink:#c2b6ff; --violet-soft:#211a4d; --violet-on:#e3ddff;
+  --mint-ink:#5fe0bb; --mint-soft:#0b3229; --mint-on:#c8f5e7;
+  --rose-ink:#ff9cb0; --rose-soft:#3d1420; --rose-on:#ffd9e1;
+  --amber-ink:#ffd27a; --amber-soft:#33260a; --amber-on:#ffeec7;
+  --code-bg:#040e22; --zone-a:#0d1b36; --zone-b:#0b2238;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{font-size:10.5pt;scroll-behavior:smooth;scroll-padding-top:72px}
+body{font-family:var(--sans);color:var(--ink);background:var(--backdrop);line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:101;background:var(--abyss)}
+::selection{background:var(--glow);color:var(--abyss)}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px;border-radius:3px}
+h1,h2,h3{margin:0;text-wrap:balance}
+p{margin:0;font-size:10pt;color:var(--slate);max-width:78ch}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.85em;background:var(--paper-2);padding:1px 5px;border-radius:5px;color:var(--azure-ink)}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* Barra superior (printbar de las guías) */
+.printbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:100;display:flex;align-items:center;gap:16px;padding:10px max(22px,env(safe-area-inset-right,0px)) 10px max(22px,env(safe-area-inset-left,0px));background:rgba(6,19,40,.92);color:#dfe8f7;backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);box-shadow:0 6px 20px -12px rgba(2,8,20,.7)}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;flex-shrink:0}
+.brand .logo{width:22px;height:auto;filter:drop-shadow(0 0 8px rgba(34,227,247,.45))}
+.brand b{font-family:var(--display);font-weight:900;font-size:12pt;letter-spacing:-.01em;color:#fff}
+.brand b em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand small{font-size:8pt;color:#9fb0cc;font-weight:500}
+.toc{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;-webkit-mask-image:linear-gradient(90deg,#000 92%,transparent);mask-image:linear-gradient(90deg,#000 92%,transparent)}
+.toc::-webkit-scrollbar{display:none}
+.toc a{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;font-size:8pt;font-weight:600;color:#c3cfe3;text-decoration:none;padding:5px 10px;border-radius:8px;transition:background .18s,color .18s}
+.toc a span{font-family:var(--display);font-weight:900;font-size:7.5pt;color:var(--glow);font-variant-numeric:tabular-nums}
+.toc a:hover{background:rgba(255,255,255,.08);color:#fff}
+.toc a[aria-current]{background:rgba(34,227,247,.14);color:#fff}
+.pb-actions{display:flex;gap:8px;flex-shrink:0}
+.pb-btn{font-family:var(--sans);font-size:8.5pt;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.18);background:transparent;color:#dfe8f7;padding:7px 12px;border-radius:10px;transition:background .18s,transform .18s}
+.pb-btn:hover{background:rgba(255,255,255,.08)}
+.readbar{position:absolute;left:0;right:0;bottom:0;height:2px;pointer-events:none}
+.readbar i{display:block;height:100%;background:var(--grad);transform-origin:0 50%;transform:scaleX(0)}
+
+/* Documento */
+.doc{max-width:1040px;margin:0 auto 64px;background:var(--paper);box-shadow:0 24px 60px -30px rgba(6,19,40,.5)}
+.wrap{padding-left:max(var(--pad),env(safe-area-inset-left,0px));padding-right:max(var(--pad),env(safe-area-inset-right,0px))}
+
+/* Portada */
+.cover{position:relative;overflow:hidden;color:#e7eefa;background:radial-gradient(60% 45% at 50% 30%,rgba(44,143,240,.28),transparent 70%),radial-gradient(40% 30% at 85% 75%,rgba(107,86,212,.22),transparent 70%),var(--abyss)}
+.cover .wrap{padding-block:34px 52px;display:grid;gap:18px}
+.cover .brand{margin-bottom:26px}
+.cover h1{font-family:var(--display);font-weight:900;font-size:clamp(30pt,5.6vw,54pt);line-height:1;letter-spacing:-.025em;color:#fff}
+.accent{width:64px;height:4px;border-radius:2px;background:var(--grad)}
+.cover p{font-size:10.5pt;color:#c9d5ea;max-width:70ch;line-height:1.65}
+.cover p code{background:var(--abyss-3);color:var(--glow)}
+.flowrow{display:grid;gap:12px;margin-top:6px}
+.flow{display:flex;align-items:center;flex-wrap:wrap;gap:8px 0}
+.flow .lbl{flex-basis:100%;font-family:var(--mono);font-size:8pt;letter-spacing:.14em;text-transform:uppercase;color:var(--glow);margin-bottom:2px}
+.fl-node{background:var(--abyss-3);color:#fff;font-size:8pt;font-weight:600;padding:8px 12px;border-radius:10px;white-space:nowrap;border:1px solid transparent}
+.fl-node.hl{background:var(--grad);color:var(--abyss);font-weight:700}
+.fl-arrow{color:var(--glow);font-size:10pt;padding:0 6px;font-weight:700}
+
+/* Capítulos */
+main{display:block}
+section{padding-bottom:36px}
+section + section{border-top:1px solid var(--line)}
+.chapter{position:relative;min-height:230px;display:flex;align-items:flex-end;color:#fff;overflow:hidden;background:radial-gradient(55% 90% at 82% 40%,rgba(44,143,240,.30),transparent 70%),radial-gradient(35% 60% at 10% 100%,rgba(107,86,212,.25),transparent 70%),linear-gradient(180deg,var(--abyss-2),var(--abyss))}
+.chapter::after{content:"";position:absolute;right:var(--rx,6%);top:50%;width:250px;height:250px;transform:translateY(-50%) rotate(var(--rot,0deg));border-radius:50%;background:repeating-conic-gradient(from 0deg,var(--glow) 0 8deg,transparent 8deg 22.5deg);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 26px),#000 calc(100% - 25px)),conic-gradient(from 200deg,transparent 0 25%,#000 70%,rgba(0,0,0,.15));-webkit-mask-composite:source-in;mask:radial-gradient(farthest-side,transparent calc(100% - 26px),#000 calc(100% - 25px)),conic-gradient(from 200deg,transparent 0 25%,#000 70%,rgba(0,0,0,.15));mask-composite:intersect;opacity:.55;pointer-events:none}
+.chapter::before{content:"";position:absolute;right:calc(var(--rx,6%) + 88px);top:50%;width:74px;height:88px;transform:translateY(-50%);-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--grad-v);opacity:.9;filter:drop-shadow(0 0 22px rgba(34,227,247,.6))}
+.chapter .wrap{position:relative;z-index:1;display:flex;align-items:flex-end;gap:18px;padding-bottom:26px;width:100%;max-width:760px}
+.dropnum{flex-shrink:0;display:inline-grid;place-items:center;width:52px;height:62px;padding-top:12px;-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--grad-v);color:var(--abyss);font-family:var(--display);font-weight:900;font-size:17pt;font-variant-numeric:tabular-nums}
+.chapter h2{font-family:var(--display);font-weight:900;font-size:clamp(20pt,3.2vw,28pt);line-height:1.06;letter-spacing:-.02em;color:#fff;margin-bottom:8px}
+.chapter .sub{font-size:10pt;color:#cbd6ea;max-width:64ch;line-height:1.5;margin:0}
+.body{display:grid;gap:16px;padding-top:30px}
+.body > *{min-width:0}
+.body > .sh{margin-top:14px}
+.sh{font-family:var(--display);font-size:14pt;font-weight:800;color:var(--ink);letter-spacing:-.01em;line-height:1.25;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sh::before{content:"";flex-shrink:0;width:11px;height:13px;-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--grad-v);transform:translateY(1px)}
+.muted{font-size:9pt;color:var(--faint)}
+
+/* Tablas, badges, notas, tarjetas, código (componentes de las guías) */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:9pt;font-variant-numeric:tabular-nums}
+th{text-align:left;padding:9px 12px;font-size:7.5pt;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);border-bottom:2px solid var(--ink)}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--slate)}
+tbody tr:hover td{background:rgba(34,227,247,.06)}
+td code{white-space:nowrap}
+.badge{display:inline-block;font-size:7pt;font-weight:700;padding:2px 8px;border-radius:999px;letter-spacing:.02em;vertical-align:1px;white-space:nowrap}
+.b-cyan{background:var(--cyan-soft);color:var(--cyan-ink)}
+.b-violet{background:var(--violet-soft);color:var(--violet-ink)}
+.b-mint{background:var(--mint-soft);color:var(--mint-ink)}
+.b-rose{background:var(--rose-soft);color:var(--rose-ink)}
+.b-amber{background:var(--amber-soft);color:var(--amber-ink)}
+.infobox{--bg:var(--cyan-soft);--fg:var(--cyan-on);--ac:var(--cyan);background:var(--bg);color:var(--fg);border-radius:14px;padding:14px 18px 14px 20px;font-size:9.5pt;line-height:1.6;position:relative;overflow:hidden}
+.infobox::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ac)}
+.infobox p{font-size:inherit;color:inherit;max-width:none}
+.infobox strong{color:inherit}
+.infobox .lbl{display:block;font-size:7.5pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;opacity:.85}
+.infobox.mint{--bg:var(--mint-soft);--fg:var(--mint-on);--ac:var(--mint)}
+.infobox.amber{--bg:var(--amber-soft);--fg:var(--amber-on);--ac:var(--amber)}
+.infobox.violet{--bg:var(--violet-soft);--fg:var(--violet-on);--ac:var(--violet)}
+.cards{display:grid;gap:14px;grid-template-columns:repeat(3,1fr)}
+.cards.c4{grid-template-columns:repeat(2,1fr)}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px 17px;font-size:9pt;color:var(--soft);line-height:1.6}
+.card-title{font-family:var(--display);font-size:10.5pt;font-weight:800;color:var(--ink);margin-bottom:6px;line-height:1.3;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-title::before{content:"";flex-shrink:0;width:9px;height:11px;-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--cyan)}
+.code{background:var(--code-bg);color:var(--code-ink);border-radius:12px;overflow:hidden;border:1px solid rgba(34,227,247,.14);min-width:0}
+.code-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px 7px 14px;border-bottom:1px solid rgba(255,255,255,.07)}
+.code-head span{font:600 7.5pt/1.3 var(--mono);letter-spacing:.06em;color:var(--code-faint);text-transform:uppercase;min-width:0}
+.code-head span::before{content:"";display:inline-block;width:6px;height:7px;margin-right:7px;-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--glow);vertical-align:0}
+.copy{font:600 7.5pt/1 var(--sans);color:var(--code-faint);background:transparent;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:5px 9px;cursor:pointer;flex-shrink:0;transition:color .18s,border-color .18s}
+.copy:hover,.copy.done{color:#fff;border-color:rgba(34,227,247,.5)}
+.code pre{margin:0;padding:12px 14px 14px;overflow-x:auto;font:400 8.6pt/1.7 var(--mono)}
+.code .c{color:var(--code-faint)}
+.code .k{color:var(--code-hl)}
+.code .s{color:var(--code-hl2)}
+
+/* Recorrido en el harness */
+.walk{display:grid;gap:16px;min-width:0;margin-top:12px}
+.walk-head{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+.tabs{display:inline-flex;gap:4px;padding:4px;border-radius:10px;background:var(--abyss)}
+.tab{font-family:var(--sans);font-size:8pt;font-weight:600;border:0;background:transparent;color:#c3cfe3;padding:6px 11px;border-radius:8px;cursor:pointer;transition:background .18s,color .18s}
+.tab:hover{background:rgba(255,255,255,.08);color:#fff}
+.tab[aria-selected="true"]{background:rgba(34,227,247,.14);color:#fff;box-shadow:inset 0 0 0 1px rgba(34,227,247,.35)}
+.steps{display:grid;gap:20px}
+.st{display:grid;grid-template-columns:190px minmax(0,1fr);gap:4px 22px;align-items:start}
+.rail{display:grid;gap:8px;justify-items:start;min-width:0}
+.rail .dropnum{width:40px;height:48px;padding-top:10px;font-size:13pt}
+.rail .nx{font-size:9pt;line-height:1.5;color:var(--soft)}
+.rail .nx b{display:block;font-size:7.5pt;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.rail .nx code{white-space:normal}
+.track{display:flex;flex-wrap:wrap;gap:3px}
+.track i{width:14px;height:6px;border-radius:3px;background:var(--line)}
+.track i.done{background:var(--mint)}
+.track i.now{background:var(--grad)}
+.term{background:var(--code-bg);color:var(--code-ink);border:1px solid rgba(34,227,247,.14);border-radius:12px;padding:12px 14px;font:400 8.6pt/1.7 var(--mono);overflow-x:auto;min-width:0}
+.term .ln{white-space:pre-wrap;word-break:break-word}
+.term .sig{color:var(--code-hl)}
+.term .dim{color:var(--code-faint)}
+.term .cmd{color:var(--code-hl2)}
+.term .u{font-weight:600;color:#fff}
+.term .ublk{border-left:2px solid var(--code-hl);padding:4px 10px;margin:2px 0;background:var(--abyss-2)}
+.term .tool{border-left:1px solid var(--abyss-3);padding-left:10px;margin:2px 0}
+.term .gap{height:8px}
+.lesson{grid-column:2;position:relative;overflow:hidden;font-size:9pt;line-height:1.6;color:var(--cyan-on);background:var(--cyan-soft);border-radius:10px;padding:9px 14px 9px 18px;margin-top:8px;max-width:none}
+.lesson::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cyan)}
+.caption{font-size:8.5pt;color:var(--faint)}
+
+/* Mapa del recorrido */
+.metro{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px}
+.metro svg{display:block;width:100%;height:auto}
+.mt-zone-a{fill:var(--zone-a)}
+.mt-zone-b{fill:var(--zone-b)}
+.mt-zone-t{font:800 15px var(--display);fill:var(--ink)}
+.mt-zone-s{font:500 12.5px var(--sans);fill:var(--soft)}
+.mt-trunk{fill:none;stroke:var(--soft);stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+.mt-fast{fill:none;stroke:var(--mint);stroke-width:6;stroke-linecap:round}
+.mt-full{fill:none;stroke:var(--violet-ink);stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+.mt-st{fill:var(--surface);stroke:var(--soft);stroke-width:4}
+.mt-st.full{stroke:var(--violet-ink)}
+.mt-start{fill:var(--soft)}
+.mt-end{fill:var(--mint)}
+.mt-check{fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.mt-name{font:600 13.5px var(--mono);fill:var(--ink)}
+.mt-cond{font:400 12.5px var(--sans);fill:var(--soft)}
+.mt-lane{font:700 12.5px var(--sans)}
+.mt-lane.fast{fill:var(--mint-ink)}
+.mt-lane.full{fill:var(--violet-ink)}
+.mt-back{fill:none;stroke:var(--rose);stroke-width:2;stroke-dasharray:6 5;stroke-linecap:round}
+.mt-back-head{fill:var(--rose)}
+.mt-back-t{font:600 12.5px var(--sans);fill:var(--rose-ink)}
+.mt-leg{font:500 12.5px var(--sans);fill:var(--soft)}
+.vflow{display:none;list-style:none;margin:0;padding:6px 4px}
+.vflow li{position:relative;display:grid;grid-template-columns:28px 1fr;gap:12px;padding:0 0 16px}
+.vflow li::before{content:"";position:absolute;left:12px;top:18px;bottom:-2px;width:4px;border-radius:2px;background:var(--soft)}
+.vflow li.full::before{background:var(--violet-ink)}
+.vflow li:last-child::before{display:none}
+.vflow .dot{width:28px;height:28px;border-radius:50%;background:var(--surface);border:4px solid var(--soft);position:relative;z-index:1}
+.vflow li.full .dot{border-color:var(--violet-ink)}
+.vflow li.gate .dot{border:0;border-radius:0;-webkit-mask:var(--drop) center/22px 27px no-repeat;mask:var(--drop) center/22px 27px no-repeat;background:var(--grad-v)}
+.vflow li.end .dot{border-color:var(--mint);background:var(--mint)}
+.vflow .nm{font:600 9.5pt/1.3 var(--mono);color:var(--ink);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.vflow .cd{font-size:9pt;color:var(--soft);margin-top:2px}
+.vnote{display:none}
+
+footer{background:var(--abyss);color:#9fb0cc}
+footer .wrap{padding-block:22px;font-size:8.5pt;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+footer svg{width:16px;height:auto}
+
+@media screen and (max-width:860px){
+  :root{--pad:22px}
+  .printbar{padding:8px 12px;gap:10px}
+  .brand small{display:none}
+  .chapter::after{opacity:.3}
+  .chapter::before{opacity:.35}
+  .cards{grid-template-columns:1fr 1fr}
+}
+@media (max-width:760px){
+  .metro svg{display:none}
+  .vflow{display:block}
+  .vnote{display:block}
+}
+@media screen and (max-width:600px){
+  :root{--pad:16px}
+  .toc{display:none}
+  .pb-actions{margin-left:auto}
+  .cards,.cards.c4{grid-template-columns:1fr}
+  .dropnum{width:44px;height:52px;font-size:14pt}
+  .chapter .wrap{gap:12px}
+  .chapter{min-height:190px}
+  .chapter::before{display:none}
+  .st{grid-template-columns:1fr;gap:10px}
+  .rail{grid-template-columns:auto 1fr;align-items:center;column-gap:12px}
+  .rail .nx{grid-column:1 / -1}
+  .lesson{grid-column:1;margin-top:0}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<nav class="printbar" aria-label="Documento">
+  <a class="brand" href="#portada"><svg class="logo" viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="lgb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient></defs><path fill="url(#lgb)" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/><ellipse cx="13" cy="24" rx="3" ry="6" fill="#fff" opacity=".35"/></svg><b>Guía <em>rápida HCD</em></b><small>gomemory 2.41.0</small></a>
+  <div class="toc">
+    <a href="#cap-1"><span>1</span>Carril</a>
+    <a href="#cap-2"><span>2</span>Motor sin IA</a>
+    <a href="#cap-3"><span>3</span>En el harness</a>
+    <a href="#cap-4"><span>4</span>Vía rápida</a>
+    <a href="#cap-5"><span>5</span>Ceremonia completa</a>
+    <a href="#cap-6"><span>6</span>Uso manual</a>
+    <a href="#cap-7"><span>7</span>Comandos</a>
+    <a href="#cap-8"><span>8</span>Respuestas</a>
+    <a href="#cap-9"><span>9</span>Por agente</a>
+    <a href="#cap-10"><span>10</span>Reglas</a>
+  </div>
+  <div class="pb-actions"><button type="button" class="pb-btn" id="themeBtn" aria-label="Cambiar entre tema claro y oscuro">◐ Tema</button></div>
+  <span class="readbar" aria-hidden="true"><i></i></span>
+</nav>
+<div class="doc">
+<header class="cover" id="portada">
+  <div class="wrap">
+    <div class="brand"><svg class="logo" viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="lgc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient></defs><path fill="url(#lgc)" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/><ellipse cx="13" cy="24" rx="3" ry="6" fill="#fff" opacity=".35"/></svg><b>Guía <em>rápida HCD</em></b><small>gomemory 2.41.0 · HCD</small></div>
+    <h1>Guía rápida <span class="grad">HCD</span></h1>
+    <div class="accent"></div>
+    <p>HCD lleva un cambio de la intención al cierre con evidencia real. Tú hablas con el agente; el motor <code>mem hcd</code> decide el paso, ejecuta las comprobaciones y registra las aprobaciones. Una casilla marcada a mano no cuenta como hecha.</p>
+    <div class="flowrow">
+      <div class="flow"><span class="lbl">Vía rápida</span>
+        <span class="fl-node">define</span><span class="fl-arrow">→</span><span class="fl-node">tasks</span><span class="fl-arrow">→</span><span class="fl-node">implement</span><span class="fl-arrow">→</span><span class="fl-node">verify</span><span class="fl-arrow">→</span><span class="fl-node hl">close</span>
+      </div>
+      <div class="flow"><span class="lbl">Ceremonia completa</span>
+        <span class="fl-node">define</span><span class="fl-arrow">→</span><span class="fl-node">clarify</span><span class="fl-arrow">→</span><span class="fl-node hl">approve</span><span class="fl-arrow">→</span><span class="fl-node">slice</span><span class="fl-arrow">→</span><span class="fl-node">tasks</span><span class="fl-arrow">→</span><span class="fl-node">implement</span><span class="fl-arrow">→</span><span class="fl-node">verify</span><span class="fl-arrow">→</span><span class="fl-node hl">close</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section id="cap-1">
+  <div class="chapter" style="--rot:10deg"><div class="wrap"><span class="dropnum">1</span><div><h2>¿Qué <span class="grad">carril</span> uso?</h2><p class="sub">El tamaño del cambio nunca decide el carril.</p></div></div></div>
+  <div class="wrap body">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Situación</th><th>Carril</th><th>Aprobaciones</th></tr></thead>
+      <tbody>
+        <tr><td>Fix con reproducción clara, cambio ordinario</td><td><span class="badge b-mint">fast</span></td><td>Una, al cerrar</td></tr>
+        <tr><td>Varias decisiones abiertas que se afectan entre sí</td><td><span class="badge b-violet">full</span></td><td>Definición + cierre</td></tr>
+        <tr><td>Riesgo alto: datos, seguridad, contratos públicos</td><td><span class="badge b-violet">full</span></td><td>Definición + cierre</td></tr>
+        <tr><td>Empezó en fast y aparecieron decisiones encadenadas</td><td><code>mem hcd promote</code></td><td>Pasa a full y conserva la evidencia</td></tr>
+        <tr><td>Solo preguntar, explicar o auditar</td><td><span class="badge b-cyan">sin unidad</span></td><td>Ninguna</td></tr>
+      </tbody>
+    </table></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tipo (<code>--kind</code>)</th><th>Cuándo</th></tr></thead>
+      <tbody>
+        <tr><td><code>fix</code></td><td>Corrige un fallo observado. Exige ver el <strong>rojo</strong> antes del verde.</td></tr>
+        <tr><td><code>feature</code></td><td>Añade un comportamiento nuevo.</td></tr>
+        <tr><td><code>evolution</code></td><td>Cambia un comportamiento que ya existe.</td></tr>
+        <tr><td><code>technical</code></td><td>Mejora una propiedad técnica medible (rendimiento, tamaño…).</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="cap-2">
+  <div class="chapter" style="--rot:-38deg"><div class="wrap"><span class="dropnum">2</span><div><h2>¿Necesita <span class="grad">IA</span>? No</h2><p class="sub">mem hcd es código Go local y determinista: no llama a ningún modelo. La IA solo automatiza la parte que haría una persona.</p></div></div></div>
+  <div class="wrap body">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tarea</th><th>Motor <code>mem hcd</code> (sin IA)</th><th>Persona o agente</th></tr></thead>
+      <tbody>
+        <tr><td>Calcular el paso y el siguiente</td><td><span class="badge b-cyan">motor</span></td><td></td></tr>
+        <tr><td>Detectar las secciones que faltan (<code>DOC-MISSING</code>)</td><td><span class="badge b-cyan">motor</span></td><td></td></tr>
+        <tr><td>Ejecutar las comprobaciones y guardar rojo y verde</td><td><span class="badge b-cyan">motor</span></td><td></td></tr>
+        <tr><td>Validar la cita («apruebo» o la revisión)</td><td><span class="badge b-cyan">motor</span></td><td></td></tr>
+        <tr><td>Caducar la evidencia si cambia el código</td><td><span class="badge b-cyan">motor</span></td><td></td></tr>
+        <tr><td>Elegir carril y tipo</td><td></td><td><span class="badge b-violet">persona o IA</span></td></tr>
+        <tr><td>Redactar intención, alcance, historias y tareas</td><td></td><td><span class="badge b-violet">persona o IA</span></td></tr>
+        <tr><td>Detectar ambigüedades y plantear la aclaración</td><td></td><td><span class="badge b-violet">persona o IA</span></td></tr>
+        <tr><td>Escribir el código que corrige o implementa</td><td></td><td><span class="badge b-violet">persona o IA</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="infobox mint"><span class="lbl">Sin agente</span><p>Una persona hace <code>start</code>, edita <code>hcd/HCD-NNN-….md</code> en su editor y avanza con <code>show</code>, <code>verify</code> y <code>close</code> (capítulos 4 y 5, con <code>--client terminal</code>). El motor le exige lo mismo que a un agente.</p></div>
+
+    <h3 class="sh">Cómo decide el paso: una máquina de estados derivada</h3>
+    <p>El paso <strong>nunca se guarda</strong>. En cada <code>show</code>, <code>verify</code> o <code>close</code> el motor lee el estado actual y lo recalcula con reglas fijas. Con el mismo documento, la misma evidencia y el mismo código, el resultado es siempre el mismo paso. No interviene ningún modelo ni hace falta conexión.</p>
+
+    <h3 class="sh">El recorrido de una unidad, de un vistazo</h3>
+    <p class="muted">Cada estación se desbloquea cuando se cumple lo que tiene debajo. El motor recalcula en qué estación estás cada vez que lo consultas, y te devuelve a una anterior si algo caduca.</p>
+    <div class="metro">
+<svg viewBox="0 0 1080 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="mt-title mt-desc">
+<title id="mt-title">Recorrido de una unidad HCD</title>
+<desc id="mt-desc">Línea de metro de start a closed. La Vía rápida va recta de clarify a tasks; la ceremonia completa se desvía por approve y slice. approve y close son tus aprobaciones. Si cambia el código, el motor vuelve a verify; si cambia la definición, vuelve a approve.</desc>
+<defs><linearGradient id="mtGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient><marker id="mtArrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mt-back-head" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect x="8" y="8" width="660" height="346" rx="14" class="mt-zone-a"/>
+<rect x="676" y="8" width="396" height="346" rx="14" class="mt-zone-b"/>
+<text x="28" y="38" class="mt-zone-t">Defines</text><text x="28" y="57" class="mt-zone-s">lo redacta una persona o el agente</text>
+<text x="696" y="38" class="mt-zone-t">Construyes y demuestras</text><text x="696" y="57" class="mt-zone-s">el motor ejecuta las pruebas y registra</text>
+<path d="M50,250 L240,250" class="mt-trunk"/>
+<path d="M620,250 L1030,250" class="mt-trunk"/>
+<path d="M240,250 C310,250 310,140 380,140 L480,140 C550,140 550,250 620,250" class="mt-full"/>
+<path d="M240,250 L620,250" class="mt-fast"/>
+<text x="430.0" y="280" text-anchor="middle" class="mt-lane fast">Vía rápida: recta, sin approve ni slice</text>
+<text x="296" y="150" text-anchor="end" class="mt-lane full">Ceremonia completa</text>
+<path d="M935,232 C935,168 835,168 835,230" class="mt-back" marker-end="url(#mtArrow)"/>
+<text x="885.0" y="158" text-anchor="middle" class="mt-back-t">si cambia el código,</text>
+<text x="885.0" y="174" text-anchor="middle" class="mt-back-t">la evidencia caduca</text>
+<path d="M735,232 C735,20 380,20 380,110" class="mt-back" marker-end="url(#mtArrow)"/>
+<text x="557.5" y="44" text-anchor="middle" class="mt-back-t">si cambia la definición, vuelve a approve</text>
+<circle cx="50" cy="250" r="9" class="mt-start"/>
+<text x="50" y="288" text-anchor="middle" class="mt-name">start</text><text x="50" y="307" text-anchor="middle" class="mt-cond">/hcd con tipo</text><text x="50" y="322" text-anchor="middle" class="mt-cond">y carril</text>
+<circle cx="145" cy="250" r="11" class="mt-st"/>
+<text x="145" y="288" text-anchor="middle" class="mt-name">define</text><text x="145" y="307" text-anchor="middle" class="mt-cond">secciones</text><text x="145" y="322" text-anchor="middle" class="mt-cond">completas</text>
+<circle cx="240" cy="250" r="11" class="mt-st"/>
+<text x="240" y="288" text-anchor="middle" class="mt-name">clarify</text><text x="240" y="307" text-anchor="middle" class="mt-cond">cada Qn</text><text x="240" y="322" text-anchor="middle" class="mt-cond">respondida</text>
+<g transform="translate(365.5,120) scale(.74)"><path d="M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z" fill="url(#mtGrad)"/><ellipse cx="13" cy="27" rx="3" ry="6" fill="#fff" opacity=".35"/></g>
+<text x="380" y="180" text-anchor="middle" class="mt-name">approve</text><text x="380" y="198" text-anchor="middle" class="mt-cond">tu cita sobre</text><text x="380" y="213" text-anchor="middle" class="mt-cond">la revisión</text>
+<circle cx="480" cy="140" r="11" class="mt-st full"/>
+<text x="480" y="180" text-anchor="middle" class="mt-name">slice</text><text x="480" y="198" text-anchor="middle" class="mt-cond">VS-NN con</text><text x="480" y="213" text-anchor="middle" class="mt-cond">tareas y C-NN</text>
+<circle cx="620" cy="250" r="11" class="mt-st"/>
+<text x="620" y="288" text-anchor="middle" class="mt-name">tasks</text><text x="620" y="307" text-anchor="middle" class="mt-cond">checklist</text><text x="620" y="322" text-anchor="middle" class="mt-cond">N. → prueba</text>
+<circle cx="735" cy="250" r="11" class="mt-st"/>
+<text x="735" y="288" text-anchor="middle" class="mt-name">implement</text><text x="735" y="307" text-anchor="middle" class="mt-cond">rojo (si es fix)</text><text x="735" y="322" text-anchor="middle" class="mt-cond">y el cambio</text>
+<circle cx="835" cy="250" r="11" class="mt-st"/>
+<text x="835" y="288" text-anchor="middle" class="mt-name">verify</text><text x="835" y="307" text-anchor="middle" class="mt-cond">evidencia</text><text x="835" y="322" text-anchor="middle" class="mt-cond">vigente</text>
+<g transform="translate(920.5,230) scale(.74)"><path d="M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z" fill="url(#mtGrad)"/><ellipse cx="13" cy="27" rx="3" ry="6" fill="#fff" opacity=".35"/></g>
+<text x="935" y="288" text-anchor="middle" class="mt-name">close</text><text x="935" y="307" text-anchor="middle" class="mt-cond">analyze limpio</text><text x="935" y="322" text-anchor="middle" class="mt-cond">y tu cita</text>
+<circle cx="1030" cy="250" r="15" class="mt-end"/><path d="M1024,250 l4,4.5 l8,-9" class="mt-check"/>
+<text x="1030" y="288" text-anchor="middle" class="mt-name">closed</text><text x="1030" y="307" text-anchor="middle" class="mt-cond">unidad</text><text x="1030" y="322" text-anchor="middle" class="mt-cond">liberada</text>
+<g transform="translate(20,375) scale(.42)"><path d="M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z" fill="url(#mtGrad)"/></g><text x="44" y="390" class="mt-leg">tu aprobación</text>
+<line x1="158" y1="386" x2="190" y2="386" class="mt-trunk"/><text x="200" y="390" class="mt-leg">ambos carriles</text>
+<line x1="320" y1="386" x2="352" y2="386" class="mt-fast"/><text x="362" y="390" class="mt-leg">Vía rápida</text>
+<line x1="460" y1="386" x2="492" y2="386" class="mt-full"/><text x="502" y="390" class="mt-leg">solo ceremonia completa</text>
+<line x1="680" y1="386" x2="712" y2="386" class="mt-back"/><text x="722" y="390" class="mt-leg">el motor te devuelve a un paso anterior</text>
+</svg>
+<ol class="vflow" aria-label="Pasos de una unidad HCD">
+<li class=""><span class="dot" aria-hidden="true"></span><div><div class="nm">start</div><div class="cd">/hcd con tipo y carril</div></div></li>
+<li class=""><span class="dot" aria-hidden="true"></span><div><div class="nm">define</div><div class="cd">secciones completas</div></div></li>
+<li class=""><span class="dot" aria-hidden="true"></span><div><div class="nm">clarify</div><div class="cd">cada Qn respondida</div></div></li>
+<li class="gate full"><span class="dot" aria-hidden="true"></span><div><div class="nm">approve<span class="badge b-violet">solo full</span><span class="badge b-cyan">tu aprobación</span></div><div class="cd">tu cita sobre la revisión</div></div></li>
+<li class="full"><span class="dot" aria-hidden="true"></span><div><div class="nm">slice<span class="badge b-violet">solo full</span></div><div class="cd">VS-NN con tareas y C-NN</div></div></li>
+<li class=""><span class="dot" aria-hidden="true"></span><div><div class="nm">tasks</div><div class="cd">checklist: N. → prueba</div></div></li>
+<li class=""><span class="dot" aria-hidden="true"></span><div><div class="nm">implement</div><div class="cd">rojo (si es fix) y el cambio</div></div></li>
+<li class=""><span class="dot" aria-hidden="true"></span><div><div class="nm">verify</div><div class="cd">evidencia vigente</div></div></li>
+<li class="gate"><span class="dot" aria-hidden="true"></span><div><div class="nm">close<span class="badge b-cyan">tu aprobación</span></div><div class="cd">analyze limpio y tu cita</div></div></li>
+<li class="end"><span class="dot" aria-hidden="true"></span><div><div class="nm">closed</div><div class="cd">unidad liberada</div></div></li>
+</ol>
+<p class="vnote muted">La Vía rápida salta approve y slice. Si cambia el código, el motor vuelve a verify; si cambia la definición, vuelve a approve.</p>
+</div>
+
+
+    <div class="cards c4">
+      <div class="card"><div class="card-title">1 · Lee el estado</div>Analiza el documento por sus secciones <code>##</code> (faltantes, <code>Qn</code> abiertas, slices <code>VS-NN</code>, tareas <code>- [ ] N. … → comprobación</code>) y carga de la base la evidencia y las aprobaciones.</div>
+      <div class="card"><div class="card-title">2 · Calcula huellas</div><code>definition_revision</code>: SHA-256 (12 hex) de las secciones de definición. <code>work_revision</code>: lo mismo más slices y tareas. <code>fingerprint</code>: <code>HEAD</code> de git más el contenido de los archivos cambiados, sin contar <code>hcd/</code>.</div>
+      <div class="card"><div class="card-title">3 · Clasifica cada tarea</div>Toma su evidencia más reciente <strong>vigente</strong> (misma <code>work_revision</code> y misma huella): si pasó, <code>verified</code>; si falló, <code>failed</code>; marcada sin evidencia vigente, <code>unverified</code>; si no, <code>pending</code>.</div>
+      <div class="card"><div class="card-title">4 · Recorre las guardas</div>Evalúa una lista ordenada de condiciones y se queda con la <strong>primera</strong> que se cumple. Ese es el paso, y cada paso tiene una skill y un motivo fijos.</div>
+    </div>
+
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Guarda (se evalúa en este orden)</th><th>Paso</th><th>Siguiente</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>La unidad ya no está activa</td><td><span class="badge b-mint">closed</span></td><td><code>/hcd</code></td></tr>
+        <tr><td>2</td><td>Falta alguna sección o queda «pendiente»</td><td><span class="badge b-violet">define</span></td><td><code>/hcd-define</code></td></tr>
+        <tr><td>3</td><td>Hay una aclaración <code>Qn</code> abierta</td><td><span class="badge b-violet">clarify</span></td><td><code>/hcd-clarify</code></td></tr>
+        <tr><td>4</td><td><em>Solo full:</em> la última aprobación no coincide con la <code>definition_revision</code> actual</td><td><span class="badge b-violet">approve</span></td><td><code>/hcd-approve</code></td></tr>
+        <tr><td>5</td><td><em>Solo full:</em> no hay slices</td><td><span class="badge b-violet">slice</span></td><td><code>/hcd-slice</code></td></tr>
+        <tr><td>6</td><td>El checklist no tiene tareas</td><td><span class="badge b-violet">tasks</span></td><td><code>/hcd-tasks</code></td></tr>
+        <tr><td>7</td><td>Alguna tarea está <code>pending</code></td><td><span class="badge b-violet">implement</span></td><td><code>/hcd-implement</code></td></tr>
+        <tr><td>8</td><td>Alguna tarea <code>unverified</code> o <code>failed</code>, o falta el rojo de un fix</td><td><span class="badge b-violet">verify</span></td><td><code>/hcd-verify</code></td></tr>
+        <tr><td>9</td><td>Ninguna de las anteriores</td><td><span class="badge b-mint">close</span></td><td><code>/hcd-close</code> (o <code>/hcd-approve</code> si cambiaron las normas)</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="code"><div class="code-head"><span>pseudocódigo · domain/hcd_stage.go</span><button class="copy" type="button" aria-live="polite">Copiar</button></div><pre><span class="k">función</span> paso(unidad):
+  <span class="k">si</span> unidad no activa                       → closed
+  <span class="k">si</span> documento con faltantes               → define
+  <span class="k">si</span> aclaraciones abiertas                  → clarify
+  <span class="k">si</span> carril = full y no aprobada            → approve
+  <span class="k">si</span> carril = full y sin slices            → slice
+  <span class="k">si</span> sin tareas                             → tasks
+  <span class="k">si</span> alguna tarea pending                   → implement
+  <span class="k">si</span> alguna unverified/failed o falta rojo  → verify
+  → close
+
+<span class="k">función</span> estado(tarea):
+  e = evidencia más reciente con <span class="s">work_revision</span> y <span class="s">fingerprint</span> actuales
+  <span class="k">si</span> e pasó (salida 0 o manual) → verified
+  <span class="k">si</span> e falló                     → failed
+  <span class="k">si</span> casilla marcada             → unverified   <span class="c"># marcar a mano no basta</span>
+  → pending</pre></div>
+
+    <div class="cards c4">
+      <div class="card"><div class="card-title">Gate TDD</div>En un <code>fix</code>, la tarea 1 exige un rojo <strong>real</strong> (<code>--expect-fail</code> con salida distinta de 0) registrado sobre un código distinto del de su verde. En otros tipos solo se exige si lo intentaste.</div>
+      <div class="card"><div class="card-title">Evidencia que caduca</div>Si cambias el código, cambia la huella y la evidencia anterior deja de ser vigente: se ignora, pero no se borra. Reescribir el documento <code>hcd/</code> no la caduca.</div>
+      <div class="card"><div class="card-title">Citas</div>Vale un texto que contenga la revisión de 12 hex, o «apruebo», «aprobar», «sí, apruebo» y variantes (sin importar mayúsculas ni espacios). Cualquier otra cosa da <code>invalid_quote</code>.</div>
+      <div class="card"><div class="card-title">Mutaciones con permiso</div><code>approve</code> solo se acepta en su paso, <code>verify</code> solo en implement, verify o close, y <code>close</code> se rechaza con algún CRITICAL de <code>analyze</code>. Fuera de lugar: <code>not_allowed</code>.</div>
+    </div>
+    <div class="infobox amber"><span class="lbl">El límite</span><p>El motor comprueba que las secciones existan, que los pasos vayan en orden y que haya evidencia vigente. Sabe que hay una sección «Alcance», pero no si el alcance es correcto, y sabe que <code>composer audit</code> salió con 0, pero no si esa prueba era la adecuada. Eso lo juzga quien redacta y quien revisa el PR.</p></div>
+  </div>
+</section>
+
+<section id="cap-3">
+  <div class="chapter" style="--rot:-14deg"><div class="wrap"><span class="dropnum">3</span><div><h2>Así se ve en el <span class="grad">harness</span></h2><p class="sub">Dos solicitudes reales de un proyecto PHP, paso a paso. Los mensajes «siguiente» son los que devolvió mem hcd 2.41.0 al ejecutar este mismo flujo.</p></div></div></div>
+  <div class="wrap body">
+    <div class="infobox"><span class="lbl">Cómo leerlo</span><p>Izquierda: lo que dice el motor tras cada paso (en qué paso va la unidad y qué skill toca). Derecha: lo que ves en la terminal del agente. Debajo: qué observar. Cambia de harness con las pestañas; el flujo es el mismo y solo cambian el dibujo y el prefijo: <code>$hcd</code> en Codex, <code>/hcd</code> en OpenCode y Claude Code.</p></div>
+
+    <div class="walk" data-ex="fast">
+      <div class="walk-head">
+        <h3 class="sh">A · Vía rápida · remediar librerías PHP vulnerables</h3>
+        <div class="tabs" role="tablist" aria-label="Harness del ejemplo A">
+          <button class="tab" role="tab" type="button" id="tab-fast-codex" data-h="codex" aria-selected="true">Codex</button>
+          <button class="tab" role="tab" type="button" id="tab-fast-opencode" data-h="opencode" aria-selected="false">OpenCode</button>
+          <button class="tab" role="tab" type="button" id="tab-fast-claude" data-h="claude" aria-selected="false">Claude Code</button>
+        </div>
+      </div>
+      <div class="infobox mint"><span class="lbl">La solicitud</span><p><code>composer audit</code> reporta dos CVE en <code>guzzlehttp/guzzle 7.4.1</code>. Es un <strong>fix</strong> con reproducción clara y sin decisiones abiertas: va por la <span class="badge b-mint">fast</span>.</p></div>
+      <div class="steps"></div>
+    </div>
+
+    <div class="walk" data-ex="full">
+      <div class="walk-head">
+        <h3 class="sh">B · Ceremonia completa · actualizar Laravel 10 a 11</h3>
+        <div class="tabs" role="tablist" aria-label="Harness del ejemplo B">
+          <button class="tab" role="tab" type="button" id="tab-full-codex" data-h="codex" aria-selected="false">Codex</button>
+          <button class="tab" role="tab" type="button" id="tab-full-opencode" data-h="opencode" aria-selected="false">OpenCode</button>
+          <button class="tab" role="tab" type="button" id="tab-full-claude" data-h="claude" aria-selected="true">Claude Code</button>
+        </div>
+      </div>
+      <div class="infobox violet"><span class="lbl">La solicitud</span><p>Subir de Laravel 10 a 11. La versión de PHP, los paquetes incompatibles y la API pública son <strong>decisiones que se afectan entre sí</strong>: va por la <span class="badge b-violet">full</span>.</p></div>
+      <div class="steps"></div>
+    </div>
+    <p class="caption">Representación simplificada de cada interfaz. Las salidas de <code>composer</code> y de las pruebas son ilustrativas; las respuestas del motor (paso y siguiente) son las reales. Para retomar en otra sesión o en otro agente: <code>/hcd</code> sin argumentos (cada proyecto tiene como máximo una unidad activa).</p>
+  </div>
+</section>
+
+<section id="cap-4">
+  <div class="chapter" style="--rot:24deg"><div class="wrap"><span class="dropnum">4</span><div><h2>Vía rápida desde la <span class="grad">terminal</span></h2><p class="sub">Respaldo cuando el agente no puede seguir las skills. Probado con mem 2.41.0.</p></div></div></div>
+  <div class="wrap body">
+  <div class="code"><div class="code-head"><span>bash · fix en vía rápida</span><button class="copy" type="button" aria-live="polite">Copiar</button></div><pre><span class="c"># 1. Abrir la unidad (--intent rellena la sección Intención)</span>
+<span class="k">mem hcd start</span> --kind fix --lane fast \
+  --title <span class="s">"Remediar librerías PHP vulnerables"</span> \
+  --why <span class="s">"fix con reproducción clara, sin decisiones abiertas"</span> \
+  --intent <span class="s">"Que composer audit no reporte vulnerabilidades"</span>
+
+<span class="c"># 2. Editar hcd/HCD-001-*.md hasta que show no liste faltantes:</span>
+<span class="c">#    Reproducción, Alcance (Incluido/Excluido), ¿Qué pasa si no lo hacemos?,</span>
+<span class="c">#    Alternativa más barata y el checklist:</span>
+<span class="c">#    - [ ] 1. Subir guzzlehttp/guzzle a 7.4.5 → composer audit</span>
+<span class="c">#    - [ ] 2. La suite sigue en verde → vendor/bin/phpunit</span>
+<span class="k">mem hcd show</span>
+
+<span class="c"># 3. ROJO: ejecutar la comprobación ANTES del cambio (obligatorio en fix)</span>
+<span class="k">mem hcd verify</span> --task 1 --expect-fail -- <span class="s">'composer audit'</span>
+
+<span class="c"># 4. Implementar el cambio y registrar el VERDE</span>
+composer require guzzlehttp/guzzle:^7.4.5 --with-all-dependencies
+<span class="k">mem hcd verify</span> --task 1 -- <span class="s">'composer audit'</span>
+<span class="k">mem hcd verify</span> --task 2 -- <span class="s">'vendor/bin/phpunit'</span>
+
+<span class="c"># 5. Revisar coherencia (no escribe) y cerrar con tu cita</span>
+<span class="k">mem hcd analyze</span>
+<span class="k">mem hcd close</span> --quote <span class="s">"apruebo"</span></pre></div>
+  </div>
+</section>
+
+<section id="cap-5">
+  <div class="chapter" style="--rot:-30deg"><div class="wrap"><span class="dropnum">5</span><div><h2>Ceremonia completa desde la <span class="grad">terminal</span></h2><p class="sub">Con aclaración, aprobación de la definición y slices.</p></div></div></div>
+  <div class="wrap body">
+  <div class="code"><div class="code-head"><span>bash · evolution en ceremonia completa</span><button class="copy" type="button" aria-live="polite">Copiar</button></div><pre><span class="k">mem hcd start</span> --kind evolution --lane full \
+  --title <span class="s">"Actualizar Laravel 10 a 11"</span> \
+  --why <span class="s">"PHP, paquetes y API pública se afectan entre sí"</span> \
+  --intent <span class="s">"Correr sobre Laravel 11 con soporte de seguridad"</span>
+
+<span class="c"># Definir: además de lo de la vía rápida, historias y criterios</span>
+<span class="c">#   ### US1. Aplicación en Laravel 11</span>
+<span class="c">#   Como responsable del servicio, quiero correr sobre Laravel 11, para recibir parches.</span>
+<span class="c">#   - C-01: Dado el proyecto actualizado, cuando ejecuto la suite, entonces todo pasa.</span>
+<span class="k">mem hcd show</span>
+
+<span class="c"># Aclarar lo que cambia contrato, datos, seguridad o alcance</span>
+<span class="k">mem hcd clarify</span> --ask <span class="s">"¿Subimos PHP a 8.2 en esta unidad o en otra?"</span>
+<span class="k">mem hcd clarify</span> --id Q1 --answer <span class="s">"B: subir PHP a 8.2 en esta misma unidad"</span>
+
+<span class="c"># Aprobar la definición: "apruebo", "aprobar" o la revisión de 12 hex</span>
+<span class="k">mem hcd show</span> --json   <span class="c"># mira definition_revision</span>
+<span class="k">mem hcd approve</span> --quote <span class="s">"apruebo"</span>
+
+<span class="c"># Slices y tareas en el documento (añadirlos no anula la aprobación)</span>
+<span class="c">#   ### VS-01. Framework actualizado con la suite en verde</span>
+<span class="c">#   Tareas: 1, 2</span>
+<span class="c">#   Criterios: C-01</span>
+<span class="c">#   - [ ] 1. Subir laravel/framework a ^11 → php artisan test</span>
+
+<span class="k">mem hcd verify</span> --task 1,2 -- <span class="s">'php artisan test'</span>
+<span class="c"># o, si la prueba es manual:</span>
+<span class="k">mem hcd verify</span> --task 3 --manual <span class="s">"Llamé a /api/v1/orders: respuesta idéntica"</span>
+
+<span class="k">mem hcd analyze</span>
+<span class="k">mem hcd close</span> --quote <span class="s">"apruebo"</span></pre></div>
+  </div>
+</section>
+
+<section id="cap-6">
+  <div class="chapter" style="--rot:32deg"><div class="wrap"><span class="dropnum">6</span><div><h2>Consideraciones para el uso <span class="grad">manual</span></h2><p class="sub">Lo que hace la skill por ti y, desde la terminal, tienes que hacer tú.</p></div></div></div>
+  <div class="wrap body">
+    <div class="infobox"><span class="lbl">La regla principal</span><p>Los pasos <strong>define</strong>, <strong>slice</strong> y <strong>tasks</strong> no tienen comando: se completan <strong>editando el documento</strong> <code>hcd/HCD-NNN-….md</code>. <code>mem hcd show</code> y <code>mem hcd next</code> solo leen. Si <code>next</code> repite el mismo mensaje, el documento sigue igual para el motor.</p></div>
+
+    <h3 class="sh">Qué paso pide qué</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>El motor dice</th><th>Lo haces con</th><th>Ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-violet">define</span></td><td>Tu editor</td><td>Cambiar cada <code>pendiente</code> por contenido real</td></tr>
+        <tr><td><span class="badge b-violet">clarify</span></td><td>Comando</td><td><code>mem hcd clarify --id Q1 --answer "…"</code></td></tr>
+        <tr><td><span class="badge b-violet">approve</span></td><td>Comando</td><td><code>mem hcd approve --quote "apruebo"</code></td></tr>
+        <tr><td><span class="badge b-violet">slice</span></td><td>Tu editor</td><td>Añadir <code>### VS-01. …</code> con <code>Tareas:</code> y <code>Criterios:</code></td></tr>
+        <tr><td><span class="badge b-violet">tasks</span></td><td>Tu editor</td><td>Añadir <code>- [ ] 1. verbo + objeto → comprobación</code></td></tr>
+        <tr><td><span class="badge b-violet">implement</span></td><td>Tu código + comando</td><td><code>mem hcd verify --task 1 --expect-fail -- '…'</code> y luego el cambio</td></tr>
+        <tr><td><span class="badge b-violet">verify</span></td><td>Comando</td><td><code>mem hcd verify --task 1 -- '…'</code></td></tr>
+        <tr><td><span class="badge b-mint">close</span></td><td>Comando</td><td><code>mem hcd analyze</code> y <code>mem hcd close --quote "apruebo"</code></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 class="sh">Las formas exactas que busca el motor</h3>
+    <p class="muted">El motor comprueba la forma del texto. Si falta alguna de estas, responde <code>DOC-MISSING</code>, <code>STORY-TEXT</code> o <code>CRITERION-TEXT</code>.</p>
+    <div class="code"><div class="code-head"><span>hcd/HCD-001-actualizar-laravel-10-a-11.md · define</span><button class="copy" type="button" aria-live="polite">Copiar</button></div><pre><span class="k">## Alcance</span>
+<span class="s">Incluido:</span> laravel/framework ^11, PHP 8.2 y la estructura nueva de bootstrap/app.php.
+<span class="s">Excluido:</span> rediseñar módulos y cambiar la base de datos.
+
+<span class="k">## ¿Qué pasa si no lo hacemos?</span>
+Laravel 10 ya no recibe parches de seguridad.
+
+<span class="k">## Alternativa más barata</span>
+Quedarse en Laravel 10 con parches propios; se descarta por coste de mantenimiento.
+
+<span class="k">## Historias</span>
+<span class="k">### US1.</span> Aplicación en Laravel 11
+<span class="s">Como</span> responsable del servicio, <span class="s">quiero</span> correr sobre Laravel 11, <span class="s">para</span> seguir recibiendo parches.
+- <span class="s">C-01:</span> <span class="s">Dado</span> el proyecto actualizado, <span class="s">cuando</span> ejecuto la suite, <span class="s">entonces</span> todas las pruebas pasan.</pre></div>
+    <div class="code"><div class="code-head"><span>mismo documento · slice y tasks (carril full)</span><button class="copy" type="button" aria-live="polite">Copiar</button></div><pre><span class="k">## Slices</span>
+<span class="k">### VS-01.</span> Framework actualizado con la suite en verde
+<span class="s">Tareas:</span> 1, 2
+<span class="s">Criterios:</span> C-01
+
+<span class="k">## Checklist</span>
+- [ ] 1. Subir laravel/framework a ^11 <span class="s">→</span> php artisan test
+- [ ] 2. Migrar bootstrap/app.php <span class="s">→</span> php artisan test</pre></div>
+
+    <h3 class="sh">Antes de empezar y por el camino</h3>
+    <div class="cards c4">
+      <div class="card"><div class="card-title">Pon el proyecto en git</div>Si <code>show</code> avisa «el proyecto no usa git» (<code>fingerprint: "nogit"</code>), la evidencia <strong>no caduca</strong> al editar código y el rojo de un fix se acepta solo por orden. Antes de implementar: <code>git init &amp;&amp; git add -A &amp;&amp; git commit -m "base"</code>.</div>
+      <div class="card"><div class="card-title">Preguntar en define vale</div><code>clarify --ask</code> se registra aunque la unidad esté en define (aparece <code>- [ ] Q1.</code> en Aclaraciones), pero el paso no pasa a clarify hasta completar las secciones: los faltantes van primero.</div>
+      <div class="card"><div class="card-title">Responde y aprueba en orden</div>Con una <code>Qn</code> abierta, <code>approve</code> da <code>not_allowed</code>. Primero <code>clarify --id Q1 --answer</code>, después <code>approve</code>.</div>
+      <div class="card"><div class="card-title">Editar la definición desaprueba</div>Cualquier cambio en Intención, Alcance, Historias o Aclaraciones cambia la <code>definition_revision</code> y el motor vuelve a pedir <code>approve</code>. Slices y tareas no.</div>
+      <div class="card"><div class="card-title">No marques casillas ni Evidencia</div>Una <code>- [x]</code> puesta a mano queda <code>unverified</code>, y la sección Evidencia la reescribe <code>verify</code>. Lo escrito ahí a mano no cuenta.</div>
+      <div class="card"><div class="card-title">El rojo va antes del cambio</div>En un fix, ejecuta <code>verify --expect-fail</code> sobre el código sin corregir. Si ya cambiaste el código: <code>git stash</code>, rojo, <code>git stash pop</code>, verde.</div>
+      <div class="card"><div class="card-title">Opciones antes del separador</div><code>--json</code> y <code>--client terminal</code> van antes del <code>--</code>; todo lo que va detrás es el comando que el motor ejecuta tal cual.</div>
+      <div class="card"><div class="card-title">Comprueba lo que preguntas</div>Las aclaraciones fijan alcance: verifica los datos antes de responder. Por ejemplo, Laravel 11 exige PHP 8.2 o superior; confirma que la versión elegida está soportada.</div>
+    </div>
+    <div class="infobox mint"><span class="lbl">Ciclo manual en una línea</span><p>Edita el documento → <code>mem hcd show</code> → haz lo que diga «Siguiente» → repite. Cuando dice <code>/hcd-define</code>, <code>/hcd-slice</code> o <code>/hcd-tasks</code>, el siguiente paso se hace en tu editor.</p></div>
+  </div>
+</section>
+
+<section id="cap-7">
+  <div class="chapter" style="--rot:40deg"><div class="wrap"><span class="dropnum">7</span><div><h2>Referencia de <span class="grad">comandos</span></h2><p class="sub">Todo pasa por el motor; las skills los llaman por ti.</p></div></div></div>
+  <div class="wrap body">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Comando</th><th>Qué hace</th><th>Escribe</th></tr></thead>
+      <tbody>
+        <tr><td><code>mem hcd show [HCD-NNN]</code></td><td>Paso actual, faltantes, tareas y siguiente skill</td><td><span class="badge b-cyan">no</span></td></tr>
+        <tr><td><code>mem hcd next</code></td><td>Lo mismo, orientado al siguiente paso</td><td><span class="badge b-cyan">no</span></td></tr>
+        <tr><td><code>mem hcd start …</code></td><td>Crea la unidad y su documento</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd clarify --ask "…"</code></td><td>Abre una pregunta Qn; bloquea la aprobación</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd clarify --id Qn --answer "…"</code></td><td>Registra la respuesta en el documento y la memoria</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd approve --quote "…"</code></td><td>Aprueba la definición (solo full)</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd verify --task N --expect-fail -- '…'</code></td><td>Registra el rojo antes del cambio</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd verify --task N[,M] -- '…'</code></td><td>Registra el verde con la huella del código</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd verify --task N --manual "…"</code></td><td>Evidencia manual descrita (analyze la marca MEDIUM)</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd analyze</code></td><td>Hallazgos CRITICAL / HIGH / MEDIUM</td><td><span class="badge b-cyan">no</span></td></tr>
+        <tr><td><code>mem hcd promote</code></td><td>Pasa de fast a full: añade Historias y Slices</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd close --quote "…"</code></td><td>Cierra y libera la unidad activa</td><td><span class="badge b-amber">sí</span></td></tr>
+        <tr><td><code>mem hcd cancel --quote "…"</code></td><td>Cancela con cita y libera la unidad activa</td><td><span class="badge b-amber">sí</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted"><code>--json</code> y <code>--client claude|codex|opencode|terminal|tui</code> van siempre <strong>antes</strong> del <code>--</code> que separa el comando a verificar.</p>
+  </div>
+</section>
+
+<section id="cap-8">
+  <div class="chapter" style="--rot:-6deg"><div class="wrap"><span class="dropnum">8</span><div><h2>Lo que vas a ver y qué <span class="grad">hacer</span></h2><p class="sub">Respuestas reales del motor.</p></div></div></div>
+  <div class="wrap body">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Respuesta</th><th>Por qué</th><th>Qué hacer</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge b-amber">DOC-MISSING</span></td><td>Falta una sección del documento</td><td>Rellénala; <code>show</code> dice cuál</td></tr>
+        <tr><td><span class="badge b-amber">invalid_quote</span></td><td>La cita no es «apruebo», «aprobar» ni la revisión</td><td>Responde con una de esas tres formas</td></tr>
+        <tr><td><span class="badge b-amber">not_allowed</span></td><td>Acción fuera de su paso, p. ej. aprobar con Q1 abierta</td><td>Haz lo que pide <code>next_action</code></td></tr>
+        <tr><td><span class="badge b-rose">TASK-UNVERIFIED</span></td><td>Cambiaste código después de verificar: la evidencia caducó</td><td>Vuelve a ejecutar <code>verify</code></td></tr>
+        <tr><td><span class="badge b-rose">cierre de fix rechazado</span></td><td>No hay rojo observado antes del verde</td><td><code>git stash</code>, <code>verify --expect-fail</code>, <code>git stash pop</code>, <code>verify</code></td></tr>
+        <tr><td><span class="badge b-amber">NORMS-CHANGED</span></td><td>Cambió la Constitución o el Playbook tras aprobar</td><td>Revisa y vuelve a aprobar con <code>/hcd-approve</code></td></tr>
+        <tr><td><span class="badge b-cyan">EVIDENCE-MANUAL</span></td><td>Una tarea se verificó con <code>--manual</code> (MEDIUM)</td><td>No bloquea; mejor un comando si existe</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<section id="cap-9">
+  <div class="chapter" style="--rot:18deg"><div class="wrap"><span class="dropnum">9</span><div><h2>Por <span class="grad">agente</span></h2><p class="sub">Mismo motor, tres formas de invocarlo.</p></div></div></div>
+  <div class="wrap body">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agente</th><th>Invocación</th><th>Ten en cuenta</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Code</td><td><code>/hcd</code>, <code>/hcd-define</code>…</td><td>Avisa una vez por sesión si editas código sin unidad activa</td></tr>
+        <tr><td>OpenCode</td><td><code>/hcd</code>, <code>/hcd-define</code>…</td><td>Sin aviso pre-edición: comprueba <code>mem hcd show</code> antes de editar</td></tr>
+        <tr><td>Codex</td><td><code>$hcd</code>, <code>$hcd-define</code>…</td><td>El sandbox necesita escribir en la base de gomemory (abajo)</td></tr>
+      </tbody>
+    </table></div>
+    <div class="code"><div class="code-head"><span>~/.codex/config.toml</span><button class="copy" type="button" aria-live="polite">Copiar</button></div><pre>[sandbox_workspace_write]
+writable_roots = [<span class="s">"/home/TU-USUARIO/.local/share/gomemory"</span>]   <span class="c"># ruta absoluta</span>
+<span class="c"># o solo para una sesión:  codex --add-dir ~/.local/share/gomemory</span></pre></div>
+  </div>
+</section>
+
+<section id="cap-10">
+  <div class="chapter" style="--rot:-22deg"><div class="wrap"><span class="dropnum">10</span><div><h2>Reglas del <span class="grad">equipo</span></h2><p class="sub">Acuerdos para que la evidencia sea fiable.</p></div></div></div>
+  <div class="wrap body">
+    <div class="cards">
+      <div class="card"><div class="card-title">El motor lleva la cuenta</div>No marques casillas ni escribas en Evidencia a mano. Solo cuenta lo que registra <code>verify</code>.</div>
+      <div class="card"><div class="card-title">Rojo antes del verde</div>En un fix, la comprobación tiene que fallar primero sobre el código sin corregir.</div>
+      <div class="card"><div class="card-title">Preguntar antes que suponer</div>Si cambia contrato, datos, seguridad o alcance, abre una aclaración con opciones.</div>
+      <div class="card"><div class="card-title">La cita es tuya</div>El agente copia tu respuesta literal en <code>--quote</code>; nunca la redacta.</div>
+      <div class="card"><div class="card-title">Cambiar código caduca la evidencia</div>Tras cualquier edición, vuelve a verificar las tareas afectadas.</div>
+      <div class="card"><div class="card-title">Sin secretos</div>Nada de tokens ni credenciales en el documento, la evidencia ni las citas.</div>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer><div class="wrap"><svg viewBox="0 0 40 48" aria-hidden="true"><path fill="#22e3f7" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/></svg>Guía rápida HCD · basada en la Guía SDD_HCD (edición 9) y en recorridos reales con gomemory 2.41.0, en vía rápida y en ceremonia completa.</div></footer>
+</div>
+
+<script>
+(function(){
+  var LANES = {
+    fast: ['define','tasks','implement','verify','close'],
+    full: ['define','clarify','approve','slice','tasks','implement','verify','close']
+  };
+  // Turnos: u = tú · a = agente · r = el agente ejecuta un comando (o = salida).
+  // {p} es el prefijo de skills del harness.
+  var EX = {
+    fast: { lane: 'fast', client: 'codex', steps: [
+      { stage: 'sin unidad', next: null,
+        lesson: 'Lo primero que hace el agente es preguntarle al motor. Si no hay unidad activa, propone el tipo, el título y el carril, y espera a que confirmes.',
+        turns: [
+          {u: '{p}hcd remedia las librerías PHP vulnerables que reporta composer audit'},
+          {r: 'mem hcd show --json --client {c}', o: ['not_found: no hay unidad HCD activa']},
+          {a: 'Carril: Vía rápida — fix con reproducción clara (composer audit), sin decisiones abiertas. Propongo tipo fix y título «Remediar librerías PHP vulnerables». ¿La creo?'}
+        ]},
+      { stage: 'define', next: ['hcd-define', 'falta la sección «¿Qué pasa si no lo hacemos?»'],
+        lesson: 'start crea hcd/HCD-001-….md con las secciones en «pendiente». El motor lista lo que falta y el agente pasa a {p}hcd-define.',
+        turns: [
+          {u: 'sí'},
+          {r: 'mem hcd start --kind fix --lane fast --title "Remediar librerías PHP vulnerables" --why "fix con reproducción clara, sin decisiones abiertas" --intent "Que composer audit no reporte vulnerabilidades" --json --client {c}',
+           o: ['HCD-001 · fix · fast · paso define', 'falta: Reproducción · Alcance (Incluido, Excluido) · ¿Qué pasa si no lo hacemos? · Alternativa más barata']}
+        ]},
+      { stage: 'implement', next: ['hcd-implement', 'antes del cambio, observa el rojo de la tarea 1 con --expect-fail; después implementa la tarea 1, 2'],
+        lesson: 'El agente reproduce el fallo antes de redactar. Las tareas se escriben con la definición, así que el motor salta tasks y pasa a implement. Como es un fix, pide ver el rojo primero.',
+        turns: [
+          {r: 'composer audit', o: ['Found 2 security vulnerability advisories affecting 1 package:', 'guzzlehttp/guzzle  CVE-2022-29248  cookies filtradas entre dominios  (fixed in 7.4.3)', 'guzzlehttp/guzzle  CVE-2022-31090  CURLOPT_HTTPAUTH no se limpia    (fixed in 7.4.5)']},
+          {a: 'Reproducido. Redacto la definición: alcance solo guzzle a ^7.4.5, sin saltos de versión mayor. Tareas: 1. Subir guzzle → composer audit · 2. La suite sigue en verde → vendor/bin/phpunit'},
+          {r: 'mem hcd show --json --client {c}', o: ['paso implement · tareas 1, 2 pending · red_missing: [1]']}
+        ]},
+      { stage: 'implement', next: ['hcd-implement', 'implementa la tarea 1, 2'],
+        lesson: '--expect-fail solo cuenta si el comando falla de verdad (salida distinta de 0). Así queda demostrado que la prueba detecta el problema.',
+        turns: [
+          {r: "mem hcd verify --task 1 --expect-fail --json --client {c} -- 'composer audit'", o: ['salida 1 · rojo observado y registrado en Evidencia']},
+          {a: 'Rojo registrado sobre el código sin cambiar. Ahora aplico el cambio.'}
+        ]},
+      { stage: 'implement', next: ['hcd-implement', 'implementa la tarea 2'],
+        lesson: 'Cada verify guarda la salida, la revisión del documento y la huella del código. La casilla la marca el motor.',
+        turns: [
+          {r: 'composer require guzzlehttp/guzzle:^7.4.5 --with-all-dependencies', o: ['Upgrading guzzlehttp/guzzle (7.4.1 => 7.4.5)']},
+          {r: "mem hcd verify --task 1 --json --client {c} -- 'composer audit'", o: ['No security vulnerability advisories found.', 'tarea 1 → verified']}
+        ]},
+      { stage: 'close', next: ['hcd-close', 'todo verificado; ejecuta analyze y pide la aprobación del cierre'],
+        lesson: 'Si esta prueba fuera manual (--manual "…"), analyze la marcaría MEDIUM EVIDENCE-MANUAL. No bloquea el cierre, pero queda a la vista del revisor.',
+        turns: [
+          {r: "mem hcd verify --task 2 --json --client {c} -- 'vendor/bin/phpunit'", o: ['OK (48 tests, 131 assertions)', 'tarea 2 → verified · paso close']}
+        ]},
+      { stage: 'closed', next: ['hcd', 'la unidad está terminada; inicia o retoma otra'],
+        lesson: 'La Vía rápida tiene una sola aprobación: esta. Tu respuesta literal queda como cita; «ok» o «dale» se rechazan con invalid_quote.',
+        turns: [
+          {r: 'mem hcd analyze --json --client {c}', o: ['findings: []']},
+          {a: 'Todo verificado y sin hallazgos. Revisión de trabajo 4a30c2abd1eb. ¿Apruebas el cierre? Responde «apruebo», «aprobar» o la revisión.'},
+          {u: 'apruebo'},
+          {r: 'mem hcd close --quote "apruebo" --json --client {c}', o: ['HCD-001 · paso closed · unidad activa liberada']},
+          {a: 'Cerrada. hcd/HCD-001-remediar-librerias-php-vulnerables.md, con la Evidencia que escribió el motor, va en el PR.'}
+        ]}
+    ]},
+    full: { lane: 'full', client: 'claude', steps: [
+      { stage: 'define', next: ['hcd-define', 'falta la sección «¿Qué pasa si no lo hacemos?»'],
+        lesson: 'En la ceremonia completa el documento trae además Historias, criterios «Dado…, cuando…, entonces…» y Slices.',
+        turns: [
+          {u: '{p}hcd actualiza el proyecto de Laravel 10 a 11'},
+          {r: 'mem hcd show --json --client {c}', o: ['not_found: no hay unidad HCD activa']},
+          {a: 'Carril: Ceremonia completa — la versión de PHP, los paquetes incompatibles y la API pública son decisiones que se afectan entre sí. Propongo tipo evolution y título «Actualizar Laravel 10 a 11». ¿La creo?'},
+          {u: 'sí'},
+          {r: 'mem hcd start --kind evolution --lane full --title "Actualizar Laravel 10 a 11" --why "PHP, paquetes y API pública se afectan entre sí" --intent "Correr sobre Laravel 11 con soporte de seguridad" --json --client {c}',
+           o: ['HCD-002 · evolution · full · paso define', 'falta: Alcance · ¿Qué pasa si no lo hacemos? · Alternativa · historia US1 · criterio C-01']}
+        ]},
+      { stage: 'clarify', next: ['hcd-clarify', 'aclaración abierta: Q1'],
+        lesson: 'Ante una decisión que cambia el alcance, el agente no elige por ti: abre la pregunta en el motor y te da de 2 a 4 opciones con su recomendación.',
+        turns: [
+          {r: 'mem constitution && mem playbook', o: ['(normas vigentes; el agente cita las secciones que aplican)']},
+          {a: 'Redacto US1 y los criterios C-01 (la suite pasa) y C-02 (/api/v1/orders responde igual). Queda una decisión abierta: la versión de PHP.'},
+          {r: 'mem hcd clarify --ask "¿Subimos PHP a 8.2 en esta unidad o en otra?" --json --client {c}', o: ['Q1 abierta · paso clarify']},
+          {a: 'Q1. ¿Cuándo subimos PHP a 8.2?\n  A) En una unidad previa\n  B) En esta misma unidad (recomendada: Laravel 11 exige PHP 8.2 o superior; separarlo bloquea esta unidad)\n  C) Mantener PHP 8.1 y posponer Laravel 11'},
+          {u: 'B'}
+        ]},
+      { stage: 'slice', next: ['hcd-slice', 'la definición aprobada necesita slices'],
+        lesson: 'La aprobación queda atada a la revisión exacta de la definición. Si la definición cambia después, el motor vuelve a approve; añadir slices o tareas no la anula.',
+        turns: [
+          {r: 'mem hcd clarify --id Q1 --answer "B: subir PHP a 8.2 en esta misma unidad" --json --client {c}', o: ['Q1 resuelta · paso approve · la definición 38be2ecccca4 espera tu aprobación']},
+          {a: 'Definición completa, revisión 38be2ecccca4. Aplican la Constitución y el Playbook HCD vigentes. ¿Apruebas la definición? Responde «apruebo», «aprobar» o la revisión.'},
+          {u: 'apruebo'},
+          {r: 'mem hcd approve --quote "apruebo" --json --client {c}', o: ['approved: true · paso slice']}
+        ]},
+      { stage: 'implement', next: ['hcd-implement', 'implementa la tarea 1, 2, 3'],
+        lesson: 'Cada slice es un incremento observable que cita sus tareas y criterios. En una evolution el rojo no es obligatorio, pero si lo intentas el motor exige que sea real.',
+        turns: [
+          {a: 'Slices:\n  VS-01. Framework actualizado con la suite en verde · tareas 1, 2 · C-01\n  VS-02. API v1 sin cambios · tarea 3 · C-02\nTareas:\n  1. Subir laravel/framework a ^11 → php artisan test\n  2. Migrar bootstrap/app.php → php artisan test\n  3. Contrato de /api/v1/orders → vendor/bin/phpunit --filter OrdersContract'},
+          {r: 'mem hcd show --json --client {c}', o: ['paso implement · tareas 1, 2, 3 pending']}
+        ]},
+      { stage: 'implement', next: ['hcd-implement', 'implementa la tarea 2, 3'],
+        lesson: 'La evidencia guarda la huella del código. Al editar bootstrap/app.php, la tarea 1 ya verificada pasa a unverified y hay que volver a verificarla.',
+        turns: [
+          {r: 'composer require laravel/framework:^11.0 -W', o: ['Upgrading laravel/framework (v10.48.4 => v11.9.2)']},
+          {r: "mem hcd verify --task 1 --json --client {c} -- 'php artisan test'", o: ['Tests: 112 passed', 'tarea 1 → verified']},
+          {a: 'Migro bootstrap/app.php a la estructura de Laravel 11 (tarea 2).'},
+          {r: 'mem hcd show --json --client {c}', o: ['tarea 1 → unverified (cambió el código) · tareas 2, 3 pending']}
+        ]},
+      { stage: 'close', next: ['hcd-close', 'todo verificado; ejecuta analyze y pide la aprobación del cierre'],
+        lesson: 'Un mismo comando puede verificar varias tareas a la vez con --task 1,2.',
+        turns: [
+          {r: "mem hcd verify --task 1,2 --json --client {c} -- 'php artisan test'", o: ['Tests: 118 passed', 'tareas 1, 2 → verified']},
+          {r: "mem hcd verify --task 3 --json --client {c} -- 'vendor/bin/phpunit --filter OrdersContract'", o: ['OK (6 tests, 24 assertions)', 'tarea 3 → verified · paso close']}
+        ]},
+      { stage: 'closed', next: ['hcd', 'la unidad está terminada; inicia o retoma otra'],
+        lesson: 'Segunda y última aprobación de la ceremonia completa. Con algún CRITICAL en analyze, el motor rechaza el cierre.',
+        turns: [
+          {r: 'mem hcd analyze --json --client {c}', o: ['findings: []']},
+          {a: 'Todo verificado y sin hallazgos. Revisión de trabajo 5b04e1763ac9. ¿Apruebas el cierre?'},
+          {u: 'apruebo'},
+          {r: 'mem hcd close --quote "apruebo" --json --client {c}', o: ['HCD-002 · paso closed · unidad activa liberada']}
+        ]}
+    ]}
+  };
+
+  var PREFIX = {codex: '$', opencode: '/', claude: '/'};
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function fill(s, h){ return s.replace(/\{p\}/g, PREFIX[h]).replace(/\{c\}/g, h); }
+
+  function renderTurns(turns, h){
+    var out = [];
+    turns.forEach(function(t, i){
+      if (i > 0) out.push('<div class="gap"></div>');
+      if (t.u !== undefined) {
+        var u = esc(fill(t.u, h));
+        if (h === 'codex') out.push('<div class="ln"><span class="sig">›</span> <span class="u">' + u + '</span></div>');
+        else if (h === 'claude') out.push('<div class="ln"><span class="dim">&gt;</span> <span class="u">' + u + '</span></div>');
+        else out.push('<div class="ublk ln"><span class="u">' + u + '</span></div>');
+      } else if (t.a !== undefined) {
+        var a = esc(fill(t.a, h));
+        if (h === 'codex') out.push('<div class="ln"><span class="sig">•</span> ' + a + '</div>');
+        else if (h === 'claude') out.push('<div class="ln">⏺ ' + a + '</div>');
+        else out.push('<div class="ln">' + a + '</div>');
+      } else {
+        var cmd = esc(fill(t.r, h)), o = (t.o || []).map(function(l){ return esc(l); });
+        if (h === 'codex') {
+          out.push('<div class="ln"><span class="sig">•</span> Ran <span class="cmd">' + cmd + '</span></div>');
+          o.forEach(function(l, j){ out.push('<div class="ln dim">  ' + (j === 0 ? '└ ' : '  ') + l + '</div>'); });
+        } else if (h === 'claude') {
+          out.push('<div class="ln"><span class="sig">⏺</span> Bash(<span class="cmd">' + cmd + '</span>)</div>');
+          o.forEach(function(l, j){ out.push('<div class="ln dim">  ' + (j === 0 ? '⎿  ' : '   ') + l + '</div>'); });
+        } else {
+          var blk = '<div class="tool"><div class="ln"><span class="sig">$</span> <span class="cmd">' + cmd + '</span></div>';
+          o.forEach(function(l){ blk += '<div class="ln dim">' + l + '</div>'; });
+          out.push(blk + '</div>');
+        }
+      }
+    });
+    return out.join('');
+  }
+
+  function track(lane, stage){
+    var st = LANES[lane], idx = st.indexOf(stage), html = '';
+    st.forEach(function(s, i){
+      var cls = stage === 'closed' || (idx >= 0 && i < idx) ? 'done' : (i === idx ? 'now' : '');
+      html += '<i class="' + cls + '" title="' + s + '"></i>';
+    });
+    return '<div class="track" aria-hidden="true">' + html + '</div>';
+  }
+
+  function render(walk, h){
+    var ex = EX[walk.getAttribute('data-ex')], box = walk.querySelector('.steps'), html = '';
+    ex.steps.forEach(function(s, i){
+      var nx = s.next
+        ? '<div class="nx"><b>Siguiente</b><code>' + PREFIX[h] + esc(s.next[0]) + '</code>: ' + esc(fill(s.next[1], h)) + '</div>'
+        : '<div class="nx"><b>Siguiente</b>sin unidad: el motor no sugiere nada todavía</div>';
+      var pill = s.stage === 'closed' ? 'b-mint' : (s.stage === 'sin unidad' ? 'b-amber' : 'b-violet');
+      html += '<div class="st"><div class="rail"><span class="dropnum" aria-label="Paso ' + (i + 1) + '">' + (i + 1) + '</span>' +
+        '<span><span class="badge ' + pill + '">' + esc(s.stage) + '</span></span>' +
+        track(ex.lane, s.stage) + nx + '</div>' +
+        '<div class="term" role="log" aria-label="Paso ' + (i + 1) + ' en ' + h + '">' + renderTurns(s.turns, h) + '</div>' +
+        '<p class="lesson">' + esc(fill(s.lesson, h)) + '</p></div>';
+    });
+    box.innerHTML = html;
+    walk.querySelectorAll('.tab').forEach(function(t){ t.setAttribute('aria-selected', String(t.getAttribute('data-h') === h)); });
+  }
+
+  document.querySelectorAll('.walk').forEach(function(walk){
+    var sel = walk.querySelector('.tab[aria-selected="true"]');
+    render(walk, sel ? sel.getAttribute('data-h') : 'codex');
+    walk.querySelectorAll('.tab').forEach(function(t){
+      t.addEventListener('click', function(){ render(walk, t.getAttribute('data-h')); });
+    });
+  });
+})();
+
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var pre = btn.closest('.code').querySelector('pre');
+    var text = pre.innerText;
+    var done = function(){ btn.textContent = 'Copiado'; btn.classList.add('done'); setTimeout(function(){ btn.textContent = 'Copiar'; btn.classList.remove('done'); }, 1600); };
+    var fallback = function(){
+      var r = document.createRange(); r.selectNodeContents(pre);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      btn.textContent = 'Seleccionado';
+    };
+    try {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } catch (e) { fallback(); }
+  });
+});
+
+(function(){
+  var bar=document.querySelector('.readbar i');
+  var links=[].slice.call(document.querySelectorAll('.toc a'));
+  function onScroll(){var h=document.documentElement,max=h.scrollHeight-h.clientHeight;if(bar)bar.style.transform='scaleX('+(max>0?Math.min(1,h.scrollTop/max):0)+')';}
+  addEventListener('scroll',onScroll,{passive:true});onScroll();
+  var root=document.documentElement,btn=document.getElementById('themeBtn');
+  try{var saved=localStorage.getItem('guia-rapida-hcd-theme');if(saved)root.setAttribute('data-theme',saved);}catch(e){}
+  if(btn)btn.addEventListener('click',function(){var cur=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var next=cur==='dark'?'light':'dark';root.setAttribute('data-theme',next);try{localStorage.setItem('guia-rapida-hcd-theme',next);}catch(e){}});
+  if(!('IntersectionObserver' in window))return;
+  var byId={};links.forEach(function(a){byId[a.getAttribute('href').slice(1)]=a;});
+  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(!e.isIntersecting)return;links.forEach(function(a){a.removeAttribute('aria-current');});var a=byId[e.target.id];if(a){a.setAttribute('aria-current','true');a.scrollIntoView({block:'nearest',inline:'nearest'});}});},{rootMargin:'-30% 0px -60% 0px'});
+  document.querySelectorAll('section[id^="cap-"]').forEach(function(s){io.observe(s);});
+})();
+</script>
+</body>
+</html>
