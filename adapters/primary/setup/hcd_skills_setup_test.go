@@ -15,7 +15,7 @@ func TestInstallHCDSkillsOnlyExistingAgentsAndIdempotent(t *testing.T) {
 		}
 	}
 	bodies, wrappers := map[string]string{}, map[string]string{}
-	names := []string{"hcd", "hcd-define", "hcd-clarify", "hcd-approve", "hcd-slice", "hcd-tasks", "hcd-implement", "hcd-verify", "hcd-close", "hcd-exception", "hcd-playbook", "hcd-migrate"}
+	names := []string{"hcd", "hcd-define", "hcd-clarify", "hcd-approve", "hcd-slice", "hcd-tasks", "hcd-implement", "hcd-verify", "hcd-analyze", "hcd-close"}
 	for _, name := range names {
 		data, e := os.ReadFile(filepath.Join("../../../infrastructure/templates/hcd", name, "SKILL.md"))
 		if e != nil {

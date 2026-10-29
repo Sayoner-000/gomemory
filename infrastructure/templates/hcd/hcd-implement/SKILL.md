@@ -1,38 +1,23 @@
 ---
 name: hcd-implement
-description: Conduce el paso hcd-implement del protocolo HCD mediante el motor mem hcd.
+description: Paso implement de HCD: implementa las tareas con TDD, observando el rojo antes del cambio.
 ---
 
-# HCD — implementación
+# HCD — implementar
 
 ## Reglas comunes
 
-1. **Motor primero.** Al empezar, la skill ejecuta `mem hcd resume <unit> --json --client <agente>` (o `./mem` si `mem` no está en PATH) y actúa solo dentro de `allowed_actions`.
-2. **Sin motor no hay avance.** Si ni `mem` ni `./mem` existen, o si el motor responde `internal`, la skill informa la limitación y se detiene. No edita artefactos para simular un estado.
-3. **Las mutaciones van por el motor.** La skill redacta el contenido de `definition.md`, `delivery.md` o la evidencia y lo pasa al motor por stdin con `--file -` (por ejemplo, `mem hcd define HCD-001 --file - <<'EOF'`), registrándolo con `define`, `slice`, `tasks` o `report`. Si necesita un archivo, lo escribe fuera del repositorio. Nunca escribe estados, aprobaciones, evidencias ni `verification.md` a mano.
-4. **Preguntar antes que suponer** (FR-016a). Ante una ambigüedad que cambia comportamiento, contrato, datos, seguridad o alcance, la skill abre `hcd-clarify`: hace una pregunta a la vez, con 2 a 4 opciones y una recomendación justificada, y registra la respuesta. No elige la interpretación más probable.
-5. **Aprobación citada** (FR-017a). Para aprobar, la skill muestra el objeto y su revisión de 12 hexadecimales, pide una elección explícita y pasa la respuesta literal de la persona en `--quote`. Nunca redacta la cita ni aprueba sin una respuesta en la conversación.
-6. **Detención localizada** (US8). Ante una ampliación de alcance, una excepción no aprobada, una revisión incompatible, un permiso insuficiente o un resultado incierto, la skill registra un bloqueo o una aclaración sobre la parte afectada (que genera una decisión al resolverse) y continúa solo con trabajo independiente autorizado.
-7. **Siguiente paso.** Toda respuesta termina con el `next_action` del motor: nombra la skill siguiente y por qué.
-8. **Privacidad.** No pone secretos en artefactos, evidencias ni citas.
+1. **Motor primero.** Al empezar, ejecuta `mem hcd show --json --client <agente>` (o `./mem` si `mem` no está en el PATH). El paso (`stage`) y la siguiente skill (`next_action`) salen del motor, nunca de la memoria de la conversación.
+2. **Sin motor no hay avance.** Si el motor no existe o responde `internal`, informa la limitación y detente. No edites `hcd/` para simular un estado.
+3. **Las mutaciones van por el motor.** Redactas el documento de la unidad (`doc_path`), pero las aclaraciones, aprobaciones, evidencias y cierres solo se registran con `mem hcd clarify`, `approve`, `verify`, `close` o `cancel`. No marques casillas ni escribas en la sección Evidencia a mano.
+4. **Preguntar antes que suponer.** Ante una ambigüedad que cambie comportamiento, contrato, datos, seguridad o alcance, abre una aclaración con `mem hcd clarify --ask` y pregunta con 2 a 4 opciones y una recomendación justificada. No elijas la interpretación más probable.
+5. **Aprobación citada.** Para aprobar o cerrar, muestra la revisión de 12 hexadecimales, pide una elección explícita y pasa la respuesta literal de la persona en `--quote`. Nunca redactes tú la cita.
+6. **La casilla no es la prueba.** Una tarea solo está hecha cuando `mem hcd verify` registró su comprobación vigente. Si cambias código después, la evidencia caduca y hay que volver a verificar.
+7. **Siguiente paso.** Termina cada respuesta con el `next_action` del motor: la skill siguiente y por qué.
+8. **Privacidad.** No pongas secretos en el documento, las evidencias ni las citas.
 
-## Ejecución autorizada
-
-1. Ejecuta `check --task T`. Si responde `atomicity` o `blocked`, no ejecutes y propone dividir la tarea o abrir una aclaración.
-2. Ejecuta `run --task T` una vez y conserva el `execution_id`.
-3. Implementa solo el resultado y el alcance de la tarea; ejecuta la verificación declarada.
-4. Escribe la evidencia (procedimiento, entorno, resultado y `subject_ref` del commit o hash) y regístrala con `report --run X --file -` en un heredoc. El motor lee estas claves, una por línea, hasta `---`; si falta alguna responde `EVIDENCE-FIELDS` con el campo. Obtén el valor de `Sujeto` con `subject --files <archivos tocados> --json` (campo `data.subject_ref`), después de la última edición y sin inventar el hash; también vale `commit <sha>` si el árbol queda limpio:
-
-   ```markdown
-   Cubre: T-001, C-01
-   Resultado: pass
-   Procedimiento: go test ./...
-   Entorno: darwin/arm64, go1.x
-   Sujeto: tree:<hash> (archivos: store.go, store_test.go)
-   Inspeccionable: salida adjunta abajo
-   Ejecutor: claude
-   ---
-   {salida del comando}
-   ```
-5. Si se pierde la respuesta de `report`, repite con el mismo `--operation-id`; nunca repitas `run` sobre la misma tarea.
-6. Si aparece ampliación de alcance, una excepción no aprobada, revisión incompatible, permiso insuficiente o resultado incierto, detén esa parte y registra `block` o pasa a `hcd-clarify`; continúa solo con trabajo independiente autorizado.
+1. Consulta la guía de diseño del proyecto con `mem playbook` (Arquitectura Limpia, SOLID) y `mem constitution`.
+2. **Rojo antes del cambio.** En un `fix` es obligatorio para la tarea 1; en los demás tipos, úsalo en las tareas con un test natural:
+   `mem hcd verify --task N --expect-fail --json --client <agente> -- '<comprobación>'`. Debe salir `red_observed: true`; si no, la comprobación no demuestra el fallo y hay que corregirla.
+3. Implementa **una tarea a la vez**, dentro del alcance aprobado. Una ampliación de alcance pasa por `/hcd-clarify`.
+4. Verifica cada tarea con `/hcd-verify` antes de pasar a la siguiente.

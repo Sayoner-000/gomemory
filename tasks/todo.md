@@ -1,6 +1,6 @@
 # HCD: ceremonia completa sobre núcleo ligero + Vía rápida
 
-**Fecha**: 2026-10-29 · **Rama**: `045-hcd-protocol` · **Punto de restauración**: `a0503b0` (v1) · **Estado**: aprobado; [1] a [5] completos
+**Fecha**: 2026-10-29 · **Rama**: `045-hcd-protocol` · **Punto de restauración**: `a0503b0` (v1) · **Estado**: aprobado; [1] a [6] completos
 
 ## Principio
 
@@ -28,7 +28,7 @@ Maquinaria: de 16 tablas a 3 (`hcd_units`, `hcd_evidence`, `hcd_approvals`); sin
 - [x] **[3]** Persistencia: schema v5 con 3 tablas y DROP acotado del catálogo v1 (ADR 0003); test v4→v5 que conserva memorias
 - [x] **[4]** Casos de uso: start/show/clarify/approve/verify/analyze/close/cancel/promote sobre el núcleo; aprobación de definición invalidada al editarla
 - [x] **[5]** Motor `mem hcd` y contrato `engine-cli.md`
-- [ ] **[6]** 10 skills (`hcd` + 9 `hcd-*`), wrappers OpenCode, aviso pre-edición (D3), TUI
+- [x] **[6]** 10 skills (`hcd` + 9 `hcd-*`), wrappers OpenCode, aviso pre-edición (D3), TUI
 - [ ] **[7]** Docs, CHANGELOG y §18 de la Constitución (con tu aprobación)
 - [ ] **[8]** Verificación real con el binario: un fix por la Vía rápida y una feature por la cadena completa; migración v4→v5 sobre una copia de la BD real
 

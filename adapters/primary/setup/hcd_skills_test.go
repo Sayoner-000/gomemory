@@ -9,7 +9,6 @@ import (
 )
 
 func TestHCDSkillsShareRulesAndCoverMVPCommands(t *testing.T) {
-	t.Skip("045 T014: las skills v2 (hcd-define … hcd-analyze) se escriben en la fase 6; hasta entonces las v1 no conducen promote")
 	root := filepath.Clean("../../../infrastructure/templates/hcd")
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -27,7 +26,7 @@ func TestHCDSkillsShareRulesAndCoverMVPCommands(t *testing.T) {
 		}
 	}
 	var bodies []string
-	common := []string{"**Motor primero.**", "**Sin motor no hay avance.**", "**Las mutaciones van por el motor.**", "**Preguntar antes que suponer**", "**Aprobación citada**", "**Detención localizada**", "**Siguiente paso.**", "**Privacidad.**"}
+	common := []string{"**Motor primero.**", "**Sin motor no hay avance.**", "**Las mutaciones van por el motor.**", "**Preguntar antes que suponer.**", "**Aprobación citada.**", "**La casilla no es la prueba.**", "**Siguiente paso.**", "**Privacidad.**"}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue

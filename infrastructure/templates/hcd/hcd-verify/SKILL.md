@@ -1,19 +1,27 @@
 ---
 name: hcd-verify
-description: Conduce el paso hcd-verify del protocolo HCD mediante el motor mem hcd.
+description: Paso verify de HCD: registra la evidencia de cada tarea ejecutando su comprobación con el motor.
 ---
 
-# HCD — verificación
+# HCD — verificar
 
 ## Reglas comunes
 
-1. **Motor primero.** Al empezar, la skill ejecuta `mem hcd resume <unit> --json --client <agente>` (o `./mem` si `mem` no está en PATH) y actúa solo dentro de `allowed_actions`.
-2. **Sin motor no hay avance.** Si ni `mem` ni `./mem` existen, o si el motor responde `internal`, la skill informa la limitación y se detiene. No edita artefactos para simular un estado.
-3. **Las mutaciones van por el motor.** La skill redacta el contenido de `definition.md`, `delivery.md` o la evidencia y lo pasa al motor por stdin con `--file -` (por ejemplo, `mem hcd define HCD-001 --file - <<'EOF'`), registrándolo con `define`, `slice`, `tasks` o `report`. Si necesita un archivo, lo escribe fuera del repositorio. Nunca escribe estados, aprobaciones, evidencias ni `verification.md` a mano.
-4. **Preguntar antes que suponer** (FR-016a). Ante una ambigüedad que cambia comportamiento, contrato, datos, seguridad o alcance, la skill abre `hcd-clarify`: hace una pregunta a la vez, con 2 a 4 opciones y una recomendación justificada, y registra la respuesta. No elige la interpretación más probable.
-5. **Aprobación citada** (FR-017a). Para aprobar, la skill muestra el objeto y su revisión de 12 hexadecimales, pide una elección explícita y pasa la respuesta literal de la persona en `--quote`. Nunca redacta la cita ni aprueba sin una respuesta en la conversación.
-6. **Detención localizada** (US8). Ante una ampliación de alcance, una excepción no aprobada, una revisión incompatible, un permiso insuficiente o un resultado incierto, la skill registra un bloqueo o una aclaración sobre la parte afectada (que genera una decisión al resolverse) y continúa solo con trabajo independiente autorizado.
-7. **Siguiente paso.** Toda respuesta termina con el `next_action` del motor: nombra la skill siguiente y por qué.
-8. **Privacidad.** No pone secretos en artefactos, evidencias ni citas.
+1. **Motor primero.** Al empezar, ejecuta `mem hcd show --json --client <agente>` (o `./mem` si `mem` no está en el PATH). El paso (`stage`) y la siguiente skill (`next_action`) salen del motor, nunca de la memoria de la conversación.
+2. **Sin motor no hay avance.** Si el motor no existe o responde `internal`, informa la limitación y detente. No edites `hcd/` para simular un estado.
+3. **Las mutaciones van por el motor.** Redactas el documento de la unidad (`doc_path`), pero las aclaraciones, aprobaciones, evidencias y cierres solo se registran con `mem hcd clarify`, `approve`, `verify`, `close` o `cancel`. No marques casillas ni escribas en la sección Evidencia a mano.
+4. **Preguntar antes que suponer.** Ante una ambigüedad que cambie comportamiento, contrato, datos, seguridad o alcance, abre una aclaración con `mem hcd clarify --ask` y pregunta con 2 a 4 opciones y una recomendación justificada. No elijas la interpretación más probable.
+5. **Aprobación citada.** Para aprobar o cerrar, muestra la revisión de 12 hexadecimales, pide una elección explícita y pasa la respuesta literal de la persona en `--quote`. Nunca redactes tú la cita.
+6. **La casilla no es la prueba.** Una tarea solo está hecha cuando `mem hcd verify` registró su comprobación vigente. Si cambias código después, la evidencia caduca y hay que volver a verificar.
+7. **Siguiente paso.** Termina cada respuesta con el `next_action` del motor: la skill siguiente y por qué.
+8. **Privacidad.** No pongas secretos en el documento, las evidencias ni las citas.
 
-Ejecuta `verify [--slice VS-NN]` y presenta el veredicto como PASS, FAIL o BLOCKED junto con evidencia vigente, pendientes y límites. PASS no significa aceptación ni cierre. No edites `verification.md`; el motor lo genera. Termina con la acción requerida que indique `next_action`.
+1. Elige una tarea con estado `pending`, `unverified` o `failed`.
+2. Ejecuta su comprobación a través del motor:
+   - **Verde**: `mem hcd verify --task N --json --client <agente> -- '<comando>'`
+   - **Rojo** (antes del cambio): añade `--expect-fail`.
+   - **Manual** (no automatizable): `mem hcd verify --task N --manual '<qué observaste>' --json`. Queda marcada como manual.
+   - Una evidencia puede cubrir varias tareas: `--task 2,3`.
+3. `--json` y `--client` van **antes** de `--`: todo lo que sigue es el comando.
+4. Lee `data.evidence`: `passed`, `red_observed`, `exit_code` y `excerpt`. Si falló, corrige y vuelve a verificar. No reinterpretes un fallo como éxito.
+5. Cuando el paso sea `close`, sigue con `/hcd-analyze` y `/hcd-close`.

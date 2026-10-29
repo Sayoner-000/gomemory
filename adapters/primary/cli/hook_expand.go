@@ -43,6 +43,9 @@ type hookExpandDeps struct {
 	record func(agent, kind, detail string)
 	now    func() time.Time
 	run    func(context.Context, domain.ExpandSignals, []domain.SupertoolAction, usecases.ExpandHookDeps) domain.ExpandOutcome
+	// hcdActive informa si hay una unidad HCD activa (aviso pre-edición,
+	// feature 045 FR-025). nil = HCD no conectado: no se avisa.
+	hcdActive func(context.Context) (bool, error)
 }
 
 // hookExpand implementa `mem hook expand <event> [--emit=<dialecto>]`
@@ -82,6 +85,9 @@ func hookExpand(deps *Deps, args []string) {
 		d.configHash = deps.AgentConfig.Fingerprint
 	}
 	d.hook = expandEvaluators(deps, root)
+	if deps.HCD != nil {
+		d.hcdActive = deps.HCD.HasActive
+	}
 	// El plegado de instincts es mantenimiento: dentro del plazo solo se
 	// anota la petición y se ejecuta tras escribir la decisión (H-01).
 	fold := deferFold(&d.hook)
@@ -416,11 +422,25 @@ func runHookExpand(ctx context.Context, d hookExpandDeps, event, emit string, st
 			out.Fired = append(out.Fired, "expand.suggest:"+skill)
 		}
 	}
+	if out.Decision != domain.DecisionBlock && hcdEditWithoutUnit(ctx, d, sig) && expandEpisodeClaim(d.root, sid, "hcd:no-unit") {
+		out.Context = append(out.Context, domain.HCDNoUnitWarning)
+		out.Fired = append(out.Fired, "expand.hcd:no-unit")
+	}
 	for _, f := range out.Fired {
 		kind, detail, _ := strings.Cut(f, ":")
 		record(kind, detail)
 	}
 	return renderExpandOutput(dialect, ev, out)
+}
+
+// hcdEditWithoutUnit: edición de código sin unidad HCD activa. Ante un error
+// de lectura no avisa: el aviso nunca debe estorbar el turno.
+func hcdEditWithoutUnit(ctx context.Context, d hookExpandDeps, sig domain.ExpandSignals) bool {
+	if d.hcdActive == nil || sig.Event != domain.ExpandPreTool || sig.Tool != domain.ToolFile || !domain.IsHCDCodePath(sig.FilePath) {
+		return false
+	}
+	active, err := d.hcdActive(ctx)
+	return err == nil && !active
 }
 
 // builtinShellGuard decide un pre-tool de shell solo con la regla de serie

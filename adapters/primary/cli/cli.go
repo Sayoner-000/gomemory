@@ -82,7 +82,7 @@ var helpIndex = []struct {
 	}},
 	{"PROMPTS", []helpEntry{
 		{"socratica", "Refinar un prompt con aprobación: refine · pending · history · on/off"},
-		{"hcd", "Conducir una unidad de trabajo HCD: start · define · approve · verify · close · migrate"},
+		{"hcd", "Conducir una unidad de trabajo HCD: start · clarify · approve · verify · analyze · close"},
 	}},
 	{"CÓDIGO Y ARQUITECTURA", []helpEntry{
 		{"index", "Indexar el código y los grafos externos"},
@@ -246,20 +246,16 @@ COMMANDS
                                    --sync la refleja en .specify/memory/constitution.md si hay spec-kit
   mem playbook [--sync]            Ver el Playbook HCD fijado del proyecto
                                    --sync lo exporta a hcd/hcd-playbook.md si existe hcd/
-  mem hcd <comando> [unidad]      Motor HCD de unidades, tareas y verificación
+  mem hcd <comando> [unidad]      Motor HCD: ceremonia completa y Vía rápida
                                    Lo conducen las skills /hcd y hcd-*; la terminal es la vía de respaldo
-    start --kind fix|feature|evolution|technical --title "…" [--implementer "…"]
-    list · show · status · next · resume <id>      Consultas (no cambian la revisión)
-    define <id> --file <md> · validate <id>         Registrar y validar definition.md
-    clarify <id> --question "…" --options a,b [--blocking] · --answer "…"
-    approve <id> --request --object definition|close · approve <id> --prompt-id P --revision <12hex> --quote "…"
-    slice <id> --file <md> (## VS-NN.) · tasks <id> --slice VS-NN --file <md> (### T-NNN.)
-    check <id> --task T-NNN · run <id> --task T-NNN [--timeout <horas>]
-    subject --files a.go,b_test.go                  Sujeto tree: vigente para la línea «Sujeto:» de la evidencia
-    report <id> --run <ejecución> --file <evidencia> · verify <id> · close <id> --revision <12hex> --quote "…"
-    block · decision · exception · playbook · migrate --preview|--activate · focus · cancel
-    Comunes: --json --client claude|codex|opencode|terminal --expected-revision N --operation-id ID
-    --file - lee el contenido de stdin (heredoc), sin archivo temporal
+    start --kind fix|feature|evolution|technical --lane fast|full --title "…" --why "…" [--intent "…"]
+    show · next [unidad]                            Paso y siguiente skill (no escriben)
+    clarify --ask "…" · clarify --id Qn --answer "…"
+    approve --quote "…"                             Aprueba la definición (solo carril full)
+    verify --task N[,M] [--expect-fail] -- '<comando>' · verify --task N --manual "…"
+    analyze                                         Coherencia de la unidad (no escribe)
+    close --quote "…" · cancel --quote "…" · promote
+    Comunes: --json --client claude|codex|opencode|terminal|tui (antes de «--»)
   mem rules                        Ver las reglas de trabajo vigentes (atajo de docs show rules)
   mem export [--out <archivo>]     Exportar memorias + relaciones a un JSON portable (cross-OS)
                                    (default gomemory-export-<proyecto>-<YYYYMMDD>.json)

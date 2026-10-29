@@ -235,9 +235,15 @@ func TestInstall_AlcanceProyectoInstalaSkillsHCD(t *testing.T) {
 	if res := s.Run("", p, "install", "--agents", "claude", p); res.ExitCode != 0 {
 		t.Fatalf("install: %d\n%s", res.ExitCode, res.Stdout+res.Stderr)
 	}
-	for _, name := range []string{"hcd", "hcd-define", "hcd-implement", "hcd-close"} {
+	for _, name := range []string{"hcd", "hcd-define", "hcd-clarify", "hcd-approve", "hcd-slice", "hcd-tasks", "hcd-implement", "hcd-verify", "hcd-analyze", "hcd-close"} {
 		if _, err := os.Stat(filepath.Join(s.Home, ".claude", "skills", name, "SKILL.md")); err != nil {
 			t.Errorf("skill %s no instalada con alcance proyecto: %v", name, err)
+		}
+	}
+	// HCD v2 retira estas tres skills de la maquinaria v1 (FR-024).
+	for _, name := range []string{"hcd-exception", "hcd-playbook", "hcd-migrate"} {
+		if _, err := os.Stat(filepath.Join(s.Home, ".claude", "skills", name)); err == nil {
+			t.Errorf("skill retirada %s instalada", name)
 		}
 	}
 }

@@ -32,8 +32,8 @@
 
 ## Fase 6: Skills, hook y TUI
 
-- [ ] T014 10 skills, wrappers OpenCode y `contracts/skills.md`; borrar las plantillas retiradas
-- [ ] T015 Retirar el heartbeat y `HCDSettings`; aviso pre-edición en `PreToolUse`
+- [X] T014 10 skills, wrappers OpenCode y `contracts/skills.md`; borrar las plantillas retiradas
+- [X] T015 Retirar el heartbeat y `HCDSettings`; aviso pre-edición en `PreToolUse`
 - [X] T016 Formulario «Especificación» de la TUI con carril
 
 ## Fase 7: Documentación

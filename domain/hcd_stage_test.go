@@ -238,3 +238,15 @@ func TestAnalyzeFastLaneAndManualEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestIsHCDCodePath(t *testing.T) {
+	for path, want := range map[string]bool{
+		"application/usecases/hcd.go": true, "/abs/web/app.TSX": true, "scripts/run.sh": true,
+		"README.md": false, "hcd/HCD-001-x.md": false, "repo/hcd/notes.go": false, "go.mod": false,
+		"config.yaml": false, "Makefile": false, ".github/x.v1/README": false, "": false,
+	} {
+		if got := IsHCDCodePath(path); got != want {
+			t.Errorf("IsHCDCodePath(%q) = %v, want %v", path, got, want)
+		}
+	}
+}

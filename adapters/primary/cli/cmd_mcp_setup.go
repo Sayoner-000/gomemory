@@ -812,11 +812,14 @@ func expandSkillBodies() map[string]string {
 	return bodies
 }
 
+// hcdSkillNames son las 10 skills de la ceremonia HCD v2 (feature 045, FR-024).
+var hcdSkillNames = []string{"hcd", "hcd-define", "hcd-clarify", "hcd-approve", "hcd-slice", "hcd-tasks", "hcd-implement", "hcd-verify", "hcd-analyze", "hcd-close"}
+
 // installHCDSkills escribe las skills HCD y sus comandos de OpenCode en los
 // harness presentes. Viven en el HOME, así que las instalan los dos ámbitos.
 func installHCDSkills() ([]string, error) {
 	bodies, wrappers := map[string]string{}, map[string]string{}
-	for _, name := range []string{"hcd", "hcd-define", "hcd-clarify", "hcd-approve", "hcd-slice", "hcd-tasks", "hcd-implement", "hcd-verify", "hcd-close", "hcd-exception", "hcd-playbook", "hcd-migrate"} {
+	for _, name := range hcdSkillNames {
 		bodies[name] = embeddedTemplate("hcd/" + name + "/SKILL.md")
 		wrappers[name+".md"] = embeddedTemplate("hcd/commands/" + name + ".md")
 	}

@@ -298,3 +298,28 @@ func (s HCDState) analyzeTraceability(add func(sev Severity, code, ref, msg stri
 func HasCritical(findings []HCDFinding) bool {
 	return slices.ContainsFunc(findings, func(f HCDFinding) bool { return f.Severity == SeverityCritical })
 }
+
+// hcdCodeExtensions son las extensiones que cuentan como código para el aviso
+// pre-edición (FR-025); documentación y configuración no lo disparan.
+var hcdCodeExtensions = map[string]bool{
+	".go": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true, ".cjs": true,
+	".py": true, ".rs": true, ".java": true, ".kt": true, ".rb": true, ".php": true, ".cs": true,
+	".c": true, ".cc": true, ".cpp": true, ".h": true, ".hpp": true, ".swift": true, ".sh": true,
+	".sql": true, ".vue": true, ".svelte": true, ".dart": true, ".scala": true, ".ex": true, ".exs": true,
+}
+
+// IsHCDCodePath informa si editar path debería tener una unidad HCD activa.
+func IsHCDCodePath(path string) bool {
+	p := strings.ReplaceAll(strings.TrimSpace(path), "\\", "/")
+	if p == "" || strings.HasPrefix(p, "hcd/") || strings.Contains(p, "/hcd/") {
+		return false
+	}
+	dot := strings.LastIndex(p, ".")
+	if dot < 0 || dot < strings.LastIndex(p, "/") {
+		return false
+	}
+	return hcdCodeExtensions[strings.ToLower(p[dot:])]
+}
+
+// HCDNoUnitWarning es el aviso no bloqueante del hook pre-edición.
+const HCDNoUnitWarning = "gomemory HCD · vas a editar código sin una unidad HCD activa. Si es un cambio, inícialo con /hcd (Vía rápida para lo ordinario, ceremonia completa para decisiones interdependientes). Este aviso no bloquea y no se repite en la sesión."

@@ -353,6 +353,13 @@ func (h *HCD) Promote(ctx context.Context, id string) (HCDView, error) {
 	return h.Show(ctx, view.Unit.ID)
 }
 
+// HasActive es la consulta ligera del hook pre-edición: solo lee la tabla,
+// sin git ni documento, para caber en el plazo del hook (FR-025).
+func (h *HCD) HasActive(ctx context.Context) (bool, error) {
+	_, ok, err := h.store.Active(ctx)
+	return ok, err
+}
+
 // ActiveHCDContext alimenta la sección «HCD activo» del contexto de arranque.
 func (h *HCD) ActiveHCDContext(ctx context.Context) (domain.HCDActiveContext, bool, error) {
 	view, err := h.Show(ctx, "")

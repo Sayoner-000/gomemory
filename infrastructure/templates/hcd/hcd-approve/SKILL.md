@@ -1,26 +1,23 @@
 ---
 name: hcd-approve
-description: Conduce el paso hcd-approve del protocolo HCD mediante el motor mem hcd.
+description: Paso approve de HCD (solo ceremonia completa): la persona aprueba la revisión exacta de la definición.
 ---
 
-# HCD — aprobación
+# HCD — aprobar la definición
 
 ## Reglas comunes
 
-1. **Motor primero.** Al empezar, la skill ejecuta `mem hcd resume <unit> --json --client <agente>` (o `./mem` si `mem` no está en PATH) y actúa solo dentro de `allowed_actions`.
-2. **Sin motor no hay avance.** Si ni `mem` ni `./mem` existen, o si el motor responde `internal`, la skill informa la limitación y se detiene. No edita artefactos para simular un estado.
-3. **Las mutaciones van por el motor.** La skill redacta el contenido de `definition.md`, `delivery.md` o la evidencia y lo pasa al motor por stdin con `--file -` (por ejemplo, `mem hcd define HCD-001 --file - <<'EOF'`), registrándolo con `define`, `slice`, `tasks` o `report`. Si necesita un archivo, lo escribe fuera del repositorio. Nunca escribe estados, aprobaciones, evidencias ni `verification.md` a mano.
-4. **Preguntar antes que suponer** (FR-016a). Ante una ambigüedad que cambia comportamiento, contrato, datos, seguridad o alcance, la skill abre `hcd-clarify`: hace una pregunta a la vez, con 2 a 4 opciones y una recomendación justificada, y registra la respuesta. No elige la interpretación más probable.
-5. **Aprobación citada** (FR-017a). Para aprobar, la skill muestra el objeto y su revisión de 12 hexadecimales, pide una elección explícita y pasa la respuesta literal de la persona en `--quote`. Nunca redacta la cita ni aprueba sin una respuesta en la conversación.
-6. **Detención localizada** (US8). Ante una ampliación de alcance, una excepción no aprobada, una revisión incompatible, un permiso insuficiente o un resultado incierto, la skill registra un bloqueo o una aclaración sobre la parte afectada (que genera una decisión al resolverse) y continúa solo con trabajo independiente autorizado.
-7. **Siguiente paso.** Toda respuesta termina con el `next_action` del motor: nombra la skill siguiente y por qué.
-8. **Privacidad.** No pone secretos en artefactos, evidencias ni citas.
+1. **Motor primero.** Al empezar, ejecuta `mem hcd show --json --client <agente>` (o `./mem` si `mem` no está en el PATH). El paso (`stage`) y la siguiente skill (`next_action`) salen del motor, nunca de la memoria de la conversación.
+2. **Sin motor no hay avance.** Si el motor no existe o responde `internal`, informa la limitación y detente. No edites `hcd/` para simular un estado.
+3. **Las mutaciones van por el motor.** Redactas el documento de la unidad (`doc_path`), pero las aclaraciones, aprobaciones, evidencias y cierres solo se registran con `mem hcd clarify`, `approve`, `verify`, `close` o `cancel`. No marques casillas ni escribas en la sección Evidencia a mano.
+4. **Preguntar antes que suponer.** Ante una ambigüedad que cambie comportamiento, contrato, datos, seguridad o alcance, abre una aclaración con `mem hcd clarify --ask` y pregunta con 2 a 4 opciones y una recomendación justificada. No elijas la interpretación más probable.
+5. **Aprobación citada.** Para aprobar o cerrar, muestra la revisión de 12 hexadecimales, pide una elección explícita y pasa la respuesta literal de la persona en `--quote`. Nunca redactes tú la cita.
+6. **La casilla no es la prueba.** Una tarea solo está hecha cuando `mem hcd verify` registró su comprobación vigente. Si cambias código después, la evidencia caduca y hay que volver a verificar.
+7. **Siguiente paso.** Termina cada respuesta con el `next_action` del motor: la skill siguiente y por qué.
+8. **Privacidad.** No pongas secretos en el documento, las evidencias ni las citas.
 
-## Flujo
-
-1. Ejecuta `validate`; si hay `pending_checks` o aclaraciones bloqueantes, no pidas aprobación y continúa por la skill indicada.
-2. Muestra el objeto completo y su revisión exacta de 12 hexadecimales.
-3. Pide a la persona una elección explícita. No infieras consentimiento del silencio, de una recomendación o de una respuesta anterior sobre otra revisión.
-4. Registra la respuesta literal sin editarla en `approve --revision <rev> --quote <respuesta> --client <agente>`.
-5. Si usas `approve --request`, guarda el `prompt_id` retornado y solo asocia la respuesta posterior a ese objeto y revisión.
-6. Termina con el `next_action` del motor.
+1. Solo en el carril `full` y con `stage: approve`. En la Vía rápida no hay este paso: se aprueba al cerrar.
+2. Presenta a la persona la definición: intención, alcance, historias con sus criterios y aclaraciones resueltas, junto con `definition_revision`.
+3. Pregunta: «¿Apruebas la definición <id> en la revisión <definition_revision>?».
+4. Con su respuesta literal: `mem hcd approve --quote "<respuesta>" --json --client <agente>`. Se aceptan «apruebo», «aprobar» o la revisión; si el motor responde `invalid_quote`, vuelve a preguntar.
+5. Si después cambia la definición (intención, alcance, historias o aclaraciones), la aprobación deja de valer y el motor vuelve a este paso. Añadir slices o tareas no la invalida.
