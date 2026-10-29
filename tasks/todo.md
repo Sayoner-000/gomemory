@@ -1,3 +1,39 @@
+# HCD: ceremonia completa sobre núcleo ligero + Vía rápida
+
+**Fecha**: 2026-10-29 · **Rama**: `045-hcd-protocol` · **Punto de restauración**: `a0503b0` (v1) · **Estado**: aprobado; [1], [2] y [3] completos
+
+## Principio
+
+La ceremonia manda. Se simplifica la maquinaria, no los pasos.
+
+| Paso | Vía rápida | HCD completo | Dónde vive |
+|---|---|---|---|
+| `/hcd` entrada y decisor | ✓ | ✓ | motor `start/show` |
+| `/hcd-define` | ✓ | ✓ (+ historias y criterios) | documento `hcd/HCD-NNN-slug.md` |
+| `/hcd-clarify` | solo si hay `[NEEDS CLARIFICATION]` | ✓ | sección «Aclaraciones» + memoria `decision` |
+| `/hcd-approve` | — (se aprueba al cierre) | ✓ revisión exacta de la definición | `hcd_approvals` |
+| `/hcd-slice` | — | ✓ | sección «Slices» |
+| `/hcd-tasks` | ✓ checklist | ✓ tareas por slice | sección «Checklist» |
+| `/hcd-implement` | ✓ con rojo TDD en fix | ✓ | paso `implement` |
+| `/hcd-verify` | ✓ | ✓ | `hcd_evidence` (gate de evidencia vigente) |
+| `/hcd-analyze` | opcional | ✓ antes de implementar y de cerrar | consulta: coherencia entre secciones, aprobación y evidencia |
+| `/hcd-close` | ✓ | ✓ | `hcd_approvals` |
+
+Maquinaria: de 16 tablas a 3 (`hcd_units`, `hcd_evidence`, `hcd_approvals`); sin operations, leases/executions, heartbeats, approval_prompts, normative_revisions ni playbook_adoptions. Promover de rápida a completa = mismo documento + approve y slices. Spec Kit coexiste aparte, sin cambios.
+
+## Plan
+
+- [x] **[1]** Spec 045 v2: reescribir spec/plan/tasks con la cadena de 10 skills sobre el núcleo ligero (archivar v1)
+- [x] **[2]** Dominio: recuperar el núcleo v2 (documento, revisión, huella, gate TDD) y añadir historias/criterios, Aclaraciones, Slices, pasos de la cadena y `Analyze`
+- [x] **[3]** Persistencia: schema v5 con 3 tablas y DROP acotado del catálogo v1 (ADR 0003); test v4→v5 que conserva memorias
+- [ ] **[4]** Casos de uso: start/show/clarify/approve/verify/analyze/close/cancel/promote sobre el núcleo; aprobación de definición invalidada al editarla
+- [ ] **[5]** Motor `mem hcd` y contrato `engine-cli.md`
+- [ ] **[6]** 10 skills (`hcd` + 9 `hcd-*`), wrappers OpenCode, aviso pre-edición (D3), TUI
+- [ ] **[7]** Docs, CHANGELOG y §18 de la Constitución (con tu aprobación)
+- [ ] **[8]** Verificación real con el binario: un fix por la Vía rápida y una feature por la cadena completa; migración v4→v5 sobre una copia de la BD real
+
+---
+
 # Paridad de canales entre agentes (Codex · OpenCode · Claude Code)
 
 **Fecha**: 2026-08-29 · **Estado**: [1], [2] y [3] completos

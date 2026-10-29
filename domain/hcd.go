@@ -1,5 +1,13 @@
 package domain
 
+import (
+	"errors"
+	"fmt"
+	"time"
+)
+
+// Kind es el tipo de una unidad HCD. Solo fix añade una sección obligatoria
+// propia (Reproducción).
 type Kind string
 
 const (
@@ -9,173 +17,169 @@ const (
 	KindTechnical Kind = "technical"
 )
 
-type State string
+func ParseKind(s string) (Kind, error) {
+	switch k := Kind(s); k {
+	case KindFeature, KindEvolution, KindFix, KindTechnical:
+		return k, nil
+	}
+	return "", fmt.Errorf("%w: tipo HCD desconocido %q", ErrValidation, s)
+}
+
+// Lane es el carril de una unidad: full recorre la ceremonia completa; fast
+// es el atajo sin approve ni slice, con la única aprobación al cierre.
+type Lane string
 
 const (
-	StateDraft        State = "draft"
-	StateReady        State = "ready"
-	StateInProgress   State = "in_progress"
-	StateVerification State = "verification"
-	StateCompleted    State = "completed"
-	StateBlocked      State = "blocked"
-	StateCancelled    State = "cancelled"
-	StateSuperseded   State = "superseded"
+	LaneFast Lane = "fast"
+	LaneFull Lane = "full"
 )
 
+func ParseLane(s string) (Lane, error) {
+	switch l := Lane(s); l {
+	case LaneFast, LaneFull:
+		return l, nil
+	}
+	return "", fmt.Errorf("%w: carril HCD desconocido %q", ErrValidation, s)
+}
+
+type UnitState string
+
+const (
+	UnitActive    UnitState = "active"
+	UnitClosed    UnitState = "closed"
+	UnitCancelled UnitState = "cancelled"
+)
+
+// Stage es el paso de la ceremonia. Se deriva siempre del documento, las
+// aprobaciones y la evidencia; ningún adaptador lo fija.
 type Stage string
 
 const (
-	HCDStageContext       Stage = "context"
-	HCDStageIntent        Stage = "intent"
-	HCDStageDefinition    Stage = "definition"
-	HCDStageClarification Stage = "clarification"
-	HCDStageApproval      Stage = "approval"
-	HCDStageSlicing       Stage = "slicing"
-	HCDStageDecomposition Stage = "decomposition"
-	HCDStageExecution     Stage = "execution"
-	HCDStageVerification  Stage = "verification"
-	HCDStageContinuity    Stage = "continuity"
-	HCDStageClosure       Stage = "closure"
+	StageDefine    Stage = "define"
+	StageClarify   Stage = "clarify"
+	StageApprove   Stage = "approve"
+	StageSlice     Stage = "slice"
+	StageTasks     Stage = "tasks"
+	StageImplement Stage = "implement"
+	StageVerify    Stage = "verify"
+	StageClose     Stage = "close"
+	StageClosed    Stage = "closed"
 )
 
 type Unit struct {
-	ID, Title, Slug string
-	SourceDir       string
-	Kind            Kind
-	Approach        string
-	State           State
-	PrevState       State
-	StateRevision   int64
-	DefinitionRev   string
-	DeliveryRev     string
-	ApprovedRev     string
-	PlaybookRev     string
-	ConstitutionRev string
-	Implementer     string
-
-	// These derived facts are populated by the use case before asking the domain
-	// to select a stage; they are not persisted as independent state.
-	IntentComplete, OpenClarification, ValidationPassed bool
-	ReadySlice, UnadmittedTask, AdmittedTask            bool
-	GrantedExecution, AllSlicesVerified, WorkRemaining  bool
+	ID        string
+	Number    int
+	Title     string
+	Slug      string
+	Kind      Kind
+	Lane      Lane
+	Why       string
+	State     UnitState
+	Active    bool
+	DocPath   string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
-type PendingCheck struct{ Code, Message, Field string }
+type Criterion struct{ ID, Text string }
+
+type Story struct {
+	ID, Title, Text string
+	Criteria        []Criterion
+}
+
+type Clarification struct {
+	ID, Question, Answer string
+	Open                 bool
+}
+
+type Slice struct {
+	ID, Title string
+	Tasks     []string
+	Criteria  []string
+}
+
+type Task struct {
+	ID    string
+	Text  string
+	Check string
+	Done  bool
+}
+
+type PendingCheck struct{ Code, Field, Message string }
+
+const (
+	EvidenceCommand = "command"
+	EvidenceManual  = "manual"
+)
+
+type Evidence struct {
+	ID          string
+	UnitID      string
+	Tasks       []string
+	Kind        string
+	ExpectFail  bool
+	Command     string
+	ExitCode    int
+	Excerpt     string
+	Revision    string
+	Fingerprint string
+	CreatedAt   time.Time
+}
+
+// Passed: una evidencia manual cuenta como observación declarada; una de
+// comando solo pasa con código de salida 0. Una evidencia roja nunca verifica.
+func (e Evidence) Passed() bool {
+	return !e.ExpectFail && (e.Kind == EvidenceManual || e.ExitCode == 0)
+}
+
+// RedObserved: la evidencia roja solo vale si el comando falló de verdad.
+func (e Evidence) RedObserved() bool {
+	return e.ExpectFail && e.Kind == EvidenceCommand && e.ExitCode != 0
+}
+
+func (e Evidence) Fresh(revision, fingerprint string) bool {
+	return e.Revision == revision && e.Fingerprint == fingerprint
+}
+
+// Acciones que registra hcd_approvals.
+const (
+	ApprovalApprove = "approve"
+	ApprovalClose   = "close"
+	ApprovalCancel  = "cancel"
+)
+
+type Approval struct {
+	ID          string
+	UnitID      string
+	Action      string
+	Revision    string
+	Fingerprint string
+	Origin      string
+	Client      string
+	Quote       string
+	CreatedAt   time.Time
+}
 
 type NextStep struct{ Skill, Command, Why string }
 
-func StageFor(unit Unit) Stage {
-	if unit.State == "" {
-		return HCDStageContext
-	}
-	switch unit.State {
-	case StateCompleted, StateCancelled, StateSuperseded:
-		return HCDStageClosure
-	case StateVerification:
-		return HCDStageVerification
-	case StateDraft:
-		if unit.OpenClarification {
-			return HCDStageClarification
-		}
-		if unit.ValidationPassed {
-			return HCDStageApproval
-		}
-		if !unit.IntentComplete {
-			return HCDStageIntent
-		}
-		return HCDStageDefinition
-	case StateReady, StateInProgress:
-		if unit.GrantedExecution || unit.AdmittedTask {
-			return HCDStageExecution
-		}
-		if unit.ReadySlice && unit.UnadmittedTask {
-			return HCDStageDecomposition
-		}
-		if unit.AllSlicesVerified && unit.WorkRemaining {
-			return HCDStageContinuity
-		}
-		// Todas las tareas del slice ya informaron: lo que sigue es verificar.
-		if unit.State == StateInProgress && unit.ReadySlice && !unit.UnadmittedTask {
-			return HCDStageVerification
-		}
-		return HCDStageSlicing
-	default:
-		return HCDStageContext
-	}
+// HCDFinding es un hallazgo de analyze; reutiliza la Severity de las revisiones.
+type HCDFinding struct {
+	Severity           Severity
+	Code, Ref, Message string
 }
 
-func AllowedActions(unit Unit) []string {
-	if unit.Approach == "speckit" || unit.Approach == "unclassified" {
-		return []string{"show", "resume"}
-	}
-	switch unit.State {
-	case StateDraft:
-		return []string{"show", "resume", "define", "validate", "clarify", "approve", "focus", "exception", "playbook"}
-	case StateReady:
-		return []string{"show", "resume", "slice", "tasks", "check", "run", "block", "cancel", "focus", "exception", "playbook"}
-	case StateInProgress:
-		return []string{"show", "resume", "slice", "tasks", "check", "run", "report", "block", "verify", "cancel", "focus", "exception", "playbook"}
-	case StateVerification:
-		return []string{"show", "resume", "verify", "close", "cancel", "focus", "exception", "playbook"}
-	case StateBlocked:
-		return []string{"show", "resume", "unblock", "cancel", "exception", "playbook"}
-	case StateCompleted, StateCancelled, StateSuperseded:
-		return []string{"show", "resume"}
-	default:
-		return []string{"show"}
-	}
+// HCDActiveContext es lo que el contexto de arranque muestra de la unidad activa.
+type HCDActiveContext struct {
+	Unit       Unit
+	Stage      Stage
+	NextAction NextStep
+	Unverified []string
 }
 
-func NextAction(unit Unit, pending []PendingCheck) NextStep {
-	if len(pending) > 0 {
-		if pending[0].Code == "CLARIFICATION-OPEN" || pending[0].Code == "DECISION-CONFLICT" {
-			return NextStep{Skill: "hcd-clarify", Command: "clarify", Why: pending[0].Message}
-		}
-		return NextStep{Skill: "hcd-define", Command: "validate", Why: pending[0].Message}
-	}
-	switch StageFor(unit) {
-	case HCDStageIntent, HCDStageDefinition:
-		return NextStep{Skill: "hcd-define", Command: "define", Why: "la definición requiere completar o revisar su contenido"}
-	case HCDStageClarification:
-		return NextStep{Skill: "hcd-clarify", Command: "clarify", Why: "hay una aclaración abierta"}
-	case HCDStageApproval:
-		return NextStep{Skill: "hcd-approve", Command: "approve", Why: "la definición está validada y espera aprobación"}
-	case HCDStageSlicing:
-		return NextStep{Skill: "hcd-slice", Command: "slice", Why: "se necesita preparar un slice"}
-	case HCDStageDecomposition:
-		return NextStep{Skill: "hcd-tasks", Command: "tasks", Why: "el slice requiere tareas atómicas"}
-	case HCDStageExecution:
-		return NextStep{Skill: "hcd-implement", Command: "run", Why: "hay trabajo admitido para ejecutar"}
-	case HCDStageVerification:
-		// verify solo deja la unidad en verification con un PASS; lo que falta
-		// entonces es la aceptación citada del cierre.
-		if unit.State == StateVerification {
-			return NextStep{Skill: "hcd-close", Command: "close", Why: "la verificación dio PASS y falta la aceptación citada del cierre"}
-		}
-		return NextStep{Skill: "hcd-verify", Command: "verify", Why: "la unidad espera verificación"}
-	case HCDStageContinuity:
-		return NextStep{Skill: "hcd", Command: "resume", Why: "el trabajo verificado requiere decidir continuidad"}
-	case HCDStageClosure:
-		// StageFor solo da closure a estados terminales: ya no queda paso en esta unidad.
-		return NextStep{Skill: "hcd", Command: "list", Why: "la unidad está terminada; retoma otra o inicia una nueva"}
-	default:
-		return NextStep{Skill: "hcd", Command: "start", Why: "no hay unidad activa"}
-	}
-}
+var ErrInvalidQuote = errors.New("invalid approval quote")
 
-func ValidHCDTransition(entity, from, to string) bool {
-	transitions := map[string]map[string][]string{
-		"story":     {"draft": {"ready", "blocked", "rejected"}, "ready": {"in_progress", "blocked", "rejected"}, "in_progress": {"satisfied", "blocked", "rejected"}, "blocked": {"draft", "ready", "in_progress", "rejected"}},
-		"criterion": {"defined": {"covered", "blocked", "failed", "not_applicable"}, "covered": {"verified", "failed", "blocked", "not_applicable"}, "failed": {"covered", "blocked"}, "blocked": {"defined", "covered"}},
-		"slice":     {"proposed": {"ready", "blocked", "rejected"}, "ready": {"in_progress", "blocked", "rejected"}, "in_progress": {"implemented", "blocked"}, "implemented": {"verified", "blocked"}, "blocked": {"proposed", "ready", "in_progress"}},
-		"task":      {"pending": {"in_progress", "blocked", "cancelled"}, "in_progress": {"implemented", "blocked", "cancelled"}, "implemented": {"verified", "blocked"}, "blocked": {"pending", "in_progress", "cancelled"}},
-		"exception": {"proposed": {"approved", "rejected"}, "approved": {"expired", "revoked"}},
-		"migration": {"proposed": {"active", "cancelled"}},
-	}
-	for _, candidate := range transitions[entity][from] {
-		if candidate == to {
-			return true
-		}
-	}
-	return false
-}
+type HCDValidationError struct{ Checks []PendingCheck }
+
+func (e *HCDValidationError) Error() string { return "HCD fields are missing or invalid" }
+func (e *HCDValidationError) Unwrap() error { return ErrValidation }

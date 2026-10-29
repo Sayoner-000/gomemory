@@ -89,3 +89,14 @@ Orden propuesto, de mayor a menor rendimiento por esfuerzo. Nada de esto está h
 5. **Descontar de la reserva** en `Budget.Gastar` cuando esté autorizada, y dejar de imprimir "intacta" sin comprobarlo.
 6. **Acotar los agregados a filas reportadas** y separar la tasa de éxito por ruta.
 7. **Decidir sobre `Risk`, `CriticalPath` y `DuplicateWork`**: implementarlos o retirarlos de los esquemas y de la especificación. Hoy la interfaz promete lo que la política no lee.
+
+---
+
+## L006 — Simplificar la maquinaria, no la ceremonia (feature 045, 2026-10-29)
+
+**Qué pasó**: la persona pidió quitar la sobreingeniería de HCD. Lo interpreté como reducir el protocolo: dejé solo la Vía rápida y mandé lo complejo a Spec Kit. Así borré la cadena `/hcd → define → clarify → approve → slice → tasks → implement → verify → close`, que era justo lo que la persona quería conservar. Además reescribí ~6.000 líneas que no estaban rastreadas en git, protegidas solo por un tarball.
+
+**Regla**:
+1. Antes de recortar un protocolo, separa **ceremonia** (los pasos que ve la persona) de **maquinaria** (tablas, leases, idempotencia, heartbeats). La sobreingeniería casi siempre está en la maquinaria. No quites pasos de la ceremonia sin preguntarlo de forma explícita.
+2. Una opción tipo «la vía completa es X» que elimina algo que la persona construyó debe decir en la pregunta qué se pierde, con sus nombres concretos.
+3. Antes de una reescritura grande sobre código sin rastrear, haz un commit local como punto de restauración (con la aprobación de la persona) en vez de depender solo de un tarball.

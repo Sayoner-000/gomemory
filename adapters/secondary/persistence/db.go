@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 4
+const schemaVersion = 5
 
 type schemaExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -218,6 +218,9 @@ func migrate(db *sql.DB) error {
 	}
 	if version >= schemaVersion {
 		return nil
+	}
+	if err := dropHCDV1(tx, version); err != nil {
+		return err
 	}
 	if err := migrateSchema(tx); err != nil {
 		return err
