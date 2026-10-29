@@ -21,6 +21,7 @@ import (
 	"mem/adapters/secondary/compression/native"
 	"mem/adapters/secondary/expandstate"
 	"mem/adapters/secondary/generator"
+	"mem/adapters/secondary/hcdfiles"
 	"mem/adapters/secondary/launcher"
 	"mem/adapters/secondary/persistence"
 	"mem/adapters/secondary/rulesfs"
@@ -39,6 +40,7 @@ type Container struct {
 	InstinctGlobalErr error
 	instinctGlobal    *persistence.InstinctGlobalStore
 	Socratica         *usecases.SocraticaFlow
+	HCD               *usecases.HCD
 	Root              string
 	Project           string
 	db                *sql.DB
@@ -141,6 +143,36 @@ func NewContainer(root, channel string) (*Container, error) {
 	}
 	instinctUC := &usecases.Instincts{Queue: expandstate.NewQueue(filepath.Join(root, persistence.MemDir)), Repo: instinctRepo, Global: instinctGlobalPort, Project: project, Ephemeral: underTempDir(root, os.TempDir()), Memories: memRepo}
 	contextBuilder := usecases.New(memRepo, sessRepo, relRepo, root, project)
+	hcdRepo := persistence.NewHCDStore(db, project)
+	hcdArtifacts, err := hcdfiles.NewStore(root)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	hcdUC := usecases.NewHCD(hcdRepo, hcdRepo, hcdArtifacts, hcdRepo, clock.SystemClock{}, func() string { return uuid.Must(uuid.NewV7()).String() })
+	var hcdTopics ports.MemoryTopicQuerier
+	if topics, ok := memRepo.(ports.MemoryTopicQuerier); ok {
+		hcdTopics = topics
+	}
+	definitionTemplate, _ := templatesFS.ReadFile("templates/hcd/playbook/templates/definition.md")
+	playbookTemplate, _ := templatesFS.ReadFile("templates/hcd/hcd-playbook.md")
+	constitutionTemplate, _ := templatesFS.ReadFile("templates/speckit-constitution-gen.md")
+	if err := hcdUC.ConfigureSettings(settings.HCDSettings); err != nil {
+		db.Close()
+		return nil, err
+	}
+	hcdUC.ConfigureSpecKitReader(speckit.Reader{})
+	hcdUC.ConfigureMemory(memRepo, relRepo)
+	hcdUC.ConfigureSubjectInspector(hcdfiles.SubjectInspector{Root: root}.Current)
+	hcdUC.ConfigureSubjectRef(hcdfiles.SubjectInspector{Root: root}.TreeRef)
+	hcdUC.ConfigureEvidenceParser(hcdfiles.ParseEvidence)
+	hcdUC.ConfigureDeliveryCodec(hcdfiles.ParseDelivery, hcdfiles.RenderDelivery)
+	hcdUC.ConfigureDocuments(project, hcdTopics, string(definitionTemplate), string(playbookTemplate), string(constitutionTemplate))
+	hcdUC.ConfigureDefinitionParser(func(data []byte) (domain.Definition, error) {
+		def, _, err := hcdfiles.ParseDefinition(data)
+		return def, err
+	})
+	contextBuilder.HCD = hcdUC
 	contextBuilder.Instincts = instinctRepo
 	if instinctGlobalErr == nil {
 		contextBuilder.InstinctGlobal = instinctGlobal
@@ -267,6 +299,7 @@ func NewContainer(root, channel string) (*Container, error) {
 	}
 
 	c := &Container{
+		HCD:               hcdUC,
 		Instincts:         instinctUC,
 		InstinctGlobalErr: instinctGlobalErr,
 		instinctGlobal:    instinctGlobal,
@@ -406,6 +439,7 @@ func socraticaGenerators(s domain.SocraticaSettings, settingsErr error) ports.So
 func (c *Container) ToDeps() *cli.Deps {
 	return &cli.Deps{
 		Socratica:                    c.Socratica,
+		HCD:                          c.HCD,
 		SocraticaExec:                launcher.NewExec(nil, nil, nil),
 		SocraticaPrint:               func(w io.Writer, raw bool) ports.AgentLauncher { return launcher.NewPrint(w, raw) },
 		ReleasePort:                  cli.NewReleasePort(),

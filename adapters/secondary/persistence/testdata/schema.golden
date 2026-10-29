@@ -1,4 +1,4 @@
-user_version=3
+user_version=4
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)
@@ -10,6 +10,18 @@ index|idx_code_nodes_project_name|code_nodes|CREATE INDEX idx_code_nodes_project
 index|idx_compression_originals_access|compression_originals|CREATE INDEX idx_compression_originals_access ON compression_originals(last_access_at)
 index|idx_compression_originals_expires|compression_originals|CREATE INDEX idx_compression_originals_expires ON compression_originals(expires_at)
 index|idx_consensus_review|consensus_findings|CREATE INDEX idx_consensus_review ON consensus_findings(review_id)
+index|idx_hcd_approval_prompts_unit_object|hcd_approval_prompts|CREATE INDEX idx_hcd_approval_prompts_unit_object ON hcd_approval_prompts(project, unit_id, object)
+index|idx_hcd_approvals_unit_object|hcd_approvals|CREATE INDEX idx_hcd_approvals_unit_object ON hcd_approvals(project, unit_id, object)
+index|idx_hcd_blocks_unit_status|hcd_blocks|CREATE INDEX idx_hcd_blocks_unit_status ON hcd_blocks(project, unit_id, status)
+index|idx_hcd_clarifications_unit_status|hcd_clarifications|CREATE INDEX idx_hcd_clarifications_unit_status ON hcd_clarifications(project, unit_id, status)
+index|idx_hcd_decisions_memory_sync|hcd_decisions|CREATE INDEX idx_hcd_decisions_memory_sync ON hcd_decisions(project, memory_sync)
+index|idx_hcd_decisions_unit|hcd_decisions|CREATE INDEX idx_hcd_decisions_unit ON hcd_decisions(project, unit_id)
+index|idx_hcd_evidence_unit|hcd_evidence|CREATE INDEX idx_hcd_evidence_unit ON hcd_evidence(project, unit_id)
+index|idx_hcd_exceptions_unit_status|hcd_exceptions|CREATE INDEX idx_hcd_exceptions_unit_status ON hcd_exceptions(project, unit_id, status)
+index|idx_hcd_executions_unit_task|hcd_executions|CREATE INDEX idx_hcd_executions_unit_task ON hcd_executions(project, unit_id, task_id)
+index|idx_hcd_heartbeats_unit_seen|hcd_heartbeats|CREATE INDEX idx_hcd_heartbeats_unit_seen ON hcd_heartbeats(project, unit_id, seen_at)
+index|idx_hcd_migrations_source_dir|hcd_migrations|CREATE INDEX idx_hcd_migrations_source_dir ON hcd_migrations(project, source_dir)
+index|idx_hcd_playbook_adoptions_unit_doc|hcd_playbook_adoptions|CREATE INDEX idx_hcd_playbook_adoptions_unit_doc ON hcd_playbook_adoptions(project, unit_id, doc)
 index|idx_memories_created|memories|CREATE INDEX idx_memories_created ON memories(created_at DESC)
 index|idx_memories_project|memories|CREATE INDEX idx_memories_project ON memories(project)
 index|idx_memories_project_session|memories|CREATE INDEX idx_memories_project_session ON memories(project, session_id, created_at)
@@ -44,6 +56,22 @@ index|sqlite_autoindex_context_deliveries_1|context_deliveries|
 index|sqlite_autoindex_delivered_blocks_1|delivered_blocks|
 index|sqlite_autoindex_findings_1|findings|
 index|sqlite_autoindex_fix_rounds_1|fix_rounds|
+index|sqlite_autoindex_hcd_approval_prompts_1|hcd_approval_prompts|
+index|sqlite_autoindex_hcd_approvals_1|hcd_approvals|
+index|sqlite_autoindex_hcd_blocks_1|hcd_blocks|
+index|sqlite_autoindex_hcd_clarifications_1|hcd_clarifications|
+index|sqlite_autoindex_hcd_decisions_1|hcd_decisions|
+index|sqlite_autoindex_hcd_evidence_1|hcd_evidence|
+index|sqlite_autoindex_hcd_exceptions_1|hcd_exceptions|
+index|sqlite_autoindex_hcd_executions_1|hcd_executions|
+index|sqlite_autoindex_hcd_focus_1|hcd_focus|
+index|sqlite_autoindex_hcd_heartbeats_1|hcd_heartbeats|
+index|sqlite_autoindex_hcd_links_1|hcd_links|
+index|sqlite_autoindex_hcd_migrations_1|hcd_migrations|
+index|sqlite_autoindex_hcd_normative_revisions_1|hcd_normative_revisions|
+index|sqlite_autoindex_hcd_operations_1|hcd_operations|
+index|sqlite_autoindex_hcd_playbook_adoptions_1|hcd_playbook_adoptions|
+index|sqlite_autoindex_hcd_units_1|hcd_units|
 index|sqlite_autoindex_hook_guard_events_1|hook_guard_events|
 index|sqlite_autoindex_instinct_folded_1|instinct_folded|
 index|sqlite_autoindex_instinct_stats_1|instinct_stats|
@@ -214,6 +242,131 @@ table|fix_rounds|fix_rounds|CREATE TABLE fix_rounds (
 		FOREIGN KEY (review_id) REFERENCES reviews(id),
 		UNIQUE(review_id, round)
 	)
+table|hcd_approval_prompts|hcd_approval_prompts|CREATE TABLE hcd_approval_prompts (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  object TEXT NOT NULL, revision TEXT NOT NULL, options_json TEXT NOT NULL,
+  asked_at TEXT NOT NULL, consumed INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (project, id)
+)
+table|hcd_approvals|hcd_approvals|CREATE TABLE hcd_approvals (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  object TEXT NOT NULL, revision TEXT NOT NULL, origin TEXT NOT NULL,
+  quote TEXT NOT NULL, client TEXT NOT NULL, approved_at TEXT NOT NULL,
+  PRIMARY KEY (project, id)
+)
+table|hcd_blocks|hcd_blocks|CREATE TABLE hcd_blocks (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  target_ref TEXT NOT NULL, reason TEXT NOT NULL, critical INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL, resolution TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (project, id)
+)
+table|hcd_clarifications|hcd_clarifications|CREATE TABLE hcd_clarifications (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  target_ref TEXT NOT NULL, question TEXT NOT NULL, options_json TEXT NOT NULL DEFAULT '[]',
+  recommendation TEXT NOT NULL DEFAULT '', answer TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL, blocking INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (project, id)
+)
+table|hcd_decisions|hcd_decisions|CREATE TABLE hcd_decisions (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  kind TEXT NOT NULL, status TEXT NOT NULL, summary TEXT NOT NULL,
+  revision TEXT NOT NULL DEFAULT '', refs_json TEXT NOT NULL DEFAULT '[]',
+  source TEXT NOT NULL DEFAULT '', memory_id INTEGER, memory_sync TEXT NOT NULL DEFAULT 'pending',
+  PRIMARY KEY (project, id)
+)
+table|hcd_evidence|hcd_evidence|CREATE TABLE hcd_evidence (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  execution_id TEXT NOT NULL DEFAULT '', covers_json TEXT NOT NULL DEFAULT '[]',
+  procedure TEXT NOT NULL, environment TEXT NOT NULL, result TEXT NOT NULL,
+  subject_ref TEXT NOT NULL, inspect_ref TEXT NOT NULL DEFAULT '',
+  definition_rev TEXT NOT NULL, delivery_rev TEXT NOT NULL,
+  playbook_rev TEXT NOT NULL, constitution_rev TEXT NOT NULL,
+  executor TEXT NOT NULL, recorded_at TEXT NOT NULL,
+  PRIMARY KEY (project, id)
+)
+table|hcd_exceptions|hcd_exceptions|CREATE TABLE hcd_exceptions (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  rule_id TEXT NOT NULL, scope TEXT NOT NULL, reason TEXT NOT NULL,
+  alternatives TEXT NOT NULL, risks TEXT NOT NULL, compensating TEXT NOT NULL,
+  owner TEXT NOT NULL, approval_id TEXT NOT NULL, status TEXT NOT NULL,
+  expires_at TEXT NOT NULL DEFAULT '', review_condition TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (project, id)
+)
+table|hcd_executions|hcd_executions|CREATE TABLE hcd_executions (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL, task_id TEXT NOT NULL,
+  definition_rev TEXT NOT NULL, delivery_rev TEXT NOT NULL, state TEXT NOT NULL,
+  granted_at TEXT NOT NULL, reported_at TEXT NOT NULL DEFAULT '', result_hash TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (project, id)
+)
+table|hcd_focus|hcd_focus|CREATE TABLE hcd_focus (
+  project TEXT NOT NULL PRIMARY KEY, unit_id TEXT NOT NULL,
+  client TEXT NOT NULL, session_id TEXT NOT NULL,
+  set_at TEXT NOT NULL, set_by TEXT NOT NULL
+)
+table|hcd_heartbeats|hcd_heartbeats|CREATE TABLE hcd_heartbeats (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  session_id TEXT NOT NULL, client TEXT NOT NULL, stage TEXT NOT NULL,
+  state_revision INTEGER NOT NULL, files_json TEXT NOT NULL DEFAULT '[]',
+  drift_json TEXT NOT NULL DEFAULT '[]', seen_at TEXT NOT NULL,
+  PRIMARY KEY (project, id)
+)
+table|hcd_links|hcd_links|CREATE TABLE hcd_links (
+  project TEXT NOT NULL, unit_id TEXT NOT NULL,
+  from_kind TEXT NOT NULL, from_id TEXT NOT NULL,
+  to_kind TEXT NOT NULL, to_id TEXT NOT NULL, relation TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (project, unit_id, from_kind, from_id, to_kind, to_id, relation)
+)
+table|hcd_migrations|hcd_migrations|CREATE TABLE hcd_migrations (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL DEFAULT '',
+  source_dir TEXT NOT NULL, source_rev TEXT NOT NULL,
+  proposal_json TEXT NOT NULL, status TEXT NOT NULL,
+  created_at TEXT NOT NULL, activated_at TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (project, id)
+)
+table|hcd_normative_revisions|hcd_normative_revisions|CREATE TABLE hcd_normative_revisions (
+  project TEXT NOT NULL, doc TEXT NOT NULL, revision TEXT NOT NULL,
+  content TEXT NOT NULL, first_pinned_at TEXT NOT NULL,
+  source TEXT NOT NULL, change_kind TEXT NOT NULL, urgent INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (project, doc, revision)
+)
+table|hcd_operations|hcd_operations|CREATE TABLE hcd_operations (
+  project TEXT NOT NULL,
+  operation_id TEXT NOT NULL,
+  unit_id TEXT NOT NULL,
+  command TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  result_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (project, operation_id)
+)
+table|hcd_playbook_adoptions|hcd_playbook_adoptions|CREATE TABLE hcd_playbook_adoptions (
+  project TEXT NOT NULL, id TEXT NOT NULL, unit_id TEXT NOT NULL,
+  doc TEXT NOT NULL, from_rev TEXT NOT NULL, to_rev TEXT NOT NULL,
+  impact_json TEXT NOT NULL, reason TEXT NOT NULL, actor TEXT NOT NULL,
+  approval_id TEXT NOT NULL, adopted_at TEXT NOT NULL,
+  PRIMARY KEY (project, id)
+)
+table|hcd_units|hcd_units|CREATE TABLE hcd_units (
+  project TEXT NOT NULL,
+  id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  approach TEXT NOT NULL,
+  state TEXT NOT NULL,
+  prev_state TEXT NOT NULL DEFAULT '',
+  state_revision INTEGER NOT NULL DEFAULT 0,
+  definition_rev TEXT NOT NULL DEFAULT '',
+  delivery_rev TEXT NOT NULL DEFAULT '',
+  approved_rev TEXT NOT NULL DEFAULT '',
+  playbook_rev TEXT NOT NULL DEFAULT '',
+  constitution_rev TEXT NOT NULL DEFAULT '',
+  implementer TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project, id)
+)
 table|hook_guard_events|hook_guard_events|CREATE TABLE hook_guard_events (
 		project TEXT NOT NULL,
 		agent TEXT NOT NULL,
@@ -513,6 +666,168 @@ col|fix_rounds|6|modified_paths|TEXT|1|'[]'|0
 col|fix_rounds|7|verification|TEXT|1|'[]'|0
 col|fix_rounds|8|diff_digest|TEXT|1|''|0
 col|fix_rounds|9|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|hcd_approval_prompts|0|project|TEXT|1||1
+col|hcd_approval_prompts|1|id|TEXT|1||2
+col|hcd_approval_prompts|2|unit_id|TEXT|1||0
+col|hcd_approval_prompts|3|object|TEXT|1||0
+col|hcd_approval_prompts|4|revision|TEXT|1||0
+col|hcd_approval_prompts|5|options_json|TEXT|1||0
+col|hcd_approval_prompts|6|asked_at|TEXT|1||0
+col|hcd_approval_prompts|7|consumed|INTEGER|1|0|0
+col|hcd_approvals|0|project|TEXT|1||1
+col|hcd_approvals|1|id|TEXT|1||2
+col|hcd_approvals|2|unit_id|TEXT|1||0
+col|hcd_approvals|3|object|TEXT|1||0
+col|hcd_approvals|4|revision|TEXT|1||0
+col|hcd_approvals|5|origin|TEXT|1||0
+col|hcd_approvals|6|quote|TEXT|1||0
+col|hcd_approvals|7|client|TEXT|1||0
+col|hcd_approvals|8|approved_at|TEXT|1||0
+col|hcd_blocks|0|project|TEXT|1||1
+col|hcd_blocks|1|id|TEXT|1||2
+col|hcd_blocks|2|unit_id|TEXT|1||0
+col|hcd_blocks|3|target_ref|TEXT|1||0
+col|hcd_blocks|4|reason|TEXT|1||0
+col|hcd_blocks|5|critical|INTEGER|1|0|0
+col|hcd_blocks|6|status|TEXT|1||0
+col|hcd_blocks|7|resolution|TEXT|1|''|0
+col|hcd_clarifications|0|project|TEXT|1||1
+col|hcd_clarifications|1|id|TEXT|1||2
+col|hcd_clarifications|2|unit_id|TEXT|1||0
+col|hcd_clarifications|3|target_ref|TEXT|1||0
+col|hcd_clarifications|4|question|TEXT|1||0
+col|hcd_clarifications|5|options_json|TEXT|1|'[]'|0
+col|hcd_clarifications|6|recommendation|TEXT|1|''|0
+col|hcd_clarifications|7|answer|TEXT|1|''|0
+col|hcd_clarifications|8|status|TEXT|1||0
+col|hcd_clarifications|9|blocking|INTEGER|1|0|0
+col|hcd_decisions|0|project|TEXT|1||1
+col|hcd_decisions|1|id|TEXT|1||2
+col|hcd_decisions|2|unit_id|TEXT|1||0
+col|hcd_decisions|3|kind|TEXT|1||0
+col|hcd_decisions|4|status|TEXT|1||0
+col|hcd_decisions|5|summary|TEXT|1||0
+col|hcd_decisions|6|revision|TEXT|1|''|0
+col|hcd_decisions|7|refs_json|TEXT|1|'[]'|0
+col|hcd_decisions|8|source|TEXT|1|''|0
+col|hcd_decisions|9|memory_id|INTEGER|0||0
+col|hcd_decisions|10|memory_sync|TEXT|1|'pending'|0
+col|hcd_evidence|0|project|TEXT|1||1
+col|hcd_evidence|1|id|TEXT|1||2
+col|hcd_evidence|2|unit_id|TEXT|1||0
+col|hcd_evidence|3|execution_id|TEXT|1|''|0
+col|hcd_evidence|4|covers_json|TEXT|1|'[]'|0
+col|hcd_evidence|5|procedure|TEXT|1||0
+col|hcd_evidence|6|environment|TEXT|1||0
+col|hcd_evidence|7|result|TEXT|1||0
+col|hcd_evidence|8|subject_ref|TEXT|1||0
+col|hcd_evidence|9|inspect_ref|TEXT|1|''|0
+col|hcd_evidence|10|definition_rev|TEXT|1||0
+col|hcd_evidence|11|delivery_rev|TEXT|1||0
+col|hcd_evidence|12|playbook_rev|TEXT|1||0
+col|hcd_evidence|13|constitution_rev|TEXT|1||0
+col|hcd_evidence|14|executor|TEXT|1||0
+col|hcd_evidence|15|recorded_at|TEXT|1||0
+col|hcd_exceptions|0|project|TEXT|1||1
+col|hcd_exceptions|1|id|TEXT|1||2
+col|hcd_exceptions|2|unit_id|TEXT|1||0
+col|hcd_exceptions|3|rule_id|TEXT|1||0
+col|hcd_exceptions|4|scope|TEXT|1||0
+col|hcd_exceptions|5|reason|TEXT|1||0
+col|hcd_exceptions|6|alternatives|TEXT|1||0
+col|hcd_exceptions|7|risks|TEXT|1||0
+col|hcd_exceptions|8|compensating|TEXT|1||0
+col|hcd_exceptions|9|owner|TEXT|1||0
+col|hcd_exceptions|10|approval_id|TEXT|1||0
+col|hcd_exceptions|11|status|TEXT|1||0
+col|hcd_exceptions|12|expires_at|TEXT|1|''|0
+col|hcd_exceptions|13|review_condition|TEXT|1|''|0
+col|hcd_executions|0|project|TEXT|1||1
+col|hcd_executions|1|id|TEXT|1||2
+col|hcd_executions|2|unit_id|TEXT|1||0
+col|hcd_executions|3|task_id|TEXT|1||0
+col|hcd_executions|4|definition_rev|TEXT|1||0
+col|hcd_executions|5|delivery_rev|TEXT|1||0
+col|hcd_executions|6|state|TEXT|1||0
+col|hcd_executions|7|granted_at|TEXT|1||0
+col|hcd_executions|8|reported_at|TEXT|1|''|0
+col|hcd_executions|9|result_hash|TEXT|1|''|0
+col|hcd_focus|0|project|TEXT|1||1
+col|hcd_focus|1|unit_id|TEXT|1||0
+col|hcd_focus|2|client|TEXT|1||0
+col|hcd_focus|3|session_id|TEXT|1||0
+col|hcd_focus|4|set_at|TEXT|1||0
+col|hcd_focus|5|set_by|TEXT|1||0
+col|hcd_heartbeats|0|project|TEXT|1||1
+col|hcd_heartbeats|1|id|TEXT|1||2
+col|hcd_heartbeats|2|unit_id|TEXT|1||0
+col|hcd_heartbeats|3|session_id|TEXT|1||0
+col|hcd_heartbeats|4|client|TEXT|1||0
+col|hcd_heartbeats|5|stage|TEXT|1||0
+col|hcd_heartbeats|6|state_revision|INTEGER|1||0
+col|hcd_heartbeats|7|files_json|TEXT|1|'[]'|0
+col|hcd_heartbeats|8|drift_json|TEXT|1|'[]'|0
+col|hcd_heartbeats|9|seen_at|TEXT|1||0
+col|hcd_links|0|project|TEXT|1||0
+col|hcd_links|1|unit_id|TEXT|1||0
+col|hcd_links|2|from_kind|TEXT|1||0
+col|hcd_links|3|from_id|TEXT|1||0
+col|hcd_links|4|to_kind|TEXT|1||0
+col|hcd_links|5|to_id|TEXT|1||0
+col|hcd_links|6|relation|TEXT|1||0
+col|hcd_links|7|created_at|TEXT|1||0
+col|hcd_migrations|0|project|TEXT|1||1
+col|hcd_migrations|1|id|TEXT|1||2
+col|hcd_migrations|2|unit_id|TEXT|1|''|0
+col|hcd_migrations|3|source_dir|TEXT|1||0
+col|hcd_migrations|4|source_rev|TEXT|1||0
+col|hcd_migrations|5|proposal_json|TEXT|1||0
+col|hcd_migrations|6|status|TEXT|1||0
+col|hcd_migrations|7|created_at|TEXT|1||0
+col|hcd_migrations|8|activated_at|TEXT|1|''|0
+col|hcd_normative_revisions|0|project|TEXT|1||1
+col|hcd_normative_revisions|1|doc|TEXT|1||2
+col|hcd_normative_revisions|2|revision|TEXT|1||3
+col|hcd_normative_revisions|3|content|TEXT|1||0
+col|hcd_normative_revisions|4|first_pinned_at|TEXT|1||0
+col|hcd_normative_revisions|5|source|TEXT|1||0
+col|hcd_normative_revisions|6|change_kind|TEXT|1||0
+col|hcd_normative_revisions|7|urgent|INTEGER|1|0|0
+col|hcd_operations|0|project|TEXT|1||1
+col|hcd_operations|1|operation_id|TEXT|1||2
+col|hcd_operations|2|unit_id|TEXT|1||0
+col|hcd_operations|3|command|TEXT|1||0
+col|hcd_operations|4|payload_hash|TEXT|1||0
+col|hcd_operations|5|result_json|TEXT|1||0
+col|hcd_operations|6|created_at|TEXT|1||0
+col|hcd_playbook_adoptions|0|project|TEXT|1||1
+col|hcd_playbook_adoptions|1|id|TEXT|1||2
+col|hcd_playbook_adoptions|2|unit_id|TEXT|1||0
+col|hcd_playbook_adoptions|3|doc|TEXT|1||0
+col|hcd_playbook_adoptions|4|from_rev|TEXT|1||0
+col|hcd_playbook_adoptions|5|to_rev|TEXT|1||0
+col|hcd_playbook_adoptions|6|impact_json|TEXT|1||0
+col|hcd_playbook_adoptions|7|reason|TEXT|1||0
+col|hcd_playbook_adoptions|8|actor|TEXT|1||0
+col|hcd_playbook_adoptions|9|approval_id|TEXT|1||0
+col|hcd_playbook_adoptions|10|adopted_at|TEXT|1||0
+col|hcd_units|0|project|TEXT|1||1
+col|hcd_units|1|id|TEXT|1||2
+col|hcd_units|2|kind|TEXT|1||0
+col|hcd_units|3|title|TEXT|1||0
+col|hcd_units|4|slug|TEXT|1||0
+col|hcd_units|5|approach|TEXT|1||0
+col|hcd_units|6|state|TEXT|1||0
+col|hcd_units|7|prev_state|TEXT|1|''|0
+col|hcd_units|8|state_revision|INTEGER|1|0|0
+col|hcd_units|9|definition_rev|TEXT|1|''|0
+col|hcd_units|10|delivery_rev|TEXT|1|''|0
+col|hcd_units|11|approved_rev|TEXT|1|''|0
+col|hcd_units|12|playbook_rev|TEXT|1|''|0
+col|hcd_units|13|constitution_rev|TEXT|1|''|0
+col|hcd_units|14|implementer|TEXT|1|''|0
+col|hcd_units|15|created_at|TEXT|1||0
+col|hcd_units|16|updated_at|TEXT|1||0
 col|hook_guard_events|0|project|TEXT|1||1
 col|hook_guard_events|1|agent|TEXT|1||2
 col|hook_guard_events|2|kind|TEXT|1||3

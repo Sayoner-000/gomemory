@@ -223,3 +223,21 @@ func TestInstall_AlcanceProyectoEntregaSkillsDeExpand(t *testing.T) {
 		}
 	}
 }
+
+// ACR C-001: con el alcance por defecto (project) no se instalaba ninguna skill
+// HCD; solo --scope global lo hacía, contra lo que dicen README y quickstart.
+func TestInstall_AlcanceProyectoInstalaSkillsHCD(t *testing.T) {
+	s := newLifecycleSandbox(t)
+	p := s.Project("hcd")
+	if err := os.MkdirAll(filepath.Join(s.Home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if res := s.Run("", p, "install", "--agents", "claude", p); res.ExitCode != 0 {
+		t.Fatalf("install: %d\n%s", res.ExitCode, res.Stdout+res.Stderr)
+	}
+	for _, name := range []string{"hcd", "hcd-define", "hcd-implement", "hcd-close"} {
+		if _, err := os.Stat(filepath.Join(s.Home, ".claude", "skills", name, "SKILL.md")); err != nil {
+			t.Errorf("skill %s no instalada con alcance proyecto: %v", name, err)
+		}
+	}
+}

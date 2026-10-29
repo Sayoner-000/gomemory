@@ -77,6 +77,37 @@ func TestPinnedDocs_ClavesCanonicasPresentes(t *testing.T) {
 	if consti.TopicKey != TopicConstitution || consti.Type != Architecture {
 		t.Errorf("constitution mal declarado: %+v", consti)
 	}
+
+	playbook, ok := PinnedDocByAlias("playbook")
+	if !ok {
+		t.Fatal("el alias 'playbook' debe existir en el catálogo")
+	}
+	if playbook.TopicKey != TopicHCDPlaybook || playbook.Type != Architecture ||
+		playbook.Title != "Playbook HCD del proyecto" || playbook.Label != "Playbook HCD" ||
+		playbook.Template != "hcd/hcd-playbook.md" {
+		t.Errorf("playbook mal declarado: %+v", playbook)
+	}
+}
+
+func TestHCDPlaybookTemplateContainsDesignRules(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "infrastructure", "templates", "hcd", "hcd-playbook.md"))
+	if err != nil {
+		t.Fatalf("leer Playbook HCD: %v", err)
+	}
+	content := string(data)
+	for _, rule := range []string{
+		"HCD-CLEAN-01", "HCD-CLEAN-02", "HCD-CLEAN-03", "HCD-CLEAN-04",
+		"HCD-SOLID-SRP", "HCD-SOLID-OCP", "HCD-SOLID-LSP", "HCD-SOLID-ISP", "HCD-SOLID-DIP",
+	} {
+		if !strings.Contains(content, rule) {
+			t.Errorf("el Playbook no contiene %s", rule)
+		}
+	}
+	for _, required := range []string{"Comprobación: structural", "Comprobación: review"} {
+		if !strings.Contains(content, required) {
+			t.Errorf("el Playbook no declara forma de comprobación %q", required)
+		}
+	}
 }
 
 func TestPinnedDocByAlias_Desconocido(t *testing.T) {

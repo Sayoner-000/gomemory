@@ -156,6 +156,7 @@ type Builder struct {
 	// checkpoints automáticos, desapareciendo del contexto sin error ni aviso
 	// (feature 021, FR-031).
 	Topics ports.MemoryTopicQuerier
+	HCD    ports.HCDContextRepository
 	// IndexMode (feature 020, fase C): cuando está activo, el CUERPO de cada
 	// memoria colapsa a un puntero `get_memory <id>` — nunca se emite
 	// contenido, en ningún punto de Build(). El resto de la estructura
@@ -363,6 +364,25 @@ func (b *Builder) build() (string, error) {
 
 	var sb strings.Builder
 	sb.WriteString("# Memoria del Proyecto\n\n")
+	if b.HCD != nil {
+		active, e := b.HCD.ActiveHCDUnit(context.Background())
+		if e != nil && !errors.Is(e, domain.ErrNotFound) {
+			return "", e
+		}
+		if e == nil {
+			info := domain.HCDActiveContext{Unit: active, Stage: domain.StageFor(active), NextAction: domain.NextAction(active, nil)}
+			if rich, ok := b.HCD.(ports.HCDContextDetailRepository); ok {
+				info, e = rich.ActiveHCDContext(context.Background())
+				if e != nil {
+					return "", e
+				}
+			}
+			section := formatHCDActiveContext(info)
+			if b.fits(&sb, len(section)) {
+				sb.WriteString(section)
+			}
+		}
+	}
 
 	// Reglas de trabajo fijadas (feature 021, FR-007/FR-008): se emiten ÍNTEGRAS,
 	// sin pasar por acota() ni fits(). Es una excepción declarada al presupuesto,

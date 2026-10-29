@@ -89,6 +89,28 @@ func TestResolvePinnedDoc_TopicsNil(t *testing.T) {
 	}
 }
 
+func TestResolvePinnedDoc_PlaybookProjectOverridesDefault(t *testing.T) {
+	repo, topics, _ := repoDocs(t)
+	if _, err := repo.Insert(&domain.Memory{
+		Project: "proj", Type: domain.Architecture, Title: "Playbook HCD del proyecto",
+		Content: "Playbook del proyecto", TopicKey: domain.TopicHCDPlaybook,
+	}); err != nil {
+		t.Fatalf("insertar Playbook del proyecto: %v", err)
+	}
+	got, err := usecases.ResolvePinnedDoc(topics, "proj", domain.TopicHCDPlaybook, "Playbook por defecto")
+	if err != nil || !got.FromMemory || got.Content != "Playbook del proyecto" {
+		t.Fatalf("resolución del Playbook = %+v, error %v", got, err)
+	}
+}
+
+func TestResolvePinnedDoc_PlaybookUsaDefaultSinVersionDeProyecto(t *testing.T) {
+	_, topics, _ := repoDocs(t)
+	got, err := usecases.ResolvePinnedDoc(topics, "proj", domain.TopicHCDPlaybook, "Playbook por defecto")
+	if err != nil || got.FromMemory || got.Content != "Playbook por defecto" {
+		t.Fatalf("resolución del Playbook = %+v, error %v", got, err)
+	}
+}
+
 // ─── Importación y restauración ─────────────────────────────────────────────
 
 func TestImportPinnedDoc_CreaCuandoFalta(t *testing.T) {

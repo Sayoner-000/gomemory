@@ -19,6 +19,7 @@ import (
 const (
 	TopicWorkRules    = "gomemory:work-rules"
 	TopicConstitution = "gomemory:constitution"
+	TopicHCDPlaybook  = "gomemory:hcd-playbook"
 )
 
 // PinnedDoc describe un documento fijado: la misma fila que la siembra crea,
@@ -102,15 +103,26 @@ var PinnedDocs = []PinnedDoc{
 		Title:    "Constitución del proyecto (spec-kit)",
 		Label:    "Constitución",
 		Template: "speckit-constitution-gen.md",
-		// Constitución técnica 2.0.0 (fecha de corte 2026-09-24). Las anteriores
-		// son, por commit, 8edbddd, a873463, 77a1a11 y 4514061.
-		DefaultSHA256: "6903740dcb4f1f631c14954b7f54a337dac37da62169bbd0d5a8cf719bdcc3f7",
+		// Constitución técnica 2.1.0 (§18 por enfoque Spec Kit/HCD). Las
+		// anteriores son la 2.0.0 y, por commit, 8edbddd, a873463, 77a1a11 y
+		// 4514061.
+		DefaultSHA256: "f2444b759902f13c92ab2c65b9584fc0ad4933147b5998e305bec122654aeedc",
 		PreviousDefaultSHA256: []string{
+			"6903740dcb4f1f631c14954b7f54a337dac37da62169bbd0d5a8cf719bdcc3f7",
 			"7acc79bc12fe8351afcc8a02e0aa933996b0606b439f4710fcafafa0c6e50a79",
 			"ce0774314fe7d124325e7716a7b024b95e4f826dd567138b815a1bef2d635759",
 			"ca5b8802e8e427f67c657ddb2bb41a4abf391f09259a8cd4178302e225ba03f0",
 			"25cce48ee8896714d4a740b35f045f388f0aeaf6592995d21787d088232d279c",
 		},
+	},
+	{
+		Alias:         "playbook",
+		TopicKey:      TopicHCDPlaybook,
+		Type:          Architecture,
+		Title:         "Playbook HCD del proyecto",
+		Label:         "Playbook HCD",
+		Template:      "hcd/hcd-playbook.md",
+		DefaultSHA256: "a95745faa018d6114b7a85e74c9b3dcb119aa8a30a8e99ac782f38ed1f437cea",
 	},
 }
 

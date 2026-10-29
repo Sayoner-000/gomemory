@@ -6,6 +6,7 @@ var (
 	ErrNotFound      = errors.New("not found")
 	ErrValidation    = errors.New("validation error")
 	ErrAlreadyExists = errors.New("already exists")
+	ErrNotAllowed    = errors.New("action not allowed")
 	// ErrCriticalContextOverflow indica que el conjunto de ContextItem con
 	// Priority=PriorityCritical excede por sí solo el presupuesto de tokens
 	// solicitado. BuildContextPack nunca degrada esto a un ContextPack

@@ -281,6 +281,15 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	}
 	written = append(written, socratica...)
 
+	hcdPaths, hcdErr := installHCDSkills()
+	if hcdErr != nil {
+		fmt.Printf("  ⚠️ HCD skills: %v\n", hcdErr)
+	}
+	for _, p := range hcdPaths {
+		fmt.Printf("  ✅ HCD: %s\n", p)
+	}
+	written = append(written, hcdPaths...)
+
 	expanded, err := setup.InstallExpandSkills(expandSkillBodies())
 	if err != nil {
 		fmt.Printf("  ⚠️ expand skills: %v\n", err)
@@ -801,4 +810,15 @@ func expandSkillBodies() map[string]string {
 		bodies[name] = embeddedTemplate("expand/" + name + "/SKILL.md")
 	}
 	return bodies
+}
+
+// installHCDSkills escribe las skills HCD y sus comandos de OpenCode en los
+// harness presentes. Viven en el HOME, así que las instalan los dos ámbitos.
+func installHCDSkills() ([]string, error) {
+	bodies, wrappers := map[string]string{}, map[string]string{}
+	for _, name := range []string{"hcd", "hcd-define", "hcd-clarify", "hcd-approve", "hcd-slice", "hcd-tasks", "hcd-implement", "hcd-verify", "hcd-close", "hcd-exception", "hcd-playbook", "hcd-migrate"} {
+		bodies[name] = embeddedTemplate("hcd/" + name + "/SKILL.md")
+		wrappers[name+".md"] = embeddedTemplate("hcd/commands/" + name + ".md")
+	}
+	return setup.InstallHCDSkills(bodies, wrappers)
 }

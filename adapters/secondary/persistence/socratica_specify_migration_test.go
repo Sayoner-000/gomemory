@@ -94,9 +94,9 @@ func catalogV2Fixture(t *testing.T) string {
 	return path
 }
 
-func TestSpecifyMigration_CatalogIsVersion3(t *testing.T) {
-	if schemaVersion != 3 {
-		t.Fatalf("schemaVersion = %d, want 3 for feature 042", schemaVersion)
+func TestSpecifyMigration_CatalogUsesCurrentSchemaVersion(t *testing.T) {
+	if schemaVersion < 3 {
+		t.Fatalf("schemaVersion = %d, must include feature 042 schema", schemaVersion)
 	}
 }
 
@@ -106,8 +106,8 @@ func TestSpecifyMigration_EmptyBase(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if v := userVersion(t, db); v != 3 {
-		t.Errorf("user_version = %d, want 3", v)
+	if v := userVersion(t, db); v != schemaVersion {
+		t.Errorf("user_version = %d, want %d", v, schemaVersion)
 	}
 	requireSpecifyColumns(t, db)
 }
@@ -119,8 +119,8 @@ func TestSpecifyMigration_FromCatalogV2KeepsLegacyRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if v := userVersion(t, db); v != 3 {
-		t.Errorf("user_version = %d, want 3", v)
+	if v := userVersion(t, db); v != schemaVersion {
+		t.Errorf("user_version = %d, want %d", v, schemaVersion)
 	}
 	requireSpecifyColumns(t, db)
 	var prep sql.NullString

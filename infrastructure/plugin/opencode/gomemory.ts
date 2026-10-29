@@ -150,9 +150,12 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         await memWithStdin(["hook", "plan-approved"], JSON.stringify({ plan }));
       }
 
-      if (files.size === 0 && commands.length === 0) return;
-
-      await memWithStdin(["hook", "turn-end"], JSON.stringify({ files: [...files], commands }));
+      // Sin filtro de turno vacío: mem descarta el checkpoint vacío pero antes
+      // registra el heartbeat HCD (FR-041b), que debe correr en cada turno.
+      await memWithStdin(
+        ["hook", "turn-end"],
+        JSON.stringify({ files: [...files], commands, client: "opencode", session_id: sessionID }),
+      );
     } catch (e) {
       // best-effort: un checkpoint fallido nunca debe romper la sesión, pero
       // ahora deja rastro. Absorber el fallo en silencio era lo que hacía

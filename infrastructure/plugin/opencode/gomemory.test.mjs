@@ -41,7 +41,7 @@ test('compaction removes checkpoint marker without replaying surviving old messa
   f.setMessages([message('msg_001'), message('msg_003')]);
   await f.event('session.idle');
   assert.deepEqual(checkpoints(f).slice(before).map(c => JSON.parse(c.input)), [
-    { plan: 'Plan msg_003' }, { files: ['msg_003.go'], commands: [] },
+    { plan: 'Plan msg_003' }, { files: ['msg_003.go'], commands: [], client: 'opencode', session_id: 's1' },
   ]);
   await f.event('session.idle');
   assert.equal(checkpoints(f).length, before + 2);
@@ -221,9 +221,19 @@ test('v2: idle checkpoints edited files and commands once', async () => {
   const f = await v2Fixture();
   f.setMessages([{ type: 'user', id: 'msg_001', text: 'hola' }, v2Assistant('msg_002', [['write', { filePath: 'a.go' }], ['bash', { command: 'ls' }]])]);
   await f.emit('session.idle');
-  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input)), [{ files: ['a.go'], commands: ['ls'] }]);
+  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input)), [{ files: ['a.go'], commands: ['ls'], client: 'opencode', session_id: 's1' }]);
   await f.emit('session.idle');
   assert.equal(f.hookCalls('turn-end').length, 1);
+  await f.cleanup();
+});
+
+// FR-041b: el heartbeat HCD corre en cada turno, también sin actividad; mem
+// descarta el checkpoint vacío después de registrarlo.
+test('v2: idle without activity still reaches turn-end for the HCD heartbeat', async () => {
+  const f = await v2Fixture();
+  f.setMessages([{ type: 'user', id: 'msg_001', text: 'hola' }, v2Assistant('msg_002', [])]);
+  await f.emit('session.idle');
+  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input)), [{ files: [], commands: [], client: 'opencode', session_id: 's1' }]);
   await f.cleanup();
 });
 
@@ -333,7 +343,7 @@ for (const end of ['session.execution.succeeded', 'session.execution.failed', 's
   const f = await v2Fixture();
   f.setMessages([v2Assistant('msg_010', [['edit', { filePath: 'b.go' }]])]);
   await f.emit(end, { sessionID: 's1' }, null);
-  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input)), [{ files: ['b.go'], commands: [] }]);
+  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input)), [{ files: ['b.go'], commands: [], client: 'opencode', session_id: 's1' }]);
   await f.emit('session.idle');
   assert.equal(f.hookCalls('turn-end').length, 1);
   await f.cleanup();
@@ -345,7 +355,7 @@ test('v2: shell commands reach the checkpoint like bash', async () => {
   const f = await v2Fixture();
   f.setMessages([v2Assistant('msg_020', [['write', { path: 'hola.txt', content: 'hola' }], ['shell', { command: 'ls', workdir: '/proj' }]])]);
   await f.emit('session.execution.succeeded', { sessionID: 's1' }, null);
-  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input)), [{ files: ['hola.txt'], commands: ['ls'] }]);
+  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input)), [{ files: ['hola.txt'], commands: ['ls'], client: 'opencode', session_id: 's1' }]);
   await f.cleanup();
 });
 

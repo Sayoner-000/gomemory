@@ -337,6 +337,9 @@ func CmdInstall(deps *Deps, args []string) {
 	if sel.scope == "project" {
 		_, err := setup.InstallExpandSkills(expandSkillBodies())
 		addStep("Skills de expand", err, "repite mem install --yes")
+		// Igual que expand: sin esto, solo --scope global instalaba las skills HCD.
+		_, err = installHCDSkills()
+		addStep("Skills HCD", err, "repite mem install --yes")
 	}
 	// Windsurf y Cline ya no se configuran (v2.38): uninstall y la limpieza de
 	// install siguen retirando lo que una versión anterior les escribió.

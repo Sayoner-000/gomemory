@@ -161,6 +161,54 @@ On top of memory, gomemory ships tools for the work agents do with it:
 `mem export` and `mem import` move memory between machines as JSON. The
 [user manual](docs/MANUAL.md) covers every feature in detail.
 
+### HCD (Harness Continual Development)
+
+HCD is gomemory's own protocol for taking one unit of work (a feature, an
+evolution, a fix or a technical improvement) from intent to verified delivery.
+It sits next to Spec Kit and never replaces it: existing Spec Kit units stay
+Spec Kit until you migrate them on purpose.
+
+- **How you drive it.** Type `/hcd` in Claude Code or OpenCode, or `$hcd` in
+  Codex. The agent finds the unit, reads its state from the `mem hcd` engine and
+  moves to the next step. You don't type console commands. `mem install` (both
+  `project` and `global` scope) and `mem update` add the skills: `hcd`, `hcd-define`, `hcd-clarify`, `hcd-approve`,
+  `hcd-slice`, `hcd-tasks`, `hcd-implement`, `hcd-verify`, `hcd-close`,
+  `hcd-exception`, `hcd-playbook` and `hcd-migrate`.
+- **What the engine keeps.** Control state lives in SQLite (`hcd_*` tables);
+  `definition.md`, `delivery.md` and the generated `verification.md` live under
+  `hcd/features/`. Decisions are mirrored into memory as `type=decision`.
+  A Playbook (rules, exceptions with an owner and an expiry) is pinned per unit;
+  a new revision changes nothing until you adopt it.
+- **MCP-only environments.** An agent that only has the MCP server sees the
+  "HCD activo" section of `get_context` and gets assistance. Managed execution
+  (grants, reports, verification) needs the skills and the engine.
+- **Active unit and heartbeat.** One unit is active per project. The end-of-turn
+  hook records a heartbeat and flags structural drift (files touched without a
+  granted run, a granted run with no report, a unit idle for `hcd_inactive_days`).
+  Drift appears as a warning; it never blocks the turn.
+- **What it doesn't guarantee.** It checks structure and evidence, not that the
+  code is correct. Whether an agent follows the skills is up to the agent. The
+  engine can't tell when a change widens the scope; the skills make that the
+  agent's duty.
+- **The risk of the quote.** Approvals need your literal reply, recorded with its
+  origin (`conversation` or `terminal`), client, date and revision. That is
+  auditable, but it relies on trusting the agent to pass your words faithfully.
+  The TUI starts and shows units; it does not approve.
+
+Support per agent is declared only where there is a recorded end-to-end run
+under `specs/045-hcd-protocol/evidence/`:
+
+| Agent | Invocation | Status |
+|---|---|---|
+| Claude Code | `/hcd` | Supported: full run from `start` to `completed` (`mvp-claude.md`) |
+| Codex | `$hcd` | Supported: full run (`env-codex.md`). Its `workspace-write` sandbox must be allowed to write `~/.local/share/gomemory`: add it to `[sandbox_workspace_write] writable_roots` in `~/.codex/config.toml`, or start with `codex --add-dir ~/.local/share/gomemory` |
+| OpenCode | `/hcd` | Supported: full run (`env-opencode.md`). In non-interactive `opencode run`, a message that starts with `/hcd` hung; asking it to load the `hcd` skill works |
+
+`mem hcd --help` lists every engine command. The Spanish
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.40.html) walks through the
+ceremony step by step (chapters 16 and 17). See
+[`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
+
 ## Reference
 
 <details>
@@ -226,7 +274,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.40.html`](docs/Guia-Tecnica_GOMEMORY-v2.40.html) · [`docs/Guia-SDD_GOMEMORY-v2.40.html`](docs/Guia-SDD_GOMEMORY-v2.40.html) | Printable technical and SDD guides (Spanish; previous editions in `docs/editions/`) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.40.html`](docs/Guia-Tecnica_GOMEMORY-v2.40.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.40.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.40.html) | Printable technical and SDD_HCD guides (Spanish; previous editions in `docs/editions/`) |
 
 ## Contributing
 

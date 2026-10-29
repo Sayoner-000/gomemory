@@ -783,6 +783,23 @@ mem review show acr_…        <span class="c"># target, revisores, consenso, co
     <div class="card mint"><div class="card-title">Contexto aislado</div><div class="card-body"><p>El pack de una unidad delegada excluye lo no relacionado con su objetivo: para un subagente, contexto de más anula la razón de crearlo.</p></div></div>
     <div class="card"><div class="card-title">Huella cero apagado</div><div class="card-body"><p>Sin <code>octopus_enabled</code>, las 4 herramientas no se registran y el protocolo es idéntico byte a byte.</p></div></div>
   </div>
+  <div class="section-header"><h3>HCD</h3><p>Protocolo propio para conducir una unidad de trabajo hasta su entrega verificada; convive con Spec Kit.</p></div>
+  <div class="grid g2">
+    <div class="card violet"><div class="card-title">Entrada y secuencia</div><div class="card-body"><p><code>/hcd</code> (Claude Code, OpenCode) o <code>$hcd</code> (Codex) identifican la unidad y llaman al motor <code>mem hcd</code>. La secuencia de skills es <code>hcd-define</code>, <code>-clarify</code>, <code>-approve</code>, <code>-slice</code>, <code>-tasks</code>, <code>-implement</code>, <code>-verify</code> y <code>-close</code>, más <code>-exception</code>, <code>-playbook</code> y <code>-migrate</code>. Las mutaciones solo las hace el motor.</p></div></div>
+    <div class="card azure"><div class="card-title">Fuentes de verdad</div><div class="card-body"><p>El estado de control está en las tablas <code>hcd_*</code> de SQLite; <code>definition.md</code>, <code>delivery.md</code> y el <code>verification.md</code> generado, en <code>hcd/features/</code>. Las decisiones se reflejan en memoria como <code>type=decision</code> después del commit.</p></div></div>
+    <div class="card mint"><div class="card-title">Unidad activa y heartbeat</div><div class="card-body"><p>Una unidad activa por proyecto. El hook de fin de turno registra un heartbeat y deja visibles los desvíos estructurales (archivos sin ejecución concedida, ejecución sin informe, unidad inactiva) como avisos que nunca bloquean el turno.</p></div></div>
+    <div class="card"><div class="card-title">Solo MCP</div><div class="card-body"><p>Un entorno que solo tiene el servidor MCP consulta la sección «HCD activo» de <code>get_context</code> y recibe asistencia; no hay ejecución gestionada (concesión, informe, verificación) sin el motor.</p></div></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Qué no garantiza</th><th>Por qué</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Que el código sea correcto</strong></td><td>El motor comprueba estructura y evidencia vigente, no el comportamiento del software</td></tr>
+      <tr><td><strong>Que el agente siga las skills</strong></td><td>Detenerse ante una ampliación de alcance es una obligación del agente: el motor no puede saberlo por la estructura</td></tr>
+      <tr><td><strong>Autoría de la cita</strong></td><td>La aprobación guarda la respuesta literal, su origen (<code>conversation</code> o <code>terminal</code>), cliente, fecha y revisión. Es auditable, pero se basa en la confianza en el agente</td></tr>
+    </tbody>
+  </table></div>
+  <p class="pg-sub">Evidencia y revalidación: el sujeto de la evidencia (<code>tree:&lt;hash&gt; (archivos: …)</code>) lo calcula <code>mem hcd subject</code> con el mismo hash que comprueba <code>verify</code>. Si el código evaluado cambia, la evidencia pasa a <code>stale</code> y la tarea admite otra ejecución; mientras siga vigente, no. Una tarea mal planteada se retira con una decisión <code>task_cancelled</code> aceptada con cita. Si la verificación deja de pasar entre la aceptación y el cierre, el cierre se rechaza y la aceptación queda retirada.</p>
+  <p class="pg-sub">Compatibilidad por agente: solo se declara con evidencia registrada en <code>specs/045-hcd-protocol/evidence/</code>. Claude Code (<code>mvp-claude.md</code>), Codex (<code>env-codex.md</code>) y OpenCode (<code>env-opencode.md</code>) recorrieron una unidad completa el 2026-10-28, y el escenario de unidad activa entre los tres está en <code>focus-heartbeat.md</code>. Codex necesita <code>~/.local/share/gomemory</code> como raíz escribible de su sandbox.</p>
   <div class="footer"><span>Guía técnica · gomemory 2.40.3</span><span>Capítulo 10</span></div>
 </div>
 <!-- ═══ 11 ═══ -->

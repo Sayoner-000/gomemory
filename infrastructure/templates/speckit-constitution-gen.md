@@ -1,7 +1,8 @@
 # Constitución Técnica
 
-**Versión:** 2.0.0
+**Versión:** 2.1.0
 **Fecha de corte:** 2026-09-24
+**Última enmienda:** 2026-10-28 (§18 por enfoque Spec Kit/HCD)
 
 > Esta constitución aplica a todo proyecto nuevo. Codifica lecciones aprendidas en proyectos anteriores y define valores predeterminados técnicos, arquitectónicos, operativos y de seguridad. Un proyecto puede extender estas reglas, pero no relajarlas sin una excepción explícita, fechada y justificada en su propio `constitution.md`.
 
@@ -569,22 +570,14 @@ Archivos obligatorios:
 | `docs/OPERACION.md` | despliegue, observabilidad, SLO y recuperación |
 | `docs/adr/` | decisiones arquitectónicas fechadas |
 
-Por feature:
+Por unidad de trabajo, según su enfoque registrado:
 
-```text
-specs/{NNN}-{name}/
-├── spec.md
-├── plan.md
-├── tasks.md
-├── checklists/
-│   └── requirements.md
-├── contracts/
-├── data-model.md
-├── research.md
-└── quickstart.md
-```
+| Enfoque | Ubicación | Obligatorios | Opcionales |
+|---|---|---|---|
+| Spec Kit (legado) | `specs/{NNN}-{name}/` | `spec.md`, `plan.md`, `tasks.md`, `checklists/requirements.md` | `contracts/`, `data-model.md`, `research.md`, `quickstart.md` |
+| HCD | `hcd/features/{NNN}-{name}/` | `definition.md`, `delivery.md`, `verification.md` (generado por el motor) | Archivos que aporten una decisión o evidencia concreta, justificados en `delivery.md` |
 
-`spec.md`, `plan.md`, `tasks.md` y `checklists/requirements.md` son obligatorios. Los demás dependen del alcance.
+Una unidad tiene un solo enfoque. Una unidad Spec Kit no está obligada a tener artefactos HCD, ni una unidad HCD a tener artefactos Spec Kit. Las reglas de idioma de esta sección aplican a ambos enfoques. El protocolo, los controles y las excepciones de HCD se rigen por el Playbook HCD (documento fijado `playbook` de GoMemory, consultable con `mem playbook`), que remite a esta Constitución y no puede relajarla.
 
 Reglas de idioma:
 

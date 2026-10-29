@@ -45,6 +45,31 @@ La versión 3 es aditiva (`addColumnIfMissing`, dentro de la misma transacción 
 
 **Saneamiento y retención.** `mem sanitize` añade las categorías `socratica_flow_preparation` y `socratica_history_preparation`. Si el saneamiento cambia la preparación de un flujo sin consumir (`review` o `approved` sin reclamo ni ack), se devuelve a `captured` con la revisión incrementada y se vacían propuesta, texto aprobado, huella y `dispatch_id`; si ya se consumió o está reclamado, solo se protegen los textos y se conservan las marcas de despacho. Una preparación de versión mayor se protege hoja a hoja sin reinterpretarla. `RedactFlow` también anula `preparation_json`. Borrar un flujo (retención, purga o `mem gc`) elimina su agregado completo y descarta su payload efímero.
 
+## HCD (feature 045, esquema v4)
+
+La versión 4 añade únicamente tablas e índices `hcd_*`, según la excepción de migración al abrir §25.1 y ADR 0001. La prueba de migración abre una base v3, conserva las filas existentes y confirma la creación del catálogo HCD completo. Los artefactos Markdown (`definition.md`, `delivery.md` y `verification.md`) viven bajo `hcd/features/`; el contenido de trabajo no se duplica en SQLite.
+
+| Tabla | Propósito y columnas clave | Unicidad e índices |
+|---|---|---|
+| `hcd_units` | Agregado raíz: `id`, `kind`, `title`, `slug`, `approach`, `state`, `prev_state`, `state_revision`, revisiones normativa e implementador. | PK `(project,id)`. |
+| `hcd_operations` | Idempotencia por `operation_id`, unidad, comando, huella del payload y resultado JSON. | PK `(project,operation_id)`. |
+| `hcd_approval_prompts` | Preguntas de aprobación con objeto, revisión, opciones, hora y consumo único. | PK `(project,id)`; índice `(project,unit_id,object)`. |
+| `hcd_approvals` | Cita, origen, cliente, objeto, revisión y fecha de aprobación. | PK `(project,id)`; índice `(project,unit_id,object)`. |
+| `hcd_clarifications` | Pregunta, opciones, recomendación, respuesta, estado y bloqueo. | PK `(project,id)`; índice `(project,unit_id,status)`. |
+| `hcd_decisions` | Decisiones con tipo, estado, resumen, referencias, procedencia, puente a memoria y estado de sincronización. | PK `(project,id)`; índices `(project,unit_id)` y `(project,memory_sync)`. |
+| `hcd_exceptions` | Excepciones del Playbook: regla, alcance, razón, alternativas, riesgos, controles, responsable, aprobación y revisión/vencimiento. | PK `(project,id)`; índice `(project,unit_id,status)`. |
+| `hcd_blocks` | Bloqueos localizados con objetivo, razón, criticidad, estado y resolución. | PK `(project,id)`; índice `(project,unit_id,status)`. |
+| `hcd_executions` | Concesiones con revisiones de alcance, estado y fechas. | PK `(project,id)`; índice `(project,unit_id,task_id)`. |
+| `hcd_evidence` | Procedimiento, entorno, resultado, sujeto, revisiones, ejecutor y fecha. | PK `(project,id)`; índice `(project,unit_id)`. |
+| `hcd_links` | Aristas de trazabilidad entre historias, criterios, slices, tareas, evidencias y decisiones. | Única `(project,unit_id,from_kind,from_id,to_kind,to_id,relation)`. |
+| `hcd_normative_revisions` | Contenido inmutable de revisiones de Playbook y Constitución, origen, cambio y urgencia. | PK `(project,doc,revision)`. |
+| `hcd_focus` | Única unidad activa por proyecto, con cliente, sesión, fecha y causa. | PK `(project)`. |
+| `hcd_heartbeats` | Actividad de fin de turno, revisión observada, archivos y desvíos. | PK `(project,id)`; índice `(project,unit_id,seen_at)`. |
+| `hcd_playbook_adoptions` | Adopción por unidad: revisiones, impacto, razón, actor y aprobación. | PK `(project,id)`; índice `(project,unit_id,doc)`. |
+| `hcd_migrations` | Propuestas Spec Kit con origen, revisión, clasificación y fechas. | PK `(project,id)`; índice `(project,source_dir)`. |
+
+Las mutaciones HCD se agrupan en `HCDUnitOfWork`; el store usa consultas parametrizadas, timeout `domain.DefaultQueryTimeout` y CAS sobre `state_revision`. Las aristas duplicadas se ignoran por la unicidad declarada. `hcd_heartbeats` conserva el último registro por sesión y los que contienen desvíos; no crea decisiones ni aprobaciones.
+
 ## Expand: estadísticas, idempotencia y registro global (040)
 
 `instinct_stats` vive en el mem.db del proyecto. Su clave primaria `(project, slug)` identifica el patrón; conserva tipo, descripción redactada (la muestra de la última observación), observaciones, correcciones, confianza, alcance, estado y fechas. `last_seen` decide la ventana de 30 días tras la que un instinct deja de inyectarse. `instinct_folded`, con clave `(project, obs_id)`, registra los UUID ya contados en la misma transacción que actualiza las estadísticas. Se purga después de siete días.
@@ -57,7 +82,7 @@ La cola transitoria `.memory/expand-observations.ndjson` tiene límite de 256 Ki
 
 La apertura prepara el esquema de forma aditiva en una sola transacción inmediata. La versión se guarda en `PRAGMA user_version`: si es mayor o igual que `schemaVersion`, la apertura omite la transacción y el DDL, por lo que una base preparada no espera el bloqueo de otro escritor. Una versión mayor, escrita por un binario más nuevo, nunca se reduce. Dentro de la transacción se vuelve a leer la versión antes de crear estructuras, para cubrir aperturas concurrentes.
 
-Cada cambio del catálogo exige aumentar `schemaVersion` y regenerar `adapters/secondary/persistence/testdata/schema.golden` en el mismo cambio. El golden incluye la versión, el catálogo y las columnas; su guarda rechaza cambios del catálogo sin aumento de versión. La versión 1 introduce la preparación transaccional, la versión 2 añade el índice no único `idx_sessions_project_created ON sessions(project, created_at)`, utilizado para contar sesiones, consultar la activa y listar las recientes, y la versión 3 añade las columnas de la preparación para Spec Kit (véase la sección de Socratica). Un error no tolerado revierte toda la preparación y conserva la versión anterior. Las ampliaciones opcionales conservan sus tolerancias históricas; si fallan, no se vuelven a intentar hasta la siguiente subida de versión.
+Cada cambio del catálogo exige aumentar `schemaVersion` y regenerar `adapters/secondary/persistence/testdata/schema.golden` en el mismo cambio. El golden incluye la versión, el catálogo y las columnas; su guarda rechaza cambios del catálogo sin aumento de versión. La versión 1 introduce la preparación transaccional, la versión 2 añade el índice no único `idx_sessions_project_created ON sessions(project, created_at)`, utilizado para contar sesiones, consultar la activa y listar las recientes, y la versión 3 añade las columnas de la preparación para Spec Kit (véase la sección de Socratica). La versión 4 añade el esquema HCD (véase la sección HCD). Un error no tolerado revierte toda la preparación y conserva la versión anterior. Las ampliaciones opcionales conservan sus tolerancias históricas; si fallan, no se vuelven a intentar hasta la siguiente subida de versión.
 
 `sqliteDSN` aplica estos ajustes a cada conexión del pool, incluida la apertura del almacén legado durante su traslado:
 

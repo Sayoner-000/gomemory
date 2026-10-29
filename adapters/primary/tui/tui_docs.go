@@ -13,6 +13,9 @@ import (
 	"mem/domain"
 )
 
+// specificationGuide documents the ceremony available from the main list (h).
+const specificationGuide = "HCD crea un borrador con título, tipo e implementador. Continúa con /hcd o $hcd para definirlo y solicitar aprobación. Spec Kit continúa con /speckit-specify o /socratica-hu."
+
 // ─── Documentos fijados (feature 021, US5) ──────────────────────────────────
 //
 // Paridad con `mem docs`: ver, exportar, importar y restaurar. Las mismas

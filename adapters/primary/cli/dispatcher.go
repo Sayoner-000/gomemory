@@ -14,7 +14,7 @@ import (
 func Run(cmd string, args []string, deps *Deps) {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		switch cmd {
-		case "session", "pack", "review", "docs", "forget", "get", "gc", "compact", "purge", "sanitize", "octopus", "socratica", "expand", "adr-sync", "project", "seed", "uninstall", "mcp", "hook", "update-check", "version":
+		case "session", "pack", "review", "docs", "forget", "get", "gc", "compact", "purge", "sanitize", "octopus", "socratica", "hcd", "expand", "adr-sync", "project", "seed", "uninstall", "mcp", "hook", "update-check", "version":
 			if commandHelp(cmd) {
 				return
 			}
@@ -97,6 +97,10 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdSeed(deps, args)
 	case "constitution":
 		CmdConstitution(deps, args)
+	case "playbook":
+		CmdPlaybook(deps, args)
+	case "hcd":
+		CmdHCD(deps, args)
 	case "rules":
 		CmdRules(deps, args)
 	case "usage":
@@ -160,7 +164,7 @@ func commandHasBanner(cmd string, args []string) bool {
 		}
 	}
 	switch cmd {
-	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "capture", "session", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "sanitize", "import", "export", "adr-sync":
+	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "capture", "session", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "sanitize", "import", "export", "adr-sync", "hcd":
 		return true
 	}
 	return false

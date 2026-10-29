@@ -200,6 +200,7 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 	s := ReadSettings(root)
 	return ports.SettingsData{
 		SocraticaSettings:               s.SocraticaSettings,
+		HCDSettings:                     s.HCDSettings,
 		Theme:                           s.Theme,
 		AutoApprove:                     s.AutoApprove,
 		AutoApproveTools:                s.AutoApproveTools,
@@ -253,6 +254,7 @@ func (r *SettingsRepository) Read(root string) ports.SettingsData {
 func (r *SettingsRepository) Write(root string, s ports.SettingsData) error {
 	return WriteSettings(root, Settings{
 		SocraticaSettings:               s.SocraticaSettings,
+		HCDSettings:                     s.HCDSettings,
 		Theme:                           s.Theme,
 		AutoApprove:                     s.AutoApprove,
 		AutoApproveTools:                s.AutoApproveTools,

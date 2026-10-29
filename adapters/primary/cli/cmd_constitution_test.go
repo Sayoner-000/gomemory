@@ -151,3 +151,34 @@ func TestRules_AtajoEquivalente(t *testing.T) {
 		t.Errorf("el atajo y `docs show` deben devolver lo mismo:\n%q\n%q", out, viaDocs)
 	}
 }
+
+func TestPlaybook_SyncEscribeSoloSiExisteHCD(t *testing.T) {
+	deps := depsDocs(t)
+	sembrarUno(t, deps, "playbook", "PLAYBOOK VIGENTE\n")
+	hcdDir := filepath.Join(deps.Root, "hcd")
+	if err := os.MkdirAll(hcdDir, 0o755); err != nil {
+		t.Fatalf("crear hcd: %v", err)
+	}
+	if _, _, err := correrAtajo(t, deps, "playbook", "--sync"); err != nil {
+		t.Fatalf("playbook --sync: %v", err)
+	}
+	datos, err := os.ReadFile(filepath.Join(hcdDir, "hcd-playbook.md"))
+	if err != nil || string(datos) != "PLAYBOOK VIGENTE\n" {
+		t.Fatalf("exportación playbook = %q, error %v", datos, err)
+	}
+}
+
+func TestPlaybook_SyncNoCreaHCD(t *testing.T) {
+	deps := depsDocs(t)
+	sembrarUno(t, deps, "playbook", "PLAYBOOK\n")
+	_, errb, err := correrAtajo(t, deps, "playbook", "--sync")
+	if err != nil {
+		t.Fatalf("playbook --sync: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(deps.Root, "hcd")); err == nil {
+		t.Fatal("--sync no debe crear hcd/ si no existe")
+	}
+	if !strings.Contains(errb, "no tiene hcd/") {
+		t.Errorf("debe explicarse por qué no se sincronizó: %q", errb)
+	}
+}

@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -112,10 +113,7 @@ func InstallAgentSkill(name, body string, agents ...string) ([]string, error) {
 
 		dest := filepath.Join(append(append([]string{base}, t.skills...), name, "SKILL.md")...)
 		if previo, err := os.ReadFile(dest); err != nil || string(previo) != string(content) {
-			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-				return written, err
-			}
-			if err := os.WriteFile(dest, content, 0o644); err != nil {
+			if err := writeManagedFile(dest, content); err != nil {
 				return written, err
 			}
 			written = append(written, dest)
@@ -306,4 +304,21 @@ func InstallSocraticaSkill(body string, wrappers map[string]string) ([]string, e
 		written = append(written, dest)
 	}
 	return written, nil
+}
+
+// writeManagedFile escribe un archivo que gomemory gestiona dentro de la
+// configuración de un agente. Rechaza un destino o una carpeta contenedora
+// simbólicos, como copyFileOrDir: os.WriteFile seguiría el enlace y truncaría
+// el archivo apuntado. La escritura es atómica (WriteConfigFile).
+func writeManagedFile(dest string, data []byte) error {
+	dir := filepath.Dir(dest)
+	for _, p := range []string{dir, dest} {
+		if info, err := os.Lstat(p); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s es un enlace simbólico: gomemory no escribe a través de él", p)
+		}
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return WriteConfigFile(dest, data)
 }

@@ -143,3 +143,33 @@ func TestMigrate_ThreeOpensSameCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestMigrate_V3ToV4PreservesRowsAndCreatesHCDCatalog(t *testing.T) {
+	db, err := openDBFile(filepath.Join(t.TempDir(), "mem.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`INSERT INTO memories(project, type, title, content, created_at, updated_at) VALUES('p','learning','keep','preserved','2026-10-27T00:00:00Z','2026-10-27T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("PRAGMA user_version = 3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate(db); err != nil {
+		t.Fatalf("migrate v3: %v", err)
+	}
+	if got := userVersion(t, db); got != 4 {
+		t.Fatalf("user_version = %d, want 4", got)
+	}
+	var content string
+	if err := db.QueryRow("SELECT content FROM memories WHERE project = ? AND title = ?", "p", "keep").Scan(&content); err != nil || content != "preserved" {
+		t.Fatalf("existing row content = %q, error %v", content, err)
+	}
+	for _, table := range []string{"hcd_units", "hcd_operations", "hcd_approval_prompts", "hcd_approvals", "hcd_clarifications", "hcd_decisions", "hcd_exceptions", "hcd_blocks", "hcd_executions", "hcd_evidence", "hcd_links", "hcd_normative_revisions", "hcd_focus", "hcd_heartbeats", "hcd_playbook_adoptions", "hcd_migrations"} {
+		var count int
+		if err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table).Scan(&count); err != nil || count != 1 {
+			t.Errorf("table %s missing after v3 migration (count=%d, err=%v)", table, count, err)
+		}
+	}
+}

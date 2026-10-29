@@ -27,3 +27,10 @@ func StripTerminalControls(s string) string {
 func isTerminalControl(r rune) bool {
 	return r != '\t' && r != '\n' && (r < 0x20 || (r >= 0x7f && r <= 0x9f))
 }
+
+// ProtectHCDField prepara un campo corto de una unidad HCD (título,
+// implementador) para persistirlo o mostrarlo: redacta lo privado y los
+// secretos y quita los controles de terminal.
+func ProtectHCDField(s string) string {
+	return strings.TrimSpace(StripTerminalControls(ProtectText(s)))
+}

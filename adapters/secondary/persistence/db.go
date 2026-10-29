@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 3
+const schemaVersion = 4
 
 type schemaExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -239,6 +239,9 @@ func migrate(db *sql.DB) error {
 // versionar el bundle de export (ver domain.ExportVersion), no reescribir el
 // esquema de mem.db en el lugar.
 func migrateSchema(ex schemaExecer) error {
+	if _, err := ex.Exec(hcdSchema); err != nil {
+		return fmt.Errorf("migrate hcd: %w", err)
+	}
 	if _, err := ex.Exec(instinctSchema); err != nil {
 		return fmt.Errorf("migrate instincts: %w", err)
 	}

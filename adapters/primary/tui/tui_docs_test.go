@@ -16,6 +16,22 @@ import (
 	"mem/domain"
 )
 
+func TestSpecificationGuideAvailableFromMainList(t *testing.T) {
+	m := modeloDocs(t)
+	m.screen = screenList
+	next, _ := m.updateList(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	m = next.(model)
+	if m.screen != screenSpecification {
+		t.Fatal("main list does not expose specification")
+	}
+	view := ansi.Strip(m.renderView())
+	for _, text := range []string{"HCD Playbook", "Spec Kit", "/hcd", "/speckit-specify"} {
+		if !strings.Contains(view, text) {
+			t.Fatalf("guide lacks %s: %s", text, view)
+		}
+	}
+}
+
 func modeloDocs(t *testing.T) model {
 	t.Helper()
 	root := t.TempDir()

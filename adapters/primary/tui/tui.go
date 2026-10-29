@@ -48,6 +48,7 @@ const (
 	screenSocratica
 	screenSocraticaDetail
 	screenSocraticaQuestions
+	screenSpecification
 )
 
 // editSettingField identifica cuál de los tres ajustes de huella de contexto
@@ -130,6 +131,7 @@ func listRowLines(m domain.Memory, selected bool, width int) []string {
 // ─── Model ─────────────────────────────────────────────────────────
 
 type model struct {
+	spec            specificationState
 	soc             socraticaState
 	viewScroll      int
 	memRepo         ports.MemoryRepository
@@ -250,6 +252,7 @@ type model struct {
 // opcionales en su totalidad: con el valor cero, la pantalla degrada
 // mostrando lo que puede (nil-safe, mismo criterio que el resto del modelo).
 type UsageDeps struct {
+	HCD HCDStarter
 	// Socratica (feature 039): viaja con el resto de dependencias opcionales.
 	Socratica     SocraticaDeps
 	CodeProviders []ports.CodeGraphProvider
@@ -374,6 +377,7 @@ func initialModel(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		compressor:       usageDeps.Compressor,
 		specKitReader:    usageDeps.SpecKitReader,
 		soc:              newSocraticaState(usageDeps.Socratica),
+		spec:             newSpecificationState(usageDeps.HCD),
 		usageTaskInput:   ut,
 		usageBudgetInput: ub,
 	}
@@ -405,6 +409,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			m.viewScroll = 0
 		}
+	}
+	if result, ok := msg.(specificationStartedMsg); ok {
+		m.spec.busy = false
+		if result.err != nil {
+			m.spec.message = result.err.Error()
+		} else {
+			m.spec.message = result.unit.ID + " creada. Continúa con /hcd o $hcd."
+			m.spec.created = true
+		}
+		return m, nil
 	}
 	if next, cmd, ok := m.handleSocraticaMsg(msg); ok {
 		return next, cmd
@@ -447,6 +461,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.screen == screenSpecification {
+			return m.updateSpecification(msg)
+		}
 		if m.statusTimer > 0 {
 			m.statusTimer--
 		}
@@ -703,6 +720,11 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		if m.ready {
 			return m.openSocratica()
+		}
+	case "h":
+		if m.ready {
+			m.screen = screenSpecification
+			m.spec = newSpecificationState(m.spec.flow)
 		}
 
 	case "u":
@@ -2059,6 +2081,8 @@ func (m model) renderView() string {
 		content = m.configView()
 	case screenDocs:
 		content = m.docsView()
+	case screenSpecification:
+		content = m.specificationView()
 	case screenImport:
 		content = m.importView()
 	case screenOptimize:
@@ -2180,7 +2204,7 @@ func (m model) listView() string {
 	}
 
 	// Footer
-	help := "↑↓ navegar · / buscar · enter detalle · d eliminar · ctrl+y copiar · s guardar · c config · m mantenimiento · o optimizar · u uso · p socratica · q salir"
+	help := "↑↓ navegar · / buscar · enter detalle · d eliminar · ctrl+y copiar · s guardar · c config · m mantenimiento · o optimizar · u uso · p socratica · h especificación · q salir"
 	if m.height < 18 {
 		help = "↑↓ · / buscar · enter · q salir"
 	}

@@ -20,6 +20,14 @@ func semillaV2() []usecases.Seed {
 	}}
 }
 
+func semillaPlaybookV2() []usecases.Seed {
+	return []usecases.Seed{{
+		TopicKey: domain.TopicHCDPlaybook, Type: domain.Architecture,
+		Title: "Playbook HCD del proyecto", Content: "PLAYBOOK HCD v2",
+		PreviousDefaultSHA256: []string{domain.ContentFingerprint("PLAYBOOK HCD v1")},
+	}}
+}
+
 func sembrarCon(t *testing.T, contenido string) (func(string) string, usecases.SeedUpgradeReport) {
 	t.Helper()
 	_, topics, seeder := repoDocs(t)
@@ -91,5 +99,43 @@ func TestUpgradePristineSeeds_EsIdempotente(t *testing.T) {
 	rep, err := usecases.UpgradePristineSeeds(seeder, topics, "proj", semillaV2())
 	if err != nil || len(rep.Upgraded)+len(rep.Customized) != 0 {
 		t.Errorf("la segunda pasada no debía hacer nada: %+v, %v", rep, err)
+	}
+}
+
+func TestUpgradePristinePlaybookSeed(t *testing.T) {
+	_, topics, seeder := repoDocs(t)
+	doc, ok := domain.PinnedDocByAlias("playbook")
+	if !ok {
+		t.Fatal("falta el documento fijado playbook")
+	}
+	if _, err := usecases.ImportPinnedDoc(seeder, topics, "proj", doc.TopicKey, doc.Type, doc.Title, "PLAYBOOK HCD v1"); err != nil {
+		t.Fatalf("sembrar Playbook anterior: %v", err)
+	}
+	rep, err := usecases.UpgradePristineSeeds(seeder, topics, "proj", semillaPlaybookV2())
+	if err != nil {
+		t.Fatalf("actualizar Playbook intacto: %v", err)
+	}
+	if len(rep.Upgraded) != 1 || rep.Upgraded[0] != domain.TopicHCDPlaybook {
+		t.Fatalf("semilla intacta no actualizada: %+v", rep)
+	}
+	m, err := topics.ByTopicKey("proj", domain.TopicHCDPlaybook)
+	if err != nil || m == nil || m.Content != "PLAYBOOK HCD v2" {
+		t.Fatalf("contenido actualizado = %+v, error %v", m, err)
+	}
+
+	_, topics, seeder = repoDocs(t)
+	if _, err := usecases.ImportPinnedDoc(seeder, topics, "proj", doc.TopicKey, doc.Type, doc.Title, "Playbook editado por el equipo"); err != nil {
+		t.Fatalf("sembrar Playbook personalizado: %v", err)
+	}
+	rep, err = usecases.UpgradePristineSeeds(seeder, topics, "proj", semillaPlaybookV2())
+	if err != nil {
+		t.Fatalf("actualizar Playbook personalizado: %v", err)
+	}
+	if len(rep.Customized) != 1 || rep.Customized[0] != domain.TopicHCDPlaybook {
+		t.Fatalf("semilla personalizada debía quedar intacta: %+v", rep)
+	}
+	m, err = topics.ByTopicKey("proj", domain.TopicHCDPlaybook)
+	if err != nil || m == nil || m.Content != "Playbook editado por el equipo" {
+		t.Fatalf("se pisó el Playbook personalizado: %+v, error %v", m, err)
 	}
 }

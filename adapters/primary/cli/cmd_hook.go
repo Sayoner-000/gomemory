@@ -317,12 +317,14 @@ func hookSessionEnd(deps *Deps) {
 	}
 
 	summary := ""
-	if payload := readHookStdin(); payload != nil {
+	payload := readHookStdin()
+	if payload != nil {
 		if s, ok := payload["summary"].(string); ok {
 			summary = s
 		}
 	}
 
+	recordHCDHeartbeat(deps, root, project, payload, turnActivity{})
 	_ = deps.SessionRepo.End(active.ID, summary)
 	backupSessionSnapshot(deps, project)
 	os.Exit(0)
@@ -806,7 +808,7 @@ func hookTurnEnd(deps *Deps, args []string) {
 		fmt.Print("{}")
 	}
 
-	recordActivityCheckpoint(deps, "Checkpoint automático")
+	recordActivityCheckpointWithPayload(deps, "Checkpoint automático", withDialectClient(readHookStdin(), dialect))
 }
 
 // hookSubagentStart corre al arrancar un subagente (tool Task) en Claude Code,
@@ -1128,6 +1130,7 @@ func recordActivityCheckpointWithPayload(deps *Deps, title string, payload map[s
 		}
 	}
 
+	recordHCDHeartbeat(deps, root, project, payload, activity)
 	if activity.empty() {
 		return
 	}

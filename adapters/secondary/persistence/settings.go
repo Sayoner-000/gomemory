@@ -13,6 +13,7 @@ import (
 
 type Settings struct {
 	domain.SocraticaSettings
+	domain.HCDSettings
 	// Theme selecciona la apariencia TUI: dark, light, matrix o auto.
 	Theme            string   `json:"theme,omitempty"`
 	AutoApprove      bool     `json:"auto_approve"`

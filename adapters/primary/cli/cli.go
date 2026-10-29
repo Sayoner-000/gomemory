@@ -20,7 +20,12 @@ func LaunchTUI(deps *Deps) {
 
 	project := deps.ProjectRepo.Key(root)
 
+	var hcdStarter tui.HCDStarter
+	if deps.HCD != nil {
+		hcdStarter = deps.HCD
+	}
 	if err := tui.Run(deps.MemoryRepo, deps.RelationRepo, deps.SettingsRepo, deps.MaintenanceRepo, deps.TUIProvider, root, project, tui.UsageDeps{
+		HCD:           hcdStarter,
 		Socratica:     tui.SocraticaDeps{Flow: deps.Socratica, Launcher: deps.SocraticaExec},
 		CodeProviders: deps.TUIProviders,
 		SessionRepo:   deps.SessionRepo,
@@ -77,6 +82,7 @@ var helpIndex = []struct {
 	}},
 	{"PROMPTS", []helpEntry{
 		{"socratica", "Refinar un prompt con aprobación: refine · pending · history · on/off"},
+		{"hcd", "Conducir una unidad de trabajo HCD: start · define · approve · verify · close · migrate"},
 	}},
 	{"CÓDIGO Y ARQUITECTURA", []helpEntry{
 		{"index", "Indexar el código y los grafos externos"},
@@ -98,6 +104,7 @@ var helpIndex = []struct {
 	{"DOCUMENTOS Y PORTABILIDAD", []helpEntry{
 		{"docs", "Documentos fijados del proyecto"},
 		{"constitution", "Constitución vigente"},
+		{"playbook", "Playbook HCD del proyecto"},
 		{"rules", "Reglas de trabajo vigentes"},
 		{"export", "Exportar memorias a JSON portable"},
 		{"import", "Importar un bundle JSON"},
@@ -237,6 +244,22 @@ COMMANDS
     reset <alias>                   Restaurar el contenido por defecto
   mem constitution [--sync]        Ver la constitución vigente (atajo de docs show constitution)
                                    --sync la refleja en .specify/memory/constitution.md si hay spec-kit
+  mem playbook [--sync]            Ver el Playbook HCD fijado del proyecto
+                                   --sync lo exporta a hcd/hcd-playbook.md si existe hcd/
+  mem hcd <comando> [unidad]      Motor HCD de unidades, tareas y verificación
+                                   Lo conducen las skills /hcd y hcd-*; la terminal es la vía de respaldo
+    start --kind fix|feature|evolution|technical --title "…" [--implementer "…"]
+    list · show · status · next · resume <id>      Consultas (no cambian la revisión)
+    define <id> --file <md> · validate <id>         Registrar y validar definition.md
+    clarify <id> --question "…" --options a,b [--blocking] · --answer "…"
+    approve <id> --request --object definition|close · approve <id> --prompt-id P --revision <12hex> --quote "…"
+    slice <id> --file <md> (## VS-NN.) · tasks <id> --slice VS-NN --file <md> (### T-NNN.)
+    check <id> --task T-NNN · run <id> --task T-NNN [--timeout <horas>]
+    subject --files a.go,b_test.go                  Sujeto tree: vigente para la línea «Sujeto:» de la evidencia
+    report <id> --run <ejecución> --file <evidencia> · verify <id> · close <id> --revision <12hex> --quote "…"
+    block · decision · exception · playbook · migrate --preview|--activate · focus · cancel
+    Comunes: --json --client claude|codex|opencode|terminal --expected-revision N --operation-id ID
+    --file - lee el contenido de stdin (heredoc), sin archivo temporal
   mem rules                        Ver las reglas de trabajo vigentes (atajo de docs show rules)
   mem export [--out <archivo>]     Exportar memorias + relaciones a un JSON portable (cross-OS)
                                    (default gomemory-export-<proyecto>-<YYYYMMDD>.json)

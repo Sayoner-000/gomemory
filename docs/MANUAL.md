@@ -25,6 +25,7 @@ Guía para instalar, configurar y usar gomemory con los agentes compatibles.
 19. [Compresión nativa de contexto](#19-compresión-nativa-de-contexto)
 20. [Socratica: refinamiento de prompts](#20-socratica-refinamiento-de-prompts-mem-socratica)
 21. [Supertools expand](#21-supertools-expand-mem-expand)
+22. [HCD: Harness Continual Development](#22-hcd-harness-continual-development-mem-hcd)
 
 ---
 
@@ -1604,6 +1605,89 @@ intencionado, ejecútalo en tu terminal o desactiva la regla. Es un guardarraíl
 no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 [expand.md](expand.md).
 
+
+## 22. HCD: Harness Continual Development (`mem hcd`)
+
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada. Convive con Spec Kit: las features de `specs/` siguen siendo Spec Kit, y el motor HCD nunca escribe ahí. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.40.html), capítulos 16 y 17, cuenta el recorrido con ejemplos.
+
+### Cómo se usa
+
+No escribes comandos. En el agente:
+
+```text
+/hcd inicia una corrección: <qué falla>      # Codex: $hcd
+```
+
+El agente propone tipo y título, y espera tu confirmación. Después sigue las skills en este orden. En cada respuesta el motor indica el siguiente paso (`next_action`).
+
+| Paso | Skill | Qué te pide a ti |
+|---|---|---|
+| 1 | `hcd` | Confirmar tipo y título |
+| 2 | `hcd-define` | Nada, salvo que falte un dato (por ejemplo, el implementador) |
+| 3 | `hcd-clarify` | Elegir una opción cuando algo cambia el contrato, los datos, la seguridad o el alcance |
+| 4 | `hcd-approve` | Aprobar con la revisión: «apruebo 3633b5f1c2fb» |
+| 5 | `hcd-slice`, `hcd-tasks` | Revisar el incremento y sus tareas |
+| 6 | `hcd-implement` | Nada: el agente ejecuta, prueba y registra la evidencia |
+| 7 | `hcd-verify` | Leer el resultado (PASS no cierra) |
+| 8 | `hcd-close` | Aceptar el cierre con la revisión: «cierro HCD-001 3633b5f1c2fb» |
+
+`hcd-exception`, `hcd-playbook` y `hcd-migrate` se usan cuando hace falta desviarse de una regla, adoptar una revisión del Playbook o pasar una feature de `specs/` a HCD.
+
+### Instalación
+
+`mem install` (alcance `project` o `global`) y `mem update` instalan las doce skills en `~/.claude/skills/`, `~/.codex/skills/` y `~/.config/opencode/skills/`, en los agentes que tengas. En OpenCode añade también los comandos `/hcd*`.
+
+En Codex, el sandbox `workspace-write` no puede escribir la base de gomemory. Hay que añadirla como raíz escribible:
+
+```toml
+# ~/.codex/config.toml
+[sandbox_workspace_write]
+writable_roots = ["/Users/<usuario>/.local/share/gomemory"]
+```
+
+O, para una sesión: `codex --add-dir ~/.local/share/gomemory`.
+
+### Qué guarda y dónde
+
+| Qué | Dónde |
+|---|---|
+| Estado de control (unidades, revisiones, aprobaciones, ejecuciones, evidencia, decisiones) | Tablas `hcd_*` de la base del proyecto |
+| `definition.md`, `delivery.md`, `verification.md` (generado) | `hcd/features/NNN-nombre/` |
+| Decisiones aceptadas | Memorias `type=decision` con `topic_key` `hcd:HCD-NNN:D-NN` |
+| Unidad activa | Una por proyecto; aparece como «HCD activo» en el contexto de arranque |
+
+### Reglas que conviene conocer
+
+- **Las aprobaciones son citas.** El motor guarda tu respuesta literal. Una cita vale si contiene la revisión de 12 caracteres o es un «apruebo» explícito.
+- **Editar a mano tiene consecuencias.** Si alguien cambia `definition.md` o `delivery.md` fuera del motor, la primera operación responde `revision_conflict`, la unidad vuelve a `draft` y la aprobación se anula. Un `definition.md` borrado se trata igual.
+- **La evidencia caduca.** Si cambia el código evaluado, la evidencia pasa a `stale` y la tarea admite otra ejecución para revalidarla. Mientras siga vigente, no se puede repetir.
+- **Retirar una tarea** es una decisión `task_cancelled` aceptada con cita. `block` solo la detiene.
+- **Los desvíos avisan, no bloquean.** `files_without_execution` (archivos tocados sin ejecución concedida), `execution_unreported` (ejecución concedida sin informe) e `inactive_unit` (sin actividad en `hcd_inactive_days`, 7 por defecto).
+
+### Desde la terminal
+
+La terminal es la vía de respaldo. `mem hcd --help` lista los comandos y sus opciones. Todos aceptan `--json` y `--client`.
+
+```bash
+mem hcd list                                     # unidades y estado
+mem hcd status HCD-001 --json                    # etapa, pendientes, next_action
+mem hcd resume HCD-001                           # fija la unidad activa
+mem hcd subject --files a.go,a_test.go           # sujeto tree: para la evidencia
+mem hcd define HCD-001 --file - <<'EOF'           # --file - lee de stdin (heredoc)
+...
+EOF
+```
+
+`--file -` vale para `define`, `slice`, `tasks`, `report`, `decision`, `exception` y `block`. Las skills lo usan siempre: un archivo temporal fuera del proyecto suele estar bloqueado por el sandbox de Codex y por `external_directory` en OpenCode.
+
+| Código | Exit | Significa |
+|---|---|---|
+| `usage` | 2 | Argumentos inválidos o contenido no reconocido (`pending_checks` dice cuál) |
+| `not_found` | 3 | Unidad, tarea o ejecución inexistente |
+| `revision_conflict`, `operation_conflict` | 4 | Revisión desactualizada u operación repetida con otro contenido |
+| `not_allowed`, `blocked`, `atomicity`, `invalid_quote` | 5 | El estado no permite la acción, hay un bloqueo, la tarea no es atómica o falta la cita |
+| `approach_mismatch` | 6 | La unidad es Spec Kit |
+| `uncertain` | 7 | Una ejecución quedó sin respuesta y hay que reconciliarla |
 
 ## Temas de la terminal (v2.29.0)
 

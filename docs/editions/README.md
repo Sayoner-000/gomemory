@@ -15,7 +15,9 @@ anteriores sin cambios, para consultar cómo funcionaba una versión concreta.
 | `Guia-Tecnica_GOMEMORY-v2.38.html` | Guía técnica, edición 3 | gomemory 2.38.0 |
 | `Guia-SDD_GOMEMORY-v2.39.html` | Guía SDD, edición 6 | Spec Kit 1.2.2 · gomemory 2.39.0 |
 | `Guia-Tecnica_GOMEMORY-v2.39.html` | Guía técnica, edición 4 | gomemory 2.39.0 |
+| `Guia-SDD_GOMEMORY-v2.40.html` | Guía SDD, edición 7 | Spec Kit 1.2.2 · gomemory 2.40.3 |
 
-Vigentes en `docs/`: `Guia-SDD_GOMEMORY-v2.40.html` (edición 7) y
+Vigentes en `docs/`: `Guia-SDD_HCD_GOMEMORY-v2.40.html` (edición 8, la guía SDD
+renombrada SDD_HCD mientras Spec Kit y HCD convivan) y
 `Guia-Tecnica_GOMEMORY-v2.40.html` (edición 5). El procedimiento está en
 [release_gomemory_notes.md](../release_gomemory_notes.md#versionar-las-guías-html).

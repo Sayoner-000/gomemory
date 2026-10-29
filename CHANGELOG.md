@@ -7,6 +7,42 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- HCD: motor `mem hcd` para definir y aprobar unidades, dividir la entrega en slices y tareas, registrar ejecuciones y evidencia, verificar y cerrar con cita. El estado de control se guarda en SQLite y los artefactos de la unidad bajo `hcd/`; las skills HCD guían el recorrido y el contexto del agente muestra la unidad activa.
+- `mem hcd subject --files a,b` calcula el sujeto `tree:` que `verify` reconoce como vigente. Sin él, el agente no podía producir evidencia vigente.
+- Una tarea se retira con una decisión `task_cancelled` aceptada con cita; deja de contar en la admisión, la verificación y el cierre.
+- `mem hcd --help` lista los subcomandos y sus opciones.
+- `--file -` lee el contenido de stdin en `define`, `slice`, `tasks`, `report`, `decision`, `exception` y `block`. Las skills pasan los artefactos con un heredoc y ya no crean archivos temporales, que los sandboxes de Codex y OpenCode bloquean fuera del proyecto.
+
+### Fixed
+
+Defectos de HCD que la suite no veía y aparecieron al recorrer una unidad real con Claude Code, Codex y OpenCode:
+
+- `slice` y `tasks` aceptaban un archivo con encabezados no reconocidos y respondían `ok` con una entrega vacía. Ahora responden `SLICE-EMPTY` o `TASK-EMPTY` sin cambiar nada; `report` nombra cada campo que falta con `EVIDENCE-FIELDS`.
+- La etapa de una unidad en curso se quedaba siempre en `slicing`; ahora avanza a tareas, implementación, verificación y cierre. Tras un PASS el siguiente paso es `hcd-close`, y una unidad terminada ya no lo sugiere.
+- Una evidencia caducada no se podía revalidar: `run` rechazaba para siempre una tarea ya informada. Ahora concede otra ejecución cuando toda la evidencia anterior está `stale`.
+- La segunda aprobación de un proyecto salía `APR-00` y la tercera chocaba con `APR-01`.
+- `define` no guardaba el implementador en el estado de control, y `delivery.md` regenerado perdía el título del slice.
+- El aviso `execution_unreported` seguía visible después del informe.
+- `mem install` con alcance `project` no instalaba las skills HCD (ACR C-001).
+- Si la verificación dejaba de pasar entre la aceptación y el cierre, quedaba registrada una aceptación de un cierre que no ocurrió; ahora se retira (ACR C-002).
+- Un `definition.md` borrado dejaba la unidad atascada; ahora se reconcilia como una edición externa (ACR C-005).
+- Reutilizar un `operation-id` en otra unidad u otro comando devolvía el resultado de la primera; ahora es `operation_conflict` (ACR C-006).
+- OpenCode omitía el heartbeat HCD en los turnos sin archivos ni comandos, y su heartbeat (igual que el de Codex) quedaba atribuido a `claude`. Ahora cada turno llama a `turn-end` y el heartbeat lleva el cliente real.
+- Dos `start` concurrentes podían calcular el mismo ID; el que fallaba borraba el `definition.md` de la unidad guardada. El ID y el artefacto se crean dentro de la misma transacción y la limpieza solo toca lo que escribió esa llamada.
+- El título y el implementador de una unidad se guardaban sin redactar `<private>` ni secretos, y el título privado llegaba también al nombre de la carpeta. Ahora se protegen y se les quitan los controles de terminal al crear, definir y migrar, y también en el almacén. `mem hcd list` sanea los títulos que ya estaban guardados.
+- El instalador de skills y comandos HCD escribía a través de un enlace simbólico y truncaba el archivo apuntado. Ahora rechaza ese destino y escribe de forma atómica.
+- Si el contexto se cancelaba después de escribir un artefacto, la compensación no lo borraba ni lo restauraba, y el disco quedaba distinto de SQLite. Ahora la compensación usa su propio plazo. `migrate --activate` también reserva el ID antes de escribir `definition.md`.
+- Si la transacción final de `close` fallaba por cualquier motivo, la aceptación ya preparada quedaba `accepted` para un cierre que no ocurrió. Ahora se retira, y el mismo `operation-id` no puede reutilizarla.
+- La Constitución distribuida (2.1.0) incorpora la §18 por enfoque Spec Kit/HCD; las copias sembradas intactas se actualizan solas. `start` responde `constitution_conflict` si la Constitución vigente exige Spec Kit y no reconoce HCD.
+
+### Documentación
+
+- La guía SDD pasa a llamarse `Guia-SDD_HCD_GOMEMORY-v2.40.html` (edición 8) mientras Spec Kit y HCD convivan, con dos capítulos nuevos: la ceremonia HCD y la convivencia. La edición 7 queda en `docs/editions/`.
+- `docs/MANUAL.md` suma la sección 22 (HCD); README y guía técnica declaran el soporte por agente según la evidencia y explican el sandbox de Codex.
+- Constitución 2.2.0: la §18 admite los dos enfoques y la §25.2 registra el composition root en `infrastructure/container.go`.
+
 ## [v2.40.3] - 2026-10-27
 
 ### Fixed

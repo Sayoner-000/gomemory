@@ -30,12 +30,18 @@ func CmdRules(deps *Deps, args []string) {
 	}
 }
 
+func CmdPlaybook(deps *Deps, args []string) {
+	if err := runPinnedShortcut(deps, "playbook", args, os.Stdout, os.Stderr); err != nil {
+		fail("%v", err)
+	}
+}
+
 // runPinnedShortcut resuelve un documento fijado por su alias y lo escribe en
 // stdout. Con --sync, además lo refleja en el archivo que espera spec-kit.
 func runPinnedShortcut(deps *Deps, alias string, args []string, stdout, stderr io.Writer) error {
 	fs := newFlagSet(alias, flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	sync := fs.Bool("sync", false, "escribir también .specify/memory/constitution.md si el proyecto usa spec-kit")
+	sync := fs.Bool("sync", false, "exportar el documento a su ruta de proyecto, si corresponde")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -63,8 +69,30 @@ func runPinnedShortcut(deps *Deps, alias string, args []string, stdout, stderr i
 	}
 
 	if *sync {
-		return syncSpeckitConstitution(deps.Root, res.Content, stderr)
+		switch alias {
+		case "constitution":
+			return syncSpeckitConstitution(deps.Root, res.Content, stderr)
+		case "playbook":
+			return syncHCDPlaybook(deps.Root, res.Content, stderr)
+		default:
+			return fmt.Errorf("--sync no está disponible para el documento %q", alias)
+		}
 	}
+	return nil
+}
+
+func syncHCDPlaybook(root, content string, stderr io.Writer) error {
+	dir := filepath.Join(root, "hcd")
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		_, _ = fmt.Fprintln(stderr, "ℹ️  Este proyecto no tiene hcd/; no se sincronizó ningún archivo.")
+		return nil
+	}
+	destino := filepath.Join(dir, "hcd-playbook.md")
+	if err := setup.WriteConfigFile(destino, []byte(content)); err != nil {
+		return fmt.Errorf("escribir %s: %w", destino, err)
+	}
+	_, _ = fmt.Fprintf(stderr, "✅ %s actualizado\n", destino)
 	return nil
 }
 

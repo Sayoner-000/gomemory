@@ -30,7 +30,8 @@ El release debe apuntar a un commit ya integrado en `main`.
 Cada release lleva su edición de la guía SDD y de la guía técnica:
 
 1. Mueve las ediciones vigentes de `docs/` a `docs/editions/` sin cambiarles
-   el nombre (`Guia-SDD_GOMEMORY-vX.Y.html`, `Guia-Tecnica_GOMEMORY-vX.Y.html`).
+   el nombre (`Guia-SDD_HCD_GOMEMORY-vX.Y.html`, `Guia-Tecnica_GOMEMORY-vX.Y.html`;
+   hasta la edición 7 la guía se llamaba `Guia-SDD_GOMEMORY-vX.Y.html`).
 2. Crea las nuevas con la versión del release en el nombre, a partir de la
    edición anterior: conserva la plantilla y actualiza versiones, recuentos
    (herramientas MCP, hooks, tablas) y los capítulos de los mecanismos que
