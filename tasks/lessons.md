@@ -100,3 +100,14 @@ Orden propuesto, de mayor a menor rendimiento por esfuerzo. Nada de esto está h
 1. Antes de recortar un protocolo, separa **ceremonia** (los pasos que ve la persona) de **maquinaria** (tablas, leases, idempotencia, heartbeats). La sobreingeniería casi siempre está en la maquinaria. No quites pasos de la ceremonia sin preguntarlo de forma explícita.
 2. Una opción tipo «la vía completa es X» que elimina algo que la persona construyó debe decir en la pregunta qué se pierde, con sus nombres concretos.
 3. Antes de una reescritura grande sobre código sin rastrear, haz un commit local como punto de restauración (con la aprobación de la persona) en vez de depender solo de un tarball.
+
+---
+
+## L007 — Un binario de gomemory abre la BD del proyecto aunque solo imprima el uso (feature 045, 2026-10-29)
+
+**Qué pasó**: para comprobar el binario recién compilado ejecuté `mem-v2 hcd` dentro del repo y sin `GOMEMORY_DATA_HOME`. `mem` construye el contenedor, y con él abre y migra la BD del proyecto, antes de despachar el comando. Mi BD real de gomemory pasó de v4 a v6 sin autorización. No hubo pérdida de datos, pero fue un cambio no pedido sobre datos reales. Además, los tests de `adapters/primary/cli/hcd` no tenían `TestMain` y creaban proyectos `001-*` en el almacén real en cada ejecución.
+
+**Regla**:
+1. Todo binario de prueba se ejecuta con `GOMEMORY_DATA_HOME` apuntando a un directorio temporal, y fuera del repo si no hace falta el repo.
+2. Todo paquete de tests que abra el store (`persistence.Init/Open`, `NewContainer`) lleva un `TestMain` que fija `GOMEMORY_DATA_HOME` a un temporal. Se verifica corriendo el paquete con un canario y comprobando que no aparecen proyectos.
+3. Si un dato real cambia sin querer, primero lecturas `-readonly` para medir el daño, y después se informa con cifras.

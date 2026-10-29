@@ -26,6 +26,18 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 - Esquema de la base: versión 6. Añade `hcd_units`, `hcd_evidence` y `hcd_approvals`. Las bases v3 migran al abrir, sin tocar las filas existentes.
 - Constitución distribuida 2.1.1: la §18 admite los dos enfoques (Spec Kit y HCD) con un documento único por unidad HCD. Las copias sembradas intactas se actualizan solas.
 
+### Medición frente a la primera versión de HCD (no publicada)
+
+| | Primera versión | Esta versión |
+|---|---|---|
+| Código de producción HCD | 7.010 líneas | 2.415 |
+| Tests HCD | 5.527 líneas | 1.751 |
+| Tablas `hcd_*` | 16 | 3 |
+| Comandos del motor | 28 | 10 |
+| Requisitos de la spec | 72 | 29 |
+
+La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
+
 ### Documentación
 
 - La guía SDD pasa a llamarse `Guia-SDD_HCD_GOMEMORY-v2.40.html` (edición 8) mientras Spec Kit y HCD convivan. La edición 7 queda en `docs/editions/`.

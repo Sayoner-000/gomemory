@@ -43,8 +43,8 @@
 
 ## Fase 8: Verificación real
 
-- [ ] T019 `go build ./... && go vet ./... && go test ./...` en verde
-- [ ] T020 Migrar a v5 una copia de la BD real de gomemory y comprobar memorias intactas y 3 tablas `hcd_*`
-- [ ] T021 Feature por la ceremonia completa con el binario compilado
-- [ ] T022 Fix por la Vía rápida con el binario compilado
-- [ ] T023 Medir antes/después (líneas, tablas, skills) y registrarlo en el CHANGELOG
+- [X] T019 `go build ./... && go vet ./... && go test ./...` en verde
+- [X] T020 Migrar a v5 una copia de la BD real de gomemory y comprobar memorias intactas y 3 tablas `hcd_*`
+- [X] T021 Feature por la ceremonia completa con el binario compilado
+- [X] T022 Fix por la Vía rápida con el binario compilado
+- [X] T023 Medir antes/después (líneas, tablas, skills) y registrarlo en el CHANGELOG
