@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.40.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.40.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. Las ediciones anteriores se conservan en [editions/](editions/).
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.41.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.41.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -20,7 +20,7 @@ Consulta [expand.md](expand.md) para comandos, formatos, permisos, límites y ex
 HCD conduce una unidad de trabajo por su ceremonia: `define → clarify → approve → slice → tasks → implement → verify → close` en el carril completo, o la Vía rápida (`define → tasks → implement → verify → close`, sin `approve` ni `slice`). La persona la recorre con las skills `/hcd` o `$hcd` y `hcd-*`; cada skill llama al motor `mem hcd`, que es el único que registra aclaraciones, aprobaciones, evidencia y cierres.
 
 - **Dominio** (`domain/hcd.go`, `hcd_doc.go`, `hcd_stage.go`): `ParseUnitDoc` lee el documento de la unidad; `domain.HCDState` deriva el paso, la siguiente skill, el gate de evidencia, el gate TDD (`RedMissing`) y `Analyze`. El paso nunca se guarda.
-- **Revisiones**: la de la definición (Intención, Reproducción, Alcance, Historias, Aclaraciones) es la que aprueba `approve`; la de trabajo (la definición más Slices y Checklist, sin casillas) es la que usan la evidencia y el cierre.
+- **Revisiones**: la de la definición (todas sus secciones obligatorias: Intención, Reproducción, Alcance, «¿Qué pasa si no lo hacemos?», «Alternativa más barata», Historias y Aclaraciones) es la que aprueba `approve`; la de trabajo (la definición más Slices y Checklist, sin casillas) es la que usan la evidencia y el cierre.
 - **Caso de uso** (`application/usecases/hcd.go`): `Start`, `Show`, `Clarify`, `Approve`, `Verify`, `Analyze`, `Close`, `Cancel`, `Promote` y `ActiveHCDContext`. Las decisiones se reflejan como memorias `decision`.
 - **Puertos** (`application/ports/hcd.go`): `HCDStore` (unidades, evidencia y aprobaciones), `HCDWorkspace` (documento, huella y ejecución) y `HCDContextRepository` (sección «HCD activo» del contexto de arranque).
 - **Adaptadores**: `persistence.HCDStore` sobre las tablas `hcd_units`, `hcd_evidence` y `hcd_approvals` (ADR 0003); `hcdfiles.Workspace`, que solo escribe bajo `hcd/` sin seguir symlinks, calcula la huella (`HEAD` más los archivos cambiados y sin rastrear, excluyendo `hcd/`) y ejecuta las comprobaciones con tiempo límite; `cli/hcd`, el motor con salida `--json`; y el formulario «Especificación» de la TUI.

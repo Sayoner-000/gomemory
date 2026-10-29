@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -22,10 +23,13 @@ const (
 	SectionNext           = "Siguiente"
 )
 
-// definitionSections forman la revisión que aprueba approve; workSections
-// añaden lo que se entrega y forman la revisión de la evidencia y el cierre.
+// definitionSections forman la revisión que aprueba approve: todas las
+// secciones obligatorias de la definición, para que completar o editar
+// cualquiera después de aprobar invalide la aprobación (ACR C-001).
+// workSections añaden lo que se entrega y forman la revisión de la evidencia
+// y el cierre.
 var (
-	definitionSections = []string{SectionIntent, SectionReproduction, SectionScope, SectionStories, SectionClarifications}
+	definitionSections = []string{SectionIntent, SectionReproduction, SectionScope, SectionInaction, SectionCheapest, SectionStories, SectionClarifications}
 	workSections       = append(append([]string{}, definitionSections...), SectionSlices, SectionChecklist)
 )
 
@@ -129,6 +133,14 @@ func ParseUnitDoc(data []byte, kind Kind, lane Lane) (UnitDoc, []PendingCheck) {
 	tasks, taskChecks := parseChecklist(stripComments(doc.Sections[SectionChecklist]))
 	doc.Tasks = tasks
 	pending = append(pending, taskChecks...)
+	// Un marcador en cualquier sección que se aprueba o se evalúa (historias,
+	// slices, tareas…) abre una aclaración, no solo en las obligatorias comunes
+	// (ACR acr_604f2f04 #1).
+	for _, name := range workSections {
+		if name != SectionClarifications && !slices.Contains(doc.Markers, name) && needsClarify.MatchString(stripComments(doc.Sections[name])) {
+			doc.Markers = append(doc.Markers, name)
+		}
+	}
 	return doc, pending
 }
 

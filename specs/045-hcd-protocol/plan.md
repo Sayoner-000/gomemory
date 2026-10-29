@@ -58,7 +58,7 @@ ID: HCD-001 · Tipo: feature · Carril: full · Motivo: …
 
 ### Revisiones
 
-- **Definición**: Intención, Reproducción, Alcance, Historias y Aclaraciones (sin casillas). La aprueba `approve`.
+- **Definición**: Intención, Reproducción, Alcance, «¿Qué pasa si no lo hacemos?», «Alternativa más barata», Historias y Aclaraciones (sin casillas). La aprueba `approve`.
 - **Trabajo**: definición más Slices y Checklist (sin casillas). La usan la evidencia y el cierre.
 
 ### Análisis (`domain.Analyze`)

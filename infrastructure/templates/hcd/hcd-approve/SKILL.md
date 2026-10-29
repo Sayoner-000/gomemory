@@ -17,8 +17,8 @@ description: Paso approve de HCD (solo ceremonia completa): la persona aprueba l
 8. **Privacidad.** No pongas secretos en el documento, las evidencias ni las citas.
 9. **La Constitución y el Playbook mandan.** Antes de definir, aprobar, implementar y cerrar, lee `mem constitution` y `mem playbook` y cita las secciones que aplican. Si `norms_changed` es `true`, las normas cambiaron desde la aprobación: revisa la definición con las reglas nuevas y vuelve a aprobarla con `/hcd-approve`.
 
-1. Solo en el carril `full`, con `stage: approve` o con `norms_changed: true`. En la Vía rápida no hay este paso: se aprueba al cerrar.
-2. Presenta a la persona la definición: intención, alcance, historias con sus criterios y aclaraciones resueltas, junto con `definition_revision` y las secciones de la Constitución y del Playbook que aplican. Si `norms_changed` es `true`, explica qué cambió en las normas y cómo afecta a la definición.
+1. Solo en el carril `full`, con `stage: approve` o con `norms_changed: true`, y nunca con faltantes ni aclaraciones abiertas. En la Vía rápida no hay este paso: se aprueba al cerrar.
+2. Presenta a la persona **todo lo que se aprueba**, sección por sección: intención, reproducción (en un `fix`), alcance (incluido y excluido), «¿qué pasa si no lo hacemos?», «alternativa más barata», historias con sus criterios y aclaraciones resueltas, junto con `definition_revision` y las secciones de la Constitución y del Playbook que aplican. Si `norms_changed` es `true`, explica qué cambió en las normas y cómo afecta a la definición.
 3. Pregunta: «¿Apruebas la definición <id> en la revisión <definition_revision>?».
 4. Con su respuesta literal: `mem hcd approve --quote "<respuesta>" --json --client <agente>`. Se aceptan «apruebo», «aprobar» o la revisión; si el motor responde `invalid_quote`, vuelve a preguntar.
-5. Si después cambia la definición (intención, alcance, historias o aclaraciones), la aprobación deja de valer y el motor vuelve a este paso. Añadir slices o tareas no la invalida.
+5. Si después cambia cualquier sección de la definición (intención, reproducción, alcance, «¿qué pasa si no lo hacemos?», «alternativa más barata», historias o aclaraciones), la aprobación deja de valer y el motor vuelve a este paso. Añadir slices o tareas no la invalida.

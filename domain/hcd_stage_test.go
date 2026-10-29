@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -283,5 +284,40 @@ func TestNormsChangedAfterApproval(t *testing.T) {
 	f.ConstitutionRev = "c9"
 	if f.NormsChanged() {
 		t.Fatal("fast lane has no definition approval to compare")
+	}
+}
+
+// ACR C-001: todas las secciones obligatorias forman parte de la revisión que
+// se aprueba; editarlas tras aprobar devuelve la unidad a approve.
+func TestEditingAnyRequiredSectionInvalidatesApproval(t *testing.T) {
+	doc := withTask(withSlice(fill(render(t, KindFeature, LaneFull), LaneFull)))
+	s := stateOf(t, doc, KindFeature, LaneFull)
+	a := approve(s)
+	for _, edit := range [][2]string{
+		{"se pierden datos", "se pierden datos y clientes"},
+		{"## Alternativa más barata\nninguna", "## Alternativa más barata\nun script"},
+	} {
+		e := stateOf(t, strings.Replace(doc, edit[0], edit[1], 1), KindFeature, LaneFull)
+		e.Approvals = []Approval{a}
+		if e.Approved() || e.Stage() != StageApprove {
+			t.Errorf("editing %q kept the approval (stage %s)", edit[0], e.Stage())
+		}
+	}
+}
+
+// ACR acr_604f2f04 #1: un marcador en Historias, Slices o Checklist abre una
+// aclaración, igual que en las secciones obligatorias comunes.
+func TestMarkersInAnyWorkSectionOpenClarification(t *testing.T) {
+	base := withTask(withSlice(fill(render(t, KindFeature, LaneFull), LaneFull)))
+	for name, edit := range map[string][2]string{
+		SectionStories:   {"Como usuario, quiero guardar, para no perder datos", "[NEEDS CLARIFICATION: ¿qué usuario?]"},
+		SectionSlices:    {"### VS-01. Guardado", "### VS-01. Guardado [NEEDS CLARIFICATION: ¿incluye carga?]"},
+		SectionChecklist: {"1. Persistir el cambio → go test ./x", "1. Persistir el cambio [NEEDS CLARIFICATION: ¿dónde?] → go test ./x"},
+	} {
+		s := stateOf(t, strings.Replace(base, edit[0], edit[1], 1), KindFeature, LaneFull)
+		s.Approvals = []Approval{approve(stateOf(t, base, KindFeature, LaneFull))}
+		if !slices.Contains(s.Doc.OpenClarifications(), name) || s.Stage() != StageClarify {
+			t.Errorf("marker in %s: open=%v stage=%s pending=%+v", name, s.Doc.OpenClarifications(), s.Stage(), s.Pending)
+		}
 	}
 }

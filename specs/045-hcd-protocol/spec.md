@@ -58,7 +58,7 @@
 | Unidad de trabajo | Feature, evolución, corrección (`fix`) o mejora técnica gestionada por HCD. |
 | Carril | `fast` (Vía rápida) o `full` (ceremonia completa). El decisor también puede responder sin crear unidad. |
 | Documento de la unidad | `hcd/HCD-NNN-<slug>.md`, único artefacto de la unidad en ambos carriles. |
-| Revisión de la definición | SHA-256 normalizado de Intención, Reproducción, Alcance, Historias y Aclaraciones. Es lo que se aprueba en `approve`. |
+| Revisión de la definición | SHA-256 normalizado de todas las secciones obligatorias de la definición: Intención, Reproducción, Alcance, «¿Qué pasa si no lo hacemos?», «Alternativa más barata», Historias y Aclaraciones. Es lo que se aprueba en `approve`. |
 | Revisión de trabajo | Revisión de la definición más Slices y Checklist, sin casillas. La evidencia y el cierre se ligan a ella. |
 | Huella del código | `HEAD` más el contenido de los archivos cambiados y sin rastrear, excluyendo `hcd/`. Fuera de git, `nogit`. |
 | Evidencia | Registro del motor: comando, código de salida, extracto, revisión de trabajo y huella; o una observación `manual`. |

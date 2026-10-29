@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -88,6 +89,9 @@ func TestPathsStayInsideAndRejectSymlinks(t *testing.T) {
 }
 
 func TestRunReportsExitCodeAndTail(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el caso usa un bucle de sh; en Windows Run delega en cmd /C")
+	}
 	w, ctx := Workspace{Root: t.TempDir()}, context.Background()
 	code, out, err := w.Run(ctx, "echo ok")
 	if err != nil || code != 0 || out != "ok" {

@@ -70,7 +70,7 @@ Todo lo que sigue a `--` es el comando de `verify` y se pasa a `sh -c` (`cmd /C`
 
 ## 6. Gates
 
-- **Aprobación** (FR-011): `approve` liga la aprobación a la revisión de la definición (Intención, Reproducción, Alcance, Historias, Aclaraciones). Editarla después vuelve al paso `approve`; añadir slices o tareas no.
+- **Aprobación** (FR-011): `approve` liga la aprobación a la revisión de la definición (Intención, Reproducción, Alcance, «¿Qué pasa si no lo hacemos?», «Alternativa más barata», Historias y Aclaraciones). Editarla después vuelve al paso `approve`; añadir slices o tareas no.
 - **Evidencia** (FR-014): una tarea está `verified` solo si su evidencia más reciente con la revisión de trabajo y la huella actuales pasó. Una evidencia roja nunca verifica.
 - **Rojo** (FR-015): en `fix`, la tarea 1 exige un rojo observado sobre una huella distinta de la de su verde; fuera de git, anterior al verde (aviso en `warnings`). En los demás tipos, solo las tareas que ya registraron un intento rojo.
 - **Cierre** (FR-018): paso `close`, cero `CRITICAL` y cita válida. La aprobación guarda revisión de trabajo, huella, origen (`terminal` si `--client terminal`, si no `conversation`), cliente y cita protegida.

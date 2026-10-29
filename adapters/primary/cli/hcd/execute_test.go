@@ -9,6 +9,7 @@ import (
 	"mem/adapters/secondary/persistence"
 	"mem/application/usecases"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,6 +23,16 @@ func (c *tick) Now() time.Time { c.t = c.t.Add(time.Second); return c.t }
 func newDeps(t *testing.T) (*clikit.Deps, string) {
 	t.Helper()
 	root := t.TempDir()
+	// Repo git con un archivo rastreado: las comprobaciones usan `git grep`,
+	// que da el mismo código de salida en sh y en cmd /C (CI de Windows).
+	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		gitRun(t, root, args...)
+	}
+	if err := os.WriteFile(filepath.Join(root, "save.go"), []byte("package save\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, root, "add", ".")
+	gitRun(t, root, "commit", "-qm", "init")
 	db, err := persistence.Init(root)
 	if err != nil {
 		t.Fatal(err)
@@ -34,6 +45,15 @@ func newDeps(t *testing.T) (*clikit.Deps, string) {
 	n := 0
 	uc := usecases.NewHCD(persistence.NewHCDStore(db, "p"), hcdfiles.Workspace{Root: root}, &tick{t: time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)}, func() string { n++; return fmt.Sprint(n) }, string(tpl))
 	return &clikit.Deps{HCD: uc}, root
+}
+
+func gitRun(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
 }
 
 func call(t *testing.T, deps *clikit.Deps, args ...string) (int, Response) {
@@ -87,17 +107,17 @@ func TestEngineJSONFlowAndExitCodes(t *testing.T) {
 		doc = filepath.Join(root, "hcd", "HCD-001-guardar.md")
 	}
 	data, _ := os.ReadFile(doc)
-	filled := strings.NewReplacer("## Intención\npendiente", "## Intención\nno guarda", "## Reproducción\npendiente", "## Reproducción\ntest -f fixed", "Incluido: pendiente", "Incluido: a", "Excluido: pendiente", "Excluido: b", "## ¿Qué pasa si no lo hacemos?\npendiente", "## ¿Qué pasa si no lo hacemos?\nx", "## Alternativa más barata\npendiente", "## Alternativa más barata\ny").Replace(string(data))
+	filled := strings.NewReplacer("## Intención\npendiente", "## Intención\nno guarda", "## Reproducción\npendiente", "## Reproducción\ngit grep -q fixed -- save.go", "Incluido: pendiente", "Incluido: a", "Excluido: pendiente", "Excluido: b", "## ¿Qué pasa si no lo hacemos?\npendiente", "## ¿Qué pasa si no lo hacemos?\nx", "## Alternativa más barata\npendiente", "## Alternativa más barata\ny").Replace(string(data))
 	if err := os.WriteFile(doc, []byte(filled), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if code, r = call(t, deps, "verify", "--task", "1", "--expect-fail", "--", "test -f fixed"); code != 0 || r.Data["evidence"].(map[string]any)["red_observed"] != true {
+	if code, r = call(t, deps, "verify", "--task", "1", "--expect-fail", "--", "git grep -q fixed -- save.go"); code != 0 || r.Data["evidence"].(map[string]any)["red_observed"] != true {
 		t.Fatalf("red = %d %+v", code, r)
 	}
-	if err := os.WriteFile(filepath.Join(root, "fixed"), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "save.go"), []byte("package save // fixed\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if code, r = call(t, deps, "verify", "--task", "1", "--", "test -f fixed"); code != 0 || r.Stage != "close" || r.Tasks[0].Status != "verified" {
+	if code, r = call(t, deps, "verify", "--task", "1", "--", "git grep -q fixed -- save.go"); code != 0 || r.Stage != "close" || r.Tasks[0].Status != "verified" {
 		t.Fatalf("green = %d %+v", code, r)
 	}
 	if code, r = call(t, deps, "close", "--quote", "ok"); code != 5 || r.Error.Code != "invalid_quote" {

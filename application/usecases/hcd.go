@@ -233,8 +233,13 @@ func (h *HCD) Approve(ctx context.Context, in HCDApproveInput) (HCDView, error) 
 	if view.Unit.Lane != domain.LaneFull {
 		return view, fmt.Errorf("%w: la Vía rápida no aprueba la definición; se aprueba al cerrar", domain.ErrNotAllowed)
 	}
-	// También se reaprueba si las normas cambiaron desde la última aprobación.
-	if view.Stage != domain.StageApprove && !view.State.NormsChanged() {
+	// También se reaprueba si las normas cambiaron desde la última aprobación,
+	// pero nunca con faltantes ni aclaraciones abiertas: se aprobaría una
+	// definición incompleta (ACR C-001).
+	switch {
+	case view.Stage == domain.StageDefine || view.Stage == domain.StageClarify:
+		return view, fmt.Errorf("%w: la unidad está en %s: %s", domain.ErrNotAllowed, view.Stage, view.Next.Why)
+	case view.Stage != domain.StageApprove && !view.State.NormsChanged():
 		return view, fmt.Errorf("%w: la unidad está en %s: %s", domain.ErrNotAllowed, view.Stage, view.Next.Why)
 	}
 	if !domain.ValidQuote(in.Quote, view.DefinitionRevision) {

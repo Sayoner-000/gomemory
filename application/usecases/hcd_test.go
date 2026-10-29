@@ -98,7 +98,7 @@ func editDoc(t *testing.T, env hcdEnv, view usecases.HCDView, pairs ...string) {
 }
 
 var commonFill = []string{
-	"## Reproducción\npendiente", "## Reproducción\ngrep -q fixed save.go",
+	"## Reproducción\npendiente", "## Reproducción\ngit grep -q fixed -- save.go",
 	"Incluido: pendiente", "Incluido: guardado",
 	"Excluido: pendiente", "Excluido: exportación",
 	"## ¿Qué pasa si no lo hacemos?\npendiente", "## ¿Qué pasa si no lo hacemos?\nse pierden datos",
@@ -147,16 +147,16 @@ func TestHCDFullCeremonyStepByStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage(t, env, domain.StageSlice, "hcd-slice")
-	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "true"}); !errors.Is(err, domain.ErrNotAllowed) {
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git --version"}); !errors.Is(err, domain.ErrNotAllowed) {
 		t.Fatalf("verify before tasks = %v", err)
 	}
 	editDoc(t, env, view, "## Slices\n", "## Slices\n### VS-01. Exportar CSV\nTareas: 1\nCriterios: C-01\n")
 	stage(t, env, domain.StageTasks, "hcd-tasks")
-	editDoc(t, env, view, "## Checklist\n", "## Checklist\n- [ ] 1. Escribir el exportador → grep -q csv save.go\n")
+	editDoc(t, env, view, "## Checklist\n", "## Checklist\n- [ ] 1. Escribir el exportador → git grep -q csv -- save.go\n")
 	stage(t, env, domain.StageImplement, "hcd-implement")
 
 	writeIn(t, env.root, "save.go", "package save // csv\n")
-	view, ev, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "grep -q csv save.go"})
+	view, ev, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git grep -q csv -- save.go"})
 	if err != nil || !ev.Passed() || view.Stage != domain.StageClose {
 		t.Fatalf("verify = %+v %s %v", ev, view.Stage, err)
 	}
@@ -181,7 +181,7 @@ func TestHCDEditingApprovedDefinitionReturnsToApprove(t *testing.T) {
 	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
 		t.Fatal(err)
 	}
-	editDoc(t, env, view, "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → true\n")
+	editDoc(t, env, view, "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → git --version\n")
 	stage(t, env, domain.StageImplement, "hcd-implement")
 	editDoc(t, env, view, "Incluido: guardado", "Incluido: guardado y carga")
 	stage(t, env, domain.StageApprove, "hcd-approve")
@@ -202,7 +202,7 @@ func TestHCDFastFixWithRedGreenAndClose(t *testing.T) {
 	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); !errors.Is(err, domain.ErrNotAllowed) || !strings.Contains(err.Error(), "Vía rápida") {
 		t.Fatalf("approve in fast lane must explain the lane = %v", err)
 	}
-	view, ev, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "grep -q fixed save.go", ExpectFail: true})
+	view, ev, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git grep -q fixed -- save.go", ExpectFail: true})
 	if err != nil || !ev.RedObserved() || len(view.RedMissing) != 0 {
 		t.Fatalf("red = %+v %v %v", ev, view.RedMissing, err)
 	}
@@ -210,7 +210,7 @@ func TestHCDFastFixWithRedGreenAndClose(t *testing.T) {
 		t.Fatalf("close before green = %v", err)
 	}
 	writeIn(t, env.root, "save.go", "package save // fixed\n")
-	view, _, err = env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "grep -q fixed save.go"})
+	view, _, err = env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git grep -q fixed -- save.go"})
 	if err != nil || view.Stage != domain.StageClose {
 		t.Fatalf("green = %s %v", view.Stage, err)
 	}
@@ -236,7 +236,7 @@ func TestHCDFixWithoutRedCannotClose(t *testing.T) {
 	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "fix", Lane: "fast", Title: "Sin rojo", Why: "w", Intent: "i"})
 	editDoc(t, env, view, commonFill...)
 	writeIn(t, env.root, "save.go", "package save // fixed\n")
-	view, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "grep -q fixed save.go"})
+	view, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git grep -q fixed -- save.go"})
 	if err != nil || view.Stage != domain.StageVerify || len(view.RedMissing) != 1 {
 		t.Fatalf("view = %s %v %v", view.Stage, view.RedMissing, err)
 	}
@@ -248,8 +248,8 @@ func TestHCDFixWithoutRedCannotClose(t *testing.T) {
 func TestHCDEvidenceGoesStaleWhenCodeChanges(t *testing.T) {
 	env, ctx := newHCDEnv(t), context.Background()
 	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "technical", Lane: "fast", Title: "Refactor", Why: "w", Intent: "i"})
-	editDoc(t, env, view, append(commonFill, "## Checklist\n", "## Checklist\n- [ ] 1. Extraer función → true\n")...)
-	view, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "true"})
+	editDoc(t, env, view, append(commonFill, "## Checklist\n", "## Checklist\n- [ ] 1. Extraer función → git --version\n")...)
+	view, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git --version"})
 	if err != nil || view.Stage != domain.StageClose {
 		t.Fatalf("verify = %s %v", view.Stage, err)
 	}
@@ -257,7 +257,7 @@ func TestHCDEvidenceGoesStaleWhenCodeChanges(t *testing.T) {
 	if view, _ = env.uc.Show(ctx, ""); view.Stage != domain.StageVerify || view.Tasks[0].Status != domain.TaskUnverified {
 		t.Fatalf("stale evidence still counts: %s %+v", view.Stage, view.Tasks)
 	}
-	view, _, _ = env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "exit 2"})
+	view, _, _ = env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git grep -q no-existe -- save.go"})
 	if view.Tasks[0].Status != domain.TaskFailed {
 		t.Fatalf("failed check = %+v", view.Tasks)
 	}
@@ -296,8 +296,8 @@ func TestHCDStartValidates(t *testing.T) {
 func TestHCDPromoteKeepsEvidenceAndAddsCeremony(t *testing.T) {
 	env, ctx := newHCDEnv(t), context.Background()
 	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "fast", Title: "Sincronizar", Why: "parecía simple", Intent: "i"})
-	editDoc(t, env, view, append(commonFill, "## Checklist\n", "## Checklist\n- [ ] 1. Primer paso → true\n")...)
-	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "true"}); err != nil {
+	editDoc(t, env, view, append(commonFill, "## Checklist\n", "## Checklist\n- [ ] 1. Primer paso → git --version\n")...)
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git --version"}); err != nil {
 		t.Fatal(err)
 	}
 	view, err := env.uc.Promote(ctx, "")
@@ -344,14 +344,14 @@ func TestHCDConstitutionChangeRequiresReapproval(t *testing.T) {
 	topics := hcdTopics{domain.TopicConstitution: "Constitución v1"}
 	env.uc.ConfigureNorms(topics, "p", "plantilla constitución", "plantilla playbook")
 	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "full", Title: "Normas", Why: "riesgo alto", Intent: "i"})
-	editDoc(t, env, view, append(append(commonFill, storyFill...), "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → true\n")...)
+	editDoc(t, env, view, append(append(commonFill, storyFill...), "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → git --version\n")...)
 	if view.State.ConstitutionRev == "" || view.State.PlaybookRev == "" {
 		t.Fatalf("norm revisions not resolved: %+v", view.State)
 	}
 	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "true"}); err != nil {
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git --version"}); err != nil {
 		t.Fatal(err)
 	}
 	topics[domain.TopicConstitution] = "Constitución v2"
@@ -369,5 +369,75 @@ func TestHCDConstitutionChangeRequiresReapproval(t *testing.T) {
 	// Sin cambio de normas, approve fuera de su paso sigue rechazado.
 	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{ID: view.Unit.ID, Quote: "apruebo"}); !errors.Is(err, domain.ErrNotAllowed) {
 		t.Fatalf("approve on a closed unit = %v", err)
+	}
+}
+
+// ACR C-001: con las normas cambiadas no se reaprueba una definición con
+// faltantes ni con aclaraciones abiertas.
+func TestHCDNormsReapprovalRequiresCompleteDefinition(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		mutate func(t *testing.T, env hcdEnv, view usecases.HCDView)
+	}{
+		{"sección obligatoria vaciada", func(t *testing.T, env hcdEnv, view usecases.HCDView) {
+			editDoc(t, env, view, "## ¿Qué pasa si no lo hacemos?\nse pierden datos", "## ¿Qué pasa si no lo hacemos?\npendiente")
+		}},
+		{"marcador de aclaración en una sección obligatoria", func(t *testing.T, env hcdEnv, view usecases.HCDView) {
+			editDoc(t, env, view, "## Alternativa más barata\nninguna", "## Alternativa más barata\n[NEEDS CLARIFICATION: ¿sirve un script?]")
+		}},
+		{"aclaración abierta", func(t *testing.T, env hcdEnv, view usecases.HCDView) {
+			if _, _, err := env.uc.Clarify(context.Background(), usecases.HCDClarifyInput{Ask: "¿Y los borradores?"}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env, ctx := newHCDEnv(t), context.Background()
+			topics := hcdTopics{domain.TopicConstitution: "Constitución v1"}
+			env.uc.ConfigureNorms(topics, "p", "c", "pb")
+			view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "full", Title: "Reaprobar", Why: "riesgo alto", Intent: "i"})
+			editDoc(t, env, view, append(append(commonFill, storyFill...), "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → git --version\n")...)
+			if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
+				t.Fatal(err)
+			}
+			topics[domain.TopicConstitution] = "Constitución v2"
+			tc.mutate(t, env, view)
+			if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); !errors.Is(err, domain.ErrNotAllowed) {
+				t.Fatalf("reapproval of an incomplete definition = %v", err)
+			}
+		})
+	}
+}
+
+// ACR acr_604f2f04 #3: con las normas cambiadas y la aprobación aún vigente
+// (el defecto está fuera de la revisión de la definición), el guard de
+// Approve rechaza los pasos define y clarify.
+func TestHCDNormsReapprovalGuardWhileApprovalStillValid(t *testing.T) {
+	for _, tc := range []struct {
+		name, from, to string
+		stage          domain.Stage
+	}{
+		{"tarea sin comprobación", "- [ ] 1. a → git --version\n", "- [ ] 1. a → git --version\n- [ ] 2. b sin comprobación\n", domain.StageDefine},
+		{"marcador en un slice", "### VS-01. a\n", "### VS-01. a [NEEDS CLARIFICATION: ¿alcance?]\n", domain.StageClarify},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env, ctx := newHCDEnv(t), context.Background()
+			topics := hcdTopics{domain.TopicConstitution: "Constitución v1"}
+			env.uc.ConfigureNorms(topics, "p", "c", "pb")
+			view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "full", Title: "Guard", Why: "riesgo alto", Intent: "i"})
+			editDoc(t, env, view, append(append(commonFill, storyFill...), "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → git --version\n")...)
+			if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
+				t.Fatal(err)
+			}
+			topics[domain.TopicConstitution] = "Constitución v2"
+			editDoc(t, env, view, tc.from, tc.to)
+			view, err := env.uc.Show(ctx, "")
+			if err != nil || !view.Approved || !view.State.NormsChanged() || view.Stage != tc.stage {
+				t.Fatalf("precondition: approved=%v norms=%v stage=%s err=%v", view.Approved, view.State.NormsChanged(), view.Stage, err)
+			}
+			if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); !errors.Is(err, domain.ErrNotAllowed) {
+				t.Fatalf("approve in %s with changed norms = %v", tc.stage, err)
+			}
+		})
 	}
 }

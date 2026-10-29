@@ -89,7 +89,7 @@ func (h hcdBinary) expect(r hcdcli.Response, stage, skill string) {
 }
 
 var hcdCommonFill = []string{
-	"## Reproducción\npendiente", "## Reproducción\ngrep -q fixed save.go",
+	"## Reproducción\npendiente", "## Reproducción\ngit grep -q fixed -- save.go",
 	"Incluido: pendiente", "Incluido: guardado",
 	"Excluido: pendiente", "Excluido: exportación",
 	"## ¿Qué pasa si no lo hacemos?\npendiente", "## ¿Qué pasa si no lo hacemos?\nse pierden datos",
@@ -108,12 +108,12 @@ func TestHCDBinaryFastFix(t *testing.T) {
 	if r = h.run(false, "approve", "--quote", "apruebo"); r.Error.Code != "not_allowed" {
 		t.Fatalf("approve in fast lane = %+v", r.Error)
 	}
-	r = h.run(true, "verify", "--task", "1", "--expect-fail", "--", "grep -q fixed save.go")
+	r = h.run(true, "verify", "--task", "1", "--expect-fail", "--", "git grep -q fixed -- save.go")
 	if r.Data["evidence"].(map[string]any)["red_observed"] != true {
 		t.Fatalf("red = %+v", r.Data)
 	}
 	h.write("save.go", "package save // fixed\n")
-	h.expect(h.run(true, "verify", "--task", "1", "--", "grep -q fixed save.go"), "close", "hcd-close")
+	h.expect(h.run(true, "verify", "--task", "1", "--", "git grep -q fixed -- save.go"), "close", "hcd-close")
 	r = h.run(true, "close", "--quote", "apruebo")
 	if r.State != "closed" || r.Stage != "closed" {
 		t.Fatalf("close = %+v", r)
@@ -139,10 +139,10 @@ func TestHCDBinaryFullCeremony(t *testing.T) {
 	h.expect(h.run(true, "approve", "--quote", "apruebo"), "slice", "hcd-slice")
 	h.edit(doc, "## Slices\n", "## Slices\n### VS-01. Exportar\nTareas: 1\nCriterios: C-01\n")
 	h.expect(h.run(true, "show"), "tasks", "hcd-tasks")
-	h.edit(doc, "## Checklist\n", "## Checklist\n- [ ] 1. Exportador CSV → grep -q csv save.go\n")
+	h.edit(doc, "## Checklist\n", "## Checklist\n- [ ] 1. Exportador CSV → git grep -q csv -- save.go\n")
 	h.expect(h.run(true, "show"), "implement", "hcd-implement")
 	h.write("save.go", "package save // csv\n")
-	h.expect(h.run(true, "verify", "--task", "1", "--", "grep -q csv save.go"), "close", "hcd-close")
+	h.expect(h.run(true, "verify", "--task", "1", "--", "git grep -q csv -- save.go"), "close", "hcd-close")
 	for _, f := range h.run(true, "analyze").Findings {
 		if f.Severity == "CRITICAL" {
 			t.Fatalf("critical finding before close: %+v", f)

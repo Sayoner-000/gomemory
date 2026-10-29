@@ -8,7 +8,7 @@
 - Antes de la primera sección van `# Título` y las líneas `ID:`, `Tipo:`, `Carril:` y `Motivo:`.
 - Cada sección empieza con `## Nombre`. Los comentarios HTML (`<!-- … -->`) se ignoran.
 - Un valor vacío, `pendiente`, `[pendiente]`, `TODO` o `…` cuenta como faltante (`pending_checks`).
-- `[NEEDS CLARIFICATION: …]` en una sección obligatoria cuenta como aclaración abierta, no como faltante.
+- `[NEEDS CLARIFICATION: …]` en cualquier sección de la revisión de trabajo (definición, Historias, Slices o Checklist) cuenta como aclaración abierta; en una sección obligatoria sustituye al faltante.
 
 ## Secciones
 
@@ -32,7 +32,7 @@ Un `fix` nace con la tarea `- [ ] 1. La reproducción ya no falla → re-ejecuta
 
 Las dos son `ContentRevision` (SHA-256 abreviado a 12 hexadecimales) de las secciones citadas, sin comentarios ni espacios finales:
 
-- **Definición**: Intención, Reproducción, Alcance, Historias y Aclaraciones. Es la que aprueba `approve`.
+- **Definición**: Intención, Reproducción, Alcance, «¿Qué pasa si no lo hacemos?», «Alternativa más barata», Historias y Aclaraciones. Es la que aprueba `approve`.
 - **Trabajo**: la definición más Slices y Checklist, con las casillas `[x]` del checklist normalizadas a `[ ]`. Es la que usan la evidencia y el cierre.
 
 Evidencia y Siguiente no forman parte de ninguna revisión, para que el motor pueda reescribirlas sin caducar lo que acaba de registrar.
