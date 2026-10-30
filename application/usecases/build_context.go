@@ -253,7 +253,9 @@ func splitSections(s string) []string {
 
 const (
 	// entryExtractChars es el largo del extracto por entrada bajo presupuesto.
-	entryExtractChars = 200
+	// 80 (HCD-002, Q4): los extractos eran la mitad de los bytes entregados; el
+	// contenido íntegro sigue a un get_memory de distancia.
+	entryExtractChars = 80
 	// budgetReserve deja margen para notas de cierre y secciones finales, de modo
 	// que la salida total no supere Budget.
 	budgetReserve = 300
@@ -302,7 +304,7 @@ func (b *Builder) acota(m domain.Memory) string {
 	ex := domain.Extract(m.Content, entryExtractChars)
 	if ex != strings.TrimSpace(m.Content) {
 		// El punto de descarte 1/2 (feature 020, research.md §2): lo cortado
-		// del contenido íntegro por el extracto de 200 caracteres.
+		// del contenido íntegro por el extracto de entryExtractChars caracteres.
 		if cut := len(m.Content) - len(ex); cut > 0 {
 			b.discardedChars += cut
 		}
