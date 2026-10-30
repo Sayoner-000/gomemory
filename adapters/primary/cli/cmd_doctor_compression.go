@@ -22,6 +22,7 @@ type doctorCompressionJSON struct {
 	NearLimit      bool              `json:"near_limit"`
 	StoreWritable  bool              `json:"store_writable"`
 	ToolOutput     map[string]string `json:"tool_output_hooks"`
+	Mechanisms     map[string]string `json:"mechanisms"`
 	Tuning         []string          `json:"tuning"`
 	Problems       []string          `json:"problems"`
 }
@@ -29,7 +30,7 @@ type doctorCompressionJSON struct {
 // Estado del hook de salidas por runtime. Los valores de Codex y OpenCode
 // reflejan lo verificado contra los binarios (research R11, tarea T062).
 func toolOutputHookStates(root string, enabled bool) map[string]string {
-	states := map[string]string{"claude": "inactivo", "codex": "inactivo", "opencode": "inactivo"}
+	states := map[string]string{"claude": "inactivo", "codex": "solo en origen; sustitución externa deshabilitada por gomemory; soporte del host actual sin verificar (rechazo histórico en Codex 0.159.0)", "opencode": "inactivo"}
 	if !enabled {
 		return states
 	}
@@ -38,9 +39,8 @@ func toolOutputHookStates(root string, enabled bool) map[string]string {
 	} else {
 		states["claude"] = "no registrado (ejecuta mem install)"
 	}
-	// Codex rechaza siempre updatedMCPToolOutput: no hay reescritura posible.
-	// Ahí solo comprime gomemory en lo que entrega él mismo (feature 035).
-	states["codex"] = "solo en origen (Codex no permite reescribir salidas)"
+	// La política local no es una prueba del soporte del host instalado.
+	// El rechazo histórico no se extrapola a otra versión ni superficie.
 	if home, err := os.UserHomeDir(); err == nil {
 		if data, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml")); err == nil && strings.Contains(string(data), "hook tool-output codex") {
 			states["codex"] += " · hook antiguo registrado: ejecuta mem install para retirarlo"
@@ -60,6 +60,13 @@ func buildDoctorCompression(deps *Deps, root string) doctorCompressionJSON {
 		ToolOutput: toolOutputHookStates(root, st.ToolOutputCompression),
 		Tuning:     []string{},
 		Problems:   []string{},
+		Mechanisms: map[string]string{
+			"own_output":              "configurado por el nivel de compresión; comprime antes de entregar; no demuestra ahorro de una sesión",
+			"selection":               "pack_build selecciona candidatos por consulta y presupuesto; no equivale a compresión del mismo contenido",
+			"session_delta":           "deduplicación de contexto y búsquedas en nivel max; full evita el delta; se reinicia tras compactación",
+			"external_output":         "Codex: sustitución deshabilitada por gomemory; soporte actual sin verificar; no se infiere por registro o ejecución de hooks",
+			"conversation_compaction": "gestionada por el host; gomemory recupera contexto, no reemplaza la compactación del modelo",
+		},
 	}
 	switch {
 	case st.ContextCompressionLevel != "":
@@ -104,6 +111,9 @@ func printDoctorCompression(c doctorCompressionJSON) {
 	humanf("  originales: %.1f MB de %.0f MB · %d refs · escribible: %v\n", float64(c.OriginalsBytes)/(1<<20), float64(c.OriginalsMax)/(1<<20), c.OriginalsRefs, c.StoreWritable)
 	for _, rt := range []string{"claude", "codex", "opencode"} {
 		humanf("  hook de salidas (%s): %s\n", rt, c.ToolOutput[rt])
+	}
+	for _, mechanism := range []string{"own_output", "selection", "session_delta", "external_output", "conversation_compaction"} {
+		humanf("  %s: %s\n", mechanism, c.Mechanisms[mechanism])
 	}
 	for _, t := range c.Tuning {
 		humanln("  ajuste adaptativo: " + t)

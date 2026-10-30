@@ -13,7 +13,7 @@ func TestToolOutputHookStates_CodexSoloEnOrigen(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	got := toolOutputHookStates(t.TempDir(), true)["codex"]
-	if !strings.Contains(got, "solo en origen (Codex no permite reescribir salidas)") {
+	if !strings.Contains(got, "solo en origen") || !strings.Contains(got, "sin verificar") {
 		t.Errorf("estado de Codex: %q", got)
 	}
 	_ = os.MkdirAll(filepath.Join(home, ".codex"), 0o700)
