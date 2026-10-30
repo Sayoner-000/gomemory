@@ -1,6 +1,8 @@
 package usecases
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"strconv"
 
 	"mem/application/ports"
@@ -45,6 +47,15 @@ type ContextRequest struct {
 	// maxMassNeighbors vecinas de mayor masa sembrada en los resultados de la
 	// búsqueda; nil conserva exactamente el comportamiento anterior (FR-021).
 	Relations ports.RelationFullLister
+	// Renderer incluye el envoltorio real en el presupuesto. nil conserva el
+	// contrato histórico de presupuesto de contenidos para consumidores previos.
+	Renderer ports.ContextPackRenderer
+	// Originals guarda el original de cada item omitido por presupuesto para
+	// que su ref sea recuperable. nil: los recibos no prometen refs.
+	Originals ports.OriginalStoreRepository
+	// Receipt pide el recibo de procedencia y la contabilidad ampliada en la
+	// respuesta. Por defecto no viajan: encarecían cada pack (HCD-003).
+	Receipt bool
 }
 
 // BuildContextPack recupera memorias relevantes a Task dentro de Project,
@@ -147,7 +158,10 @@ func BuildContextPack(
 		PreserveErrors: true,
 	}
 
-	pack := domain.ContextPack{Budget: req.MaxTokens}
+	pack := domain.ContextPack{Budget: req.MaxTokens, MatchStatus: "matched"}
+	if len(candidates) == 0 {
+		pack.MatchStatus = "no_match"
+	}
 	pack.Stats.ItemsRetrieved = retrieved
 	pack.Stats.ItemsDuplicate = len(duplicateIDs)
 
@@ -162,13 +176,21 @@ func BuildContextPack(
 	}
 
 	remaining := req.MaxTokens
+	// originals conserva el texto protegido de cada item por si una omisión
+	// posterior (presupuesto serializado) necesita guardarlo.
+	originals := make(map[string]string, len(items))
 	for _, c := range items {
+		// Defensa de borde: los recibos nunca conservan originales privados.
+		c.content = domain.ProtectText(c.content)
+		c.source = domain.ProtectText(c.source)
+		originals[c.id] = c.content
 		rawTokens := counter.Count(c.content)
 		pack.RawTokenCount += rawTokens
 
 		content := c.content
 		compressed := false
 		finalTokens := rawTokens
+		var refs []string
 		if c.priority != domain.PriorityCritical && compressOpts.Level != ports.CompressionNone {
 			res, cerr := compressor.Compress(c.content, compressOpts)
 			if cerr == nil {
@@ -180,6 +202,7 @@ func BuildContextPack(
 					content = res.Content
 					finalTokens = candidateTokens
 					compressed = res.Content != c.content
+					refs = res.Refs
 				}
 			}
 		}
@@ -195,6 +218,13 @@ func BuildContextPack(
 			RawTokens:  rawTokens,
 			Tokens:     finalTokens,
 			Compressed: compressed,
+		}
+		if c.priority == domain.PriorityCritical || finalTokens <= remaining {
+			pack.Stats.SelectedRawTokens += rawTokens
+		}
+		receipt := domain.ContextReceipt{
+			ID: c.id, Source: c.source, OriginalSHA256: fmt.Sprintf("%x", sha256.Sum256([]byte(c.content))),
+			Status: "selected", Reason: "query", Refs: []string{}, Recovery: c.id,
 		}
 
 		switch {
@@ -215,7 +245,17 @@ func BuildContextPack(
 			}
 		default:
 			pack.Stats.ItemsDiscarded++
+			receipt.Status, receipt.Reason = "omitted", "budget"
+			keepOmittedOriginal(req, &receipt, c.content)
 		}
+		if receipt.Status == "selected" {
+			receipt.DeliveredSHA256 = fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
+			if compressed {
+				receipt.Reason = "compressed"
+				receipt.Refs = append(receipt.Refs, refs...)
+			}
+		}
+		pack.Receipts = append(pack.Receipts, receipt)
 	}
 
 	if pack.RawTokenCount > 0 {
@@ -225,6 +265,16 @@ func BuildContextPack(
 	pack.Stats.FinalTokens = pack.TokenCount
 	pack.Stats.SavedTokens = pack.RawTokenCount - pack.TokenCount
 	pack.Stats.CompressionRatio = pack.CompressionRate
+	pack.Stats.SelectionSavedTokens = pack.RawTokenCount - pack.Stats.SelectedRawTokens
+	pack.Stats.CompressionSavedTokens = pack.Stats.SelectedRawTokens - pack.TokenCount
+	pack.Stats.Scope = "item_content_only; delta, serialized metadata and subsequent recoveries not measured here"
+	pack.Stats.CounterKind = "injected local counter; not provider usage"
+	if req.Renderer != nil {
+		pack, err = fitRenderedContextPack(pack, counter, req, originals)
+		if err != nil {
+			return domain.ContextPack{}, err
+		}
+	}
 
 	if req.Recorder != nil {
 		req.Recorder.Record(domain.OpBuildPack, pack.Stats.RawTokens, pack.Stats.FinalTokens)

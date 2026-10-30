@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -58,6 +59,7 @@ func ParsePackBuildFlags(args []string, defaultProject string) (usecases.Context
 	noSpeckit := fs.Bool("no-speckit", false, "No incluir artefactos de Spec Kit")
 	noCodeGraph := fs.Bool("no-code-graph", false, "Desactivar la señal de grafo de código externo")
 	asJSON := fs.Bool("json", false, "Emitir el ContextPack como JSON")
+	receipt := fs.Bool("receipt", false, "Incluir el recibo de procedencia y la contabilidad ampliada")
 
 	if err := fs.Parse(args); err != nil {
 		return usecases.ContextRequest{}, false, err
@@ -88,6 +90,7 @@ func ParsePackBuildFlags(args []string, defaultProject string) (usecases.Context
 		IncludeSpecKit:   !*noSpeckit,
 		IncludeCodeGraph: !*noCodeGraph,
 		Compression:      compressionLevel,
+		Receipt:          *receipt,
 	}
 	return req, *asJSON, nil
 }
@@ -106,25 +109,96 @@ func cmdPackBuild(deps *Deps, args []string) {
 	req.Recorder = deps.UsageRecorder
 	req.Relations = deps.RelationRepo
 
+	out, err := buildPackOutput(deps, req, asJSON)
+	if err != nil {
+		fail("%v", err)
+	}
+	fmt.Print(out)
+}
+
+// buildPackOutput construye el paquete y devuelve la respuesta completa en el
+// formato pedido (Markdown o JSON).
+// El presupuesto se mide sobre esa misma serialización (HCD-001, Q3).
+func buildPackOutput(deps *Deps, req usecases.ContextRequest, asJSON bool) (string, error) {
+	format := formatContextPack
+	switch {
+	case asJSON && req.Receipt:
+		format = formatContextPackJSON
+	case asJSON:
+		format = formatContextPackJSONWithoutReceipt
+	}
+	render := packRenderer(format)
+	if !req.Receipt {
+		// El presupuesto se mide sobre la misma salida, ya sin recibo.
+		render = func(pack domain.ContextPack) string { return format(withoutReceipt(pack)) }
+	}
+	req.Renderer = render
+	// Mismo almacén que pack_retrieve: las refs de omisión se recuperan con él.
+	req.Originals = deps.OriginalStore
 	pack, err := usecases.BuildContextPack(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader, req)
 	if err != nil {
-		if err == domain.ErrCriticalContextOverflow {
-			fail("el contenido crítico para esta tarea excede el presupuesto de %d tokens — subí --max-tokens o acotá la tarea", req.MaxTokens)
+		if errors.Is(err, domain.ErrCriticalContextOverflow) {
+			return "", fmt.Errorf("el contenido crítico para esta tarea excede el presupuesto de %d tokens — subí --max-tokens o acotá la tarea: %w", req.MaxTokens, err)
 		}
-		fail("construir contexto: %v", err)
+		return "", fmt.Errorf("construir contexto: %w", err)
 	}
+	return render(pack), nil
+}
 
-	if asJSON {
-		data, err := json.MarshalIndent(pack, "", "  ")
-		if err != nil {
-			fail("serializar ContextPack: %v", err)
-		}
-		_, _ = os.Stdout.Write(data)
-		_, _ = os.Stdout.WriteString("\n")
-		return
+// withoutReceipt quita el recibo de procedencia y la contabilidad ampliada:
+// por defecto no viajan porque encarecían cada pack (HCD-003).
+func withoutReceipt(pack domain.ContextPack) domain.ContextPack {
+	pack.Receipts = nil
+	s := &pack.Stats
+	s.SelectedRawTokens, s.SelectionSavedTokens, s.CompressionSavedTokens = 0, 0, 0
+	s.DeltaSavedTokens, s.MetadataTokens, s.RecoveryTokens = 0, 0, 0
+	s.Scope, s.CounterKind = "", ""
+	return pack
+}
+
+// packStatsView son las estadísticas de siempre, sin la contabilidad ampliada:
+// el JSON por defecto no la incluye (HCD-003). Conserva el orden de campos.
+type packStatsView struct {
+	RawTokens        int
+	FinalTokens      int
+	SavedTokens      int
+	CompressionRatio float64
+	ItemsRetrieved   int
+	ItemsDuplicate   int
+	ItemsCritical    int
+	ItemsRelevant    int
+	ItemsOptional    int
+	ItemsDiscarded   int
+}
+
+// formatContextPackJSONWithoutReceipt es `mem pack build --json` sin --receipt.
+func formatContextPackJSONWithoutReceipt(pack domain.ContextPack) string {
+	s := pack.Stats
+	view := struct {
+		domain.ContextPack
+		Stats packStatsView
+	}{pack, packStatsView{s.RawTokens, s.FinalTokens, s.SavedTokens, s.CompressionRatio,
+		s.ItemsRetrieved, s.ItemsDuplicate, s.ItemsCritical, s.ItemsRelevant, s.ItemsOptional, s.ItemsDiscarded}}
+	data, err := json.MarshalIndent(view, "", "  ")
+	if err != nil {
+		return ""
 	}
+	return string(data) + "\n"
+}
 
-	fmt.Print(formatContextPack(pack))
+// packRenderer adapta un formateador puro a ports.ContextPackRenderer.
+type packRenderer func(domain.ContextPack) string
+
+func (r packRenderer) Render(pack domain.ContextPack) string { return r(pack) }
+
+// formatContextPackJSON es la salida de `mem pack build --json`. Un
+// ContextPack siempre es serializable; ante un fallo imposible no inventa texto.
+func formatContextPackJSON(pack domain.ContextPack) string {
+	data, err := json.MarshalIndent(pack, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(data) + "\n"
 }
 
 // openPackInput abre el archivo indicado por args[0], o stdin si es "-" o no
@@ -201,12 +275,22 @@ func CompressTextAt(compressor ports.Compressor, level ports.CompressionLevel, i
 // tool MCP pack_build/pack_show para no duplicar el formato en dos lugares.
 func formatContextPack(pack domain.ContextPack) string {
 	var b strings.Builder
+	if pack.MatchStatus == "no_match" {
+		b.WriteString("Sin coincidencias para la consulta; no se añade evidencia irrelevante.\n\n")
+	}
 	for _, item := range pack.Items {
 		heading := item.Source
 		if heading == "" {
 			heading = item.ID
 		}
 		fmt.Fprintf(&b, "## %s\n\n%s\n\n", heading, item.Content)
+	}
+	if len(pack.Receipts) > 0 {
+		// El recibo es parte de la respuesta visible y de su presupuesto.
+		data, err := json.Marshal(pack.Receipts)
+		if err == nil {
+			fmt.Fprintf(&b, "Procedencia (contenido protegido; SHA-256): %s\n\n", domain.ProtectText(string(data)))
+		}
 	}
 	b.WriteString(FormatContextStats(pack.Stats))
 	return b.String()
@@ -226,5 +310,8 @@ func FormatContextStats(stats domain.ContextStats) string {
 	fmt.Fprintf(&b, "Items opcionales:     %d\n", stats.ItemsOptional)
 	fmt.Fprintf(&b, "Duplicados removidos: %d\n", stats.ItemsDuplicate)
 	fmt.Fprintf(&b, "Descartados:          %d\n", stats.ItemsDiscarded)
+	if stats.Scope != "" {
+		fmt.Fprintf(&b, "Selección: %d; compresión: %d; delta: %d; metadatos: %d; recuperaciones: %d (contador local, no facturación)\nÁmbito: %s\n", stats.SelectionSavedTokens, stats.CompressionSavedTokens, stats.DeltaSavedTokens, stats.MetadataTokens, stats.RecoveryTokens, stats.Scope)
+	}
 	return b.String()
 }

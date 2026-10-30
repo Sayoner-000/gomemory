@@ -489,12 +489,13 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		MaxItems       int     `json:"max_items,omitempty" jsonschema:"Tope de candidatos antes de rankear"`
 		IncludeSpeckit bool    `json:"include_speckit,omitempty" jsonschema:"Incluir artefactos de Spec Kit de la feature activa"`
 		NoCodeGraph    bool    `json:"no_code_graph,omitempty" jsonschema:"Desactiva la señal de grafo de código externo para esta llamada"`
+		Receipt        bool    `json:"receipt,omitempty" jsonschema:"Incluir el recibo de procedencia y la contabilidad ampliada (cuentan en el presupuesto)"`
 	}) (*mcp.CallToolResult, any, error) {
 		proj := in.Project
 		if proj == "" {
 			proj = project
 		}
-		pack, err := usecases.BuildContextPack(deps.MemoryRepo, deps.Compressor, deps.TokenCounter, deps.SpecKitReader, usecases.ContextRequest{
+		out, err := buildPackOutput(deps, usecases.ContextRequest{
 			Task:             in.Task,
 			Project:          proj,
 			MaxTokens:        in.MaxTokens,
@@ -507,12 +508,13 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			Recorder:         deps.UsageRecorder,
 			Relations:        deps.RelationRepo,
 			Compression:      deps.CompressionLevel,
-		})
+			Receipt:          in.Receipt,
+		}, false)
 		if err != nil {
 			return nil, nil, err
 		}
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: formatContextPack(pack)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: out}},
 		}, nil, nil
 	})
 

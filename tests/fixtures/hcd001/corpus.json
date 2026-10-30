@@ -1,0 +1,243 @@
+{
+  "schema": 1,
+  "description": "Corpus sintético de contratos de gomemory; no extrapolar resultados a todas las tareas de programación.",
+  "sources": [
+    {
+      "id": "autenticacion",
+      "title": "autenticacion",
+      "type": "learning",
+      "content": "autenticacion: JWT usa RS256 y expira a los 15 minutos.\nContexto 1: autenticacion conserva el contrato documentado.\nContexto 2: autenticacion conserva el contrato documentado.\nContexto 3: autenticacion conserva el contrato documentado.\nContexto 4: autenticacion conserva el contrato documentado.\nContexto 5: autenticacion conserva el contrato documentado.\nContexto 6: autenticacion conserva el contrato documentado.\nContexto 7: autenticacion conserva el contrato documentado.\nContexto 8: autenticacion conserva el contrato documentado.\nContexto 9: autenticacion conserva el contrato documentado.\nContexto 10: autenticacion conserva el contrato documentado.\nContexto 11: autenticacion conserva el contrato documentado.\nContexto 12: autenticacion conserva el contrato documentado.\nContexto 13: autenticacion conserva el contrato documentado.\nContexto 14: autenticacion conserva el contrato documentado.\nContexto 15: autenticacion conserva el contrato documentado.\nContexto 16: autenticacion conserva el contrato documentado.\nContexto 17: autenticacion conserva el contrato documentado.\nContexto 18: autenticacion conserva el contrato documentado.\nContexto 19: autenticacion conserva el contrato documentado.\nContexto 20: autenticacion conserva el contrato documentado.\n",
+      "sha256": "6a016fbd60a94dfcf4f114ae6da78e32b64e439cd634c8c83db0da56041348d6"
+    },
+    {
+      "id": "privacidad",
+      "title": "privacidad",
+      "type": "learning",
+      "content": "privacidad: Los secretos nunca se guardan como originales recuperables.\nContexto 1: privacidad conserva el contrato documentado.\nContexto 2: privacidad conserva el contrato documentado.\nContexto 3: privacidad conserva el contrato documentado.\nContexto 4: privacidad conserva el contrato documentado.\nContexto 5: privacidad conserva el contrato documentado.\nContexto 6: privacidad conserva el contrato documentado.\nContexto 7: privacidad conserva el contrato documentado.\nContexto 8: privacidad conserva el contrato documentado.\nContexto 9: privacidad conserva el contrato documentado.\nContexto 10: privacidad conserva el contrato documentado.\nContexto 11: privacidad conserva el contrato documentado.\nContexto 12: privacidad conserva el contrato documentado.\nContexto 13: privacidad conserva el contrato documentado.\nContexto 14: privacidad conserva el contrato documentado.\nContexto 15: privacidad conserva el contrato documentado.\nContexto 16: privacidad conserva el contrato documentado.\nContexto 17: privacidad conserva el contrato documentado.\nContexto 18: privacidad conserva el contrato documentado.\nContexto 19: privacidad conserva el contrato documentado.\nContexto 20: privacidad conserva el contrato documentado.\n",
+      "sha256": "c4fa83c8fd55d9b8f8d46e0897b92759f5fa510c7713591c1ccbd878f3240c1e"
+    },
+    {
+      "id": "presupuesto",
+      "title": "presupuesto",
+      "type": "learning",
+      "content": "presupuesto: Las instrucciones obligatorias no se descartan por presupuesto.\nContexto 1: presupuesto conserva el contrato documentado.\nContexto 2: presupuesto conserva el contrato documentado.\nContexto 3: presupuesto conserva el contrato documentado.\nContexto 4: presupuesto conserva el contrato documentado.\nContexto 5: presupuesto conserva el contrato documentado.\nContexto 6: presupuesto conserva el contrato documentado.\nContexto 7: presupuesto conserva el contrato documentado.\nContexto 8: presupuesto conserva el contrato documentado.\nContexto 9: presupuesto conserva el contrato documentado.\nContexto 10: presupuesto conserva el contrato documentado.\nContexto 11: presupuesto conserva el contrato documentado.\nContexto 12: presupuesto conserva el contrato documentado.\nContexto 13: presupuesto conserva el contrato documentado.\nContexto 14: presupuesto conserva el contrato documentado.\nContexto 15: presupuesto conserva el contrato documentado.\nContexto 16: presupuesto conserva el contrato documentado.\nContexto 17: presupuesto conserva el contrato documentado.\nContexto 18: presupuesto conserva el contrato documentado.\nContexto 19: presupuesto conserva el contrato documentado.\nContexto 20: presupuesto conserva el contrato documentado.\n",
+      "sha256": "c878541c4b53cf54e36ee0a6bef14f16422e034294dfba57a6597d381fdf482f"
+    },
+    {
+      "id": "compactacion",
+      "title": "compactacion",
+      "type": "learning",
+      "content": "compactacion: Tras compactar se reinicia el registro de entregas.\nContexto 1: compactacion conserva el contrato documentado.\nContexto 2: compactacion conserva el contrato documentado.\nContexto 3: compactacion conserva el contrato documentado.\nContexto 4: compactacion conserva el contrato documentado.\nContexto 5: compactacion conserva el contrato documentado.\nContexto 6: compactacion conserva el contrato documentado.\nContexto 7: compactacion conserva el contrato documentado.\nContexto 8: compactacion conserva el contrato documentado.\nContexto 9: compactacion conserva el contrato documentado.\nContexto 10: compactacion conserva el contrato documentado.\nContexto 11: compactacion conserva el contrato documentado.\nContexto 12: compactacion conserva el contrato documentado.\nContexto 13: compactacion conserva el contrato documentado.\nContexto 14: compactacion conserva el contrato documentado.\nContexto 15: compactacion conserva el contrato documentado.\nContexto 16: compactacion conserva el contrato documentado.\nContexto 17: compactacion conserva el contrato documentado.\nContexto 18: compactacion conserva el contrato documentado.\nContexto 19: compactacion conserva el contrato documentado.\nContexto 20: compactacion conserva el contrato documentado.\n",
+      "sha256": "5a4ff2fe3c76e749c5a275ecb63f6fc1ed4d249f233b3026754b8721f53d1455"
+    },
+    {
+      "id": "recuperacion",
+      "title": "recuperacion",
+      "type": "learning",
+      "content": "recuperacion: Una referencia válida devuelve los bytes originales exactos.\nContexto 1: recuperacion conserva el contrato documentado.\nContexto 2: recuperacion conserva el contrato documentado.\nContexto 3: recuperacion conserva el contrato documentado.\nContexto 4: recuperacion conserva el contrato documentado.\nContexto 5: recuperacion conserva el contrato documentado.\nContexto 6: recuperacion conserva el contrato documentado.\nContexto 7: recuperacion conserva el contrato documentado.\nContexto 8: recuperacion conserva el contrato documentado.\nContexto 9: recuperacion conserva el contrato documentado.\nContexto 10: recuperacion conserva el contrato documentado.\nContexto 11: recuperacion conserva el contrato documentado.\nContexto 12: recuperacion conserva el contrato documentado.\nContexto 13: recuperacion conserva el contrato documentado.\nContexto 14: recuperacion conserva el contrato documentado.\nContexto 15: recuperacion conserva el contrato documentado.\nContexto 16: recuperacion conserva el contrato documentado.\nContexto 17: recuperacion conserva el contrato documentado.\nContexto 18: recuperacion conserva el contrato documentado.\nContexto 19: recuperacion conserva el contrato documentado.\nContexto 20: recuperacion conserva el contrato documentado.\n",
+      "sha256": "3a3003aa56e127532e94c81ad2b9ffd1c9499b5b28f9fd432f720c91cfd4c076"
+    }
+  ],
+  "cases": [
+    {
+      "id": "search-01",
+      "category": "search",
+      "query": "autenticacion",
+      "expected_source": "autenticacion",
+      "required_literal": "JWT usa RS256 y expira a los 15 minutos.",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "recovery-01",
+      "category": "recovery",
+      "query": "autenticacion",
+      "expected_source": "autenticacion",
+      "required_literal": "JWT usa RS256 y expira a los 15 minutos.",
+      "recover_exact": true,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "compaction-01",
+      "category": "compaction",
+      "query": "autenticacion",
+      "expected_source": "autenticacion",
+      "required_literal": "JWT usa RS256 y expira a los 15 minutos.",
+      "recover_exact": false,
+      "reset_delivery": true,
+      "full": false
+    },
+    {
+      "id": "no_match-01",
+      "category": "no_match",
+      "query": "zzsincoincidencia1zz",
+      "expected_source": "",
+      "required_literal": "",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "search-02",
+      "category": "search",
+      "query": "privacidad",
+      "expected_source": "privacidad",
+      "required_literal": "Los secretos nunca se guardan como originales recuperables.",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "recovery-02",
+      "category": "recovery",
+      "query": "privacidad",
+      "expected_source": "privacidad",
+      "required_literal": "Los secretos nunca se guardan como originales recuperables.",
+      "recover_exact": true,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "compaction-02",
+      "category": "compaction",
+      "query": "privacidad",
+      "expected_source": "privacidad",
+      "required_literal": "Los secretos nunca se guardan como originales recuperables.",
+      "recover_exact": false,
+      "reset_delivery": true,
+      "full": true
+    },
+    {
+      "id": "no_match-02",
+      "category": "no_match",
+      "query": "zzsincoincidencia2zz",
+      "expected_source": "",
+      "required_literal": "",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "search-03",
+      "category": "search",
+      "query": "presupuesto",
+      "expected_source": "presupuesto",
+      "required_literal": "Las instrucciones obligatorias no se descartan por presupuesto.",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "recovery-03",
+      "category": "recovery",
+      "query": "presupuesto",
+      "expected_source": "presupuesto",
+      "required_literal": "Las instrucciones obligatorias no se descartan por presupuesto.",
+      "recover_exact": true,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "compaction-03",
+      "category": "compaction",
+      "query": "presupuesto",
+      "expected_source": "presupuesto",
+      "required_literal": "Las instrucciones obligatorias no se descartan por presupuesto.",
+      "recover_exact": false,
+      "reset_delivery": true,
+      "full": false
+    },
+    {
+      "id": "no_match-03",
+      "category": "no_match",
+      "query": "zzsincoincidencia3zz",
+      "expected_source": "",
+      "required_literal": "",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "search-04",
+      "category": "search",
+      "query": "compactacion",
+      "expected_source": "compactacion",
+      "required_literal": "Tras compactar se reinicia el registro de entregas.",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "recovery-04",
+      "category": "recovery",
+      "query": "compactacion",
+      "expected_source": "compactacion",
+      "required_literal": "Tras compactar se reinicia el registro de entregas.",
+      "recover_exact": true,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "compaction-04",
+      "category": "compaction",
+      "query": "compactacion",
+      "expected_source": "compactacion",
+      "required_literal": "Tras compactar se reinicia el registro de entregas.",
+      "recover_exact": false,
+      "reset_delivery": true,
+      "full": true
+    },
+    {
+      "id": "no_match-04",
+      "category": "no_match",
+      "query": "zzsincoincidencia4zz",
+      "expected_source": "",
+      "required_literal": "",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "search-05",
+      "category": "search",
+      "query": "recuperacion",
+      "expected_source": "recuperacion",
+      "required_literal": "Una referencia válida devuelve los bytes originales exactos.",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "recovery-05",
+      "category": "recovery",
+      "query": "recuperacion",
+      "expected_source": "recuperacion",
+      "required_literal": "Una referencia válida devuelve los bytes originales exactos.",
+      "recover_exact": true,
+      "reset_delivery": false,
+      "full": false
+    },
+    {
+      "id": "compaction-05",
+      "category": "compaction",
+      "query": "recuperacion",
+      "expected_source": "recuperacion",
+      "required_literal": "Una referencia válida devuelve los bytes originales exactos.",
+      "recover_exact": false,
+      "reset_delivery": true,
+      "full": false
+    },
+    {
+      "id": "no_match-05",
+      "category": "no_match",
+      "query": "zzsincoincidencia5zz",
+      "expected_source": "",
+      "required_literal": "",
+      "recover_exact": false,
+      "reset_delivery": false,
+      "full": false
+    }
+  ]
+}

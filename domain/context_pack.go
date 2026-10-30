@@ -34,12 +34,27 @@ type ContextItem struct {
 // entra en el presupuesto solicitado, listo para entregarse a un agente.
 // Nunca se persiste — se construye y se devuelve en la misma llamada.
 type ContextPack struct {
+	MatchStatus     string
 	Items           []ContextItem
+	Receipts        []ContextReceipt `json:",omitempty"`
 	Budget          int
 	RawTokenCount   int
 	TokenCount      int
 	CompressionRate float64
 	Stats           ContextStats
+}
+
+// ContextReceipt contiene procedencia, nunca una copia del original.
+// OriginalSHA256 identifica la representación protegida previa a compresión.
+type ContextReceipt struct {
+	ID              string
+	Source          string
+	OriginalSHA256  string
+	DeliveredSHA256 string
+	Status          string
+	Reason          string
+	Refs            []string
+	Recovery        string
 }
 
 // SpecKitFeatureContext es la vista de solo lectura, acotada a UNA feature de
@@ -56,6 +71,8 @@ type SpecKitFeatureContext struct {
 
 // ContextStats es el reporte de reducción adjunto a un ContextPack.
 type ContextStats struct {
+	// SavedTokens/CompressionRatio se conservan por compatibilidad: combinan
+	// selección y compresión, no son ahorro facturado ni de respuesta completa.
 	RawTokens        int
 	FinalTokens      int
 	SavedTokens      int
@@ -66,4 +83,15 @@ type ContextStats struct {
 	ItemsRelevant    int
 	ItemsOptional    int
 	ItemsDiscarded   int
+	// Contabilidad ampliada: el borde la pone a cero si no se pide el recibo
+	// (HCD-003); sin omitempty, un 0 medido no se confunde con «no medido».
+	SelectedRawTokens      int
+	SelectionSavedTokens   int
+	CompressionSavedTokens int
+	DeltaSavedTokens       int
+	MetadataTokens         int
+	RecoveryTokens         int
+	// Scope evita interpretar ceros de fases no ejecutadas como mediciones.
+	Scope       string
+	CounterKind string
 }
