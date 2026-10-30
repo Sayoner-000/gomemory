@@ -58,7 +58,7 @@ func NewEngine(store ports.OriginalStoreRepository, stats ports.CompressionStats
 // significa que el compresor no pudo tratar el bloque.
 type typeCompressor func(content, lang, ref string, th domain.Thresholds) (string, int, bool)
 
-func compressorFor(typ domain.ContentType) typeCompressor {
+func compressorFor(typ domain.ContentType, keep []string) typeCompressor {
 	switch typ {
 	case domain.ContentJSON:
 		return func(c, lang, ref string, th domain.Thresholds) (string, int, bool) {
@@ -98,7 +98,7 @@ func compressorFor(typ domain.ContentType) typeCompressor {
 		}
 	case domain.ContentTable:
 		return func(c, _, ref string, th domain.Thresholds) (string, int, bool) {
-			out, n := compressTable(c, ref, th)
+			out, n := compressTableKeeping(c, ref, th, keep)
 			return out, n, true
 		}
 	default:
@@ -189,7 +189,7 @@ func (e *Engine) Compress(input string, opts ports.CompressionOptions) (res port
 	types := map[domain.ContentType]bool{}
 	guardFailed := false
 	for _, b := range segment(input) {
-		content, n, name, gerr := e.compressBlockOpts(b, opts.ToolOutput)
+		content, n, name, gerr := e.compressBlockOpts(b, opts.ToolOutput, opts.Keep)
 		if gerr != nil {
 			guardFailed = true
 		}
@@ -330,13 +330,14 @@ func replaceMarkerRefs(block, shortRef, longRef string) string {
 // pasa la guarda de literalidad. Ante cualquier fallo devuelve el bloque
 // literal (sin omisiones) y el error.
 func (e *Engine) compressBlock(b block) (out string, omitted int, name string, err error) {
-	return e.compressBlockOpts(b, false)
+	return e.compressBlockOpts(b, false, nil)
 }
 
 // compressBlockOpts es compressBlock con el modo salida de herramienta
 // (feature 035): ahí la prosa no se resume, los arrays de hasta 50 elementos
-// quedan completos y no hay limpieza estructural.
-func (e *Engine) compressBlockOpts(b block, toolOutput bool) (out string, omitted int, name string, err error) {
+// quedan completos y no hay limpieza estructural. keep son los literales que la
+// salida no puede perder (ports.CompressionOptions.Keep).
+func (e *Engine) compressBlockOpts(b block, toolOutput bool, keep []string) (out string, omitted int, name string, err error) {
 	name = string(b.typ)
 	if toolOutput && b.typ == domain.ContentProse {
 		return b.content, 0, name, nil
@@ -354,7 +355,7 @@ func (e *Engine) compressBlockOpts(b block, toolOutput bool) (out string, omitte
 		th.JSONMinItems = max(th.JSONMinItems, domain.ToolOutputJSONMinItems)
 	}
 	ref := refOf(b.content)
-	c, n, ok := compressorFor(b.typ)(b.content, b.lang, ref, th)
+	c, n, ok := compressorFor(b.typ, keep)(b.content, b.lang, ref, th)
 	if !ok {
 		return b.content, 0, name, fmt.Errorf("compresor %s: estructura no reconocida", name)
 	}
@@ -362,6 +363,9 @@ func (e *Engine) compressBlockOpts(b block, toolOutput bool) (out string, omitte
 		return b.content, 0, name, nil
 	}
 	if gerr := checkLiteral(b.content, c); gerr != nil {
+		return b.content, 0, name, gerr
+	}
+	if gerr := checkKeep(b.content, c, keep); gerr != nil {
 		return b.content, 0, name, gerr
 	}
 	// La prosa y las tablas admiten además la limpieza estructural (espacios y

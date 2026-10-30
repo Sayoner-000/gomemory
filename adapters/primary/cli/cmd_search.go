@@ -46,13 +46,19 @@ func CmdSearch(deps *Deps, args []string) {
 	}
 	// Se arma en memoria para poder pasarlo por el motor nativo con el nivel
 	// max (feature 033); con los demás niveles la salida no cambia.
+	// La fila cuyo título es la consulta nunca queda tras una marca (HCD-004):
+	// quien busca por título necesita su ID.
 	rows := make([][]string, 0, len(mems))
+	var keep []string
 	for _, m := range mems {
 		content := m.Content
 		content = ansi.Truncate(content, 60, "...")
 		rows = append(rows, []string{fmt.Sprint(m.ID), string(m.Type), m.Title, content})
+		if strings.EqualFold(strings.TrimSpace(m.Title), strings.TrimSpace(query)) {
+			keep = append(keep, m.Title)
+		}
 	}
 	text := formatMemoryRows(console.DetectEnv(), []string{"ID", "Tipo", "Título", "Contenido"}, rows)
-	_, _ = os.Stdout.WriteString(compressDeliveredContext(deps, text))
+	_, _ = os.Stdout.WriteString(compressDeliveredContext(deps, text, keep...))
 	humanf("\n(%d resultados)\n", len(mems))
 }

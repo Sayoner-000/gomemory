@@ -9,14 +9,16 @@ import "mem/application/ports"
 // llamador del puerto, incluidos BuildContextPack y el paquete de Octopus.
 //
 // Un error del compresor nunca deja al agente sin contenido: se entrega el
-// original (FR-006/FR-011 de la feature 015).
-func CompressContent(c ports.Compressor, level ports.CompressionLevel, text string, recorder ports.UsageRecorder, op string) ports.CompressionResult {
+// original (FR-006/FR-011 de la feature 015). keep son los literales que la
+// salida nunca omite (ports.CompressionOptions.Keep).
+func CompressContent(c ports.Compressor, level ports.CompressionLevel, text string, recorder ports.UsageRecorder, op string, keep ...string) ports.CompressionResult {
 	res, err := c.Compress(text, ports.CompressionOptions{
 		Level:          level,
 		PreserveCode:   true,
 		PreserveURLs:   true,
 		PreservePaths:  true,
 		PreserveErrors: true,
+		Keep:           keep,
 	})
 	if err != nil {
 		n := (len([]rune(text)) + 3) / 4

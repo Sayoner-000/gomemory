@@ -22,11 +22,13 @@ import (
 //   - Si el motor no omitió nada con ref recuperable, se entrega el documento
 //     intacto: el contexto lleva el protocolo y es el prefijo que el proveedor
 //     puede cachear, y no se altera por una ganancia nula.
-func compressDeliveredContext(deps *Deps, raw string) string {
+//
+// keep son los literales que la salida nunca omite (HCD-004).
+func compressDeliveredContext(deps *Deps, raw string, keep ...string) string {
 	if deps == nil || deps.CompressionLevel != ports.CompressionMax || deps.Compressor == nil || raw == "" {
 		return raw
 	}
-	res := usecases.CompressContent(deps.Compressor, ports.CompressionMax, raw, nil, "")
+	res := usecases.CompressContent(deps.Compressor, ports.CompressionMax, raw, nil, "", keep...)
 	if len(res.Refs) == 0 {
 		return raw
 	}

@@ -40,6 +40,11 @@ type CompressionOptions struct {
 	// completos y nunca se colapsan espacios. El agente puede editar o decidir
 	// a partir de esa salida, así que solo se resume volumen redundante.
 	ToolOutput bool
+	// Keep son literales que la salida nunca omite (HCD-004): la tabla conserva
+	// las filas que los contienen y, con cualquier otro compresor, el bloque que
+	// pierda uno sale literal. `mem search` pasa aquí el título que coincide con
+	// la consulta para que su fila no quede tras una marca.
+	Keep []string
 }
 
 // CompressionResult es la salida de Compress: el contenido final (igual al

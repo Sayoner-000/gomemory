@@ -213,6 +213,12 @@ func compressDiff(content, ref string, th domain.Thresholds) (string, int) {
 // compressTable conserva la cabecera (y su separador), las primeras y las
 // últimas filas y las filas protegidas; las filas intermedias se omiten.
 func compressTable(content, ref string, th domain.Thresholds) (string, int) {
+	return compressTableKeeping(content, ref, th, nil)
+}
+
+// compressTableKeeping es compressTable que además conserva las filas que
+// contienen un literal de keep (ports.CompressionOptions.Keep).
+func compressTableKeeping(content, ref string, th domain.Thresholds, keep []string) (string, int) {
 	lines := strings.Split(content, "\n")
 	head := 1
 	if len(lines) > 1 && strings.Trim(strings.TrimSpace(lines[1]), "-|:+ \t") == "" {
@@ -223,7 +229,14 @@ func compressTable(content, ref string, th domain.Thresholds) (string, int) {
 	if rows <= first+last+th.LogMinRun {
 		return content, 0
 	}
-	keep := protectedLines(lines)
+	protected := protectedLines(lines)
+	for i, l := range lines {
+		for _, k := range keep {
+			if k != "" && strings.Contains(l, k) {
+				protected[i] = true
+			}
+		}
+	}
 	var out []string
 	out = append(out, lines[:head+first]...)
 	omitted := 0
@@ -241,7 +254,7 @@ func compressTable(content, ref string, th domain.Thresholds) (string, int) {
 		tailStart--
 	}
 	for i := head + first; i < tailStart; i++ {
-		if keep[i] {
+		if protected[i] {
 			flush()
 			out = append(out, lines[i])
 			continue
