@@ -1420,7 +1420,9 @@ GoMemory ofrece tres niveles de compresión:
 - `structural`: mantiene el comportamiento compatible con versiones anteriores.
 - `max`: selecciona compresores deterministas para JSON, código, logs, diffs,
   tablas y prosa. El contenido omitido se conserva temporalmente y se identifica
-  con marcas `⟦mem⟧ … ref=<ref>`.
+  con marcas `⟦mem⟧ … ref=<ref>`. En `mem search`, la fila cuyo título es igual
+  a la consulta (sin distinguir mayúsculas) nunca queda tras una marca, para que
+  su ID siempre esté visible.
 
 Configura el nivel y las opciones relacionadas con `mem settings`:
 

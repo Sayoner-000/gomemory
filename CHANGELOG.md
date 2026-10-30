@@ -5,6 +5,12 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.42.1] - 2026-10-29
+
+### Fixed
+
+- Con el nivel `max`, `mem search` podía esconder tras una marca `⟦mem⟧ ×N filas` la memoria cuyo título coincidía exactamente con la consulta, y el agente no recibía su ID. Ahora esa fila sigue siempre visible (sin distinguir mayúsculas ni espacios extremos) y el resto de la tabla se comprime como antes. La opción interna que lo garantiza protege también ese literal en cualquier otro compresor. En el corpus de HCD-002, la calidad pasa de 95/100 a 100/100 observaciones.
+
 ## [v2.42.0] - 2026-10-29
 
 ### Added
