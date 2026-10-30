@@ -155,15 +155,19 @@ func cmdPackCompress(deps *Deps, args []string) {
 
 // cmdPackRetrieve imprime el original exacto de una ref ⟦mem⟧. Código de
 // salida 2 si no existe o caducó (contracts/cli-and-mcp.md).
+// --project elige el proyecto que guardó la ref, como en pack build (Q4).
 func cmdPackRetrieve(deps *Deps, args []string) {
-	if len(args) != 1 {
-		fail("uso: mem pack retrieve <ref>")
+	fs := newFlagSet("pack retrieve", flag.ContinueOnError)
+	project := fs.String("project", deps.Project, "Proyecto que guardó la ref (default: proyecto actual)")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 1 {
+		fail("uso: mem pack retrieve [--project P] <ref>")
 	}
+	ref := fs.Arg(0)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*domain.StoreTimeout)
 	defer cancel()
-	content, meta, err := usecases.RetrieveOriginal(ctx, deps.OriginalStore, args[0])
+	content, meta, err := usecases.RetrieveOriginal(ctx, deps.OriginalStore, *project, ref)
 	if errors.Is(err, usecases.ErrOriginalNotFound) {
-		fmt.Fprintf(os.Stderr, "ref %s no encontrada o caducada; vuelve a pedir el contenido a su fuente\n", strings.TrimSpace(args[0]))
+		fmt.Fprintf(os.Stderr, "ref %s no encontrada o caducada; vuelve a pedir el contenido a su fuente\n", strings.TrimSpace(ref))
 		os.Exit(2)
 	}
 	if err != nil {
@@ -171,7 +175,7 @@ func cmdPackRetrieve(deps *Deps, args []string) {
 	}
 	_, _ = os.Stdout.WriteString(content)
 	// Cada recuperación alimenta el ajuste adaptativo (FR-027). Best-effort.
-	_, _ = usecases.RecordRetrievalAndTune(ctx, deps.CompressionStats, deps.CompressionTuning, deps.Project, meta, deps.CompressionAdaptiveThreshold)
+	_, _ = usecases.RecordRetrievalAndTune(ctx, deps.CompressionStats, deps.CompressionTuning, *project, meta, deps.CompressionAdaptiveThreshold)
 }
 
 func savingsReport(deps *Deps, ctx context.Context) (usecases.SavingsReport, error) {

@@ -29,7 +29,7 @@ func parseTS(s string) time.Time {
 
 // OriginalStoreRepository implementa ports.OriginalStoreRepository sobre la
 // tabla compression_originals (feature 033, research.md R9): gzip, dedup por
-// sha256, caducidad desde el último acceso y tope de espacio con expulsión LRU.
+// sha256 de proyecto y contenido, caducidad desde el último acceso y tope de espacio con expulsión LRU.
 type OriginalStoreRepository struct {
 	db       *sql.DB
 	clock    ports.ClockPort
@@ -59,7 +59,9 @@ func (r *OriginalStoreRepository) Put(ctx context.Context, project, content, con
 	if domain.IsPrivateContent(content) {
 		return "", domain.ErrProtectedContent
 	}
-	sum := sha256.Sum256([]byte(content))
+	// La huella de dedup incluye el proyecto: la recuperación se aísla por
+	// proyecto, así que dos proyectos con el mismo contenido no comparten fila.
+	sum := sha256.Sum256([]byte(project + "\x00" + content))
 	hash := hex.EncodeToString(sum[:])
 	now := r.clock.Now()
 

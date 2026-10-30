@@ -593,15 +593,20 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		Description: "Devuelve íntegro, byte a byte, el contenido original que gomemory omitió al comprimir. " +
 			"Úsala cuando veas una marca ⟦mem⟧ … ref=X y necesites lo omitido: pack_retrieve(ref=X).",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
-		Ref string `json:"ref" jsonschema:"Referencia de la marca ⟦mem⟧ (ref=X)"`
+		Ref     string `json:"ref" jsonschema:"Referencia de la marca ⟦mem⟧ (ref=X)"`
+		Project string `json:"project,omitempty" jsonschema:"Proyecto que guardó la ref (default: proyecto actual), como en pack_build"`
 	}) (*mcp.CallToolResult, any, error) {
+		proj := in.Project
+		if proj == "" {
+			proj = project
+		}
 		rctx, cancel := context.WithTimeout(ctx, 2*domain.StoreTimeout)
 		defer cancel()
-		content, meta, err := usecases.RetrieveOriginal(rctx, deps.OriginalStore, in.Ref)
+		content, meta, err := usecases.RetrieveOriginal(rctx, deps.OriginalStore, proj, in.Ref)
 		if err != nil {
 			return nil, nil, err
 		}
-		_, _ = usecases.RecordRetrievalAndTune(rctx, deps.CompressionStats, deps.CompressionTuning, project, meta, deps.CompressionAdaptiveThreshold)
+		_, _ = usecases.RecordRetrievalAndTune(rctx, deps.CompressionStats, deps.CompressionTuning, proj, meta, deps.CompressionAdaptiveThreshold)
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: content}},
 		}, nil, nil
