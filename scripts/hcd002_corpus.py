@@ -117,8 +117,9 @@ def main():
                           "content_chars_median": 986, "content_chars_p95": 3762, "relations_target": 503,
                           "emitted_tokens_median": 4834, "emitted_tokens_p95": 5920},
               "projects": projects, "cases": cases(projects)}
-    json.dump(corpus, sys.stdout, ensure_ascii=False, indent=1)
-    sys.stdout.write("\n")
+    # Bytes, not text: in Windows text mode turns "\n" into "\r\n" and encodes
+    # with the console code page, and the fixture is compared byte for byte.
+    sys.stdout.buffer.write((json.dumps(corpus, ensure_ascii=False, indent=1) + "\n").encode("utf-8"))
 
 
 if __name__ == "__main__":
