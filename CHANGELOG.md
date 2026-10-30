@@ -5,6 +5,23 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.42.0] - 2026-10-29
+
+### Added
+
+- `pack_build` y `mem pack build` miden el presupuesto sobre la respuesta completa que se entrega (Markdown, JSON o texto MCP). Si el contenido crítico no cabe, devuelven un error explícito en vez de recortarlo, y una consulta sin coincidencias se declara («Sin coincidencias para la consulta») en vez de rellenar el paquete.
+- Opción `--receipt` (MCP: `receipt`) en `pack_build` / `mem pack build`: añade el recibo de procedencia (fuentes, huellas, seleccionado u omitido y por qué) y la contabilidad ampliada, que separa selección, compresión, delta y metadatos. Cada item omitido por presupuesto lleva una ref cuyo original se guarda antes de prometerla. Por defecto no viajan.
+- `pack_retrieve` acepta `project` y `mem pack retrieve` acepta `--project`, ambos por defecto el proyecto actual.
+- `mem doctor` informa el soporte de Codex por mecanismo (salida propia, selección, delta de sesión, salidas externas y compactación) y separa la política local del soporte real del host, que queda sin verificar en vez de extrapolar el rechazo histórico de Codex 0.159.0.
+
+### Changed
+
+- `get_context`, `mem context` y el contexto de arranque entregan un extracto de 80 caracteres por entrada (antes 200), con su puntero `get_memory` al original íntegro. Las reglas fijadas, el HCD activo y los conflictos se siguen entregando completos. En un corpus sintético calibrado con el uso real, reduce un 24,88% los bytes entregados (recuperaciones incluidas), sin pérdida de calidad y con una latencia p95 un 8% menor. El contexto de arranque ahora incluye las decisiones recientes dentro de su tope. Aplica por igual a Claude Code, Codex y OpenCode.
+
+### Fixed
+
+- Una ref de un original comprimido podía recuperarse desde otro proyecto de la misma base. Ahora responde igual que una ref inexistente, sin revelar su contenido, y la deduplicación del almacén de originales distingue el proyecto.
+
 ## [v2.41.0] - 2026-10-29
 
 ### Added

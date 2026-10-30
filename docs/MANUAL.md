@@ -939,6 +939,9 @@ Flags de `pack build`:
 | `--no-speckit` | No incluye artefactos de Spec Kit de la feature activa | No |
 | `--no-code-graph` | Desactiva la señal del grafo de código externo | No |
 | `--json` | Emite el paquete completo en JSON, en vez de Markdown | No |
+| `--receipt` | Añade el recibo de procedencia (fuentes, huellas, seleccionado u omitido y por qué, refs recuperables) y la contabilidad ampliada; también cuentan en el presupuesto | No |
+
+El presupuesto se mide sobre la respuesta completa que se imprime (Markdown o JSON), no solo sobre el contenido de los items. Si el contenido crítico no cabe, el comando termina con un error explícito en vez de recortarlo, y una consulta sin coincidencias lo declara («Sin coincidencias para la consulta») en lugar de rellenar el paquete con candidatos irrelevantes.
 
 Disponible también vía MCP (`pack_build`, `pack_show`, `pack_stats`,
 `pack_compress`) para que el agente lo pida él mismo dentro de la
@@ -1446,10 +1449,13 @@ mem pack compress salida.json --level max
 mem pack compress salida.json --compare
 mem pack compress salida.json --level max --json
 mem pack retrieve <ref>
+mem pack retrieve --project otro <ref>
 ```
 
 `mem pack retrieve` escribe el original exacto en `stdout`. Una referencia
-desconocida o caducada produce el código de salida 2. Los originales caducan
+desconocida, caducada o guardada por otro proyecto produce el código de salida 2,
+sin revelar su contenido; `--project` (MCP: `project`) recupera las refs de un
+paquete construido para otro proyecto. Los originales caducan
 por inactividad y están sujetos al límite de almacenamiento configurado. El
 valor efectivo de `compression_originals_max_mb` tiene un mínimo de 8 MB, para
 que el límite no expulse los originales de una misma llamada.

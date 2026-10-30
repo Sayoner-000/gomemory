@@ -265,7 +265,7 @@ footer svg{width:16px;height:auto}
 <body>
 
 <nav class="printbar" aria-label="Documento">
-  <a class="brand" href="#portada"><svg class="logo" viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="lgb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient></defs><path fill="url(#lgb)" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/><ellipse cx="13" cy="24" rx="3" ry="6" fill="#fff" opacity=".35"/></svg><b>Guía <em>rápida HCD</em></b><small>gomemory 2.41.0</small></a>
+  <a class="brand" href="#portada"><svg class="logo" viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="lgb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient></defs><path fill="url(#lgb)" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/><ellipse cx="13" cy="24" rx="3" ry="6" fill="#fff" opacity=".35"/></svg><b>Guía <em>rápida HCD</em></b><small>gomemory 2.42.0</small></a>
   <div class="toc">
     <a href="#cap-1"><span>1</span>Carril</a>
     <a href="#cap-2"><span>2</span>Motor sin IA</a>
@@ -284,7 +284,7 @@ footer svg{width:16px;height:auto}
 <div class="doc">
 <header class="cover" id="portada">
   <div class="wrap">
-    <div class="brand"><svg class="logo" viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="lgc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient></defs><path fill="url(#lgc)" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/><ellipse cx="13" cy="24" rx="3" ry="6" fill="#fff" opacity=".35"/></svg><b>Guía <em>rápida HCD</em></b><small>gomemory 2.41.0 · HCD</small></div>
+    <div class="brand"><svg class="logo" viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="lgc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient></defs><path fill="url(#lgc)" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/><ellipse cx="13" cy="24" rx="3" ry="6" fill="#fff" opacity=".35"/></svg><b>Guía <em>rápida HCD</em></b><small>gomemory 2.42.0 · HCD</small></div>
     <h1>Guía rápida <span class="grad">HCD</span></h1>
     <div class="accent"></div>
     <p>HCD lleva un cambio de la intención al cierre con evidencia real. Tú hablas con el agente; el motor <code>mem hcd</code> decide el paso, ejecuta las comprobaciones y registra las aprobaciones. Una casilla marcada a mano no cuenta como hecha.</p>
@@ -463,7 +463,7 @@ footer svg{width:16px;height:auto}
 </section>
 
 <section id="cap-3">
-  <div class="chapter" style="--rot:-14deg"><div class="wrap"><span class="dropnum">3</span><div><h2>Así se ve en el <span class="grad">harness</span></h2><p class="sub">Dos solicitudes reales de un proyecto PHP, paso a paso. Los mensajes «siguiente» son los que devolvió mem hcd 2.41.0 al ejecutar este mismo flujo.</p></div></div></div>
+  <div class="chapter" style="--rot:-14deg"><div class="wrap"><span class="dropnum">3</span><div><h2>Así se ve en el <span class="grad">harness</span></h2><p class="sub">Dos solicitudes reales de un proyecto PHP, paso a paso. Los mensajes «siguiente» son los que devolvió mem hcd 2.42.0 al ejecutar este mismo flujo.</p></div></div></div>
   <div class="wrap body">
     <div class="infobox"><span class="lbl">Cómo leerlo</span><p>Izquierda: lo que dice el motor tras cada paso (en qué paso va la unidad y qué skill toca). Derecha: lo que ves en la terminal del agente. Debajo: qué observar. Cambia de harness con las pestañas; el flujo es el mismo y solo cambian el dibujo y el prefijo: <code>$hcd</code> en Codex, <code>/hcd</code> en OpenCode y Claude Code.</p></div>
 
@@ -497,7 +497,7 @@ footer svg{width:16px;height:auto}
 </section>
 
 <section id="cap-4">
-  <div class="chapter" style="--rot:24deg"><div class="wrap"><span class="dropnum">4</span><div><h2>Vía rápida desde la <span class="grad">terminal</span></h2><p class="sub">Respaldo cuando el agente no puede seguir las skills. Probado con mem 2.41.0.</p></div></div></div>
+  <div class="chapter" style="--rot:24deg"><div class="wrap"><span class="dropnum">4</span><div><h2>Vía rápida desde la <span class="grad">terminal</span></h2><p class="sub">Respaldo cuando el agente no puede seguir las skills. Probado con mem 2.42.0.</p></div></div></div>
   <div class="wrap body">
   <div class="code"><div class="code-head"><span>bash · fix en vía rápida</span><button class="copy" type="button" aria-live="polite">Copiar</button></div><pre><span class="c"># 1. Abrir la unidad (--intent rellena la sección Intención)</span>
 <span class="k">mem hcd start</span> --kind fix --lane fast \
@@ -698,7 +698,7 @@ writable_roots = [<span class="s">"/home/TU-USUARIO/.local/share/gomemory"</span
 </section>
 
 </main>
-<footer><div class="wrap"><svg viewBox="0 0 40 48" aria-hidden="true"><path fill="#22e3f7" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/></svg>Guía rápida HCD · basada en la Guía SDD_HCD (edición 9) y en recorridos reales con gomemory 2.41.0, en vía rápida y en ceremonia completa.</div></footer>
+<footer><div class="wrap"><svg viewBox="0 0 40 48" aria-hidden="true"><path fill="#22e3f7" d="M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z"/></svg>Guía rápida HCD · basada en la Guía SDD_HCD (edición 10) y en recorridos reales con gomemory 2.42.0, en vía rápida y en ceremonia completa.</div></footer>
 </div>
 
 <script>
