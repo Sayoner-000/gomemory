@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"mem/application/ports"
@@ -94,8 +95,10 @@ func migrateBundleV1ToV2(b domain.ExportBundle) domain.ExportBundle {
 
 // memoryHash identifica una memoria por su contenido (no por id), para dedup al
 // importar: dos memorias con el mismo tipo+título+contenido se consideran la misma.
+// Compara texto protegido: lo guardado ya pasó por ProtectText y el bundle puede
+// no haberlo hecho.
 func memoryHash(memType, title, content string) string {
-	sum := sha256.Sum256([]byte(memType + "\x00" + title + "\x00" + content))
+	sum := sha256.Sum256([]byte(memType + "\x00" + domain.ProtectText(title) + "\x00" + domain.ProtectText(content)))
 	return hex.EncodeToString(sum[:])
 }
 
@@ -105,6 +108,14 @@ func memoryHash(memType, title, content string) string {
 // automáticas (las relaciones se importan explícitas, con ids remapeados).
 func ImportBundle(memRepo ports.MemoryRepository, relRepo ports.RelationRepository, targetProject string, bundle domain.ExportBundle) (domain.ImportReport, error) {
 	var rep domain.ImportReport
+
+	// Valida antes de escribir: una fila inválida no deja un import parcial que
+	// ningún reintento podría completar.
+	for _, em := range bundle.Memories {
+		if strings.TrimSpace(domain.ProtectText(em.Content)) == "" {
+			return rep, fmt.Errorf("%w: la memoria ref %d queda vacía tras redactar <private>", domain.ErrValidation, em.RefID)
+		}
+	}
 
 	existing, err := memRepo.ListAll(targetProject)
 	if err != nil {
@@ -137,7 +148,7 @@ func ImportBundle(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 			UpdatedAt:      em.UpdatedAt,
 		})
 		if err != nil {
-			return rep, err
+			return rep, importFailure(rep, err)
 		}
 		resolved[em.RefID] = id
 		byHash[h] = id // evita duplicar dentro del mismo bundle
@@ -151,7 +162,11 @@ func ImportBundle(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 			rep.RelationsSkipped++
 			continue
 		}
-		if existingRel, _ := relRepo.GetByPair(targetProject, a, b); existingRel != nil {
+		existingRel, err := relRepo.GetByPair(targetProject, a, b)
+		if err != nil {
+			return rep, importFailure(rep, err)
+		}
+		if existingRel != nil {
 			rep.RelationsSkipped++
 			continue
 		}
@@ -164,10 +179,16 @@ func ImportBundle(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 			Reasoning:  er.Reasoning,
 			CreatedAt:  er.CreatedAt,
 		}); err != nil {
-			return rep, err
+			return rep, importFailure(rep, err)
 		}
 		rep.RelationsImported++
 	}
 
 	return rep, nil
+}
+
+// importFailure conserva en el error lo ya escrito: los llamadores solo muestran
+// el reporte cuando el import termina bien.
+func importFailure(rep domain.ImportReport, err error) error {
+	return fmt.Errorf("import incompleto (%d memorias y %d relaciones ya importadas; reintentar es seguro): %w", rep.MemoriesImported, rep.RelationsImported, err)
 }
