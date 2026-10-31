@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"mem/adapters/primary/setup"
 )
@@ -45,47 +46,65 @@ func cleanupLegacyArtifacts(target, memDir string) {
 // limpiarArchivosDeAgente retira solo los bloques completos de gomemory: un
 // archivo sin ellos es de la persona y no se toca, y un bloque sin cierre se
 // informa. Copia el original antes de cambiarlo; si no puede, lo conserva.
+// Ningún fallo interrumpe la instalación: cada uno ya se informó.
 func limpiarArchivosDeAgente(target, memDir string) {
+	backupDir := filepath.Join(target, memDir, "backups", "agent-files")
 	for _, nombre := range legacyAgentFiles {
 		origen, err := setup.ProjectConfigPath(target, nombre)
 		if err != nil {
 			continue
 		}
-		retiraBloqueDeProyecto(target, memDir, origen, nombre)
+		_, _ = retiraBloqueDeProyecto(origen, nombre, backupDir)
 	}
 }
 
 // retiraBloqueDeProyecto aplica la retirada a un archivo y reporta si cambió.
-func retiraBloqueDeProyecto(target, memDir, path, nombre string) bool {
+// backupDir vacío omite la copia. Un archivo inexistente o sin bloques no es un
+// fallo; el error distingue lo que quedó sin retirar, ya informado por consola.
+func retiraBloqueDeProyecto(path, nombre, backupDir string) (bool, error) {
 	datos, err := os.ReadFile(path)
 	if err != nil {
-		return false // no existe: nada que hacer, y nada que informar
+		return false, nil // no existe: nada que hacer, y nada que informar
 	}
 	content := string(datos)
 	rest, err := stripMarkedBlocks(content)
 	if err != nil {
 		fmt.Printf("  ⚠️  %s no se modificó: %v\n", nombre, err)
-		return false
+		return false, fmt.Errorf("%s no se modificó: %w", nombre, err)
 	}
 	if rest == content {
-		return false
+		return false, nil
 	}
-	backupDir := filepath.Join(target, memDir, "backups", "agent-files")
-	if err := os.MkdirAll(backupDir, 0o755); err != nil {
-		fmt.Printf("  ⚠️  %s: no se pudo preparar el respaldo (%v); se conserva el archivo\n", nombre, err)
-		return false
-	}
-	destino := filepath.Join(backupDir, nombre)
-	if err := os.WriteFile(destino, datos, 0o644); err != nil {
-		fmt.Printf("  ⚠️  %s: no se pudo respaldar (%v); se conserva el archivo\n", nombre, err)
-		return false
+	aviso := ""
+	if backupDir != "" {
+		destino, err := copiaUnica(backupDir, nombre, datos)
+		if err != nil {
+			fmt.Printf("  ⚠️  %s: no se pudo respaldar (%v); se conserva el archivo\n", nombre, err)
+			return false, fmt.Errorf("%s: no se pudo respaldar: %w", nombre, err)
+		}
+		aviso = " (respaldado en " + destino + ")"
 	}
 	if err := writeRetired(path, rest); err != nil {
-		fmt.Printf("  ⚠️  %s: respaldado pero no se pudo retirar el bloque (%v)\n", nombre, err)
-		return false
+		fmt.Printf("  ⚠️  %s: no se pudo retirar el bloque (%v)\n", nombre, err)
+		return false, fmt.Errorf("%s: no se pudo retirar el bloque: %w", nombre, err)
 	}
-	fmt.Printf("  ✅ %s: bloque de gomemory retirado (respaldado en %s)\n", nombre, destino)
-	return true
+	fmt.Printf("  ✅ %s: bloque de gomemory retirado%s\n", nombre, aviso)
+	return true, nil
+}
+
+// copiaUnica crea la copia sin reemplazar ninguna anterior.
+func copiaUnica(dir, nombre string, datos []byte) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	destino := filepath.Join(dir, nombre)
+	if _, err := os.Lstat(destino); err == nil {
+		destino += "." + time.Now().Format("20060102-150405.000000000")
+	}
+	if err := writeExclusive(destino, datos, 0o644); err != nil {
+		return "", err
+	}
+	return destino, nil
 }
 
 // limpiarGenerados elimina los artefactos que el instalador generaba por

@@ -112,3 +112,43 @@ func TestRetiradaProyecto_RulesLegadosNoSeTocan(t *testing.T) {
 		t.Fatalf("archivo alterado: %q", got)
 	}
 }
+
+func TestCopiaProyecto_NoReemplazaLaAnterior(t *testing.T) {
+	primero := "uno\n\n" + bloqueCompleto
+	dir, path := proyectoCon(t, "AGENTS.md", primero)
+	captureStdout(t, func() { cleanupLegacyArtifacts(dir, ".memory") })
+	segundo := "dos\n\n" + bloqueCompleto
+	if err := os.WriteFile(path, []byte(segundo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	captureStdout(t, func() { cleanupLegacyArtifacts(dir, ".memory") })
+	copias, err := filepath.Glob(filepath.Join(dir, ".memory", "backups", "agent-files", "AGENTS.md*"))
+	if err != nil || len(copias) != 2 {
+		t.Fatalf("copias = %v, %v", copias, err)
+	}
+	contenidos := map[string]bool{}
+	for _, c := range copias {
+		data, _ := os.ReadFile(c)
+		contenidos[string(data)] = true
+	}
+	if !contenidos[primero] || !contenidos[segundo] {
+		t.Fatalf("copias sin los dos originales: %v", contenidos)
+	}
+}
+
+func TestCopiaProyecto_UninstallNoCopia(t *testing.T) {
+	dir, _ := proyectoCon(t, "AGENTS.md", "antes\n\n"+bloqueCompleto)
+	captureStdout(t, func() { removeIntegrationBlocks(dir) })
+	if _, err := os.Stat(filepath.Join(dir, ".memory", "backups")); !os.IsNotExist(err) {
+		t.Fatalf("uninstall creó copia: %v", err)
+	}
+}
+
+func TestUninstallProyecto_FalloDeRetirada(t *testing.T) {
+	dir, _ := proyectoCon(t, "AGENTS.md", "antes\n\n<!-- gomemory-protocol-v5 -->\ntexto\n")
+	var err error
+	captureStdout(t, func() { err = removeProjectIntegration(dir, true) })
+	if err == nil || !strings.Contains(err.Error(), "AGENTS.md") {
+		t.Fatalf("err = %v", err)
+	}
+}

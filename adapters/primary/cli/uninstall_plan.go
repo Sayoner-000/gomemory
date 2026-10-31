@@ -214,7 +214,7 @@ func (pl *uninstallPlanner) planProject(p string) {
 // keepsGlobal indica que la configuración de usuario se conserva (alcance de
 // proyecto); en el de sistema la retira después globalRemover.
 func removeProjectIntegration(p string, keepsGlobal bool) error {
-	removeIntegrationBlocks(p)
+	bloques := removeIntegrationBlocks(p)
 	removeMCPEntries(p)
 	if keepsGlobal {
 		fmt.Println("  ℹ️  ~/.codex/config.toml conserva [mcp_servers.gomemory] y los hooks del ciclo de gomemory — son configuración global compartida por todos los proyectos.")
@@ -223,7 +223,7 @@ func removeProjectIntegration(p string, keepsGlobal bool) error {
 	removeClaudePermissions(p)
 	removeOpenCodeArtifacts(p)
 	removeNativeWrappers(p)
-	return nil
+	return bloques
 }
 
 // globalRemover devuelve cómo retirar una celda de usuario de la matriz, o nil

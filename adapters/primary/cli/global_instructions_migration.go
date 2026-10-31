@@ -122,21 +122,27 @@ func writeRetired(path, rest string) error {
 	return writeFileAtomic(path, []byte(rest), fileMode(path))
 }
 
-// copyBeforeRetire nunca reemplaza una copia previa: O_EXCL hace fallar una
-// colisión, y con ello se deja intacto el original.
+// copyBeforeRetire nunca reemplaza una copia previa: una colisión hace fallar la
+// copia, y con ello se deja intacto el original.
 func copyBeforeRetire(path string, data []byte, stamp string) error {
-	backup := path + ".gomemory-backup-" + stamp
-	f, err := os.OpenFile(backup, os.O_CREATE|os.O_EXCL|os.O_WRONLY, fileMode(path))
-	if err != nil {
+	if err := writeExclusive(path+".gomemory-backup-"+stamp, data, fileMode(path)); err != nil {
 		return fmt.Errorf("copiar %s antes de retirar sus bloques: %w", path, err)
+	}
+	return nil
+}
+
+// writeExclusive crea un archivo nuevo completo; si falla, no deja restos.
+func writeExclusive(path string, data []byte, mode os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+	if err != nil {
+		return err
 	}
 	_, err = f.Write(data)
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
 	if err != nil {
-		_ = os.Remove(backup)
-		return fmt.Errorf("copiar %s antes de retirar sus bloques: %w", path, err)
+		_ = os.Remove(path)
 	}
-	return nil
+	return err
 }
