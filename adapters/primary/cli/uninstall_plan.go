@@ -117,6 +117,14 @@ type uninstallPlanner struct {
 	projects []string
 	roots    map[string]string
 	skipped  []string
+	anchors  []*binaryAnchor
+}
+
+// closeAnchors libera los directorios abiertos, se ejecute o no el plan.
+func (pl *uninstallPlanner) closeAnchors() {
+	for _, a := range pl.anchors {
+		a.Close()
+	}
 }
 
 func (pl *uninstallPlanner) add(item domain.UninstallItem, apply func() error) {
@@ -340,7 +348,10 @@ func (pl *uninstallPlanner) planBinaries() {
 		seen[p] = true
 		// Se ancla antes de ejecutar el candidato: `mem version` podría cambiar
 		// la ruta. Sin ancla, fuera de HOME o no comprobable, no se borra.
-		remove, anchorErr := anchorBinary(pl.home, p, pl.self)
+		anchor, anchorErr := anchorBinary(pl.home, p, pl.self)
+		if anchorErr == nil {
+			pl.anchors = append(pl.anchors, anchor)
+		}
 		if _, ok := identifyVersion(p); !ok {
 			continue // no es gomemory: ni se borra ni se aconseja nada sobre él
 		}
@@ -348,7 +359,7 @@ func (pl *uninstallPlanner) planBinaries() {
 			fmt.Printf("  ℹ️  %s se conserva (%v): bórralo a mano si quieres retirarlo\n", p, anchorErr)
 			continue
 		}
-		pl.add(domain.NewUninstallItem(domain.CategoryBinary, p, domain.KindFile), remove)
+		pl.add(domain.NewUninstallItem(domain.CategoryBinary, p, domain.KindFile), anchor.Remove)
 	}
 }
 
@@ -442,39 +453,66 @@ func binaryInsideHome(home, path string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// anchorBinary abre el directorio del binario y devuelve el borrado anclado a él:
-// un cambio de ruta posterior, incluso durante `mem version`, no puede dirigirlo
-// fuera de HOME. Falla si el directorio ya no es el comprobado.
-func anchorBinary(home, path, self string) (func() error, error) {
+// binaryAnchor retiene el directorio del binario abierto desde HOME: un cambio
+// de ruta posterior, incluso durante `mem version`, no dirige el borrado fuera.
+type binaryAnchor struct {
+	home, dir       *os.Root
+	rel, base, path string
+	self            string
+}
+
+// anchorBinary abre el directorio con una operación confinada a HOME, que rechaza
+// cualquier salida por enlace. Toda duda de resolución falla cerrada.
+func anchorBinary(home, path, self string) (*binaryAnchor, error) {
 	if !binaryInsideHome(home, path) {
 		return nil, fmt.Errorf("%s está fuera de HOME", path)
 	}
-	dir := filepath.Dir(path)
-	real, err := filepath.EvalSymlinks(dir)
+	realHome, err := filepath.EvalSymlinks(home)
 	if err != nil {
 		return nil, err
 	}
-	root, err := os.OpenRoot(real)
+	realDir, err := filepath.EvalSymlinks(filepath.Dir(path))
 	if err != nil {
 		return nil, err
 	}
-	abierto, err := root.Stat(".")
-	if err == nil {
-		var actual os.FileInfo
-		if actual, err = os.Stat(real); err == nil && !os.SameFile(abierto, actual) {
-			err = fmt.Errorf("%s cambió durante la comprobación", dir)
-		}
-	}
+	rel, err := filepath.Rel(realHome, realDir)
 	if err != nil {
-		_ = root.Close()
 		return nil, err
 	}
-	base := filepath.Base(path)
-	return func() error {
-		defer root.Close()
-		if runtime.GOOS == "windows" && sameFilePath(path, self) {
-			return removeBinaryFile(path, self) // en uso: requiere la ruta para apartarlo
-		}
-		return root.Remove(base)
-	}, nil
+	homeRoot, err := os.OpenRoot(realHome)
+	if err != nil {
+		return nil, err
+	}
+	dirRoot, err := homeRoot.OpenRoot(rel)
+	if err != nil {
+		_ = homeRoot.Close()
+		return nil, err
+	}
+	return &binaryAnchor{home: homeRoot, dir: dirRoot, rel: rel, base: filepath.Base(path), path: path, self: self}, nil
+}
+
+func (a *binaryAnchor) Close() {
+	_ = a.dir.Close()
+	_ = a.home.Close()
+}
+
+// Remove comprueba que el directorio sigue en su lugar dentro de HOME. Queda una
+// ventana mínima hasta el borrado: el sistema no ofrece borrar y comprobar de forma
+// atómica, y aprovecharla exige un proceso con el mismo usuario.
+func (a *binaryAnchor) Remove() error {
+	abierto, err := a.dir.Stat(".")
+	if err != nil {
+		return err
+	}
+	actual, err := a.home.Stat(a.rel)
+	if err != nil {
+		return fmt.Errorf("%s ya no está en HOME: %w", a.path, err)
+	}
+	if !os.SameFile(abierto, actual) {
+		return fmt.Errorf("%s cambió de lugar", a.path)
+	}
+	if runtime.GOOS == "windows" && sameFilePath(a.path, a.self) {
+		return removeBinaryFile(a.path, a.self) // en uso: requiere la ruta para apartarlo
+	}
+	return a.dir.Remove(a.base)
 }

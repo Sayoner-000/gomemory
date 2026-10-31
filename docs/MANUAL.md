@@ -772,7 +772,8 @@ mem uninstall --all --dry-run                   # muestra el inventario sin toca
 ```
 
 `--all` solo borra binarios dentro de `HOME`. Un binario fuera, como `/usr/local/bin/mem`, se
-conserva y la salida indica que debes borrarlo a mano.
+conserva y la salida indica que debes borrarlo a mano. Tampoco sigue enlaces fuera de `HOME`. Esta garantía
+no protege frente a un proceso del mismo usuario que altere esos directorios durante la ejecución.
 
 Con una terminal interactiva, `mem uninstall` pregunta el **alcance** (solo este
 proyecto o todo gomemory del sistema), muestra un **inventario** de lo que existe

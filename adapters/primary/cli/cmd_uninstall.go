@@ -116,6 +116,7 @@ func CmdUninstall(deps *Deps, args []string) int {
 	}
 	self, _ := os.Executable()
 	pl := &uninstallPlanner{o: o, home: home, data: data, self: self}
+	defer pl.closeAnchors()
 
 	if ui != nil && !o.dryRun && !o.memorySet {
 		choice, err := ui.Select("¿Qué hacemos con la memoria?", []console.Option{
