@@ -109,7 +109,7 @@ func TestRemoveCodexGomemory_TOMLInvalido(t *testing.T) {
 // tocar lo que escribió la persona.
 func TestRemoveProtocolBlockFile(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "CLAUDE.md")
-	writeFile(t, p, "# Mis reglas\n\nNo tocar esto.\n\n"+integrationVersionMarker+"\n## Memoria Persistente\n\nprotocolo\n")
+	writeFile(t, p, "# Mis reglas\n\nNo tocar esto.\n\n"+integrationVersionMarker+"\n## Memoria Persistente\n\nprotocolo\n"+integrationEndMarker+"\n")
 	changed, err := removeProtocolBlockFile(p)
 	if err != nil || !changed {
 		t.Fatalf("changed=%v err=%v", changed, err)
@@ -132,7 +132,7 @@ func TestRemoveProtocolBlockFile(t *testing.T) {
 	}
 
 	solo := filepath.Join(t.TempDir(), "AGENTS.md")
-	writeFile(t, solo, integrationVersionMarker+"\n## Memoria Persistente\n\nprotocolo\n")
+	writeFile(t, solo, integrationVersionMarker+"\n## Memoria Persistente\n\nprotocolo\n"+integrationEndMarker+"\n")
 	if _, err := removeProtocolBlockFile(solo); err != nil {
 		t.Fatal(err)
 	}

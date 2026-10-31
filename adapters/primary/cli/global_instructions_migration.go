@@ -54,6 +54,18 @@ func retireGlobalBlocks(paths []string, stamp string) ([]string, []error) {
 	return retired, errs
 }
 
+// omittedGlobalBlocks devuelve los archivos que aún tienen bloques de gomemory.
+func omittedGlobalBlocks(paths []string) []string {
+	var out []string
+	for _, path := range paths {
+		data, err := os.ReadFile(setup.GlobalConfigPath(path))
+		if err == nil && (domain.ProtocolVersionPattern.Match(data) || domain.UniversalInstructionsVersionPattern.Match(data)) {
+			out = append(out, path)
+		}
+	}
+	return out
+}
+
 // stripMarkedBlocks devuelve content sin los bloques completos de gomemory. Un
 // encabezado sin marcador es texto de la persona. Falla, sin cambios, ante un
 // marcador de inicio o de fin sin su pareja.

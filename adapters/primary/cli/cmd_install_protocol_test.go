@@ -59,7 +59,7 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 // la directiva condicional por capacidad (feature 038): al próximo bump,
 // renombrar este test y su mensaje.
 func TestProtocolVersionMarker_SubioAV9(t *testing.T) {
-	if integrationVersionMarker != "<!-- gomemory-protocol-v11 -->" {
+	if integrationVersionMarker != "<!-- gomemory-protocol-v12 -->" {
 		t.Errorf("integrationVersionMarker = %q, se esperaba la v9 (feature 038)", integrationVersionMarker)
 	}
 }
@@ -73,7 +73,7 @@ func TestIntegrationBlock_ReglasSobrevivenAlTruncado(t *testing.T) {
 		return
 	}
 	visible := block[:corteObservado]
-	for _, regla := range []string{"### GUARDAR PROACTIVAMENTE", "### Juez imparcial", "### Privacidad", "### Al entrar en modo plan", "### Al inicio de cada sesión", "### Al cerrar la sesión", "### Consultar memoria"} {
+	for _, regla := range []string{"### GUARDAR PROACTIVAMENTE", "### Juez imparcial", "### Privacidad", "### Al entrar en modo plan", "### Al inicio de cada sesión", "### Al cerrar la sesión", "### Consultar memoria", "Si el MCP no está disponible"} {
 		if !strings.Contains(visible, regla) {
 			t.Errorf("%q queda después del corte", regla)
 		}

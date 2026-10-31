@@ -239,6 +239,13 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 		for _, e := range errs {
 			fmt.Printf("  ⚠️  %v\n", e)
 		}
+		omitidos := map[string]bool{}
+		for _, agent := range domain.KnownAgents {
+			omitidos[agent.Name] = !solicitados[agent.Name]
+		}
+		for _, p := range omittedGlobalBlocks(setup.GlobalInstructionPaths(home, omitidos)) {
+			fmt.Printf("  ℹ️  %s conserva bloques de gomemory: su agente no se eligió\n", p)
+		}
 	}
 	for _, p := range written {
 		fmt.Printf("  ✅ planificación atómica: %s\n", p)

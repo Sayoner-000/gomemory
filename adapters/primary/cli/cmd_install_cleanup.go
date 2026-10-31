@@ -42,41 +42,50 @@ func cleanupLegacyArtifacts(target, memDir string) {
 	limpiarConfigsDeAgente(target)
 }
 
-// limpiarArchivosDeAgente retira los archivos de instrucciones, respaldando
-// cada uno ANTES de borrarlo.
-//
-// El borrado es una decisión explícita del usuario y es destructivo: estos
-// archivos pueden contener texto propio. El respaldo es lo que lo hace
-// responsable — y si el respaldo no se puede escribir, el original NO se borra.
-// Es preferible dejar un archivo obsoleto que perder texto que alguien escribió.
+// limpiarArchivosDeAgente retira solo los bloques completos de gomemory: un
+// archivo sin ellos es de la persona y no se toca, y un bloque sin cierre se
+// informa. Copia el original antes de cambiarlo; si no puede, lo conserva.
 func limpiarArchivosDeAgente(target, memDir string) {
-	backupDir := filepath.Join(target, memDir, "backups", "agent-files")
-
 	for _, nombre := range legacyAgentFiles {
 		origen, err := setup.ProjectConfigPath(target, nombre)
 		if err != nil {
 			continue
 		}
-		datos, err := os.ReadFile(origen)
-		if err != nil {
-			continue // no existe: nada que hacer, y nada que informar
-		}
-
-		if err := os.MkdirAll(backupDir, 0o755); err != nil {
-			fmt.Printf("  ⚠️  %s: no se pudo preparar el respaldo (%v); se conserva el archivo\n", nombre, err)
-			continue
-		}
-		destino := filepath.Join(backupDir, nombre)
-		if err := os.WriteFile(destino, datos, 0o644); err != nil {
-			fmt.Printf("  ⚠️  %s: no se pudo respaldar (%v); se conserva el archivo\n", nombre, err)
-			continue
-		}
-		if err := os.Remove(origen); err != nil {
-			fmt.Printf("  ⚠️  %s: respaldado pero no se pudo eliminar (%v)\n", nombre, err)
-			continue
-		}
-		fmt.Printf("  ✅ %s retirado (respaldado en %s)\n", nombre, destino)
+		retiraBloqueDeProyecto(target, memDir, origen, nombre)
 	}
+}
+
+// retiraBloqueDeProyecto aplica la retirada a un archivo y reporta si cambió.
+func retiraBloqueDeProyecto(target, memDir, path, nombre string) bool {
+	datos, err := os.ReadFile(path)
+	if err != nil {
+		return false // no existe: nada que hacer, y nada que informar
+	}
+	content := string(datos)
+	rest, err := stripMarkedBlocks(content)
+	if err != nil {
+		fmt.Printf("  ⚠️  %s no se modificó: %v\n", nombre, err)
+		return false
+	}
+	if rest == content {
+		return false
+	}
+	backupDir := filepath.Join(target, memDir, "backups", "agent-files")
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
+		fmt.Printf("  ⚠️  %s: no se pudo preparar el respaldo (%v); se conserva el archivo\n", nombre, err)
+		return false
+	}
+	destino := filepath.Join(backupDir, nombre)
+	if err := os.WriteFile(destino, datos, 0o644); err != nil {
+		fmt.Printf("  ⚠️  %s: no se pudo respaldar (%v); se conserva el archivo\n", nombre, err)
+		return false
+	}
+	if err := writeRetired(path, rest); err != nil {
+		fmt.Printf("  ⚠️  %s: respaldado pero no se pudo retirar el bloque (%v)\n", nombre, err)
+		return false
+	}
+	fmt.Printf("  ✅ %s: bloque de gomemory retirado (respaldado en %s)\n", nombre, destino)
+	return true
 }
 
 // limpiarGenerados elimina los artefactos que el instalador generaba por

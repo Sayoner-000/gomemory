@@ -35,16 +35,15 @@ func runInstallEn(t *testing.T, bin, target string) string {
 	return string(out)
 }
 
-// TestInstallEliminaArchivosDeAgenteYRespalda cubre FR-016/FR-017: retirar los
-// archivos de instrucciones es una operación destructiva autorizada, y el
-// respaldo previo es lo que la hace responsable.
-func TestInstallEliminaArchivosDeAgenteYRespalda(t *testing.T) {
+// TestInstallRetiraSoloBloquesYRespalda: un archivo sin bloques es de la persona
+// y no cambia; de uno con bloque completo solo sale el bloque, con respaldo.
+func TestInstallRetiraSoloBloquesYRespalda(t *testing.T) {
 	bin := buildMemBinary(t)
 	target := dirDeProyecto(t)
 
 	const propio = "# Mis notas\n\nTexto propio que escribí yo y no debe evaporarse.\n"
 	for _, nombre := range []string{"AGENTS.md", "CLAUDE.md"} {
-		if err := os.WriteFile(filepath.Join(target, nombre), []byte(propio+nombre), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(target, nombre), []byte(propio+nombre+"\n\n<!-- gomemory-protocol-v9 -->\nx\n<!-- gomemory-protocol-end -->\n"), 0644); err != nil {
 			t.Fatalf("preparar %s: %v", nombre, err)
 		}
 	}
@@ -52,8 +51,9 @@ func TestInstallEliminaArchivosDeAgenteYRespalda(t *testing.T) {
 	out := runInstallEn(t, bin, target)
 
 	for _, nombre := range []string{"AGENTS.md", "CLAUDE.md"} {
-		if _, err := os.Stat(filepath.Join(target, nombre)); err == nil {
-			t.Errorf("%s sigue en la raíz tras instalar", nombre)
+		restante, err := os.ReadFile(filepath.Join(target, nombre))
+		if err != nil || strings.Contains(string(restante), "gomemory") || !strings.Contains(string(restante), "Texto propio") {
+			t.Errorf("%s tras instalar: %q, %v", nombre, restante, err)
 		}
 		respaldo := filepath.Join(target, ".memory", "backups", "agent-files", nombre)
 		datos, err := os.ReadFile(respaldo)
@@ -134,7 +134,7 @@ func TestInstallMensajeFinal(t *testing.T) {
 // respaldo de archivos legados se conserva y el hook incompatible de Codex
 // sigue declarado solo para su retirada.
 func TestInstall038_BloqueV9SinAgentsYRetiradaCodex(t *testing.T) {
-	if domain.ProtocolVersionMarker != "<!-- gomemory-protocol-v11 -->" {
+	if domain.ProtocolVersionMarker != "<!-- gomemory-protocol-v12 -->" {
 		t.Fatalf("ProtocolVersionMarker = %q, se esperaba la v9", domain.ProtocolVersionMarker)
 	}
 	retirado := setup.CodexToolOutputHook.Sub

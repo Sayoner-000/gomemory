@@ -354,6 +354,9 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         mem(["hook", "channel-error", "opencode", "user", "plan_entry", "el contexto histórico no pudo leerse"]).catch(() => {});
       } else if (ctx.length > 0) {
         output.system.push("## Project Memory (gomemory)\n\n" + ctx);
+        if (ctx.includes("Baseline universal omitido por presupuesto")) {
+          mem(["hook", "channel-error", "opencode", "user", "plan_entry", "baseline omitido por presupuesto"]).catch(() => {});
+        }
       }
       // Recordatorio de guardado transversal: misma decisión (umbral + debounce)
       // que el hook de Claude Code, resuelta en Go. `mem hook nudge` devuelve el

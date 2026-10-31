@@ -1,7 +1,9 @@
 package setup
 
 import (
+	"bytes"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -325,7 +327,7 @@ func (a *ActivationInspector) inspectAgentEntryFile(agent domain.AgentCapability
 func (a *ActivationInspector) openCodePluginProblem(path string) string {
 	shape := DetectPluginShape(path)
 	if shape != PluginShapeV1Only {
-		return ""
+		return a.openCodePluginStale(path)
 	}
 	a.openCodeOnce.Do(func() {
 		consultar := a.openCodeVersion
@@ -342,6 +344,29 @@ func (a *ActivationInspector) openCodePluginProblem(path string) string {
 		return "plugin solo v1 en " + path + ": OpenCode 2.x no lo carga (versión de OpenCode no detectada)"
 	}
 	return "plugin solo v1 en " + path + ": OpenCode " + st.Version + " no lo carga"
+}
+
+// pluginBinLine es la única línea que la instalación personaliza en el plugin.
+var pluginBinLine = regexp.MustCompile(`(?m)^const BIN = ".*";$`)
+
+// openCodePluginStale compara el plugin instalado con el embebido en el binario.
+func (a *ActivationInspector) openCodePluginStale(path string) string {
+	if PluginFS == nil {
+		return ""
+	}
+	embedded, err := fs.ReadFile(PluginFS, "plugin/opencode/gomemory.ts")
+	if err != nil {
+		return ""
+	}
+	installed, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	normal := func(b []byte) []byte { return pluginBinLine.ReplaceAll(b, []byte(`const BIN = "";`)) }
+	if bytes.Equal(normal(installed), normal(embedded)) {
+		return ""
+	}
+	return "plugin desactualizado en " + path + ": se actualiza con `mem setup-mcp --scope global`"
 }
 
 func readSettingsAtomicPlanDisabled(dir string) bool {

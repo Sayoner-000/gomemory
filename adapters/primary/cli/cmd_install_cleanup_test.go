@@ -13,7 +13,7 @@ func proyectoLegado(t *testing.T) string {
 	dir := t.TempDir()
 
 	for _, n := range []string{"AGENTS.md", "CLAUDE.md", "CLAUDE.txt"} {
-		if err := os.WriteFile(filepath.Join(dir, n), []byte("# "+n+"\n\nTexto propio que escribí yo.\n"), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("# "+n+"\n\nTexto propio que escribí yo.\n\n"+bloqueCompleto), 0o644); err != nil {
 			t.Fatalf("preparar %s: %v", n, err)
 		}
 	}
@@ -53,8 +53,9 @@ func TestCleanup_RespaldaYRetiraLosArchivosDeAgente(t *testing.T) {
 	out := captureStdout(t, func() { cleanupLegacyArtifacts(dir, ".memory") })
 
 	for _, n := range []string{"AGENTS.md", "CLAUDE.md", "CLAUDE.txt"} {
-		if _, err := os.Stat(filepath.Join(dir, n)); err == nil {
-			t.Errorf("%s sigue en la raíz", n)
+		restante, err := os.ReadFile(filepath.Join(dir, n))
+		if err != nil || strings.Contains(string(restante), "gomemory") || !strings.Contains(string(restante), "Texto propio que escribí yo") {
+			t.Errorf("%s tras retirar: %q, %v", n, restante, err)
 		}
 		datos, err := os.ReadFile(filepath.Join(dir, ".memory", "backups", "agent-files", n))
 		if err != nil {
@@ -73,7 +74,7 @@ func TestCleanup_RespaldaYRetiraLosArchivosDeAgente(t *testing.T) {
 // preferible dejar un archivo obsoleto que perder texto de alguien.
 func TestCleanup_SinRespaldoNoBorra(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("contenido irreemplazable\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("contenido irreemplazable\n\n"+bloqueCompleto), 0o644); err != nil {
 		t.Fatalf("preparar: %v", err)
 	}
 
@@ -88,7 +89,7 @@ func TestCleanup_SinRespaldoNoBorra(t *testing.T) {
 	if err != nil {
 		t.Fatal("CLAUDE.md se borró pese a que el respaldo falló: es exactamente lo que FR-018 prohíbe")
 	}
-	if string(datos) != "contenido irreemplazable\n" {
+	if string(datos) != "contenido irreemplazable\n\n"+bloqueCompleto {
 		t.Errorf("el contenido cambió: %q", datos)
 	}
 	if !strings.Contains(out, "se conserva el archivo") {

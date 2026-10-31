@@ -255,6 +255,13 @@ test('context keeps the baseline in v1 and v2: the system is rebuilt every turn'
   assert.ok(v1.calls.some(c => c.args.join(' ') === 'context --keep-baseline'));
 });
 
+test('v2: a baseline left out by the budget is reported as a channel error', async () => {
+  const f = await v2Fixture({ outputs: { 'context --keep-baseline': '> Baseline universal omitido por presupuesto: `mem docs show baseline`.' } });
+  await f.system('context');
+  assert.ok(f.hookCalls('channel-error').some(c => c.args.join(' ').includes('baseline omitido por presupuesto')));
+  await f.cleanup();
+});
+
 test('v2: context asks for the octopus policy as opencode-v2, v1 keeps opencode', async () => {
   const f = await v2Fixture();
   await f.system('context');

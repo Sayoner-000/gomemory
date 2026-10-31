@@ -152,3 +152,14 @@ func TestMigracionEstricta_PreservaCRLF(t *testing.T) {
 		t.Fatalf("got=%q errs=%v", got, errs)
 	}
 }
+
+func TestMigracionGlobal_InformaAgentesOmitidos(t *testing.T) {
+	path, _ := archivoConBloques(t)
+	limpio := filepath.Join(t.TempDir(), "AGENTS.md")
+	if err := os.WriteFile(limpio, []byte("mío\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := omittedGlobalBlocks([]string{path, limpio}); len(got) != 1 || got[0] != path {
+		t.Fatalf("got = %v", got)
+	}
+}

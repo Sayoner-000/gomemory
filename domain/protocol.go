@@ -8,7 +8,7 @@ import "regexp"
 // como el inspector de cobertura (adapters/primary/setup/activation_inspect.go,
 // feature 019) lo consultan desde aquí, para que nunca puedan divergir sobre
 // cuál es "la versión vigente".
-const ProtocolVersionMarker = "<!-- gomemory-protocol-v11 -->"
+const ProtocolVersionMarker = "<!-- gomemory-protocol-v12 -->"
 
 // ProtocolEndMarker cierra el bloque de protocolo.
 const ProtocolEndMarker = "<!-- gomemory-protocol-end -->"
