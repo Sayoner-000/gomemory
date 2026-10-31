@@ -348,7 +348,8 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       // El contexto histórico es el corazón de este canal: si su lectura
       // falla, no basta con inyectar menos. El fallo se anota para que la
       // vitalidad distinga un canal sano de uno roto (feature 024, FR-012).
-      const ctx = await run(["context"]);
+      // Este system se reconstruye cada turno: lo elidido por el delta se perdería.
+      const ctx = await run(["context", "--keep-baseline"]);
       if (ctx === null) {
         mem(["hook", "channel-error", "opencode", "user", "plan_entry", "el contexto histórico no pudo leerse"]).catch(() => {});
       } else if (ctx.length > 0) {

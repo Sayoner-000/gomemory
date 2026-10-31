@@ -79,3 +79,10 @@ func TestInstallAtomicPlanGlobal_EsIdempotente(t *testing.T) {
 		t.Errorf("la segunda pasada no debía escribir nada, escribió: %v", segunda)
 	}
 }
+
+func TestGlobalInstructionPaths_SoloAgentesElegidos(t *testing.T) {
+	got := GlobalInstructionPaths("/h", map[string]bool{"codex": true})
+	if len(got) != 1 || got[0] != filepath.Join("/h", ".codex", "AGENTS.md") {
+		t.Fatalf("got = %v", got)
+	}
+}

@@ -104,21 +104,21 @@ una línea en cada turno, que es lo que sostiene la cobertura mientras tanto.
 | Vía | Comando | Cuándo |
 |---|---|---|
 | Bloque de protocolo en `initialize.instructions` | `mem mcp` (el propio servidor) | En cada conexión, sin instalar nada |
-| Bloque de protocolo de nivel usuario | `mem setup-mcp --scope global` | Una vez por máquina |
 | Recordatorio por turno | `mem hook nudge` | En cada turno, si el agente puede inyectar texto |
 | Envoltorio nativo del método | lo escribe la instalación | Una vez, si el agente tiene formato propio de habilidad o comando |
 
-No existe una vía de instrucciones de ámbito de proyecto: `mem install` no escribe
-`AGENTS.md` ni `CLAUDE.md` en el repositorio destino.
+No existe una vía de archivos de instrucciones: gomemory no escribe `AGENTS.md` ni `CLAUDE.md`.
+`mem setup-mcp --scope global` retira, con copia junto al archivo, los bloques completos que dejaron
+versiones anteriores; un bloque sin marcador de cierre queda intacto y se informa.
 
 El bloque que escribía en esos archivos era una segunda copia del que el servidor entrega en
 `initialize.instructions`. Mantener dos copias del mismo texto permitía que una quedara
 desactualizada respecto de la otra.
 
-El piso textual queda cubierto por dos vías. Un cliente MCP recibe el bloque al conectarse, sin
-instalar nada. Un agente que no habla MCP lo lee del archivo de instrucciones de nivel usuario.
-Por eso `mem doctor` reporta el canal de instrucciones de ámbito de proyecto como «no aplica»,
-con el motivo declarado, en lugar de como una falla.
+El piso textual lo cubre MCP: el cliente recibe el bloque al conectarse, sin instalar nada. Algunos
+clientes truncan ese texto, por eso las reglas van antes que la lista de herramientas. El baseline
+universal llega en el contexto de sesión. Por eso `mem doctor` reporta el canal de instrucciones como
+«no aplica», con el motivo declarado, y solo avisa si queda un bloque heredado.
 
 `mem hook nudge` existe precisamente para agentes sin el sistema de eventos de Claude Code: escribe en
 stdout el texto del turno (recordatorio de guardado, de compactación, de modo plan) o nada. Se invoca

@@ -96,12 +96,14 @@ func InstallAtomicPlanGlobal(method string) ([]string, error) {
 	return written, nil
 }
 
-// GlobalInstructionPaths enumera los archivos de instrucciones de usuario donde
-// versiones anteriores escribieron bloques de gomemory.
-func GlobalInstructionPaths(home string) []string {
-	paths := make([]string, 0, len(globalTargets))
+// GlobalInstructionPaths enumera los archivos de instrucciones de usuario de los
+// agentes elegidos, donde versiones anteriores escribieron bloques de gomemory.
+func GlobalInstructionPaths(home string, agents map[string]bool) []string {
+	var paths []string
 	for _, t := range globalTargets {
-		paths = append(paths, filepath.Join(append(append([]string{home}, t.dir...), t.instructions)...))
+		if agents[t.agent] {
+			paths = append(paths, filepath.Join(append(append([]string{home}, t.dir...), t.instructions)...))
+		}
 	}
 	return paths
 }

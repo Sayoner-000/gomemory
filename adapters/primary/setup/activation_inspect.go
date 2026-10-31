@@ -381,7 +381,11 @@ func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, 
 		}
 		if loc := domain.ProtocolVersionPattern.FindString(string(data)); loc != "" {
 			ch.State = domain.StateOutdated
-			ch.Detail = fname + ": bloque heredado " + loc + "; se retira con `mem setup-mcp --scope global`"
+			remedio := "mem setup-mcp --scope global"
+			if scope == domain.ScopeProject {
+				remedio = "mem install"
+			}
+			ch.Detail = fname + ": bloque heredado " + loc + "; se retira con `" + remedio + "`"
 			return ch
 		}
 	}

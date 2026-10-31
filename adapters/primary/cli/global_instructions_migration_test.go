@@ -94,3 +94,61 @@ func TestMigracionGlobal_SinBloquesNoToca(t *testing.T) {
 		t.Fatalf("%v %v", retired, errs)
 	}
 }
+
+func migrar(t *testing.T, contenido string) (path string, retired []string, errs []error) {
+	t.Helper()
+	path = filepath.Join(t.TempDir(), "AGENTS.md")
+	if err := os.WriteFile(path, []byte(contenido), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	retired, errs = retireGlobalBlocks([]string{path}, "x")
+	return path, retired, errs
+}
+
+func TestMigracionEstricta_BloqueSinCierreNoSeToca(t *testing.T) {
+	for nombre, contenido := range map[string]string{
+		"protocolo":         "# Mis reglas\n\n<!-- gomemory-protocol-v5 -->\nsigo siendo texto\n\ntexto propio sin encabezado\n",
+		"baseline":          "<!-- gomemory-universal-agent-instructions-v1 -->\ntexto propio que continúa\n",
+		"cierre sin inicio": "texto\n<!-- gomemory-protocol-end -->\nmás texto\n",
+	} {
+		path, retired, errs := migrar(t, contenido)
+		if got, err := os.ReadFile(path); err != nil || string(got) != contenido {
+			t.Errorf("%s: archivo alterado: %q, %v", nombre, got, err)
+		}
+		if len(retired) != 0 || len(errs) != 1 {
+			t.Errorf("%s: retired=%v errs=%v", nombre, retired, errs)
+		}
+		if _, err := os.Stat(path + ".gomemory-backup-x"); !os.IsNotExist(err) {
+			t.Errorf("%s: creó copia sin migrar", nombre)
+		}
+	}
+}
+
+func TestMigracionEstricta_EncabezadoSinMarcadorEsDeLaPersona(t *testing.T) {
+	contenido := "# Mío\n\n## Memoria Persistente del equipo\n\nNotas propias.\n"
+	path, retired, errs := migrar(t, contenido)
+	got, _ := os.ReadFile(path)
+	if string(got) != contenido || len(retired) != 0 || len(errs) != 0 {
+		t.Fatalf("got=%q retired=%v errs=%v", got, retired, errs)
+	}
+}
+
+func TestMigracionEstricta_RetiraTodosLosBloques(t *testing.T) {
+	bloque := "<!-- gomemory-protocol-v9 -->\nuno\n<!-- gomemory-protocol-end -->\n"
+	path, retired, errs := migrar(t, "antes\n\n"+bloque+"\nmedio\n\n"+strings.Replace(bloque, "v9", "v10", 1)+"\ndespués\n")
+	got, _ := os.ReadFile(path)
+	if len(retired) != 1 || len(errs) != 0 || strings.Contains(string(got), "gomemory") {
+		t.Fatalf("got=%q retired=%v errs=%v", got, retired, errs)
+	}
+	if segunda, e := retireGlobalBlocks([]string{path}, "y"); len(segunda) != 0 || len(e) != 0 {
+		t.Fatalf("segunda pasada: %v %v", segunda, e)
+	}
+}
+
+func TestMigracionEstricta_PreservaCRLF(t *testing.T) {
+	path, _, errs := migrar(t, "uno\r\n\r\n<!-- gomemory-protocol-v10 -->\r\nx\r\n<!-- gomemory-protocol-end -->\r\n\r\ndos\r\n")
+	got, _ := os.ReadFile(path)
+	if len(errs) != 0 || string(got) != "uno\r\n\r\ndos\r\n" {
+		t.Fatalf("got=%q errs=%v", got, errs)
+	}
+}

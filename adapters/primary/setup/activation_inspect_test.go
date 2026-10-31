@@ -552,3 +552,22 @@ func TestActivationInspect_OpenCodePluginV1EnV2EsOutdated(t *testing.T) {
 		})
 	}
 }
+
+func TestActivationInspect_RemedioPorAmbito(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("<!-- gomemory-protocol-v10 -->\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range NewActivationInspector().Inspect(root) {
+		if c.Kind == domain.KindInstructions && c.Scope == domain.ScopeProject && c.State == domain.StateOutdated {
+			if strings.Contains(c.Detail, "--scope global") || !strings.Contains(c.Detail, "mem install") {
+				t.Fatalf("remedio de proyecto incorrecto: %s", c.Detail)
+			}
+			return
+		}
+	}
+	t.Fatal("no se informó el bloque de proyecto")
+}

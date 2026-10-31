@@ -350,7 +350,8 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       // El contexto histórico es el corazón de este canal: si su lectura
       // falla, no basta con inyectar menos. El fallo se anota para que la
       // vitalidad distinga un canal sano de uno roto (feature 024, FR-012).
-      const ctx = await run(["context"]);
+      // Este system se reconstruye cada turno: lo elidido por el delta se perdería.
+      const ctx = await run(["context", "--keep-baseline"]);
       if (ctx === null) {
         mem(["hook", "channel-error", "opencode", "user", "plan_entry", "el contexto histórico no pudo leerse"]).catch(() => {});
       } else if (ctx.length > 0) {
@@ -765,14 +766,10 @@ const v1ToolName = (name: string): string => V1_TOOL_NAMES[name] ?? name;
 // (FR-002). En 2.x las tools MCP se llaman dentro de `execute` como
 // tools.gomemory.<tool> y `subagent` exige `agent`: el camino v2 traduce el
 // runtime para que el generador común nombre la tool como la ve el agente.
-// El system se reconstruye en cada turno: lo que el delta elide del contexto no
-// queda en la conversación, así que el baseline debe llegar siempre entero.
-const v2MemArgs = (args: string[]): string[] => {
-  if (args[0] === "hook" && args[1] === "octopus-delegation-policy" && args[2] === "opencode") {
-    return ["hook", "octopus-delegation-policy", "opencode-v2"];
-  }
-  return args.length === 1 && args[0] === "context" ? ["context", "--keep-baseline"] : args;
-};
+const v2MemArgs = (args: string[]): string[] =>
+  args[0] === "hook" && args[1] === "octopus-delegation-policy" && args[2] === "opencode"
+    ? ["hook", "octopus-delegation-policy", "opencode-v2"]
+    : args;
 
 // Traduce los mensajes v2 (@opencode/client SessionMessageInfo) a la forma v1
 // que recorre la fábrica: { info: { id, role, mode, summary }, parts }. Una

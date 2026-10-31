@@ -429,9 +429,13 @@ func (b *Builder) build() (string, error) {
 	}
 	pinnedBaseline := b.baselineFijado()
 	if baseline := b.baselineUniversal(pinnedBaseline); baseline != "" {
-		sb.WriteString(baselineHeading + "\n\n")
-		sb.WriteString(baseline)
-		sb.WriteString("\n" + baselineEnd + "\n\n")
+		if b.fits(&sb, len(baselineHeading)+len(baseline)+len(baselineEnd)+6) {
+			sb.WriteString(baselineHeading + "\n\n")
+			sb.WriteString(baseline)
+			sb.WriteString("\n" + baselineEnd + "\n\n")
+		} else {
+			sb.WriteString("> Baseline universal omitido por presupuesto: `mem docs show baseline`.\n\n")
+		}
 	}
 
 	if b.IndexMode && len(mems) == 0 {

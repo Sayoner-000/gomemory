@@ -1334,7 +1334,7 @@ datos se resuelve solo. Variables opcionales (documentadas en `.env.example`):
 
 6. **Multi-agente MCP**: `setup-mcp` configura opencode, Claude, Cursor y Codex desde un solo comando. Cada función de setup es idempotente. El `cwd` real del proceso que lanza `mem mcp` no es confiable entre agentes, así que la raíz del proyecto se pasa explícita vía `--root` en `args` (ver sección "El flag `--root`").
 
-7. **Triple vía de integración**: MCP nativo (`initialize.instructions` + descripciones de tools + `get_context` embebido en `cmd_mcp.go` — funciona en cualquier agente/scope, sin archivos en el repo) + plugin/hooks (ciclo de vida completo para OpenCode/Claude Code) + archivos de instrucciones de **ámbito usuario** (`mem setup-mcp --scope global`). Desde v2.9 el ámbito de proyecto ya no escribe archivos: era una segunda copia del bloque que el MCP ya entrega. Ver `docs/MEMORY-PROTOCOL.md`.
+7. **Doble vía de integración**: MCP nativo (`initialize.instructions` + descripciones de tools + `get_context` embebido en `cmd_mcp.go` — funciona en cualquier agente/scope, sin archivos en el repo) + plugin/hooks (ciclo de vida completo para OpenCode/Claude Code). gomemory no escribe archivos de instrucciones: eran una segunda copia del bloque que el MCP ya entrega. Ver `docs/MEMORY-PROTOCOL.md`.
 
 8. **AlphaScreen en TUI**: Bubbletea usa pantalla alternativa (`tea.WithAltScreen()`) para no ensuciar el historial.
 

@@ -245,11 +245,14 @@ test('v2: context hook injects protocol and project memory as text parts', async
   await f.cleanup();
 });
 
-test('v2: context keeps the baseline because the system is rebuilt every turn', async () => {
+test('context keeps the baseline in v1 and v2: the system is rebuilt every turn', async () => {
   const f = await v2Fixture();
   await f.system('context');
   assert.ok(f.calls.some(c => c.args.join(' ') === 'context --keep-baseline'));
   await f.cleanup();
+  const v1 = await fixture();
+  await v1.hooks['experimental.chat.system.transform']({ sessionID: 's1' }, { system: [] });
+  assert.ok(v1.calls.some(c => c.args.join(' ') === 'context --keep-baseline'));
 });
 
 test('v2: context asks for the octopus policy as opencode-v2, v1 keeps opencode', async () => {

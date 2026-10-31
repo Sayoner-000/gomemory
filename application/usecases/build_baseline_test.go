@@ -87,3 +87,16 @@ func TestSessionDelta_ConservaBaseline(t *testing.T) {
 		t.Fatalf("sin KeepBaseline debe elidirse:\n%s", got)
 	}
 }
+
+func TestBuilder_BaselineRespetaElPresupuesto(t *testing.T) {
+	b, _ := baselineBuilder(t)
+	b.BaselineDefault = strings.Repeat("baseline largo ", 400)
+	b.Budget = 1500
+	out, err := b.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "baseline largo") || !strings.Contains(out, "mem docs") {
+		t.Fatalf("debe omitirse con su puntero: %d bytes\n%.200s", len(out), out)
+	}
+}

@@ -232,7 +232,7 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 		fmt.Printf("  ⚠️  planificación atómica (scope global): %v\n", err)
 	}
 	if home, homeErr := os.UserHomeDir(); homeErr == nil {
-		retired, errs := retireGlobalBlocks(setup.GlobalInstructionPaths(home), time.Now().Format("20060102-150405"))
+		retired, errs := retireGlobalBlocks(setup.GlobalInstructionPaths(home, solicitados), time.Now().Format("20060102-150405"))
 		for _, p := range retired {
 			fmt.Printf("  ✅ bloques de gomemory retirados de %s (copia junto al archivo)\n", p)
 		}
