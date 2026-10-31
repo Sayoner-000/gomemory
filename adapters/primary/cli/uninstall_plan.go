@@ -337,10 +337,14 @@ func (pl *uninstallPlanner) planBinaries() {
 		if p == "" || seen[p] {
 			continue
 		}
+		seen[p] = true
+		if !binaryInsideHome(pl.home, p) {
+			fmt.Printf("  ℹ️  %s está fuera de HOME y se conserva: bórralo a mano si quieres retirarlo\n", p)
+			continue
+		}
 		if _, ok := identifyVersion(p); !ok {
 			continue
 		}
-		seen[p] = true
 		path := p
 		pl.add(domain.NewUninstallItem(domain.CategoryBinary, path, domain.KindFile),
 			func() error { return removeBinaryFile(path, pl.self) })
@@ -420,4 +424,19 @@ func dirSize(root string) int64 {
 
 func exportDirDefault(home string) string {
 	return filepath.Join(home, "gomemory-export-"+time.Now().Format("20060102-150405"))
+}
+
+// binaryInsideHome decide si un binario pertenece al HOME de la ejecución. `PATH`
+// y el ejecutable en curso pueden salir de un HOME aislado: fuera de él, borrar
+// dejaría sin servicio una instalación ajena a esta ejecución. Compara rutas
+// reales de los directorios, porque un enlace puede salir de HOME.
+func binaryInsideHome(home, path string) bool {
+	real := func(dir string) string {
+		if r, err := filepath.EvalSymlinks(dir); err == nil {
+			return r
+		}
+		return dir
+	}
+	rel, err := filepath.Rel(real(home), filepath.Join(real(filepath.Dir(path)), filepath.Base(path)))
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

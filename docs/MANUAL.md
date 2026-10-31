@@ -771,6 +771,9 @@ mem uninstall --all --yes --export ~/respaldo   # todo el sistema, exportando an
 mem uninstall --all --dry-run                   # muestra el inventario sin tocar nada
 ```
 
+`--all` solo borra binarios dentro de `HOME`. Un binario fuera, como `/usr/local/bin/mem`, se
+conserva y la salida indica que debes borrarlo a mano.
+
 Con una terminal interactiva, `mem uninstall` pregunta el **alcance** (solo este
 proyecto o todo gomemory del sistema), muestra un **inventario** de lo que existe
 realmente (binario, memoria con su tamaño, configuración de agentes y archivos de
