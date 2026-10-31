@@ -58,6 +58,18 @@ func deliverContextDoc(deps *Deps, raw string) string {
 	return compressDeliveredContext(deps, applyContextDelta(deps, raw))
 }
 
+// deliverContextKeepingBaseline es deliverContextDoc para el canal que reconstruye
+// el system en cada turno: el baseline no sobrevive allí a una línea compacta.
+func deliverContextKeepingBaseline(deps *Deps, raw string) string {
+	if !deltaActivo(deps) {
+		return compressDeliveredContext(deps, raw)
+	}
+	ctx, cancel := deltaCtx()
+	defer cancel()
+	doc := usecases.SessionDelta{Blocks: deps.DeliveredBlocks, KeepBaseline: true}.ApplyContext(ctx, raw)
+	return compressDeliveredContext(deps, doc)
+}
+
 // deliverContextDocFull es deliverContextDoc con la salida de recuperación
 // (full=true): entrega el documento entero, sin delta, y NO lo anota. La usa
 // quien no tiene el contexto —un subagente, sobre todo—, y el registro es de

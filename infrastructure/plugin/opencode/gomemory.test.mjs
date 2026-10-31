@@ -113,7 +113,7 @@ afterEach(async () => {
 async function v2Fixture({ directory = '/proj', outputs = {}, owners, execImpl, failHook, disposeFail, subscribeFail, options, allowSetupFailure } = {}) {
   const calls = [];
   const failures = [];
-  const out = { context: 'CTX', 'hook compaction-context': 'COMPACT', ...outputs };
+  const out = { 'context --keep-baseline': 'CTX', 'hook compaction-context': 'COMPACT', ...outputs };
   const exec = async (bin, args, opts) => {
     calls.push({ args, input: opts?.input ?? '', cwd: opts?.cwd, signal: opts?.signal });
     const failing = out.fail?.find(prefix => startsWith(args, prefix));
@@ -242,6 +242,13 @@ test('v2: context hook injects protocol and project memory as text parts', async
   const parts = await f.system('context');
   assert.ok(parts.some(t => t.includes('Memory Protocol')));
   assert.ok(parts.includes('## Project Memory (gomemory)\n\nCTX'));
+  await f.cleanup();
+});
+
+test('v2: context keeps the baseline because the system is rebuilt every turn', async () => {
+  const f = await v2Fixture();
+  await f.system('context');
+  assert.ok(f.calls.some(c => c.args.join(' ') === 'context --keep-baseline'));
   await f.cleanup();
 });
 

@@ -20,9 +20,13 @@ import (
 //
 // Nunca toca el protocolo, las reglas fijadas, los conflictos ni ninguna
 // sección fuera de deltaSections: lo que no es una lista de memorias se
-// entrega siempre entero.
+// entrega siempre entero. La excepción es el baseline universal, que cuenta como
+// una sola unidad para no reenviarse en cada turno.
 type SessionDelta struct {
 	Blocks ports.DeliveredBlocksRepository
+	// KeepBaseline entrega el baseline universal siempre entero. Lo usa el canal
+	// que reconstruye el system en cada turno, donde lo elidido se pierde.
+	KeepBaseline bool
 }
 
 // deltaSections son las secciones de get_context cuyas entradas son memorias.
@@ -58,7 +62,7 @@ func (d SessionDelta) ApplyContext(ctx context.Context, doc string) string {
 	inSection := false
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
-		if strings.HasPrefix(l, baselineHeading) {
+		if strings.HasPrefix(l, baselineHeading) && !d.KeepBaseline {
 			if end := lineWithPrefix(lines, i+1, baselineEnd); end != -1 {
 				units = append(units, unit{i + 1, end})
 				inSection = false

@@ -765,10 +765,14 @@ const v1ToolName = (name: string): string => V1_TOOL_NAMES[name] ?? name;
 // (FR-002). En 2.x las tools MCP se llaman dentro de `execute` como
 // tools.gomemory.<tool> y `subagent` exige `agent`: el camino v2 traduce el
 // runtime para que el generador común nombre la tool como la ve el agente.
-const v2MemArgs = (args: string[]): string[] =>
-  args[0] === "hook" && args[1] === "octopus-delegation-policy" && args[2] === "opencode"
-    ? ["hook", "octopus-delegation-policy", "opencode-v2"]
-    : args;
+// El system se reconstruye en cada turno: lo que el delta elide del contexto no
+// queda en la conversación, así que el baseline debe llegar siempre entero.
+const v2MemArgs = (args: string[]): string[] => {
+  if (args[0] === "hook" && args[1] === "octopus-delegation-policy" && args[2] === "opencode") {
+    return ["hook", "octopus-delegation-policy", "opencode-v2"];
+  }
+  return args.length === 1 && args[0] === "context" ? ["context", "--keep-baseline"] : args;
+};
 
 // Traduce los mensajes v2 (@opencode/client SessionMessageInfo) a la forma v1
 // que recorre la fábrica: { info: { id, role, mode, summary }, parts }. Una

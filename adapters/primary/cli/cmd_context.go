@@ -14,6 +14,7 @@ func CmdContext(deps *Deps, args []string) {
 	write := fs.Bool("w", false, "Escribir a .memory/context.md")
 	fs.BoolVar(write, "write", false, "Escribir a .memory/context.md")
 	full := fs.Bool("full", false, "Entregar todo aunque ya se haya enviado en esta sesión")
+	keepBaseline := fs.Bool("keep-baseline", false, "Conservar el baseline universal entero aunque ya se haya enviado")
 	if err := fs.Parse(args); err != nil {
 		return
 	}
@@ -38,6 +39,10 @@ func CmdContext(deps *Deps, args []string) {
 		}
 		if err != nil {
 			fail("generar contexto: %v", err)
+		}
+		if *keepBaseline && !*full {
+			_, _ = os.Stdout.WriteString(deliverContextKeepingBaseline(deps, output))
+			return
 		}
 		_, _ = os.Stdout.WriteString(deliverContextDocFull(deps, output, *full))
 	}

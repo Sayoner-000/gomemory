@@ -1,6 +1,7 @@
 package usecases_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -60,5 +61,29 @@ func TestBuilder_BaselineFijadoNoSeRepiteEnPreferencias(t *testing.T) {
 	}
 	if strings.Count(out, "baseline editado") != 1 || strings.Contains(out, "**Baseline fijado**") {
 		t.Fatalf("el baseline fijado se repite en el contexto:\n%s", out)
+	}
+}
+
+type bloquesVistos struct{}
+
+func (bloquesVistos) Seen(_ context.Context, hashes []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	for _, h := range hashes {
+		out[h] = true
+	}
+	return out, nil
+}
+func (bloquesVistos) Mark(context.Context, []string) error { return nil }
+func (bloquesVistos) Reset(context.Context) error          { return nil }
+
+func TestSessionDelta_ConservaBaseline(t *testing.T) {
+	doc := "## Baseline universal (memoria fijada)\n\ncuerpo\n<!-- mem:baseline-end -->\n"
+	got := usecases.SessionDelta{Blocks: bloquesVistos{}, KeepBaseline: true}.ApplyContext(context.Background(), doc)
+	if !strings.Contains(got, "cuerpo") {
+		t.Fatalf("baseline elidido:\n%s", got)
+	}
+	got = usecases.SessionDelta{Blocks: bloquesVistos{}}.ApplyContext(context.Background(), doc)
+	if strings.Contains(got, "cuerpo") {
+		t.Fatalf("sin KeepBaseline debe elidirse:\n%s", got)
 	}
 }
