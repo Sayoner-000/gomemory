@@ -411,11 +411,11 @@ func TestHookOctopus_ActivarAMitadDeSesionLlegaEnElTurnoSiguiente(t *testing.T) 
 // invoca `mem hook turn-end` en cada session.idle pero descarta la salida (solo
 // la usa para grabar el checkpoint), y session.idle de todos modos ocurre
 // DESPUÉS de que el modelo ya respondió — no hay forma de inyectarle contenido
-// a esa respuesta ya emitida. El compact-nudge y el refuerzo de preferencias
-// (que en Claude Code viajan por el hook Stop) nunca llegaban al modelo en
+// a esa respuesta ya emitida. El compact-nudge (que en Claude Code viaja por el
+// hook Stop) nunca llegaba al modelo en
 // OpenCode. Este test verifica que `mem hook nudge` —el único punto de OpenCode
 // que sí llega al modelo, invocado en cada turno vía chat.system.transform—
-// ahora también los incluye.
+// ahora también lo incluye.
 func TestHookNudge_IncluyeCompactNudge(t *testing.T) {
 	bin := buildMemBinary(t)
 	target := dirDeProyecto(t)

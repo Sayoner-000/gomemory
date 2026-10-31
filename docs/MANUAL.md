@@ -519,19 +519,6 @@ La deduplicación en la fuente evita filas casi idénticas: guardar una memoria 
 un `topic_key` ya usado (o el mismo tipo+título dentro de la ventana) **actualiza**
 la existente en vez de crear otra.
 
-### Refuerzo periódico de preferencias
-
-En sesiones largas que no llegan a compactar, el protocolo y las preferencias
-del usuario (`type=preference`) solo se inyectaban en `SessionStart` y
-`post-compact` — sin nada que las recuerde en el medio, se diluyen del
-contexto. El hook de fin de turno (`turn-end`) ahora reutiliza el mismo
-contador de huella que gobierna el recordatorio de compactación
-(`compact_threshold`): al superar **un tercio** de ese umbral, reinyecta el
-**título y contenido real** de las preferencias guardadas más recientes (no un
-recordatorio genérico), con un debounce de 20 minutos. Si en el mismo turno
-también corresponde sugerir compactar, ese recordatorio tiene prioridad — la
-compactación reinyecta el contexto completo de todos modos.
-
 ### Memoria conectada a código activo
 
 `get_context` ahora cruza el `Filepath` de cada memoria contra el grafo de

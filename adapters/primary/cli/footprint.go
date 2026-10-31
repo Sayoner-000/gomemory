@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -167,74 +166,6 @@ func consumePendingAgentNotice(root string) (string, bool) {
 		return "", false
 	}
 	return n.Text, true
-}
-
-// Refuerzo periódico de preferencias: el protocolo/preferencias solo se
-// reinyectan en SessionStart y post-compact (printRecoveryAndContext); en una
-// sesión larga que no llega a compactar, una regla como "español neutro" se
-// diluye del contexto sin que nada la recuerde. Reusa el mismo contador de
-// huella que ya mide cuánto emitió gomemory esta sesión, pero dispara antes
-// del umbral de compactación —a un tercio del camino— para reforzar el
-// contenido REAL de las preferencias, no un recordatorio genérico.
-const preferenceReinforceFraction = 3    // dispara al superar 1/threshold del camino a compactar
-const preferenceNudgeCooldownSecs = 1200 // tras reforzar, callar 20 min antes de repetir
-const preferenceNudgeMaxItems = 3        // memorias type=preference más recientes a reinyectar
-
-func preferenceNudgeStatePath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".last-preference-nudge")
-}
-
-// computePreferenceReinforcement decide si el hook de fin de turno debe
-// reinyectar las preferencias del usuario: hay umbral de compactación
-// configurado (>0, o el default), la huella emitida superó un tercio de ese
-// umbral, no se reforzó en los últimos 20 min (debounce), y existe al menos
-// una memoria type=preference guardada. Best-effort: ante cualquier duda,
-// ("", false) — nunca bloquea el cierre del turno.
-func computePreferenceReinforcement(deps *Deps, root, project string, threshold int) (string, bool) {
-	if threshold <= 0 {
-		threshold = persistence.DefaultCompactThreshold
-	}
-	step := threshold / preferenceReinforceFraction
-	if step <= 0 || footprintRead(root) < step {
-		return "", false
-	}
-
-	now := time.Now().Unix()
-	if raw, err := atomicfs.ReadFile(preferenceNudgeStatePath(root)); err == nil {
-		if last, err := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64); err == nil {
-			if now-last < preferenceNudgeCooldownSecs {
-				return "", false
-			}
-		}
-	}
-
-	mems, err := deps.MemoryRepo.List(project, 100)
-	if err != nil {
-		return "", false
-	}
-	var prefs []domain.Memory
-	for _, m := range mems {
-		// Un documento fijado ya llega por contexto: no es una preferencia suelta.
-		if _, fijado := domain.PinnedDocByTopicKey(m.TopicKey); m.Type == domain.Preference && !fijado {
-			prefs = append(prefs, m)
-			if len(prefs) == preferenceNudgeMaxItems {
-				break
-			}
-		}
-	}
-	if len(prefs) == 0 {
-		return "", false
-	}
-
-	_ = os.MkdirAll(filepath.Dir(preferenceNudgeStatePath(root)), 0o700)
-	_ = writeFileAtomic(preferenceNudgeStatePath(root), []byte(strconv.FormatInt(now, 10)), 0o644)
-
-	var b strings.Builder
-	b.WriteString("REFUERZO DE PREFERENCIAS (sesión larga sin compactar): estas reglas del usuario siguen activas, no las pierdas de vista:\n\n")
-	for _, p := range prefs {
-		fmt.Fprintf(&b, "- **%s**: %s\n", p.Title, p.Content)
-	}
-	return b.String(), true
 }
 
 // recordUsage registra una emisión medida (feature 020), convirtiendo

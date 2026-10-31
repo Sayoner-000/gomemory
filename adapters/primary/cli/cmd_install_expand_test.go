@@ -55,7 +55,7 @@ func TestExpandInstallUpgradeUninstall(t *testing.T) {
 	}
 	oldProtocol := "antes\n<!-- gomemory-protocol-v9 -->\nlegacy\n<!-- gomemory-protocol-end -->\ndespués"
 	fresh, changed := composeAgentFile(oldProtocol, "", buildIntegrationBlock())
-	if !changed || !strings.Contains(fresh, "protocol-v10") || strings.Contains(fresh, "protocol-v9") || !strings.Contains(fresh, "después") {
+	if !changed || !strings.Contains(fresh, "protocol-v11") || strings.Contains(fresh, "protocol-v9") || !strings.Contains(fresh, "después") {
 		t.Fatal(fresh)
 	}
 	again, changed := composeAgentFile(fresh, "", buildIntegrationBlock())

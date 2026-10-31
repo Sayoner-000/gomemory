@@ -62,7 +62,7 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 // la directiva condicional por capacidad (feature 038): al próximo bump,
 // renombrar este test y su mensaje.
 func TestProtocolVersionMarker_SubioAV9(t *testing.T) {
-	if integrationVersionMarker != "<!-- gomemory-protocol-v10 -->" {
+	if integrationVersionMarker != "<!-- gomemory-protocol-v11 -->" {
 		t.Errorf("integrationVersionMarker = %q, se esperaba la v9 (feature 038)", integrationVersionMarker)
 	}
 }
@@ -166,7 +166,7 @@ func TestComposeAgentFile_InstalaYActualizaBaselineUniversal(t *testing.T) {
 // ajenos antes/después y sin duplicar en la segunda composición. Carga el
 // fixture T004. En rojo hasta T015: el marcador vigente sigue en v8.
 func TestComposeAgentFile_MigraV8AV9SinDejarRestos(t *testing.T) {
-	const v9 = "<!-- gomemory-protocol-v10 -->"
+	const v9 = "<!-- gomemory-protocol-v11 -->"
 	raw, err := os.ReadFile("../../../tests/fixtures/038/protocol-v8.md")
 	if err != nil {
 		t.Fatalf("falta el fixture T004: %v", err)
@@ -200,5 +200,21 @@ func TestComposeAgentFile_MigraV8AV9SinDejarRestos(t *testing.T) {
 	twice, changed := composeAgentFile(out, "", buildIntegrationBlock())
 	if changed || twice != out {
 		t.Error("la segunda composición debe ser idempotente")
+	}
+}
+
+// Claude trunca las instrucciones MCP hacia el carácter 3900: las reglas deben
+// quedar antes de ese punto para no depender del resto del bloque.
+func TestIntegrationBlock_ReglasSobrevivenAlTruncado(t *testing.T) {
+	const corteObservado = 3800
+	block := buildIntegrationBlock()
+	if len(block) <= corteObservado {
+		return
+	}
+	visible := block[:corteObservado]
+	for _, regla := range []string{"### GUARDAR PROACTIVAMENTE", "### Juez imparcial", "### Privacidad", "### Al entrar en modo plan", "### Al inicio de cada sesión", "### Al cerrar la sesión", "### Consultar memoria"} {
+		if !strings.Contains(visible, regla) {
+			t.Errorf("%q queda después del corte", regla)
+		}
 	}
 }

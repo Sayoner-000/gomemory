@@ -369,12 +369,11 @@ func hookPostCompact(deps *Deps) {
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		_ = os.Remove(sessionMarkerPath(deps, root))
 		_ = os.Remove(planEnteredMarkerPath(deps, root))
-		footprintReset(root)                          // tras compactar, la huella cuenta desde cero
-		_ = os.Remove(preferenceNudgeStatePath(root)) // el refuerzo también arranca de cero
-		_ = os.Remove(pendingAgentNoticePath(root))   // el aviso de US4 también arranca de cero
-		_ = os.Remove(planReminderMarkerPath(root))   // tras compactar, el recordatorio de plan vuelve a valer (FR-008)
-		_ = os.Remove(octopusEmittedPath(root))       // y la regla de Octopus se vuelve a comunicar (FR-008a)
-		ensureActiveSession(deps, root)               // R4: sin esto, toda memoria guardada tras
+		footprintReset(root)                        // tras compactar, la huella cuenta desde cero
+		_ = os.Remove(pendingAgentNoticePath(root)) // el aviso de US4 también arranca de cero
+		_ = os.Remove(planReminderMarkerPath(root)) // tras compactar, el recordatorio de plan vuelve a valer (FR-008)
+		_ = os.Remove(octopusEmittedPath(root))     // y la regla de Octopus se vuelve a comunicar (FR-008a)
+		ensureActiveSession(deps, root)             // R4: sin esto, toda memoria guardada tras
 		// compactar quedaba sin sesión asociada (ver dominio de RecoverySteps).
 	}
 	// Tras compactar, el agente perdió lo entregado: get_context y
@@ -712,10 +711,6 @@ func hookNudge(deps *Deps) {
 	threshold := deps.SettingsRepo.Read(root).CompactThreshold
 	if msg, ok := computeCompactNudge(root, threshold); ok {
 		parts = append(parts, msg)
-	} else if msg, ok := computePreferenceReinforcement(deps, root, project, threshold); ok {
-		// Misma exclusividad que hookTurnEnd: si ya se sugirió compactar, no
-		// compite por espacio con el refuerzo de preferencias.
-		parts = append(parts, msg)
 	}
 
 	fmt.Print(strings.Join(parts, "\n\n"))
@@ -781,20 +776,6 @@ func hookTurnEnd(deps *Deps, args []string) {
 			} else {
 				fmt.Print(renderTurnEnd(dialect, msg, true))
 			}
-			emitted = true
-		} else if msg, ok := computePreferenceReinforcement(deps, root, deps.Project, threshold); ok {
-			// Solo uno de los dos por turno: si ya se sugirió compactar, no
-			// compite por espacio con el refuerzo de preferencias — la
-			// compactación reinyecta el contexto completo de todos modos.
-			//
-			// Va en additionalContext, no en systemMessage: el mensaje está
-			// dirigido al agente ("no las pierdas de vista"), y systemMessage
-			// solo lo ve el humano en la terminal. Stop SÍ soporta
-			// hookSpecificOutput.additionalContext sin bloquear el turno
-			// (documentado como "non-error feedback that continues the
-			// conversation"), a diferencia de decision:"block", que forzaría
-			// una iteración extra no deseada aquí.
-			fmt.Print(renderTurnEnd(dialect, msg, false))
 			emitted = true
 		}
 	}

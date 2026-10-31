@@ -86,7 +86,6 @@ func perTurnStatePaths(deps *Deps, root string) []string {
 		footprintPath(root),
 		nudgeStatePath(deps, root),
 		compactNudgeStatePath(root),
-		preferenceNudgeStatePath(root),
 		pendingAgentNoticePath(root),
 		sessionMarkerPath(deps, root),
 		planEnteredMarkerPath(deps, root),
