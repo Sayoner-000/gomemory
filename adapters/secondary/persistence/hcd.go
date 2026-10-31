@@ -22,16 +22,31 @@ const hcdTime = time.RFC3339Nano
 
 const hcdUnitColumns = "id, number, title, slug, kind, lane, why, state, active, doc_path, created_at, updated_at"
 
-func (s *HCDStore) NextNumber(ctx context.Context) (int, error) {
+// CreateActive serializa a los competidores: _txlock=immediate toma el bloqueo
+// de escritura al abrir la transacción, antes de leer el número.
+func (s *HCDStore) CreateActive(ctx context.Context, build func(number int) domain.Unit, publish func(domain.Unit) error) (domain.Unit, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Unit{}, err
+	}
+	defer tx.Rollback()
 	var n int
-	err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(number), 0) + 1 FROM hcd_units WHERE project = ?", s.project).Scan(&n)
-	return n, err
-}
-
-func (s *HCDStore) Create(ctx context.Context, u domain.Unit) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO hcd_units(project, `+hcdUnitColumns+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		s.project, u.ID, u.Number, u.Title, u.Slug, string(u.Kind), string(u.Lane), u.Why, string(u.State), boolToInt(u.Active), u.DocPath, u.CreatedAt.UTC().Format(hcdTime), u.UpdatedAt.UTC().Format(hcdTime))
-	return err
+	if err = tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(number), 0) + 1 FROM hcd_units WHERE project = ?", s.project).Scan(&n); err != nil {
+		return domain.Unit{}, err
+	}
+	u := build(n)
+	if _, err = tx.ExecContext(ctx, "UPDATE hcd_units SET active = 0 WHERE project = ? AND active = 1", s.project); err != nil {
+		return domain.Unit{}, err
+	}
+	u.Active = true
+	if _, err = tx.ExecContext(ctx, `INSERT INTO hcd_units(project, `+hcdUnitColumns+`) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		s.project, u.ID, u.Number, u.Title, u.Slug, string(u.Kind), string(u.Lane), u.Why, string(u.State), boolToInt(u.Active), u.DocPath, u.CreatedAt.UTC().Format(hcdTime), u.UpdatedAt.UTC().Format(hcdTime)); err != nil {
+		return domain.Unit{}, err
+	}
+	if err = publish(u); err != nil {
+		return domain.Unit{}, err
+	}
+	return u, tx.Commit()
 }
 
 func (s *HCDStore) Get(ctx context.Context, id string) (domain.Unit, error) {

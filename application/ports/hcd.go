@@ -8,8 +8,10 @@ import (
 // HCDStore guarda el estado de control HCD de un proyecto: unidades,
 // evidencia y aprobaciones. El proyecto queda fijado en el constructor.
 type HCDStore interface {
-	NextNumber(ctx context.Context) (int, error)
-	Create(ctx context.Context, unit domain.Unit) error
+	// CreateActive asigna el siguiente número, crea la unidad construida por
+	// build y la deja como única activa en una transacción. publish corre al
+	// final, dentro de ella: si falla, la unidad no se crea.
+	CreateActive(ctx context.Context, build func(number int) domain.Unit, publish func(domain.Unit) error) (domain.Unit, error)
 	Get(ctx context.Context, id string) (domain.Unit, error)
 	Active(ctx context.Context) (domain.Unit, bool, error)
 	// Activate deja id como única unidad activa del proyecto.

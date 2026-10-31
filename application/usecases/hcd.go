@@ -108,25 +108,19 @@ func (h *HCD) Start(ctx context.Context, in HCDStartInput) (HCDView, error) {
 	if title == "" || why == "" {
 		return HCDView{}, fmt.Errorf("%w: la unidad necesita título y motivo del carril", domain.ErrValidation)
 	}
-	n, err := h.store.NextNumber(ctx)
+	now := h.clock.Now()
+	unit, err := h.store.CreateActive(ctx, func(n int) domain.Unit {
+		id := fmt.Sprintf("HCD-%03d", n)
+		slug := domain.Slugify(title)
+		return domain.Unit{ID: id, Number: n, Title: title, Slug: slug, Kind: kind, Lane: lane, Why: why, State: domain.UnitActive, DocPath: "hcd/" + id + "-" + slug + ".md", CreatedAt: now, UpdatedAt: now}
+	}, func(u domain.Unit) error {
+		return h.ws.WriteDoc(u.DocPath, []byte(domain.RenderUnitTemplate(h.template, u, in.Intent)))
+	})
 	if err != nil {
 		return HCDView{}, err
 	}
-	now := h.clock.Now()
-	id := fmt.Sprintf("HCD-%03d", n)
-	unit := domain.Unit{ID: id, Number: n, Title: title, Slug: domain.Slugify(title), Kind: kind, Lane: lane, Why: why, State: domain.UnitActive, CreatedAt: now, UpdatedAt: now}
-	unit.DocPath = "hcd/" + id + "-" + unit.Slug + ".md"
-	if err = h.ws.WriteDoc(unit.DocPath, []byte(domain.RenderUnitTemplate(h.template, unit, in.Intent))); err != nil {
-		return HCDView{}, err
-	}
-	if err = h.store.Create(ctx, unit); err != nil {
-		return HCDView{}, err
-	}
-	if err = h.store.Activate(ctx, id); err != nil {
-		return HCDView{}, err
-	}
 	h.recordDecision(unit, "carril "+string(lane), "Carril `"+string(lane)+"` para «"+title+"» ("+string(kind)+"). Motivo: "+why)
-	return h.Show(ctx, id)
+	return h.Show(ctx, unit.ID)
 }
 
 // Show es una consulta: no escribe estado, documento ni evidencia. Sin id usa

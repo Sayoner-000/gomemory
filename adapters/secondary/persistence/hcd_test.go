@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"errors"
+	"fmt"
 	"mem/domain"
 	"testing"
 	"time"
@@ -17,14 +18,22 @@ func TestHCDStoreUnitEvidenceApproval(t *testing.T) {
 	ctx := context.Background()
 	s, other := NewHCDStore(db, "p"), NewHCDStore(db, "q")
 	now := time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)
-	if n, err := s.NextNumber(ctx); err != nil || n != 1 {
-		t.Fatalf("NextNumber = %d, %v", n, err)
+	build := func(n int) domain.Unit {
+		id := fmt.Sprintf("HCD-%03d", n)
+		return domain.Unit{ID: id, Number: n, Title: "t", Slug: "t", Kind: domain.KindFix, Lane: domain.LaneFast, Why: "w", State: domain.UnitActive, DocPath: "hcd/" + id + "-t.md", CreatedAt: now, UpdatedAt: now}
 	}
-	for i, id := range []string{"HCD-001", "HCD-002"} {
-		u := domain.Unit{ID: id, Number: i + 1, Title: "t", Slug: "t", Kind: domain.KindFix, Lane: domain.LaneFast, Why: "w", State: domain.UnitActive, DocPath: "hcd/" + id + "-t.md", CreatedAt: now, UpdatedAt: now}
-		if err := s.Create(ctx, u); err != nil {
-			t.Fatal(err)
+	publish := func(domain.Unit) error { return nil }
+	for _, want := range []string{"HCD-001", "HCD-002"} {
+		u, err := s.CreateActive(ctx, build, publish)
+		if err != nil || u.ID != want {
+			t.Fatalf("CreateActive = %s, %v", u.ID, err)
 		}
+	}
+	if _, err := s.CreateActive(ctx, build, func(domain.Unit) error { return errors.New("sin doc") }); err == nil {
+		t.Fatal("CreateActive debía propagar el fallo de publish")
+	}
+	if active, ok, err := s.Active(ctx); err != nil || !ok || active.ID != "HCD-002" {
+		t.Fatalf("publish fallido alteró la unidad activa: %+v %v %v", active, ok, err)
 	}
 	if err := s.Activate(ctx, "HCD-001"); err != nil {
 		t.Fatal(err)
