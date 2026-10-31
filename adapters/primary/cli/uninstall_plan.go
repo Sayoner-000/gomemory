@@ -338,16 +338,17 @@ func (pl *uninstallPlanner) planBinaries() {
 			continue
 		}
 		seen[p] = true
-		if !binaryInsideHome(pl.home, p) {
-			fmt.Printf("  ℹ️  %s está fuera de HOME y se conserva: bórralo a mano si quieres retirarlo\n", p)
-			continue
-		}
+		// Se ancla antes de ejecutar el candidato: `mem version` podría cambiar
+		// la ruta. Sin ancla, fuera de HOME o no comprobable, no se borra.
+		remove, anchorErr := anchorBinary(pl.home, p, pl.self)
 		if _, ok := identifyVersion(p); !ok {
+			continue // no es gomemory: ni se borra ni se aconseja nada sobre él
+		}
+		if anchorErr != nil {
+			fmt.Printf("  ℹ️  %s se conserva (%v): bórralo a mano si quieres retirarlo\n", p, anchorErr)
 			continue
 		}
-		path := p
-		pl.add(domain.NewUninstallItem(domain.CategoryBinary, path, domain.KindFile),
-			func() error { return removeBinaryFile(path, pl.self) })
+		pl.add(domain.NewUninstallItem(domain.CategoryBinary, p, domain.KindFile), remove)
 	}
 }
 
@@ -439,4 +440,41 @@ func binaryInsideHome(home, path string) bool {
 	}
 	rel, err := filepath.Rel(real(home), filepath.Join(real(filepath.Dir(path)), filepath.Base(path)))
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// anchorBinary abre el directorio del binario y devuelve el borrado anclado a él:
+// un cambio de ruta posterior, incluso durante `mem version`, no puede dirigirlo
+// fuera de HOME. Falla si el directorio ya no es el comprobado.
+func anchorBinary(home, path, self string) (func() error, error) {
+	if !binaryInsideHome(home, path) {
+		return nil, fmt.Errorf("%s está fuera de HOME", path)
+	}
+	dir := filepath.Dir(path)
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(real)
+	if err != nil {
+		return nil, err
+	}
+	abierto, err := root.Stat(".")
+	if err == nil {
+		var actual os.FileInfo
+		if actual, err = os.Stat(real); err == nil && !os.SameFile(abierto, actual) {
+			err = fmt.Errorf("%s cambió durante la comprobación", dir)
+		}
+	}
+	if err != nil {
+		_ = root.Close()
+		return nil, err
+	}
+	base := filepath.Base(path)
+	return func() error {
+		defer root.Close()
+		if runtime.GOOS == "windows" && sameFilePath(path, self) {
+			return removeBinaryFile(path, self) // en uso: requiere la ruta para apartarlo
+		}
+		return root.Remove(base)
+	}, nil
 }
