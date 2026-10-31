@@ -58,6 +58,14 @@ func (d SessionDelta) ApplyContext(ctx context.Context, doc string) string {
 	inSection := false
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
+		if strings.HasPrefix(l, baselineHeading) {
+			if end := lineWithPrefix(lines, i+1, baselineEnd); end != -1 {
+				units = append(units, unit{i + 1, end})
+				inSection = false
+				i = end
+				continue
+			}
+		}
 		if strings.HasPrefix(l, "## ") || strings.HasPrefix(l, "<!-- mem:volatile") || strings.HasPrefix(l, "# ") {
 			inSection = false
 			for _, h := range deltaSections {
@@ -131,6 +139,15 @@ func (d SessionDelta) ApplyContext(ctx context.Context, doc string) string {
 	}
 	_ = d.Blocks.Mark(ctx, fresh)
 	return out.String()
+}
+
+func lineWithPrefix(lines []string, from int, prefix string) int {
+	for i := from; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], prefix) {
+			return i
+		}
+	}
+	return -1
 }
 
 // searchUnitHead reconoce la cabecera de un resultado: "[id] tipo | título".

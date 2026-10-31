@@ -20,6 +20,9 @@ const (
 	TopicWorkRules    = "gomemory:work-rules"
 	TopicConstitution = "gomemory:constitution"
 	TopicHCDPlaybook  = "gomemory:hcd-playbook"
+	// TopicUniversalBaseline es el baseline de agente que llega en el contexto
+	// de sesión, sin depender de archivos de instrucciones del usuario.
+	TopicUniversalBaseline = "gomemory:universal-baseline"
 )
 
 // PinnedDoc describe un documento fijado: la misma fila que la siembra crea,
@@ -95,6 +98,15 @@ var PinnedDocs = []PinnedDoc{
 			"d742e66f6593cd7d60ac6b59cdc7e046371f6ab570f67742dc4f432aba78b669",
 			"aaf5312676b94b034a6923b0e01dddb9b091c7035eee54d6fd75b5f7298d807e",
 		},
+	},
+	{
+		Alias:         "baseline",
+		TopicKey:      TopicUniversalBaseline,
+		Type:          Preference,
+		Title:         "Baseline universal de agente",
+		Label:         "Baseline",
+		Template:      "universal-agent-instructions.md",
+		DefaultSHA256: "2bb2a759e96ebb57caf5e312e005e58b2fc4bf87aa6b90bafcd63edc55fff958",
 	},
 	{
 		Alias:    "constitution",

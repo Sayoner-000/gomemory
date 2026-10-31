@@ -214,7 +214,8 @@ func computePreferenceReinforcement(deps *Deps, root, project string, threshold 
 	}
 	var prefs []domain.Memory
 	for _, m := range mems {
-		if m.Type == domain.Preference {
+		// Un documento fijado ya llega por contexto: no es una preferencia suelta.
+		if _, fijado := domain.PinnedDocByTopicKey(m.TopicKey); m.Type == domain.Preference && !fijado {
 			prefs = append(prefs, m)
 			if len(prefs) == preferenceNudgeMaxItems {
 				break

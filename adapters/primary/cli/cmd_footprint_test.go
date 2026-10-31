@@ -130,3 +130,20 @@ func TestComputePreferenceReinforcement(t *testing.T) {
 		t.Fatal("threshold<=0 debe caer al default y seguir reforzando")
 	}
 }
+
+func TestComputePreferenceReinforcement_OmiteDocumentosFijados(t *testing.T) {
+	root := t.TempDir()
+	footprintAdd(root, 20000)
+	deps := &Deps{MemoryRepo: &fakePrefMemRepo{mems: []domain.Memory{
+		{ID: 1, Type: domain.Preference, Title: "Baseline", Content: "cuerpo del baseline", TopicKey: domain.TopicUniversalBaseline},
+		{ID: 2, Type: domain.Preference, Title: "Reglas", Content: "cuerpo de las reglas", TopicKey: domain.TopicWorkRules},
+		{ID: 3, Type: domain.Preference, Title: "Tuteo", Content: "usa tuteo"},
+	}}}
+	msg, ok := computePreferenceReinforcement(deps, root, "proj", 48000)
+	if !ok || !strings.Contains(msg, "usa tuteo") {
+		t.Fatalf("debe reforzar la preferencia real: %v %q", ok, msg)
+	}
+	if strings.Contains(msg, "cuerpo del") || strings.Contains(msg, "cuerpo de las") {
+		t.Fatalf("un documento fijado no es una preferencia: %q", msg)
+	}
+}

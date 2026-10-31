@@ -124,6 +124,9 @@ type Builder struct {
 	CodeProviders []ports.CodeGraphProvider
 	Project       string
 	Root          string
+	// BaselineDefault es la plantilla embebida del baseline universal: cubre
+	// los proyectos instalados antes de que existiera su semilla.
+	BaselineDefault string
 	// Budget es el techo blando (en CARACTERES) de la salida de Build(). <=0 =
 	// sin límite (comportamiento histórico). Con techo, cada entrada larga se
 	// acota a un extracto con puntero `get_memory <id>` y las secciones de lista
@@ -184,6 +187,14 @@ const ConciseOutputDirective = "## Estilo de respuesta\n\n" +
 
 // VolatileSeparator separa la parte estable del contexto de la volátil.
 const VolatileSeparator = "<!-- mem:volatile -->"
+
+// baselineHeading y baselineEnd delimitan el baseline universal. Su cuerpo trae
+// encabezados propios, así que el delta necesita el cierre explícito para
+// tratarlo como una sola unidad y no reenviarlo en cada turno.
+const (
+	baselineHeading = "## Baseline universal (memoria fijada)"
+	baselineEnd     = "<!-- mem:baseline-end -->"
+)
 
 // volatileSections son los encabezados cuyo contenido cambia sin que cambien
 // las memorias: horas, actividad automática, estado del índice y de la sesión.
@@ -273,6 +284,28 @@ func (b *Builder) reglasFijadas() *domain.Memory {
 		return nil
 	}
 	return m
+}
+
+// baselineFijado resuelve la memoria del baseline universal; nil significa que
+// el proyecto no la tiene sembrada.
+func (b *Builder) baselineFijado() *domain.Memory {
+	if b.Topics == nil {
+		return nil
+	}
+	m, err := b.Topics.ByTopicKey(b.Project, domain.TopicUniversalBaseline)
+	if err != nil {
+		return nil
+	}
+	return m
+}
+
+// baselineUniversal prefiere la memoria fijada, que la persona puede editar, y
+// recurre a la plantilla embebida si el proyecto no la tiene sembrada.
+func (b *Builder) baselineUniversal(fijado *domain.Memory) string {
+	if fijado != nil {
+		return b.cuerpoFijado(*fijado)
+	}
+	return strings.TrimRight(b.BaselineDefault, "\n")
 }
 
 // cuerpoFijado emite el contenido de una memoria fijada: íntegro en modo
@@ -394,6 +427,12 @@ func (b *Builder) build() (string, error) {
 		sb.WriteString(b.cuerpoFijado(*pinnedRules))
 		sb.WriteString("\n\n")
 	}
+	pinnedBaseline := b.baselineFijado()
+	if baseline := b.baselineUniversal(pinnedBaseline); baseline != "" {
+		sb.WriteString(baselineHeading + "\n\n")
+		sb.WriteString(baseline)
+		sb.WriteString("\n" + baselineEnd + "\n\n")
+	}
 
 	if b.IndexMode && len(mems) == 0 {
 		// Índice vacío EXPLÍCITO (feature 020, caso borde de la spec): sin
@@ -446,6 +485,9 @@ func (b *Builder) build() (string, error) {
 			// dos veces. Esta comparación EXIGE que ListMemories proyecte
 			// topic_key (FR-030): con la columna ausente daba siempre falso.
 			if pinnedRules != nil && m.ID == pinnedRules.ID {
+				continue
+			}
+			if pinnedBaseline != nil && m.ID == pinnedBaseline.ID {
 				continue
 			}
 			line := fmt.Sprintf("- **%s**: %s\n", displayTitle(m), b.acota(m))

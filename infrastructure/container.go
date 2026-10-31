@@ -170,6 +170,11 @@ func NewContainer(root, channel string) (*Container, error) {
 	if topics, ok := memRepo.(ports.MemoryTopicQuerier); ok {
 		contextBuilder.Topics = topics
 	}
+	// Respaldo del baseline universal para proyectos sin su semilla: una
+	// plantilla ausente solo omite la sección.
+	if data, err := templatesFS.ReadFile("templates/universal-agent-instructions.md"); err == nil {
+		contextBuilder.BaselineDefault = string(data)
+	}
 	// Presupuesto de contexto (feature 008): techo blando de get_context para no
 	// inflar la ventana del agente. Normalizado en ReadSettings (default si 0).
 	contextBuilder.Budget = settings.Budget
