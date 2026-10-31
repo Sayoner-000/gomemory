@@ -5,6 +5,40 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.43.0] - 2026-10-31
+
+### Added
+
+- `mem context --keep-baseline` entrega el baseline universal entero en cada turno; lo usa OpenCode.
+- `mem doctor` informa si el plugin de OpenCode instalado está desactualizado.
+- `setup-mcp --scope global` nombra los archivos que conservan bloques por no haberse elegido su agente.
+
+### Changed
+
+- gomemory ya no escribe en `CLAUDE.md` ni `AGENTS.md`: `mem setup-mcp --scope global` retira los bloques completos heredados y deja una copia junto a cada archivo.
+- El baseline universal llega por contexto como documento fijado, con la plantilla embebida para proyectos ya instalados.
+- Protocolo v12: las reglas van antes de la lista de herramientas, porque algunos clientes truncan las instrucciones MCP.
+- `mem doctor` solo recomienda un comando cuando puede retirar el bloque sin riesgo; en otro caso pide hacerlo a mano.
+
+### Removed
+
+- El refuerzo de preferencias de los hooks: las preferencias llegan en el contexto de sesión.
+
+### Fixed
+
+- `mem install` y `mem update` ya no retiran archivos `AGENTS.md`, `CLAUDE.md` o `CLAUDE.txt` propios: solo quitan bloques completos, con copia privada en `.memory/backups/agent-files/` sin reemplazar copias anteriores.
+- `mem uninstall` ya no pierde el texto posterior a un bloque, no elimina archivos por su título y sale con código 3 si no puede retirar un bloque.
+- Un bloque sin marcador de cierre deja el archivo intacto y se informa cómo retirarlo a mano.
+- `mem uninstall --all` conserva los binarios fuera de `HOME`, no sigue enlaces fuera de él e inventaría también el baseline sin protocolo. No protege frente a un proceso del mismo usuario que altere esos directorios durante la ejecución.
+- `mem hcd start` es atómico bajo concurrencia: sin errores del driver, documentos huérfanos ni intenciones cruzadas.
+- `mem import` valida el bundle antes de escribir, no duplica memorias con secretos e informa lo importado si falla a mitad.
+- Los recortes por bytes ya no parten caracteres UTF-8; los timestamps HCD corruptos se rechazan, y olvidar una memoria retira también su índice de búsqueda.
+
+### Security
+
+- `mem export` falla si no puede fijar permisos `0600`.
+- Los razonamientos de relaciones se limpian de controles de terminal al leerlos.
+
 ## [v2.42.1] - 2026-10-29
 
 ### Fixed
