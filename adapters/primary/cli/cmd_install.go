@@ -512,7 +512,7 @@ const universalInstructionsEndMarker = "<!-- gomemory-universal-agent-instructio
 // versión v8 (feature 019, FR-015). Los bloques v1..v7 no lo llevan: para
 // esos, protocolEnd aplica la regla de límite de data-model.md §6 (siguiente
 // encabezado de nivel 2 tras el propio título del bloque, o EOF).
-const integrationEndMarker = "<!-- gomemory-protocol-end -->"
+const integrationEndMarker = domain.ProtocolEndMarker
 
 // TemplatesFS contiene los templates embebidos (preámbulo de reglas de trabajo
 // y constitución). Lo inyecta infrastructure/main.go vía go:embed. Si es nil

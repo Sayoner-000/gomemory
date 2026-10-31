@@ -430,9 +430,9 @@ guardar, buscar y cerrar sesión de memoria.
   inyecta automáticamente y los hooks registran la actividad compatible.
 - **Solo MCP (Cursor)**: el servidor MCP entrega el
   protocolo en la respuesta `initialize`, así que cualquier cliente MCP lo
-  recibe sin archivos en el repositorio. Para el ámbito de usuario,
-  `mem setup-mcp --scope global` sigue escribiendo el bloque en el archivo de
-  instrucciones de cada agente.
+  recibe sin archivos en el repositorio. `mem setup-mcp --scope global` ya no
+  escribe en los archivos de instrucciones: retira, con copia, los bloques
+  completos que dejaron versiones anteriores.
 
 ### Save Triggers
 

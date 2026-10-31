@@ -355,7 +355,7 @@ func TestActivationInspect_InstruccionesDeUsuarioSoloComoHeredadas(t *testing.T)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("<!-- gomemory-protocol-v10 -->\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("<!-- gomemory-protocol-v10 -->\nx\n<!-- gomemory-protocol-end -->\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if c, ok = estado(); !ok || c.State != domain.StateOutdated || !strings.Contains(c.Detail, "setup-mcp --scope global") {
@@ -553,21 +553,45 @@ func TestActivationInspect_OpenCodePluginV1EnV2EsOutdated(t *testing.T) {
 	}
 }
 
-func TestActivationInspect_RemedioPorAmbito(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("<!-- gomemory-protocol-v10 -->\n"), 0o644); err != nil {
-		t.Fatal(err)
+func TestActivationInspect_RemedioSeguro(t *testing.T) {
+	const completo = "<!-- gomemory-protocol-v10 -->\nx\n<!-- gomemory-protocol-end -->\n"
+	const sinCierre = "<!-- gomemory-protocol-v7 -->\nx\n"
+	cases := []struct {
+		nombre, archivo, contenido string
+		scope                      domain.AgentScope
+		quiere                     string
+	}{
+		{"proyecto AGENTS.md", "AGENTS.md", completo, domain.ScopeProject, "a mano"},
+		{"proyecto cursorrules", ".cursorrules", completo, domain.ScopeProject, "a mano"},
+		{"usuario completo", filepath.Join(".claude", "CLAUDE.md"), completo, domain.ScopeUser, "mem setup-mcp --scope global"},
+		{"usuario sin cierre", filepath.Join(".claude", "CLAUDE.md"), sinCierre, domain.ScopeUser, "a mano"},
+		{"usuario CLAUDE.txt", filepath.Join(".claude", "CLAUDE.txt"), completo, domain.ScopeUser, "a mano"},
 	}
-	for _, c := range NewActivationInspector().Inspect(root) {
-		if c.Kind == domain.KindInstructions && c.Scope == domain.ScopeProject && c.State == domain.StateOutdated {
-			if strings.Contains(c.Detail, "--scope global") || !strings.Contains(c.Detail, "mem install") {
-				t.Fatalf("remedio de proyecto incorrecto: %s", c.Detail)
+	for _, c := range cases {
+		t.Run(c.nombre, func(t *testing.T) {
+			home, root := t.TempDir(), t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("USERPROFILE", home)
+			base := root
+			if c.scope == domain.ScopeUser {
+				base = home
 			}
-			return
-		}
+			path := filepath.Join(base, c.archivo)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(c.contenido), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			for _, ch := range NewActivationInspector().Inspect(root) {
+				if ch.Kind == domain.KindInstructions && ch.Scope == c.scope && ch.State == domain.StateOutdated {
+					if !strings.Contains(ch.Detail, c.quiere) || strings.Contains(ch.Detail, "mem install") {
+						t.Fatalf("detalle = %s", ch.Detail)
+					}
+					return
+				}
+			}
+			t.Fatal("no se informó el bloque")
+		})
 	}
-	t.Fatal("no se informó el bloque de proyecto")
 }

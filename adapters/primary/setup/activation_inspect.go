@@ -379,13 +379,10 @@ func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, 
 		if err != nil {
 			continue
 		}
-		if loc := domain.ProtocolVersionPattern.FindString(string(data)); loc != "" {
+		content := string(data)
+		if loc := domain.ProtocolVersionPattern.FindString(content); loc != "" {
 			ch.State = domain.StateOutdated
-			remedio := "mem setup-mcp --scope global"
-			if scope == domain.ScopeProject {
-				remedio = "mem install"
-			}
-			ch.Detail = fname + ": bloque heredado " + loc + "; se retira con `" + remedio + "`"
+			ch.Detail = fname + ": bloque heredado " + loc + "; " + blockRemedy(fname, content, scope)
 			return ch
 		}
 	}
@@ -393,6 +390,15 @@ func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, 
 	ch.State = domain.StateNotApplicable
 	ch.Detail = "protocolo y baseline llegan por MCP, hooks y contexto; gomemory ya no escribe archivos de instrucciones"
 	return ch
+}
+
+// blockRemedy recomienda un comando solo si retira el bloque sin tocar lo demás:
+// la migración global exige un bloque completo y solo cubre estos dos archivos.
+func blockRemedy(fname, content string, scope domain.AgentScope) string {
+	if scope == domain.ScopeUser && (fname == "AGENTS.md" || fname == "CLAUDE.md") && strings.Contains(content, domain.ProtocolEndMarker) {
+		return "se retira con `mem setup-mcp --scope global`"
+	}
+	return "retíralo a mano: puede convivir con texto propio"
 }
 
 // inspectClaudeHook cuenta las entradas registradas para (event, matcher) en

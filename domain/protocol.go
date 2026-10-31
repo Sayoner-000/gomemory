@@ -10,6 +10,9 @@ import "regexp"
 // cuál es "la versión vigente".
 const ProtocolVersionMarker = "<!-- gomemory-protocol-v11 -->"
 
+// ProtocolEndMarker cierra el bloque de protocolo.
+const ProtocolEndMarker = "<!-- gomemory-protocol-end -->"
+
 // UniversalInstructionsVersionMarker identifica el baseline portable que se
 // instala una sola vez en las instrucciones de usuario. Es independiente del
 // protocolo GoMemory: este último puede cambiar sin reinyectar el baseline en
