@@ -36,13 +36,17 @@ Normalizar en la prueba Go (quitar `\r` antes de comparar) o saltar la comparaci
 
 ## Checklist
 - [x] 1. La reproducción ya no falla → la reproducción simulada de Windows (`cmp -s` contra `tests/fixtures/hcd002/corpus.json`) sale con 0, y `go test ./tests/contract/ -run TestHCD002CorpusContract -count=1` pasa
-- [ ] 2. El job de Windows del workflow `test` pasa `TestHCD002CorpusContract` en la CI sobre el commit del fix (dep: 1) → `gh run view` del run `test` de ese commit
+- [x] 2. El job de Windows del workflow `test` pasa `TestHCD002CorpusContract` en la CI sobre el commit del fix (dep: 1) → `gh run view` del run `test` de ese commit
 
 ## Evidencia
 <!-- La escribe `mem hcd verify`. Lo escrito a mano aquí no cuenta. -->
 - 2026-10-30 02:43 · tarea 1 · rojo observado · caducada · `python3 -c "import io,sys,runpy; sys.stdout=io.TextIOWrapper(sys.stdout.buffer, encoding=\"cp1252\", newline=\"\r\n\"); runpy.run_path(\"scripts/hcd002_corpus.py\", run_name=\"__main__\")" 2>/dev/null | cmp -s - tests/fixtures/hcd002/corpus.json && go test ./tests/contract/ -run TestHCD002CorpusContract -count=1` (salida 1)
-- 2026-10-30 02:44 · tarea 1 · verde · vigente · `python3 -c "import io,sys,runpy; sys.stdout=io.TextIOWrapper(sys.stdout.buffer, encoding=\"cp1252\", newline=\"\r\n\"); runpy.run_path(\"scripts/hcd002_corpus.py\", run_name=\"__main__\")" 2>/dev/null | cmp -s - tests/fixtures/hcd002/corpus.json && go test ./tests/contract/ -run TestHCD002CorpusContract -count=1` (salida 0)
+- 2026-10-30 02:44 · tarea 1 · verde · caducada · `python3 -c "import io,sys,runpy; sys.stdout=io.TextIOWrapper(sys.stdout.buffer, encoding=\"cp1252\", newline=\"\r\n\"); runpy.run_path(\"scripts/hcd002_corpus.py\", run_name=\"__main__\")" 2>/dev/null | cmp -s - tests/fixtures/hcd002/corpus.json && go test ./tests/contract/ -run TestHCD002CorpusContract -count=1` (salida 0)
       ok  	mem/tests/contract	0.943s
+- 2026-10-30 02:46 · tarea 1 · verde · vigente · `python3 -c "import io,sys,runpy; sys.stdout=io.TextIOWrapper(sys.stdout.buffer, encoding=\"cp1252\", newline=\"\r\n\"); runpy.run_path(\"scripts/hcd002_corpus.py\", run_name=\"__main__\")" 2>/dev/null | cmp -s - tests/fixtures/hcd002/corpus.json && go test ./tests/contract/ -run TestHCD002CorpusContract -count=1` (salida 0)
+      ok  	mem/tests/contract	1.158s
+- 2026-10-30 02:54 · tarea 2 · verde · vigente · `r=40993542287; test "$(gh run view $r -R Sayoner-000/gomemory --json headSha --jq ".headSha[0:7]")" = 447bc92 && j=$(gh run view $r -R Sayoner-000/gomemory --json jobs --jq ".jobs[]|select(.name|startswith(\"Windows\"))|select(.conclusion==\"success\")|.databaseId") && test -n "$j" && gh run view $r -R Sayoner-000/gomemory --job "$j" --log | grep -a "ok  	mem/tests/contract" | sed "s/^.*Z //"` (salida 0)
+      ok  	mem/tests/contract	166.166s
 
 ## Siguiente
-pendiente
+Cerrada con aprobación sobre la revisión c4ddeb26a10f.
