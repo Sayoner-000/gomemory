@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"mem/domain"
 )
 
 const bloqueCompleto = "<!-- gomemory-protocol-v10 -->\n## Memoria Persistente\nx\n<!-- gomemory-protocol-end -->\n"
@@ -150,5 +152,45 @@ func TestUninstallProyecto_FalloDeRetirada(t *testing.T) {
 	captureStdout(t, func() { err = removeProjectIntegration(dir, true) })
 	if err == nil || !strings.Contains(err.Error(), "AGENTS.md") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestRetirada_TituloEsTextoPropio(t *testing.T) {
+	for _, titulo := range []string{"# Instrucciones para agentes AI\n", "# Instrucciones para Claude Code\n"} {
+		dir, path := proyectoCon(t, "AGENTS.md", titulo+"\n"+bloqueCompleto)
+		captureStdout(t, func() { removeIntegrationBlocks(dir) })
+		if got, err := os.ReadFile(path); err != nil || strings.TrimSpace(string(got)) != strings.TrimSpace(titulo) {
+			t.Fatalf("%q: %q, %v", titulo, got, err)
+		}
+	}
+}
+
+func TestRetirada_FalloDeLectura(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "AGENTS.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	captureStdout(t, func() { err = removeIntegrationBlocks(dir) })
+	if err == nil || !strings.Contains(err.Error(), "AGENTS.md") {
+		t.Fatalf("err = %v", err)
+	}
+	if ausente := t.TempDir(); removeIntegrationBlocks(ausente) != nil {
+		t.Fatal("un archivo inexistente no es un fallo")
+	}
+}
+
+func TestGlobalRemover_BaselineSolo(t *testing.T) {
+	home := t.TempDir()
+	path := filepath.Join(home, ".claude", "CLAUDE.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("<!-- gomemory-universal-agent-instructions-v1 -->\nx\n<!-- gomemory-universal-agent-instructions-end -->\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, present, apply := globalRemover(home, domain.MatrixCell{Agent: "claude", Kind: domain.KindInstructions, Scope: domain.ScopeUser, Path: []string{".claude", "CLAUDE.md"}, Legacy: true})
+	if apply == nil || !present() {
+		t.Fatal("el baseline solo debe entrar en el plan")
 	}
 }

@@ -274,7 +274,7 @@ func globalRemover(home string, c domain.MatrixCell) (label string, present func
 			return err
 		}
 	case c.Kind == domain.KindInstructions:
-		return "Protocolo de gomemory en " + path, contains("gomemory-protocol"), func() error {
+		return "Protocolo de gomemory en " + path, contains("gomemory-protocol", "gomemory-universal-agent-instructions"), func() error {
 			_, err := removeProtocolBlockFile(path)
 			return err
 		}

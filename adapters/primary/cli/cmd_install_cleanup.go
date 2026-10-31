@@ -63,8 +63,12 @@ func limpiarArchivosDeAgente(target, memDir string) {
 // fallo; el error distingue lo que quedó sin retirar, ya informado por consola.
 func retiraBloqueDeProyecto(path, nombre, backupDir string) (bool, error) {
 	datos, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return false, nil // nada que hacer, y nada que informar
+	}
 	if err != nil {
-		return false, nil // no existe: nada que hacer, y nada que informar
+		fmt.Printf("  ⚠️  %s no se pudo leer: %v\n", nombre, err)
+		return false, fmt.Errorf("%s no se pudo leer: %w", nombre, err)
 	}
 	content := string(datos)
 	rest, err := stripMarkedBlocks(content)
@@ -92,7 +96,8 @@ func retiraBloqueDeProyecto(path, nombre, backupDir string) (bool, error) {
 	return true, nil
 }
 
-// copiaUnica crea la copia sin reemplazar ninguna anterior.
+// copiaUnica crea la copia sin reemplazar ninguna anterior. Siempre 0600: guarda
+// instrucciones de la persona y nada la necesita más abierta.
 func copiaUnica(dir, nombre string, datos []byte) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
@@ -101,7 +106,7 @@ func copiaUnica(dir, nombre string, datos []byte) (string, error) {
 	if _, err := os.Lstat(destino); err == nil {
 		destino += "." + time.Now().Format("20060102-150405.000000000")
 	}
-	if err := writeExclusive(destino, datos, 0o644); err != nil {
+	if err := writeExclusive(destino, datos, 0o600); err != nil {
 		return "", err
 	}
 	return destino, nil

@@ -338,7 +338,7 @@ func (a *ActivationInspector) openCodePluginProblem(path string) string {
 	})
 	st := OpenCodeInstallStatus{Major: a.openCodeMajor, Version: a.openCodeRelease, PluginShape: shape}
 	if st.Compatible() {
-		return ""
+		return a.openCodePluginStale(path)
 	}
 	if st.Version == "" {
 		return "plugin solo v1 en " + path + ": OpenCode 2.x no lo carga (versión de OpenCode no detectada)"
