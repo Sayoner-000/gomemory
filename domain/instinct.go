@@ -174,3 +174,11 @@ func TruncateRunes(s string, max int) string {
 	}
 	return s
 }
+
+// TruncateUTF8 acota s a maxBytes sin dejar una runa partida al final.
+func TruncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	return strings.ToValidUTF8(s[:maxBytes], "")
+}

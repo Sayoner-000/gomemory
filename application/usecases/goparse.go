@@ -185,7 +185,7 @@ func printNode(fset *token.FileSet, n ast.Node) string {
 	// Firmas largas (structs/interfaces grandes) se truncan: solo sirven de
 	// referencia rápida, el detalle real está en el archivo.
 	if len(s) > 200 {
-		s = s[:200] + "..."
+		s = domain.TruncateUTF8(s, 200) + "..."
 	}
 	return s
 }

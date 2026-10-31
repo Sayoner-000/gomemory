@@ -50,7 +50,7 @@ func GetRelation(db *sql.DB, project string, id int64) (*domain.Relation, error)
 	if err != nil {
 		return nil, fmt.Errorf("get relation: %w", err)
 	}
-	r.Reasoning = domain.ProtectText(r.Reasoning)
+	r.Reasoning = relationReasoning(r.Reasoning)
 	return &r, nil
 }
 
@@ -69,7 +69,7 @@ func GetRelationByPair(db *sql.DB, project string, memIDA, memIDB int64) (*domai
 	if err != nil {
 		return nil, fmt.Errorf("get relation by pair: %w", err)
 	}
-	r.Reasoning = domain.ProtectText(r.Reasoning)
+	r.Reasoning = relationReasoning(r.Reasoning)
 	return &r, nil
 }
 
@@ -94,7 +94,7 @@ func ListRelations(db *sql.DB, project string, limit int) ([]domain.Relation, er
 		if err != nil {
 			return nil, fmt.Errorf("scan relation: %w", err)
 		}
-		r.Reasoning = domain.ProtectText(r.Reasoning)
+		r.Reasoning = relationReasoning(r.Reasoning)
 		rels = append(rels, r)
 	}
 	if rels == nil {
@@ -122,7 +122,7 @@ func ListAllRelations(db *sql.DB, project string) ([]domain.Relation, error) {
 		if err := rows.Scan(&r.ID, &r.Project, &r.MemoryIDA, &r.MemoryIDB, &r.Relation, &r.Confidence, &r.Reasoning, &r.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan relation: %w", err)
 		}
-		r.Reasoning = domain.ProtectText(r.Reasoning)
+		r.Reasoning = relationReasoning(r.Reasoning)
 		rels = append(rels, r)
 	}
 	if rels == nil {
@@ -144,4 +144,10 @@ func ImportRelation(db *sql.DB, r *domain.Relation) (int64, error) {
 		return 0, fmt.Errorf("import relation: %w", err)
 	}
 	return res.LastInsertId()
+}
+
+// relationReasoning prepara el razonamiento leído para salir hacia cualquier
+// frontera: sin secretos históricos ni controles de terminal (CWE-150).
+func relationReasoning(s string) string {
+	return domain.StripTerminalControls(domain.ProtectText(s))
 }

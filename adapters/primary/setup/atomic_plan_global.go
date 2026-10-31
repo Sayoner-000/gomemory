@@ -130,7 +130,7 @@ func writeGlobalInstructions(path string, compose func(existing string) (string,
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+	if err := WriteConfigFile(GlobalConfigPath(path), []byte(out)); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -144,7 +144,7 @@ func writeGlobalWrapper(path, frontmatter, method string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path, content, 0o644); err != nil {
+	if err := WriteConfigFile(GlobalConfigPath(path), content); err != nil {
 		return "", err
 	}
 	return path, nil

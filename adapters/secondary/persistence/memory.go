@@ -203,12 +203,6 @@ func upsertMemorySearchTx(tx *sql.Tx, id int64, title, content string) {
 	_, _ = tx.Exec(`INSERT INTO memory_search (rowid, title, content, memory_id) VALUES (?, ?, ?, ?)`, id, title, content, id)
 }
 
-// deleteMemorySearch borra la fila de índice asociada a una memoria borrada.
-// Best-effort: ver upsertMemorySearch.
-func deleteMemorySearch(db *sql.DB, id int64) {
-	_, _ = db.Exec(`DELETE FROM memory_search WHERE memory_id = ?`, id)
-}
-
 // dedupWindowDays es la ventana (días) del dedup por identidad. Singleton de
 // proceso: el composition root lo fija desde settings (SetDedupWindowDays);
 // default seguro. <=0 desactiva el dedup por identidad (el upsert por topic_key
@@ -742,7 +736,12 @@ func ImportMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 }
 
 func DeleteMemory(db *sql.DB, project string, id int64) (bool, error) {
-	res, err := db.Exec(`DELETE FROM memories WHERE id = ? AND project = ?`, id, project)
+	tx, err := db.Begin()
+	if err != nil {
+		return false, fmt.Errorf("delete memory: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.Exec(`DELETE FROM memories WHERE id = ? AND project = ?`, id, project)
 	if err != nil {
 		return false, fmt.Errorf("delete memory: %w", err)
 	}
@@ -750,10 +749,18 @@ func DeleteMemory(db *sql.DB, project string, id int64) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("delete memory: %w", err)
 	}
-	if affected > 0 {
-		deleteMemorySearch(db, id)
+	if affected == 0 {
+		return false, nil
 	}
-	return affected > 0, nil
+	// El contenido olvidado no debe sobrevivir en el índice. Solo se tolera la
+	// tabla ausente de una build sin FTS5.
+	if _, err = tx.Exec(`DELETE FROM memory_search WHERE memory_id = ?`, id); err != nil && !strings.Contains(err.Error(), "no such table") {
+		return false, fmt.Errorf("delete memory: índice de búsqueda: %w", err)
+	}
+	if err = tx.Commit(); err != nil {
+		return false, fmt.Errorf("delete memory: %w", err)
+	}
+	return true, nil
 }
 
 // SearchMemories busca memorias por relevancia (specs/009-mitigacion-riesgos,

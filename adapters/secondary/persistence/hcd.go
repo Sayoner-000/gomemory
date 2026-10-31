@@ -122,7 +122,9 @@ func (s *HCDStore) Evidence(ctx context.Context, unitID string) ([]domain.Eviden
 		}
 		e.Tasks = strings.Split(tasks, ",")
 		e.ExpectFail = expectFail == 1
-		e.CreatedAt, _ = time.Parse(hcdTime, created)
+		if e.CreatedAt, err = parseHCDTime(created); err != nil {
+			return nil, err
+		}
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -147,7 +149,9 @@ func (s *HCDStore) Approvals(ctx context.Context, unitID string) ([]domain.Appro
 		if err := rows.Scan(&a.ID, &a.Action, &a.Revision, &a.Fingerprint, &a.Origin, &a.Client, &a.Quote, &a.ConstitutionRev, &a.PlaybookRev, &created); err != nil {
 			return nil, err
 		}
-		a.CreatedAt, _ = time.Parse(hcdTime, created)
+		if a.CreatedAt, err = parseHCDTime(created); err != nil {
+			return nil, err
+		}
 		out = append(out, a)
 	}
 	return out, rows.Err()
@@ -161,7 +165,22 @@ func scanHCDUnit(row *sql.Row) (domain.Unit, error) {
 		return domain.Unit{}, err
 	}
 	u.Kind, u.Lane, u.State, u.Active = domain.Kind(kind), domain.Lane(lane), domain.UnitState(state), active == 1
-	u.CreatedAt, _ = time.Parse(hcdTime, created)
-	u.UpdatedAt, _ = time.Parse(hcdTime, updated)
+	var err error
+	if u.CreatedAt, err = parseHCDTime(created); err != nil {
+		return domain.Unit{}, err
+	}
+	if u.UpdatedAt, err = parseHCDTime(updated); err != nil {
+		return domain.Unit{}, err
+	}
 	return u, nil
+}
+
+// parseHCDTime rechaza un timestamp corrupto: la fecha decide qué evidencia es
+// la vigente, y un cero la haría pasar por la más antigua.
+func parseHCDTime(value string) (time.Time, error) {
+	t, err := time.Parse(hcdTime, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("timestamp HCD corrupto %q: %w", value, err)
+	}
+	return t, nil
 }

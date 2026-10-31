@@ -38,9 +38,7 @@ func StartSession(db *sql.DB, project string) (*domain.Session, error) {
 // crítica, solo no habrá provenance para ese turno.
 func SetSessionLastPrompt(db *sql.DB, project, prompt string) error {
 	prompt = domain.ProtectText(prompt)
-	if len(prompt) > maxOriginPromptLen {
-		prompt = prompt[:maxOriginPromptLen]
-	}
+	prompt = domain.TruncateUTF8(prompt, maxOriginPromptLen)
 	_, err := db.Exec(
 		`UPDATE sessions SET last_prompt = ?
 		 WHERE id = (SELECT id FROM sessions WHERE project = ? AND ended_at IS NULL

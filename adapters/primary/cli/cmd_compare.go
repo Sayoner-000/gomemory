@@ -91,7 +91,7 @@ func CmdCompare(deps *Deps, args []string) {
 	} else {
 		humanf("✓ Relación guardada (id=%d): %s ↔ %s → %s\n", rel.ID, positional[0], positional[1], relType)
 	}
-	humanf("  Razonamiento: %s\n", rel.Reasoning)
+	humanf("  Razonamiento: %s\n", domain.StripTerminalControls(rel.Reasoning))
 }
 
 func cmdCompareList(deps *Deps, args []string) {
@@ -130,7 +130,7 @@ func cmdCompareList(deps *Deps, args []string) {
 	for _, r := range rels {
 		reason := r.Reasoning
 		if len(reason) > 40 {
-			reason = reason[:37] + "..."
+			reason = domain.TruncateUTF8(reason, 37) + "..."
 		}
 		_, _ = fmt.Fprintf(w, "%d\t%d\t%d\t%s\t%.2f\t%s\n", r.ID, r.MemoryIDA, r.MemoryIDB, string(r.Relation), r.Confidence, reason)
 	}

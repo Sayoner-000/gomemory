@@ -8,7 +8,6 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
-	"text/template"
 )
 
 var PluginFS fs.FS
@@ -35,30 +34,6 @@ func InstallPlugin(fsys fs.FS, pluginDir, targetDir string, ctx *PluginContext) 
 		count += n
 	}
 	return count, nil
-}
-
-func GenerateConfig(path string, data map[string]interface{}) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("create config dir %s: %w", dir, err)
-	}
-
-	existing, err := os.ReadFile(path)
-	if err == nil && len(existing) > 0 {
-		return nil
-	}
-
-	tmpl, err := template.New(filepath.Base(path)).Parse(string(existing))
-	if err != nil {
-		return fmt.Errorf("parse template %s: %w", path, err)
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("execute template %s: %w", path, err)
-	}
-
-	return os.WriteFile(path, buf.Bytes(), 0644)
 }
 
 func copyFileOrDir(fsys fs.FS, baseDir string, entry os.DirEntry, targetDir string, ctx *PluginContext) (int, error) {

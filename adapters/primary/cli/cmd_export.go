@@ -35,11 +35,21 @@ func CmdExport(deps *Deps, args []string) {
 		fail("crear %s: %v", path, err)
 	}
 	defer func() { _ = f.Close() }()
-	_ = f.Chmod(0o600) // un archivo previo conserva su modo al truncarse
+	if err := ensureExportMode(f.Chmod, path); err != nil {
+		fail("%v", err)
+	}
 
 	if err := usecases.EncodeBundle(f, bundle); err != nil {
 		fail("escribir bundle: %v", err)
 	}
 
 	humanf("✓ Exportadas %d memorias y %d relaciones → %s\n", len(bundle.Memories), len(bundle.Relations), path)
+}
+
+// ensureExportMode fija 0600: un archivo previo conserva su modo al truncarse.
+func ensureExportMode(chmod func(os.FileMode) error, path string) error {
+	if err := chmod(0o600); err != nil {
+		return fmt.Errorf("asegurar permisos 0600 de %s: %w", path, err)
+	}
+	return nil
 }

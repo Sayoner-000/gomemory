@@ -971,7 +971,7 @@ func planTitle(plan string) string {
 	}
 	const maxLen = 80
 	if len(line) > maxLen {
-		line = strings.TrimSpace(line[:maxLen]) + "…"
+		line = strings.TrimSpace(domain.TruncateUTF8(line, maxLen)) + "…"
 	}
 	return "Plan aprobado: " + line
 }
