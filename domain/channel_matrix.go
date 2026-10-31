@@ -144,7 +144,7 @@ var ChannelMatrix = []MatrixCell{
 	{Agent: "claude", Kind: KindTurnReminder, Scope: ScopeUser,
 		Path: []string{".claude", "settings.json"}, Managed: true},
 	{Agent: "claude", Kind: KindInstructions, Scope: ScopeUser,
-		Path: []string{".claude", "CLAUDE.md"}, Managed: true},
+		Path: []string{".claude", "CLAUDE.md"}, Legacy: true},
 	{Agent: "claude", Kind: KindNativeWrapper, Scope: ScopeUser,
 		Path: []string{".claude", "skills"}, Managed: true},
 	// `mem setup-mcp --scope global` registra el servidor en ~/.claude.json
@@ -175,7 +175,7 @@ var ChannelMatrix = []MatrixCell{
 	{Agent: "opencode", Kind: KindTurnReminder, Scope: ScopeUser,
 		Path: []string{".config", "opencode", "plugins", "gomemory.ts"}, Managed: true},
 	{Agent: "opencode", Kind: KindInstructions, Scope: ScopeUser,
-		Path: []string{".config", "opencode", "AGENTS.md"}, Managed: true},
+		Path: []string{".config", "opencode", "AGENTS.md"}, Legacy: true},
 	{Agent: "opencode", Kind: KindNativeWrapper, Scope: ScopeUser,
 		Path: []string{".config", "opencode", "commands"}, Managed: true},
 	// Segunda superficie nativa: las habilidades. Convive con commands y no la
@@ -193,7 +193,7 @@ var ChannelMatrix = []MatrixCell{
 	// Codex configura una sola vez por máquina: no tiene equivalente por
 	// proyecto, y por eso no declara ScopeProject en KnownAgents.
 	{Agent: "codex", Kind: KindInstructions, Scope: ScopeUser,
-		Path: []string{".codex", "AGENTS.md"}, Managed: true},
+		Path: []string{".codex", "AGENTS.md"}, Legacy: true},
 	{Agent: "codex", Kind: KindServerConfig, Scope: ScopeUser,
 		Path: []string{".codex", "config.toml"}, ConfigKey: "mcp_servers", Managed: true},
 	{Agent: "codex", Kind: KindLifecycleHook, Scope: ScopeUser,
@@ -209,13 +209,12 @@ var ChannelMatrix = []MatrixCell{
 	{Agent: "codex", Kind: KindPlanGuard, Scope: ScopeUser,
 		NotApplicableReason: "el agente no expone una llamada a herramienta que marque «estoy presentando el plan», que es lo que hace interceptable el borde de salida en Claude Code (ExitPlanMode)"},
 	// Dos superficies nativas distintas, dos celdas. Codex no tiene formato
-	// propio de COMANDOS —por eso el método de planificación sigue viajando en
-	// el bloque de protocolo de AGENTS.md y globalTargets no le escribe
-	// envoltorio—, pero sí tiene directorio de HABILIDADES, y eso gomemory sí
+	// propio de COMANDOS —por eso el método de planificación llega con
+	// get_plan_context y globalTargets no le escribe envoltorio—, pero sí tiene directorio de HABILIDADES, y eso gomemory sí
 	// lo gestiona. Fundir ambas en una sola celda obligaría a mentir en una de
 	// las dos mitades.
 	{Agent: "codex", Kind: KindNativeWrapper, Scope: ScopeUser,
-		NotApplicableReason: "el agente no expone un formato propio de comandos; el método de planificación viaja en el bloque de protocolo de AGENTS.md"},
+		NotApplicableReason: "el agente no expone un formato propio de comandos; el método de planificación llega con get_plan_context"},
 	{Agent: "codex", Kind: KindNativeWrapper, Scope: ScopeUser,
 		Path: []string{".codex", "skills"}, Managed: true},
 

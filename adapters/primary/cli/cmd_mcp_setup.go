@@ -220,19 +220,25 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	}
 
 	// Planificación atómica en scope global (spec 013, Historia 3): además del
-	// registro del servidor MCP, se escribe el bloque de protocolo —que lleva el
-	// disparador de modo plan— en el archivo de instrucciones de nivel usuario
-	// de cada agente, y su envoltorio nativo. Con esto, habilitar una vez cubre
-	// todos los proyectos presentes y futuros.
+	// registro del servidor MCP, se instala el envoltorio nativo de cada agente.
+	// El protocolo y el baseline llegan por MCP, hooks y contexto, así que los
+	// bloques que dejaron versiones anteriores se retiran con copia (HCD-009).
 	//
 	// Cursor queda deliberadamente fuera: no aparece en globalScopeAgents
 	// porque no tiene un scope de usuario equivalente. Se configura por
 	// proyecto y recibe el protocolo en el initialize de MCP.
-	written, err := setup.InstallAtomicPlanGlobal(PlanMethod(), func(existing string) (string, bool) {
-		return composeAgentFile(existing, embeddedTemplate("universal-agent-instructions.md"), buildIntegrationBlock())
-	})
+	written, err := setup.InstallAtomicPlanGlobal(PlanMethod())
 	if err != nil {
 		fmt.Printf("  ⚠️  planificación atómica (scope global): %v\n", err)
+	}
+	if home, homeErr := os.UserHomeDir(); homeErr == nil {
+		retired, errs := retireGlobalBlocks(setup.GlobalInstructionPaths(home), time.Now().Format("20060102-150405"))
+		for _, p := range retired {
+			fmt.Printf("  ✅ bloques de gomemory retirados de %s (copia junto al archivo)\n", p)
+		}
+		for _, e := range errs {
+			fmt.Printf("  ⚠️  %v\n", e)
+		}
 	}
 	for _, p := range written {
 		fmt.Printf("  ✅ planificación atómica: %s\n", p)

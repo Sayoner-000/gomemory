@@ -330,27 +330,37 @@ func TestActivationInspect_InstruccionesDeProyectoNoAplican(t *testing.T) {
 	}
 }
 
-// TestActivationInspect_InstruccionesDeUsuarioSiguenEvaluandose: el ámbito de
-// USUARIO no cambia. `setup-mcp --scope global` sigue escribiendo ahí y su
-// ausencia sigue siendo una falta real que el informe debe señalar (FR-029).
-func TestActivationInspect_InstruccionesDeUsuarioSiguenEvaluandose(t *testing.T) {
+// Sin bloques no hay nada que señalar: protocolo y baseline llegan por otros
+// canales. Un bloque heredado sí se informa, con su remedio.
+func TestActivationInspect_InstruccionesDeUsuarioSoloComoHeredadas(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home) // Windows
 	root := t.TempDir()
 
-	inspector := NewActivationInspector()
-	channels := inspector.Inspect(root)
-
-	for _, c := range channels {
-		if c.Kind == domain.KindInstructions && c.Scope == domain.ScopeUser {
-			if c.State == domain.StateNotApplicable {
-				t.Errorf("%s: el ámbito de usuario no puede volverse not_applicable: ahí sí se escribe", c.Agent)
+	estado := func() (domain.ActivationChannel, bool) {
+		for _, c := range NewActivationInspector().Inspect(root) {
+			if c.Kind == domain.KindInstructions && c.Scope == domain.ScopeUser && c.Agent == "claude" {
+				return c, true
 			}
-			return
 		}
+		return domain.ActivationChannel{}, false
 	}
-	t.Fatal("no se encontró ningún canal instructions de ámbito usuario")
+	c, ok := estado()
+	if !ok || c.State != domain.StateNotApplicable {
+		t.Fatalf("sin bloques = %+v, %v", c, ok)
+	}
+
+	dir := filepath.Join(home, ".claude")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("<!-- gomemory-protocol-v10 -->\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if c, ok = estado(); !ok || c.State != domain.StateOutdated || !strings.Contains(c.Detail, "setup-mcp --scope global") {
+		t.Fatalf("con bloque heredado = %+v, %v", c, ok)
+	}
 }
 
 // TestActivationInspect_CodexEntryComprubaElHookRealInstalado cubre el falso

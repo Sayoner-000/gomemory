@@ -6,60 +6,34 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/fstest"
-
-	"mem/domain"
 )
 
-// TestRunGlobalScopeSetup_InstructionsQuedaEnVersionVigente cubre T054: el
-// archivo de instrucciones de nivel usuario, tras habilitar el ámbito global,
-// contiene el marcador de la versión VIGENTE del protocolo (domain.ProtocolVersionMarker)
-// — la misma fuente única que consulta el inspector de cobertura, para que
-// "vigente" nunca pueda significar cosas distintas en dos sitios.
-func TestRunGlobalScopeSetup_InstructionsQuedaEnVersionVigente(t *testing.T) {
+// La instalación global conserva el método de planificación, pero ya no toca
+// los archivos de instrucciones: protocolo y baseline llegan por MCP y contexto.
+func TestRunGlobalScopeSetup_NoEscribeBloquesYConservaElMetodo(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0755); err != nil {
-		t.Fatalf("mkdir ~/.claude: %v", err)
+	for _, dir := range []string{".claude", filepath.Join(".config", "opencode"), ".codex"} {
+		if err := os.MkdirAll(filepath.Join(home, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
+	previous := PlanMethod()
+	SetPlanMethod("# Método de prueba\n")
+	t.Cleanup(func() { SetPlanMethod(previous) })
 
 	runGlobalScopeSetup([]string{"claude"})
 
-	data, err := os.ReadFile(filepath.Join(home, ".claude", "CLAUDE.md"))
-	if err != nil {
-		t.Fatalf("no se escribió ~/.claude/CLAUDE.md: %v", err)
+	for _, f := range []string{filepath.Join(".claude", "CLAUDE.md"), filepath.Join(".config", "opencode", "AGENTS.md"), filepath.Join(".codex", "AGENTS.md")} {
+		if data, err := os.ReadFile(filepath.Join(home, f)); err == nil && strings.Contains(string(data), "gomemory") {
+			t.Errorf("%s recibió un bloque de gomemory", f)
+		}
 	}
-	if !strings.Contains(string(data), domain.ProtocolVersionMarker) {
-		t.Errorf("~/.claude/CLAUDE.md no contiene la versión vigente %q", domain.ProtocolVersionMarker)
-	}
-}
-
-func TestRunGlobalScopeSetup_InstalaBaselineUniversalAntesDelProtocolo(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0755); err != nil {
-		t.Fatalf("mkdir ~/.claude: %v", err)
-	}
-
-	previousTemplates := TemplatesFS
-	TemplatesFS = fstest.MapFS{
-		"templates/universal-agent-instructions.md": &fstest.MapFile{Data: []byte("<!-- gomemory-universal-agent-instructions-v1 -->\n# Universal\n<!-- gomemory-universal-agent-instructions-end -->\n")},
-	}
-	t.Cleanup(func() { TemplatesFS = previousTemplates })
-
-	runGlobalScopeSetup([]string{"claude"})
-	data, err := os.ReadFile(filepath.Join(home, ".claude", "CLAUDE.md"))
-	if err != nil {
-		t.Fatalf("leer instrucciones globales: %v", err)
-	}
-	text := string(data)
-	if !strings.Contains(text, "gomemory-universal-agent-instructions-v1") {
-		t.Fatal("falta el baseline universal")
-	}
-	if strings.Index(text, "gomemory-universal-agent-instructions-v1") > strings.Index(text, domain.ProtocolVersionMarker) {
-		t.Error("el baseline universal debe aparecer antes del protocolo de GoMemory")
+	for _, f := range []string{filepath.Join(".claude", "skills", "atomic-decomposition", "SKILL.md"), filepath.Join(".config", "opencode", "commands", "atomic-decomposition.md")} {
+		if _, err := os.Stat(filepath.Join(home, f)); err != nil {
+			t.Errorf("falta %s: %v", f, err)
+		}
 	}
 }
 

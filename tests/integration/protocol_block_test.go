@@ -20,9 +20,7 @@ import (
 // MCP lo entrega verbatim en la respuesta initialize (cmd_mcp.go, ServerOptions.
 // Instructions). El archivo era una SEGUNDA copia del mismo texto.
 //
-// composeAgentFile/protocolStart/protocolEnd siguen existiendo y con sus tests
-// propios (cmd_install_protocol_test.go): las usa `setup-mcp --scope global`
-// para el ámbito de USUARIO, que esta feature no toca.
+// protocolStart/protocolEnd siguen existiendo solo para retirar bloques heredados.
 //
 // Lo que se verifica ahora es el comportamiento nuevo: retirada con respaldo.
 

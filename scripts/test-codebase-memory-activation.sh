@@ -4,7 +4,7 @@
 #     --json, no-duplicación tras doble instalación, contrato neutral con un
 #     agente desconocido.
 #   - Brazo extensor (codebase-memory-mcp): activación en los 4 canales
-#     (Claude Code hook, OpenCode plugin, integración AGENTS.md, subagentes) Y
+#     (Claude Code hook, OpenCode plugin, instrucciones MCP, subagentes) Y
 #     no-regresión: su activación debe seguir intacta tras cualquier cambio de
 #     esta feature, y su ausencia no debe generar avisos.
 #
@@ -159,10 +159,10 @@ test_opencode_plugin() {
   assert_contains "$content" "get_plan_context" "OpenCode: get_plan_context en protocolo"
 }
 
-# ── Canal 3: Integración — buildIntegrationBlock (AGENTS.md / .cursorrules) ─
+# ── Canal 3: Integración — buildIntegrationBlock (instrucciones MCP) ─
 
 test_integration_block() {
-  bold "5. Integración — buildIntegrationBlock (AGENTS.md/.cursorrules)"
+  bold "5. Integración — buildIntegrationBlock (instrucciones MCP)"
 
   local plugin="$ROOT/infrastructure/plugin/opencode/gomemory.ts"
   local install="$ROOT/adapters/primary/cli/cmd_install.go"

@@ -193,7 +193,7 @@ func removeProtocolBlockFile(path string) (bool, error) {
 		changed = true
 	}
 	// El protocolo de memoria y, en las instrucciones globales, el baseline
-	// universal que composeAgentFile escribe justo antes: ambos son de gomemory.
+	// universal que versiones anteriores escribían justo antes: ambos son de gomemory.
 	if idx := protocolStart(rest); idx != -1 {
 		cut(idx, protocolEnd(rest, idx))
 	}

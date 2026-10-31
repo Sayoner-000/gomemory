@@ -225,8 +225,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// fuente en cuanto alguien editaba una de las dos. Ambas viven ahora como
 	// memorias semilla (paso 2b) y se administran con `mem docs`.
 	//
-	// composeAgentFile/protocolStart/protocolEnd NO se eliminaron: las usa
-	// `setup-mcp --scope global` para el ámbito de USUARIO, que sigue vigente.
+	// protocolStart/protocolEnd sobreviven solo para retirar bloques heredados.
 
 	// 4c. Distribuir el brazo extensor gomemory-context (spec 011/012):
 	// no-op silencioso si el proyecto destino no tiene spec-kit (.specify/
@@ -530,58 +529,6 @@ func embeddedTemplate(name string) string {
 		return ""
 	}
 	return string(data)
-}
-
-// composeAgentFile garantiza que el archivo de agente contenga, en orden, el
-// baseline universal y luego el bloque dinámico del protocolo de memoria.
-// Es idempotente y actualiza únicamente los bloques gestionados por gomemory.
-// Devuelve el contenido resultante y si hubo cambios.
-func composeAgentFile(existing, universal, integration string) (string, bool) {
-	out := existing
-	changed := false
-
-	// 1. Baseline universal, SIEMPRE antes del protocolo de memoria. A
-	// diferencia de las reglas específicas de un proyecto, este bloque vive en
-	// las instrucciones globales y no se reinyecta por hook en cada turno.
-	if universal != "" {
-		block := strings.TrimRight(universal, "\n")
-		if idx := universalInstructionsStart(out); idx != -1 {
-			end := universalInstructionsEnd(out, idx)
-			if strings.TrimSpace(out[idx:end]) != strings.TrimSpace(block) {
-				out = strings.TrimRight(out[:idx], "\n") + "\n\n" + block + "\n" + strings.TrimLeft(out[end:], "\n")
-				changed = true
-			}
-		} else if idx := protocolStart(out); idx != -1 {
-			out = strings.TrimRight(out[:idx], "\n") + "\n\n" + block + "\n\n" + out[idx:]
-			changed = true
-		} else {
-			out = strings.TrimRight(out, "\n") + "\n\n" + block + "\n"
-			changed = true
-		}
-	}
-
-	// 2. Protocolo de memoria (versionado). Reemplaza bloques de cualquier
-	// versión anterior si existen (ver protocolStart/protocolEnd), preservando
-	// TODO el contenido ajeno que quede antes y después del bloque viejo
-	// (feature 019, FR-015 — antes de esto, out[:idx] + integration descartaba
-	// sin avisar cualquier cosa que la persona tuviera después del bloque).
-	if !strings.Contains(out, integrationVersionMarker) {
-		if idx := protocolStart(out); idx != -1 {
-			end := protocolEnd(out, idx)
-			before := strings.TrimRight(out[:idx], "\n")
-			after := strings.TrimLeft(out[end:], "\n")
-			if after != "" {
-				out = before + "\n" + integration + "\n" + after
-			} else {
-				out = before + "\n" + integration
-			}
-		} else {
-			out = strings.TrimRight(out, "\n") + "\n" + integration
-		}
-		changed = true
-	}
-
-	return out, changed
 }
 
 func universalInstructionsStart(content string) int {

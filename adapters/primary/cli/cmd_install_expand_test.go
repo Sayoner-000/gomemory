@@ -53,13 +53,4 @@ func TestExpandInstallUpgradeUninstall(t *testing.T) {
 	if strings.Contains(string(raw), "hook expand") {
 		t.Fatal("orphan expand hook")
 	}
-	oldProtocol := "antes\n<!-- gomemory-protocol-v9 -->\nlegacy\n<!-- gomemory-protocol-end -->\ndespués"
-	fresh, changed := composeAgentFile(oldProtocol, "", buildIntegrationBlock())
-	if !changed || !strings.Contains(fresh, "protocol-v11") || strings.Contains(fresh, "protocol-v9") || !strings.Contains(fresh, "después") {
-		t.Fatal(fresh)
-	}
-	again, changed := composeAgentFile(fresh, "", buildIntegrationBlock())
-	if changed || again != fresh {
-		t.Fatal("not idempotent")
-	}
 }

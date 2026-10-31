@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -51,9 +50,7 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 	}
 }
 
-// TestProtocolVersionMarker_SubioAV8 verifica el mecanismo de actualización: al
-// subir el número de versión, composeAgentFile reemplaza el bloque anterior
-// completo sin dejar restos (FR-030) y sin necesidad de escribir migración.
+// TestProtocolVersionMarker_SubioAV8 fija la versión vigente del bloque.
 // Subió a v7 al añadir la guía del grafo de código externo a
 // buildIntegrationBlock(): cambiar el contenido sin subir el marcador dejaría a
 // los proyectos ya instalados en v6 (este mismo repo, entre otros) sin forma de
@@ -64,142 +61,6 @@ func TestIntegrationBlock_SeccionDeModoPlanEsBreve(t *testing.T) {
 func TestProtocolVersionMarker_SubioAV9(t *testing.T) {
 	if integrationVersionMarker != "<!-- gomemory-protocol-v11 -->" {
 		t.Errorf("integrationVersionMarker = %q, se esperaba la v9 (feature 038)", integrationVersionMarker)
-	}
-}
-
-// TestComposeAgentFile_ReemplazaV5SinDejarRestos es la prueba del camino de
-// actualización real: un proyecto instalado con una versión antigua debe
-// quedar con la nueva y sin rastro de la vieja.
-func TestComposeAgentFile_ReemplazaV5SinDejarRestos(t *testing.T) {
-	previo := "# Instrucciones\n\nTexto propio del proyecto.\n\n" +
-		"<!-- gomemory-protocol-v5 -->\n" +
-		"## Memoria Persistente (`mem`) — Protocolo Activo\n\n" +
-		"contenido viejo del protocolo\n"
-
-	out, changed := composeAgentFile(previo, "", buildIntegrationBlock())
-
-	if !changed {
-		t.Fatal("composeAgentFile debía reportar cambios al subir de versión")
-	}
-	if strings.Contains(out, "gomemory-protocol-v5") {
-		t.Error("quedaron restos del marcador de la versión anterior (FR-030)")
-	}
-	if strings.Contains(out, "contenido viejo del protocolo") {
-		t.Error("quedó contenido de la versión anterior")
-	}
-	if strings.Count(out, integrationVersionMarker) != 1 {
-		t.Errorf("se esperaba exactamente un marcador vigente, hay %d", strings.Count(out, integrationVersionMarker))
-	}
-	if !strings.Contains(out, "Texto propio del proyecto.") {
-		t.Error("se perdió el contenido propio del proyecto")
-	}
-}
-
-// TestComposeAgentFile_ReemplazaV6SinDejarRestos es el caso real de este mismo
-// repositorio: CLAUDE.md/AGENTS.md quedaron en v6 (feature 013, modo plan) y
-// deben poder subir a v7 (grafo de código externo) sin dejar restos, igual que
-// v5→v6.
-func TestComposeAgentFile_ReemplazaV6SinDejarRestos(t *testing.T) {
-	previo := "# Instrucciones\n\nTexto propio del proyecto.\n\n" +
-		"<!-- gomemory-protocol-v6 -->\n" +
-		"## Memoria Persistente (`mem`) — Protocolo Activo\n\n" +
-		"contenido de la v6, sin la guía del grafo externo\n"
-
-	out, changed := composeAgentFile(previo, "", buildIntegrationBlock())
-
-	if !changed {
-		t.Fatal("composeAgentFile debía reportar cambios al subir de v6 a v7")
-	}
-	if strings.Contains(out, "gomemory-protocol-v6") {
-		t.Error("quedaron restos del marcador v6 (FR-030)")
-	}
-	if strings.Contains(out, "contenido de la v6, sin la guía del grafo externo") {
-		t.Error("quedó contenido de la versión anterior")
-	}
-	if !strings.Contains(out, "codebase-memory-mcp") {
-		t.Error("la v7 debe incluir la guía del grafo de código externo")
-	}
-	if !strings.Contains(out, "Texto propio del proyecto.") {
-		t.Error("se perdió el contenido propio del proyecto")
-	}
-}
-
-// TestComposeAgentFile_EsIdempotente cubre FR-029: reinstalar sobre un archivo
-// que ya tiene la versión vigente no debe modificarlo.
-func TestComposeAgentFile_EsIdempotente(t *testing.T) {
-	base := "# Instrucciones\n"
-	once, _ := composeAgentFile(base, "", buildIntegrationBlock())
-
-	twice, changed := composeAgentFile(once, "", buildIntegrationBlock())
-	if changed {
-		t.Error("una segunda composición no debía reportar cambios")
-	}
-	if once != twice {
-		t.Error("la segunda composición alteró el contenido")
-	}
-}
-
-func TestComposeAgentFile_InstalaYActualizaBaselineUniversal(t *testing.T) {
-	const universalV1 = "<!-- gomemory-universal-agent-instructions-v1 -->\n# Universal\n<!-- gomemory-universal-agent-instructions-end -->"
-	const universalV2 = "<!-- gomemory-universal-agent-instructions-v2 -->\n# Universal actualizado\n<!-- gomemory-universal-agent-instructions-end -->"
-
-	base := "# Instrucciones\n\nTexto propio.\n"
-	once, changed := composeAgentFile(base, universalV1, buildIntegrationBlock())
-	if !changed || !strings.Contains(once, universalV1) {
-		t.Fatal("debía instalar el baseline universal")
-	}
-	if strings.Index(once, universalV1) > strings.Index(once, integrationVersionMarker) {
-		t.Error("el baseline universal debe preceder al protocolo de memoria")
-	}
-
-	updated, changed := composeAgentFile(once, universalV2, buildIntegrationBlock())
-	if !changed || strings.Contains(updated, universalV1) || !strings.Contains(updated, universalV2) {
-		t.Error("debía reemplazar solamente la versión gestionada del baseline")
-	}
-	if !strings.Contains(updated, "Texto propio.") {
-		t.Error("la actualización no debe perder instrucciones ajenas")
-	}
-}
-
-// T011 (feature 038, FR-006): migración v8→v9. El bloque instalado en v8 debe
-// reemplazarse por el v9 conservando delimitador final, baseline, bloques
-// ajenos antes/después y sin duplicar en la segunda composición. Carga el
-// fixture T004. En rojo hasta T015: el marcador vigente sigue en v8.
-func TestComposeAgentFile_MigraV8AV9SinDejarRestos(t *testing.T) {
-	const v9 = "<!-- gomemory-protocol-v11 -->"
-	raw, err := os.ReadFile("../../../tests/fixtures/038/protocol-v8.md")
-	if err != nil {
-		t.Fatalf("falta el fixture T004: %v", err)
-	}
-	previo := string(raw)
-
-	out, changed := composeAgentFile(previo, "", buildIntegrationBlock())
-
-	if !changed {
-		t.Fatal("composeAgentFile debía reportar cambios al subir de v8 a v9")
-	}
-	if strings.Contains(out, "gomemory-protocol-v8") {
-		t.Error("quedaron restos del marcador v8")
-	}
-	if !strings.Contains(out, v9) {
-		t.Errorf("el bloque migrado debe llevar el marcador %q", v9)
-	}
-	if !strings.Contains(out, "<!-- gomemory-protocol-end -->") {
-		t.Error("se perdió el delimitador final del bloque")
-	}
-	for _, want := range []string{"Contenido ajeno previo", "Contenido ajeno posterior", "codegraph-config-ejemplo", "MCP-SERVER-EXTERNO", "038-PROTOCOL-V8-FIXTURE"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("se perdió contenido ajeno o marcador: %q", want)
-		}
-	}
-
-	if strings.Count(out, "## Memoria Persistente") != 1 {
-		t.Errorf("la migración debe dejar exactamente una cabecera, hay %d", strings.Count(out, "## Memoria Persistente"))
-	}
-
-	twice, changed := composeAgentFile(out, "", buildIntegrationBlock())
-	if changed || twice != out {
-		t.Error("la segunda composición debe ser idempotente")
 	}
 }
 

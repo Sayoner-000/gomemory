@@ -71,11 +71,9 @@ func CmdMCP(deps *Deps, args []string) {
 // pasar por stdio (feature 020, research.md §3).
 func newMCPServer(deps *Deps, root, project string) *mcp.Server {
 	// Instructions viaja en la respuesta initialize del MCP: el protocolo de
-	// memoria queda disponible para cualquier cliente MCP compatible sin
-	// depender de un AGENTS.md/CLAUDE.md por proyecto (necesario sobre todo en
-	// scope global, donde no se genera ningún archivo en el repo). Reusa
-	// buildIntegrationBlock() (mismo texto que install inserta en AGENTS.md)
-	// para no mantener el protocolo en dos lugares.
+	// memoria queda disponible para cualquier cliente MCP compatible, sin
+	// depender de archivos de instrucciones. Algunos clientes truncan este
+	// texto: por eso las reglas van antes que la lista de herramientas.
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gomemory",
 		Version: version.Version,

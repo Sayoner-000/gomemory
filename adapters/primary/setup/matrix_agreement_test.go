@@ -73,17 +73,22 @@ func TestC7_EnvoltoriosDeLaConstitucionConcuerdanConLaMatriz(t *testing.T) {
 }
 
 // TestC7_DestinosGlobalesConcuerdanConLaMatriz ata la tabla de destinos de
-// ámbito de usuario: su archivo de instrucciones y su envoltorio nativo.
+// ámbito de usuario: su archivo de instrucciones heredado y su envoltorio nativo.
 func TestC7_DestinosGlobalesConcuerdanConLaMatriz(t *testing.T) {
-	instrucciones := rutasDeLaMatriz(domain.KindInstructions, domain.ScopeUser)
+	heredadas := map[string]bool{}
+	for _, c := range domain.ChannelMatrix {
+		if c.Kind == domain.KindInstructions && c.Scope == domain.ScopeUser && c.Legacy {
+			heredadas[filepath.Join(c.Path...)] = true
+		}
+	}
 	envoltorios := rutasDeLaMatriz(domain.KindNativeWrapper, domain.ScopeUser)
 
 	for _, tg := range globalTargets {
 		base := filepath.Join(tg.dir...)
 
 		ruta := filepath.Join(base, tg.instructions)
-		if !instrucciones[ruta] {
-			t.Errorf("el archivo de instrucciones de ámbito de usuario %q no está declarado en la matriz", ruta)
+		if !heredadas[ruta] {
+			t.Errorf("el archivo de instrucciones de ámbito de usuario %q no está declarado como heredado", ruta)
 		}
 
 		if len(tg.wrapper) == 0 {

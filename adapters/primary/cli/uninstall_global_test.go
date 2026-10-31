@@ -119,10 +119,10 @@ func TestRemoveProtocolBlockFile(t *testing.T) {
 		t.Errorf("resultado:\n%s", got)
 	}
 
-	// Instrucciones globales: baseline universal + protocolo, como las deja
-	// composeAgentFile; se retiran ambos bloques.
+	// Instrucciones globales heredadas: baseline universal y protocolo; se
+	// retiran ambos bloques.
 	global := filepath.Join(t.TempDir(), "CLAUDE.md")
-	compuesto, _ := composeAgentFile("# Personal\n\nMis notas.\n", embeddedTemplate("universal-agent-instructions.md"), buildIntegrationBlock())
+	compuesto := "# Personal\n\nMis notas.\n\n" + embeddedTemplate("universal-agent-instructions.md") + "\n" + buildIntegrationBlock() + "\n"
 	writeFile(t, global, compuesto)
 	if _, err := removeProtocolBlockFile(global); err != nil {
 		t.Fatal(err)

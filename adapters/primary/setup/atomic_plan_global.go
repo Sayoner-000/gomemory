@@ -18,6 +18,7 @@ type globalTarget struct {
 	// dir es la raíz de configuración de usuario del agente, relativa al HOME.
 	dir []string
 	// instructions es el archivo de instrucciones que el agente lee siempre.
+	// gomemory ya no escribe en él: solo retira los bloques heredados.
 	instructions string
 	// wrapper es la ruta del envoltorio nativo, relativa a dir. Vacío = el
 	// agente no tiene un formato propio de comandos/habilidades que gomemory
@@ -51,37 +52,27 @@ var globalTargets = []globalTarget{
 	{
 		agent: "codex",
 		dir:   []string{".codex"},
-		// AGENTS.md es el archivo que Codex lee siempre, el mismo estándar que
-		// usa OpenCode. Sin envoltorio nativo: Codex no expone un formato de
-		// comandos o habilidades propio que gomemory pueda escribir, y el
-		// método de descomposición le llega igual por el bloque de protocolo.
+		// Sin envoltorio nativo: Codex no expone un formato de comandos propio
+		// que gomemory pueda escribir, y el método le llega con get_plan_context.
 		instructions: "AGENTS.md",
 	},
 }
 
-// InstallAtomicPlanGlobal escribe, en el ámbito de usuario, el bloque de
-// protocolo (que lleva el disparador de modo plan) y el envoltorio nativo del
-// método, para los agentes que tienen configuración de nivel usuario.
+// InstallAtomicPlanGlobal instala, en el ámbito de usuario, el envoltorio nativo
+// del método para los agentes que ya tienen configuración de nivel usuario.
 //
-// Con esto, habilitar la funcionalidad una sola vez cubre todos los proyectos
-// presentes y futuros (feature 013, FR-024). Un proyecto puede seguir instalando
-// su propia versión, que prevalece: los agentes mezclan su configuración de
-// usuario con la del proyecto, y el bloque es el MISMO bloque versionado, así
-// que el del proyecto sustituye conceptualmente al global en vez de sumarse.
-//
-// Solo toca el bloque marcado de gomemory: composeAgentFile preserva íntegro
-// cualquier otro contenido que la persona tenga en su archivo de instrucciones.
-//
-// compose recibe el contenido actual del archivo de instrucciones y devuelve el
-// contenido con el bloque de protocolo al día, más si hubo cambios. Se inyecta
-// desde el paquete cli, que es dueño de los marcadores de versión: cli ya
-// importa setup, así que la dependencia no puede ir en el otro sentido.
+// No escribe en los archivos de instrucciones: protocolo y baseline llegan por
+// MCP, hooks y contexto (HCD-009). Codex no tiene envoltorio y recibe el método
+// con get_plan_context.
 //
 // Devuelve la lista de rutas efectivamente escritas, para poder informarlas.
-func InstallAtomicPlanGlobal(method string, compose func(existing string) (string, bool)) ([]string, error) {
+func InstallAtomicPlanGlobal(method string) ([]string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(method) == "" {
+		return nil, nil
 	}
 
 	var written []string
@@ -90,23 +81,11 @@ func InstallAtomicPlanGlobal(method string, compose func(existing string) (strin
 		// Solo se escribe si el agente ya tiene su directorio de configuración:
 		// crear ~/.claude o ~/.config/opencode para un agente que la persona no
 		// usa sería ensuciar su HOME sin motivo.
-		if info, err := os.Stat(base); err != nil || !info.IsDir() {
-			continue
-		}
-
-		p, err := writeGlobalInstructions(filepath.Join(base, t.instructions), compose)
-		if err != nil {
-			return written, err
-		}
-		if p != "" {
-			written = append(written, p)
-		}
-
-		if strings.TrimSpace(method) == "" || len(t.wrapper) == 0 {
+		if info, err := os.Stat(base); err != nil || !info.IsDir() || len(t.wrapper) == 0 {
 			continue
 		}
 		dest := filepath.Join(append([]string{base}, t.wrapper...)...)
-		p, err = writeGlobalWrapper(dest, t.frontmatter, method)
+		p, err := writeGlobalWrapper(dest, t.frontmatter, method)
 		if err != nil {
 			return written, err
 		}
@@ -117,23 +96,14 @@ func InstallAtomicPlanGlobal(method string, compose func(existing string) (strin
 	return written, nil
 }
 
-// writeGlobalInstructions inserta o actualiza el bloque de protocolo en el
-// archivo de instrucciones de usuario del agente, sin tocar nada más.
-// Devuelve la ruta si hubo cambios, o "" si ya estaba al día (idempotencia).
-func writeGlobalInstructions(path string, compose func(existing string) (string, bool)) (string, error) {
-	previo, _ := os.ReadFile(path)
-
-	out, changed := compose(string(previo))
-	if !changed {
-		return "", nil
+// GlobalInstructionPaths enumera los archivos de instrucciones de usuario donde
+// versiones anteriores escribieron bloques de gomemory.
+func GlobalInstructionPaths(home string) []string {
+	paths := make([]string, 0, len(globalTargets))
+	for _, t := range globalTargets {
+		paths = append(paths, filepath.Join(append(append([]string{home}, t.dir...), t.instructions)...))
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", err
-	}
-	if err := WriteConfigFile(GlobalConfigPath(path), []byte(out)); err != nil {
-		return "", err
-	}
-	return path, nil
+	return paths
 }
 
 func writeGlobalWrapper(path, frontmatter, method string) (string, error) {

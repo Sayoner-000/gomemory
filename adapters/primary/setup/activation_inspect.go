@@ -26,14 +26,13 @@ type ActivationInspector struct {
 
 func NewActivationInspector() *ActivationInspector { return &ActivationInspector{} }
 
-// agentInstructionFiles son los archivos de instrucciones que se inspeccionan
-// en un directorio dado, en el mismo orden que cmd_install.go.
+// agentInstructionFiles son los archivos heredados donde se busca un bloque de
+// protocolo de versiones anteriores: gomemory ya no escribe en ninguno.
 //
 // La lista es COMÚN a todos los agentes, no de Claude Code: `AGENTS.md` es el de
 // OpenCode (y el estándar que también leen Codex y Gemini), `CLAUDE.md` el de
-// Claude Code, y los dos `.*rules` son legados que solo se reportan si
-// conservan un bloque de una versión anterior. El nombre anterior sugería lo
-// contrario y hacía leer como sesgo lo que es una tabla compartida.
+// Claude Code, y los dos `.*rules` son legados. Todos solo se reportan si
+// conservan un bloque de una versión anterior.
 var agentInstructionFiles = []string{"AGENTS.md", "CLAUDE.md", "CLAUDE.txt", ".cursorrules", ".windsurfrules"}
 
 // Inspect recorre domain.KnownAgents y devuelve un canal por combinación
@@ -74,7 +73,7 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 	if scope == domain.ScopeUser {
 		instructionsDir = userInstructionsDir(agent.Name, dir)
 	}
-	out = append(out, a.inspectInstructions(agent, instructionsDir, scope, scope == domain.ScopeProject))
+	out = append(out, a.inspectInstructions(agent, instructionsDir, scope))
 
 	if agent.HasLevel(domain.AgentLevelGuard) {
 		out = append(out, a.inspectClaudeHook(agent, dir, scope, domain.KindPlanGuard, "PreToolUse", "ExitPlanMode", "hook plan-guard"))
@@ -372,7 +371,7 @@ func readSettingsAtomicPlanDisabled(dir string) bool {
 // es falsa alarma sino información verdadera sobre un duplicado obsoleto que
 // conviene retirar; la limpieza del instalador se encarga de que deje de
 // ocurrir.
-func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, dir string, scope domain.AgentScope, opcional bool) domain.ActivationChannel {
+func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, dir string, scope domain.AgentScope) domain.ActivationChannel {
 	ch := domain.ActivationChannel{Arm: domain.ArmGomemory, Agent: agent.Name, Scope: scope, Kind: domain.KindInstructions}
 
 	for _, fname := range agentInstructionFiles {
@@ -380,36 +379,15 @@ func (a *ActivationInspector) inspectInstructions(agent domain.AgentCapability, 
 		if err != nil {
 			continue
 		}
-		content := string(data)
-		loc := domain.ProtocolVersionPattern.FindString(content)
-		if loc == "" {
-			continue
+		if loc := domain.ProtocolVersionPattern.FindString(string(data)); loc != "" {
+			ch.State = domain.StateOutdated
+			ch.Detail = fname + ": bloque heredado " + loc + "; se retira con `mem setup-mcp --scope global`"
+			return ch
 		}
-		universal := domain.UniversalInstructionsVersionPattern.FindString(content)
-		switch {
-		case loc != domain.ProtocolVersionMarker:
-			ch.State = domain.StateOutdated
-			ch.Detail = fname + ": " + loc + "; vigente " + domain.ProtocolVersionMarker
-		case universal == "":
-			ch.State = domain.StateOutdated
-			ch.Detail = fname + ": falta baseline universal " + domain.UniversalInstructionsVersionMarker
-		case universal != domain.UniversalInstructionsVersionMarker:
-			ch.State = domain.StateOutdated
-			ch.Detail = fname + ": baseline " + universal + "; vigente " + domain.UniversalInstructionsVersionMarker
-		default:
-			ch.State = domain.StateOK
-			ch.Detail = fname + ": baseline " + universal + "; protocolo " + loc
-		}
-		return ch
 	}
 
-	if opcional {
-		ch.State = domain.StateNotApplicable
-		ch.Detail = "el protocolo viaja en las Instructions del MCP; gomemory ya no escribe archivos de instrucciones en el proyecto"
-		return ch
-	}
-	ch.State = domain.StateMissing
-	ch.Detail = "ningún archivo de instrucciones con el bloque de protocolo en " + dir
+	ch.State = domain.StateNotApplicable
+	ch.Detail = "protocolo y baseline llegan por MCP, hooks y contexto; gomemory ya no escribe archivos de instrucciones"
 	return ch
 }
 

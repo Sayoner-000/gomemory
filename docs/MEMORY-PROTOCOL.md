@@ -76,9 +76,9 @@ de vida, porque vive en el propio servidor `mem mcp`
    siempre vuelve al modelo, en cualquier cliente, sin depender de que honre
    `instructions`.
 
-`mem install` no escribe este bloque en `AGENTS.md` ni `CLAUDE.md`. El refuerzo
-textual opcional vive en los archivos de instrucciones de ámbito de usuario que
-genera `mem setup-mcp --scope global`.
+gomemory no escribe este bloque en ningún archivo de instrucciones. `mem setup-mcp
+--scope global` retira, con copia de seguridad junto al archivo, los bloques que
+dejaron versiones anteriores.
 
 ### Memoria dinámica (recordatorio por hook)
 
@@ -242,7 +242,7 @@ After compaction, IMMEDIATELY:
 | `initialize.instructions` (MCP nativo) | `mem mcp` (`ServerOptions.Instructions`) | **No** — cualquier scope/agente | ✅ Una vez por conexión |
 | Descripciones de tools (MCP nativo) | `mem mcp` (`Tool.Description`) | **No** — cualquier scope/agente | ✅ Siempre visibles |
 | `get_context` embebido (MCP nativo) | `mem mcp` (tool + recurso `mem://context`) | **No** — cualquier scope/agente | ✅ Cada llamada |
-| Instrucciones de usuario (refuerzo opcional) | Archivo global propio del agente | `mem setup-mcp --scope global` | ✅ Siempre |
+| Baseline universal | Contexto de sesión (`get_context`, hook de arranque) como documento fijado | **No** — plantilla embebida de respaldo | ✅ Una vez por sesión |
 
 ## Medición del costo
 
