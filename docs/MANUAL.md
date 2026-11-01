@@ -693,7 +693,15 @@ mem purge --all --yes                      # TODOS los proyectos, sin prompt (sc
 
 Por defecto el alcance es el proyecto actual (FR-003); `--all` requiere pasarse
 explícitamente para afectar todos los proyectos del archivo. Al borrar una
-memoria también se limpian las relaciones (`mem compare`) que la referencian.
+memoria también se limpian las relaciones (`mem compare`) que la referencian,
+su entrada del índice de búsqueda y sus copias exactas comprimidas.
+
+Purgar reescribe la base con `VACUUM`: al terminar, el texto ya no está en
+`mem.db` ni en su WAL. Si otra conexión o proceso la retiene, el comando termina
+con éxito y avisa por stderr de que el texto sigue en disco; repite `mem compact`
+cuando termine. Un bloque comprimido que solo incluya el texto dentro de otro
+sobrevive hasta caducar, a los 7 días, y sesiones, evidencia HCD y Socrática no
+se modifican. El detalle está en [DATABASE.md](DATABASE.md#borrado-de-memorias).
 
 ### Compactar el almacenamiento
 
@@ -701,8 +709,10 @@ memoria también se limpian las relaciones (`mem compare`) que la referencian.
 mem compact
 ```
 
-Ejecuta `VACUUM` para recuperar el espacio en disco liberado por borrados
-previos. Nunca elimina memorias — reporta el tamaño antes/después.
+Ejecuta `VACUUM` y vacía el WAL para recuperar el espacio y retirar el texto de
+borrados previos. Nunca elimina memorias: reporta el tamaño de la base y su WAL
+antes y después. Si otra conexión retiene el WAL, sale con 0, no informa espacio
+liberado y avisa por stderr de que el texto sigue en disco.
 
 ### Garbage collection a demanda
 

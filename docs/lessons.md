@@ -83,3 +83,12 @@ posterior lo indica de forma explícita.
 - Los tests que solo fijan `HOME` leen el home real en Windows (`os.UserHomeDir` usa `USERPROFILE`), y `filepath.EvalSymlinks` expande allí los nombres cortos 8.3 (`RUNNER~1`). **Regla: fijar `HOME` y `USERPROFILE` juntos, y resolver la raíz como el producto (`persistence.FindRoot`).**
 - `os.WriteFile` sigue los symlinks: un `.claude/settings.json` o `.mcp.json` enlazado hacía escribir fuera del repositorio, y con `.claude/plugins` enlazado `RemoveAll` borraba fuera. A la vez, reemplazar con `rename` sustituye un enlace de dotfiles por un archivo normal. **Regla: en el proyecto, `ProjectConfigPath` antes de crear, escribir o borrar; en el HOME, escribir en el destino del enlace (`GlobalConfigPath`). Al reescribir, conservar el modo.**
 - Una línea nueva en `mem usage` rompió la altura de la vista de uso de la TUI y no se vio porque solo se corrieron los paquetes tocados. **Regla: antes de publicar una rama, correr la suite completa (`go test ./...`), no solo los paquetes del cambio.**
+
+## 2026-11-01
+
+- Una prueba de borrado físico sobre una base recién creada no demuestra nada: no tiene páginas libres. **Regla: crear los restos con `secure_delete=OFF` y fusiones del índice antes de probar, y comprobar que `forget` no reescribe la base.**
+- Comparar por contención, primero por líneas y luego por contenido, borró originales vivos y descomprimía todo el almacén en cada borrado: 49 s en una purga. **Regla: antes de añadir una heurística, buscar un dato exacto existente; aquí, la columna `hash`.**
+- Una base sin memorias no es una base nueva: pudo vaciarse antes de actualizar. **Regla: decidir por la existencia previa de la tabla, no por `user_version` ni por el recuento de filas.**
+- SQLite `trim` solo quita espacios ASCII y `strings.TrimSpace` también Unicode y saltos. **Regla: comparar primero byte a byte y normalizar igual a ambos lados.**
+- `PRAGMA secure_delete` se lee como 0, 1 o 2, pero un 2 numérico activa ON: solo la palabra `FAST` da ese modo. **Regla: restaurar pragmas enumerados por su nombre.**
+- Un test de desinstalación ejecutaba el `install.sh` real, que recorre `/usr/local/bin` y `~/.local/bin`. **Regla: probar scripts destructivos sobre una copia con esas rutas redirigidas.**

@@ -47,7 +47,9 @@ en un solo paso. Linux/macOS necesitan `sha256sum` o `shasum`; sin ninguno, la
 instalación se detiene. `checksums.txt` viene del mismo release: verifica la
 integridad publicada, no es una firma independiente.
 
-Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`. En
+Desinstalar el binario: `curl -fsSL .../install.sh | bash -s -- --uninstall`. Solo
+retira binarios que reconoce como de gomemory, sin ejecutarlos: un `mem` ajeno o un
+enlace se conservan y se avisa de su ruta. En
 Windows, borra `%LOCALAPPDATA%\Programs\gomemory` y quita esa carpeta del PATH
 de usuario.
 

@@ -72,6 +72,16 @@ La apertura prepara el esquema de forma aditiva en una sola transacción inmedia
 
 Cada cambio del catálogo exige aumentar `schemaVersion` y regenerar `adapters/secondary/persistence/testdata/schema.golden` en el mismo cambio. El golden incluye la versión, el catálogo y las columnas; su guarda rechaza cambios del catálogo sin aumento de versión. La versión 1 introduce la preparación transaccional, la versión 2 añade el índice no único `idx_sessions_project_created ON sessions(project, created_at)`, utilizado para contar sesiones, consultar la activa y listar las recientes, y la versión 3 añade las columnas de la preparación para Spec Kit (véase la sección de Socratica). La versión 5 añade el esquema HCD y retira el catálogo HCD v1 de las bases que lo tenían, y la versión 6 añade a `hcd_approvals` las huellas de la Constitución y del Playbook (véase la sección HCD). Un error no tolerado revierte toda la preparación y conserva la versión anterior. Las ampliaciones opcionales conservan sus tolerancias históricas; si fallan, no se vuelven a intentar hasta la siguiente subida de versión.
 
+Desde el esquema 7, abrir una base existente intenta una sola vez `VACUUM` y checkpoint para retirar texto antiguo de páginas libres. Se decide porque la tabla `memories` ya existía, no por `user_version` ni por tener filas, así que una base vaciada también se limpia. Si falla, la apertura continúa y lo repara el siguiente `mem purge`, `mem gc` o `mem compact`.
+
+## Borrado de memorias
+
+`mem forget`, `mem purge`, `mem gc`, la consolidación y la TUI usan `borrarConGarantia`. En una sola transacción retira las memorias, sus relaciones, sus filas de `memory_search` y sus copias exactas en `compression_originals`. Después intenta el checkpoint, con una espera máxima de 200 ms; `mem purge` y `mem gc` ejecutan además `VACUUM`.
+
+- **Copias**: se comparan por el `hash` de la tabla con el contenido y con `título: contenido`, sin descomprimir. Si una memoria viva del proyecto aún contiene ese texto, la copia se conserva. Una purga sin filtros vacía los originales de su alcance.
+- **Límites**: un original que solo incluye el texto dentro de otro bloque sobrevive hasta caducar, a los 7 días, igual que las copias de un contenido editado o redactado. Sesiones, evidencia HCD, Socrática y `channel_activity` no son copias y no se tocan. Una tabla `memory_search` que no sea FTS5 se omite.
+- **Lector activo**: si otra conexión retiene la base, el resultado es `domain.ErrLimpiezaPendiente`: las memorias ya están borradas, pero el texto sigue en disco hasta que termine. `mem compact` vacía y comprueba el WAL. Corrupción, E/S o disco lleno siguen siendo errores, con el número de memorias borradas.
+
 `sqliteDSN` aplica estos ajustes a cada conexión del pool, incluida la apertura del almacén legado durante su traslado:
 
 | Ajuste | Valor | Motivo |

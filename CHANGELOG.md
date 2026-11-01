@@ -5,6 +5,25 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.43.1] - 2026-11-01
+
+### Fixed
+
+- `mem purge`, `mem gc`, `mem forget` y los borrados de la TUI comparten una sola política: retiran el texto de `memories`, del índice de búsqueda y de páginas libres y WAL de `mem.db`. También retiran de `compression_originals` los originales idénticos a lo borrado, salvo que una memoria viva conserve ese texto; una purga sin filtros vacía su alcance. Un original que solo incluye el texto dentro de otro sobrevive hasta caducar, a los 7 días, y un contenido editado conserva sus copias anteriores hasta entonces, igual que un registro antiguo cuya copia se guardó redactada.
+- La garantía no cubre tablas derivadas: sesiones, evidencia HCD, Socrática y `channel_activity` no se modifican.
+- Si otra conexión o proceso retiene la base más de 200 ms, el borrado termina con éxito y una advertencia de que el texto sigue en disco; `mem compact` vacía y comprueba también el WAL. Corrupción, E/S o disco lleno siguen siendo un error.
+- Una base existente intenta una limpieza única al abrirse con esta versión; si no puede, la repara el siguiente `mem purge`, `mem gc` o `mem compact`. Hasta entonces, `mem forget` no retira restos anteriores.
+- Todas las conexiones usan `secure_delete`, y `mem forget` reescribe el índice de búsqueda: su coste crece con el índice, no con el almacén de originales.
+- `mem` abre y borra sin error si `memory_search` no es una tabla FTS5.
+- `install.sh --uninstall` solo retira binarios con el marcador de gomemory, sin ejecutarlos, y avisa de los que conserva.
+- Los envoltorios de Socrática se escriben de forma atómica y rechazan un destino simbólico.
+- El ledger ACR incluye el `Claim` en la huella: un reenvío con otro texto en la misma ronda se rechaza.
+
+### Changed
+
+- `mem purge`, `mem gc`, `mem forget`, `mem consolidate` y la tool `forget_memory` salen con éxito y una advertencia cuando el borrado se confirmó y solo queda la limpieza pendiente. Un script que necesite esa garantía debe leer stderr, o `limpieza_pendiente` en el texto de la tool.
+- Plugin de OpenCode, fábrica v1: cambio deliberado de comportamiento. El marcador de checkpoint avanza solo tras persistir, un fallo emite `channel-error` y se reintenta, y un idle solapado repasa la sesión al terminar. La referencia de `specs/032-opencode-v2-plugin-compat/baseline/gomemory.v1.ts` se actualizó con este cambio.
+
 ## [v2.43.0] - 2026-10-31
 
 ### Added

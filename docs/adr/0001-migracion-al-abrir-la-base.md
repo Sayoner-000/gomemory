@@ -31,7 +31,7 @@ Cada base se migra al abrirla (`persistence.Open`):
 
 - **Riesgo técnico**: un cambio de esquema que no sea aditivo rompería bases existentes. Lo mitiga la regla aditiva, revisada en cada feature que toca `migrateSchema`.
 - **Riesgo técnico**: olvidar subir `schemaVersion` dejaría bases sin migrar. Lo impide `TestSchemaGolden_VersionBumpsWithCatalog`.
-- **Riesgo de seguridad**: ninguno nuevo. La migración no lee datos de la persona ni ejecuta SQL externo.
+- **Riesgo de seguridad**: ninguno nuevo. La migración no lee datos de la persona ni ejecuta SQL externo. Excepción acotada desde el esquema 7 (HCD-013): compara ids para retirar filas huérfanas de `memory_search` y, tras confirmar, intenta una vez `VACUUM` y checkpoint. No altera el esquema y su fallo no impide abrir la base.
 - **Controles compensatorios**:
   - transacción única (todo o nada);
   - `user_version` (idempotencia sin bloqueo);

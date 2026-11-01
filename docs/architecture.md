@@ -482,7 +482,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `search_memories` | query, limit | Busca en la memoria con ranking por relevancia |
 | `list_memories` | limit | Lista memorias recientes |
 | `get_memory` | id | Obtiene una por ID (tipo, título, fecha, sesión, contenido) |
-| `forget_memory` | id | Borra una memoria por ID (irreversible) |
+| `forget_memory` | id | Borra una memoria por ID (irreversible). Si solo queda limpieza pendiente, responde éxito con `limpieza_pendiente` en el texto |
 | `judge_memories` | id_a, id_b, verdict, confidence, reasoning | Registra veredicto imparcial entre dos memorias |
 | `start_session` | — | Inicia sesión de trabajo (valida que no haya activa) |
 | `end_session` | summary | Finaliza sesión activa |
@@ -739,7 +739,7 @@ Operaciones destructivas que exigen confirmación humana y **no se exponen vía 
 | Comando | Qué hace |
 |---|---|
 | `mem purge` | Borra memorias del proyecto actual por defecto; `--all` (todos los proyectos), `--type`, `--older-than-days`, `--yes`. Al borrar una memoria limpia también sus relaciones (`mem compare`) |
-| `mem compact` | `VACUUM` del almacén global del proyecto: recupera el espacio liberado por borrados. Nunca elimina memorias; reporta tamaño antes/después |
+| `mem compact` | `VACUUM` y vaciado del WAL del almacén del proyecto: recupera el espacio y retira el texto de borrados previos. Nunca elimina memorias; reporta tamaño de base y WAL antes/después, y avisa si el WAL sigue retenido |
 | `mem gc` | Garbage collection por antigüedad a demanda (90 días por defecto), reutilizando la lógica de `purge`. Solo corre cuando el usuario lo pide — nunca en segundo plano |
 
 También disponibles desde la TUI (tecla `m`), salvo la desinstalación.
