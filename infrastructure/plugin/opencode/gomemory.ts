@@ -44,10 +44,10 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   // fire-and-forget el fallo no cambia el comportamiento de quien llama.
   const mem = async (args: string[]): Promise<string> => (await run(args)) ?? "";
 
-  // Igual que `mem`, pero pasando `input` por stdin (usado por turn-end para
+  // Igual que `run`, pero pasando `input` por stdin (usado por turn-end para
   // mandar {files, commands} sin depender de un transcript en disco, a
   // diferencia de Claude Code que sí lo tiene).
-  const memWithStdin = async (args: string[], input: string): Promise<string> => {
+  const runWithStdin = async (args: string[], input: string): Promise<string | null> => {
     try {
       const proc = $`${BIN} ${args}`.cwd(root).quiet();
       const writer = proc.stdin.getWriter();
@@ -55,9 +55,12 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       await writer.close();
       return (await proc.text()).trim();
     } catch {
-      return "";
+      return null;
     }
   };
+
+  const memWithStdin = async (args: string[], input: string): Promise<string> =>
+    (await runWithStdin(args, input)) ?? "";
 
   // mem expand (feature 040): una sola entrada por evento; la decisión vive
   // entera en Go (`mem hook expand <evento> --emit=text`). La salida es vacía
@@ -85,6 +88,13 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   // reprocesar el historial completo en cada session.idle.
   const lastCheckpointedMessage = new Map<string, string>();
 
+  // Sesiones con un checkpoint en curso. El marcador solo avanza tras persistir,
+  // así que sin esto dos session.idle solapados guardarían el mismo turno. Un
+  // idle que llega durante el checkpoint se anota y la sesión se repasa al
+  // terminar: descartarlo perdería un turno si no llega otro idle.
+  const checkpointing = new Set<string>();
+  const checkpointAgain = new Set<string>();
+
   // Recuperación de `mem hook post-compact` ya calculada tras compactar
   // (evento session.compacted), pendiente de entregarse al agente en el
   // PRÓXIMO system.transform (feature 030, US1) — el evento de sesión no
@@ -99,6 +109,11 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   // checkpoint, y se lo pasa a `mem hook turn-end` (misma lógica de guardado
   // que usa Claude Code, ver adapters/primary/cli/cmd_hook.go).
   const handleTurnEnd = async (sessionID: string): Promise<void> => {
+    if (checkpointing.has(sessionID)) {
+      checkpointAgain.add(sessionID);
+      return;
+    }
+    checkpointing.add(sessionID);
     try {
       const res = await client.session.messages({ path: { id: sessionID } });
       const messages: Array<{ info: any; parts: any[] }> = (res as any)?.data ?? [];
@@ -115,7 +130,6 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       }
       const newMessages = messages.slice(startIdx);
       if (newMessages.length === 0) return;
-      lastCheckpointedMessage.set(sessionID, messages[messages.length - 1].info?.id);
 
       const files = new Set<string>();
       const commands: string[] = [];
@@ -147,20 +161,29 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       }
 
       for (const plan of planTexts) {
-        await memWithStdin(["hook", "plan-approved"], JSON.stringify({ plan }));
+        const saved = await runWithStdin(["hook", "plan-approved"], JSON.stringify({ plan }));
+        if (saved === null) throw new Error("plan-approved falló");
       }
 
       // Sin filtro de turno vacío: mem descarta el checkpoint vacío pero antes
       // registra el heartbeat HCD (FR-041b), que debe correr en cada turno.
-      await memWithStdin(
+      const saved = await runWithStdin(
         ["hook", "turn-end"],
         JSON.stringify({ files: [...files], commands, client: "opencode", session_id: sessionID }),
       );
+      if (saved === null) throw new Error("turn-end falló");
+      // Si la sesión se cerró mientras se persistía, no se recrea su marcador.
+      if (checkpointing.has(sessionID)) {
+        lastCheckpointedMessage.set(sessionID, messages[messages.length - 1].info?.id);
+      }
     } catch (e) {
       // best-effort: un checkpoint fallido nunca debe romper la sesión, pero
       // ahora deja rastro. Absorber el fallo en silencio era lo que hacía
       // indistinguible un canal roto de uno sano (feature 024, FR-012).
       mem(["hook", "channel-error", "opencode", "user", "turn_reminder", String(e).slice(0, 200)]).catch(() => {});
+    } finally {
+      checkpointing.delete(sessionID);
+      if (checkpointAgain.delete(sessionID)) await handleTurnEnd(sessionID);
     }
   };
 
@@ -198,6 +221,8 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       if (event.type === "session.deleted") {
         const sessionID = event.properties.info.id;
         lastCheckpointedMessage.delete(sessionID);
+        checkpointing.delete(sessionID);
+        checkpointAgain.delete(sessionID);
         pendingRecovery.delete(sessionID);
         pendingExpand.delete(sessionID);
       }
@@ -257,6 +282,8 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
     // Cierra la sesión cuando el plugin se descarta (OpenCode termina).
     dispose: async () => {
       lastCheckpointedMessage.clear();
+      checkpointing.clear();
+      checkpointAgain.clear();
       pendingRecovery.clear();
       pendingExpand.clear();
       await mem(["session", "end"]);

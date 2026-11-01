@@ -353,6 +353,50 @@ test('v2: a failing mem never throws into OpenCode', async () => {
   await f.cleanup();
 });
 
+// HCD-013: un turno cuya persistencia falla no se da por guardado. Se avisa por
+// channel-error y el siguiente idle lo reintenta.
+test('v2: a failed turn-end keeps the marker and reports a channel error', async () => {
+  const f = await v2Fixture({ outputs: { fail: ['hook turn-end'] } });
+  f.setMessages([v2Assistant('msg_020', [['edit', { filePath: 'c.go' }]])]);
+  await f.emit('session.idle');
+  assert.ok(f.failures.includes('hook turn-end'));
+  assert.equal(f.hookCalls('channel-error').length, 1);
+  await f.emit('session.idle');
+  assert.equal(f.hookCalls('turn-end').length, 2);
+  await f.cleanup();
+});
+
+test('v2: an idle during a checkpoint rechecks the session when it ends', async () => {
+  let entrar, liberar, retenido = false;
+  const dentro = new Promise(r => { entrar = r; });
+  const salida = new Promise(r => { liberar = r; });
+  const execImpl = async args => {
+    if (args[1] !== 'turn-end' || retenido) return undefined;
+    retenido = true; entrar(); await salida; return undefined;
+  };
+  const f = await v2Fixture({ execImpl });
+  const uno = v2Assistant('msg_022', [['edit', { filePath: 'e.go' }]]);
+  f.setMessages([uno]);
+  const primero = f.emit('session.idle');
+  await dentro;
+  const segundo = f.emit('session.idle');
+  f.setMessages([uno, v2Assistant('msg_023', [['edit', { filePath: 'f.go' }]])]);
+  await new Promise(r => setTimeout(r, 40));
+  liberar();
+  await Promise.all([primero, segundo]);
+  await new Promise(r => setTimeout(r, 40));
+  assert.deepEqual(f.hookCalls('turn-end').map(c => JSON.parse(c.input).files), [['e.go'], ['f.go']]);
+  await f.cleanup();
+});
+
+test('v2: overlapping idles persist a turn only once', async () => {
+  const f = await v2Fixture();
+  f.setMessages([v2Assistant('msg_021', [['edit', { filePath: 'd.go' }]])]);
+  await Promise.all([f.emit('session.idle'), f.emit('session.idle')]);
+  assert.equal(f.hookCalls('turn-end').length, 1);
+  await f.cleanup();
+});
+
 // OpenCode 2.0.16 real no emite session.idle al terminar un turno: emite
 // session.execution.succeeded|failed|interrupted, sin location (verificado con
 // el binario, feature 032). Sin esta traducción el checkpoint nunca corría.
