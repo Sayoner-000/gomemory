@@ -105,15 +105,27 @@ on_path() {
   esac
 }
 
+# is_own_binary reconoce un binario de gomemory sin ejecutarlo: un `mem` ajeno es
+# código desconocido, y macOS no trae `timeout` para limitar uno que se cuelgue.
+# Busca el marcador del protocolo, presente en el binario publicado.
+is_own_binary() {
+  local f="$1"
+  [ ! -L "$f" ] && [ -f "$f" ] && LC_ALL=C grep -aq 'gomemory-protocol-v' "$f"
+}
+
 uninstall() {
-  local removed=0
+  local removed=0 kept=0
   for dir in "${GOMEMORY_BIN_DIR:-}" "/usr/local/bin" "$HOME/.local/bin"; do
     [ -z "$dir" ] && continue
-    if [ -f "$dir/$BIN_NAME" ]; then
+    [ -e "$dir/$BIN_NAME" ] || [ -L "$dir/$BIN_NAME" ] || continue
+    if is_own_binary "$dir/$BIN_NAME"; then
       rm -f "$dir/$BIN_NAME" && ok "Eliminado $dir/$BIN_NAME" && removed=1
+    else
+      info "Se conserva $dir/$BIN_NAME: no se reconoce como binario de gomemory."
+      kept=1
     fi
   done
-  [ "$removed" -eq 0 ] && info "No se encontró el binario $BIN_NAME instalado."
+  [ "$removed" -eq 0 ] && [ "$kept" -eq 0 ] && info "No se encontró el binario $BIN_NAME instalado."
   info "Nota: la config y la memoria por-proyecto se quitan con 'mem uninstall <proyecto>'."
   exit 0
 }
