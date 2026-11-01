@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	"strings"
 	"testing"
 
 	"mem/domain"
@@ -169,6 +170,32 @@ func TestBuildConsensus_ReenvioExactoEsIdempotente(t *testing.T) {
 			t.Errorf("el identificador %s cambió a %s en el reenvío",
 				primera.Findings[i].ConsensusLocalID, segunda.Findings[i].ConsensusLocalID)
 		}
+	}
+}
+
+// TestBuildConsensus_ConsensoClaimDistintoSeRechaza cubre C-13: otro Claim en la
+// misma ronda ya no se responde como idempotente y deja las filas intactas.
+func TestBuildConsensus_ConsensoClaimDistintoSeRechaza(t *testing.T) {
+	reviews, ledger, ids := escenarioConsensuable(t)
+	entrada := clasificacionDe(ids, domain.ConsensusSuspect)
+	entrada.Matches[0].Claim = "texto original"
+	primera, err := BuildConsensusWithOutcome(reviews, ledger, entrada)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	corregida := clasificacionDe(ids, domain.ConsensusSuspect)
+	corregida.Matches[0].Claim = "texto corregido"
+	salida, err := BuildConsensusWithOutcome(reviews, ledger, corregida)
+	if err == nil || !strings.Contains(err.Error(), "no admite reemplazo") {
+		t.Fatalf("un Claim distinto debe rechazarse: %+v %v", salida, err)
+	}
+	filas, err := ledger.ListConsensusFindings(entrada.Project, entrada.ReviewID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filas[0].Claim != primera.Findings[0].Claim {
+		t.Fatalf("el rechazo no puede cambiar las filas: %q", filas[0].Claim)
 	}
 }
 

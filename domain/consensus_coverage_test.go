@@ -218,3 +218,23 @@ func contiene(s, sub string) bool {
 	}
 	return false
 }
+
+// TestClassificationFingerprint_CubreElClaim cubre C-11 y la normalización: el
+// texto entra en la huella ya redactado y sin espacios de borde, igual que queda
+// guardado, y un separador dentro del texto no puede simular otra entrada.
+func TestClassificationFingerprint_CubreElClaim(t *testing.T) {
+	huella := func(claim string) string {
+		return ClassificationFingerprint([]ConsensusFinding{{
+			Status: ConsensusSuspect, Severity: SeverityLow, Claim: claim, SourceFindingIDs: []int64{1},
+		}})
+	}
+	if huella("texto uno") == huella("texto dos") {
+		t.Error("dos Claim distintos deben dar huellas distintas")
+	}
+	if huella("  texto  ") != huella("texto") {
+		t.Error("los espacios de borde no cambian la huella")
+	}
+	if huella("a <private>x</private>") != huella(ProtectText("a <private>x</private>")) {
+		t.Error("la huella debe coincidir con la del texto redactado que se guarda")
+	}
+}

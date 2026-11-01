@@ -192,7 +192,9 @@ func menorFuente(finding ConsensusFinding) int64 {
 
 // ClassificationFingerprint identifica una clasificación por su contenido, no por el
 // orden en que llegó. Es lo que permite distinguir el reenvío exacto de una ronda
-// —idempotente— de un intento de reemplazarla por otra distinta (FR-005).
+// —idempotente— de un intento de reemplazarla por otra distinta (FR-005). El Claim
+// entra ya redactado, como queda en el ledger, y sin espacios de borde, que redactar
+// puede dejar: la huella de un reenvío se compara con la recalculada de las filas.
 func ClassificationFingerprint(findings []ConsensusFinding) string {
 	entradas := make([]string, 0, len(findings))
 	for _, finding := range findings {
@@ -202,8 +204,9 @@ func ClassificationFingerprint(findings []ConsensusFinding) string {
 		for _, id := range ids {
 			partes = append(partes, strconv.FormatInt(id, 10))
 		}
-		entradas = append(entradas, fmt.Sprintf("%s|%s|%s",
-			finding.Status, finding.Severity, strings.Join(partes, ",")))
+		entradas = append(entradas, fmt.Sprintf("%s|%s|%s|%q",
+			finding.Status, finding.Severity, strings.Join(partes, ","),
+			strings.TrimSpace(ProtectText(finding.Claim))))
 	}
 	sort.Strings(entradas)
 	sum := sha256.Sum256([]byte(strings.Join(entradas, "\n")))
