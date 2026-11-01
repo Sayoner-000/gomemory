@@ -51,7 +51,7 @@ func CmdGC(deps *Deps, args []string) {
 	}
 
 	deleted, err := deps.MaintenanceRepo.Purge(filter)
-	if err != nil {
+	if err != nil && !avisarLimpiezaPendiente(err) {
 		fail("garbage collection: %v", err)
 	}
 	if deps.Socratica != nil {

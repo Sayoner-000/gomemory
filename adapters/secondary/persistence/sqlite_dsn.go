@@ -10,8 +10,10 @@ import "fmt"
 // cache_size reserva hasta unos 16 MB bajo demanda.
 // temp_store evita archivos temporales para ordenar y agregar.
 // mmap_size permite lectura mapeada hasta 256 MB cuando el sistema la admite.
+// secure_delete sobrescribe lo que se libera, también en las fusiones del índice
+// FTS5: sin esto el texto borrado sobrevive en páginas libres.
 // journal_size_limit acota el WAL retenido tras un checkpoint a 64 MB.
 // immediate evita carreras al promover una transacción lectora a escritora.
 func sqliteDSN(path string, busyMs int) string {
-	return fmt.Sprintf("%s?_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-16000)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)&_pragma=journal_size_limit(67108864)&_txlock=immediate", path, busyMs)
+	return fmt.Sprintf("%s?_pragma=busy_timeout(%d)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-16000)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)&_pragma=secure_delete(ON)&_pragma=journal_size_limit(67108864)&_txlock=immediate", path, busyMs)
 }

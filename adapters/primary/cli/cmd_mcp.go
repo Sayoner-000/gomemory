@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"mem/adapters/primary/cli/review"
@@ -339,18 +340,11 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		ID int `json:"id" jsonschema:"ID de la memoria a borrar"`
 	}) (*mcp.CallToolResult, any, error) {
-		deleted, err := deps.MemoryRepo.Delete(project, int64(in.ID))
+		texto, err := forgetMemoryText(deps.MemoryRepo, project, int64(in.ID))
 		if err != nil {
-			return nil, nil, fmt.Errorf("borrar memoria: %w", err)
+			return nil, nil, err
 		}
-		if !deleted {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("Memoria %d no encontrada", in.ID)}},
-			}, nil, nil
-		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf("✓ Memoria %d eliminada", in.ID)}},
-		}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: texto}}}, nil, nil
 	})
 
 	addTool(server, &mcp.Tool{
@@ -658,4 +652,19 @@ func registerResources(server *mcp.Server, deps *Deps, project string) {
 			},
 		}, nil
 	})
+}
+
+// forgetMemoryText borra una memoria y devuelve el texto de la tool.
+func forgetMemoryText(repo ports.MemoryRepository, project string, id int64) (string, error) {
+	deleted, err := repo.Delete(project, id)
+	if err != nil && !errors.Is(err, domain.ErrLimpiezaPendiente) {
+		return "", fmt.Errorf("borrar memoria: %w", err)
+	}
+	if !deleted {
+		return fmt.Sprintf("Memoria %d no encontrada", id), nil
+	}
+	if err != nil {
+		return fmt.Sprintf("✓ Memoria %d eliminada\nlimpieza_pendiente: %v", id, err), nil
+	}
+	return fmt.Sprintf("✓ Memoria %d eliminada", id), nil
 }

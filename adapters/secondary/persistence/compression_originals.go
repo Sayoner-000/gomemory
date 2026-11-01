@@ -61,8 +61,7 @@ func (r *OriginalStoreRepository) Put(ctx context.Context, project, content, con
 	}
 	// La huella de dedup incluye el proyecto: la recuperación se aísla por
 	// proyecto, así que dos proyectos con el mismo contenido no comparten fila.
-	sum := sha256.Sum256([]byte(project + "\x00" + content))
-	hash := hex.EncodeToString(sum[:])
+	hash := hashOriginal(project, content)
 	now := r.clock.Now()
 
 	// Reutiliza la fila si el mismo contenido ya estaba guardado (dedup).
@@ -214,6 +213,12 @@ func (r *OriginalStoreRepository) Usage(ctx context.Context) (int64, int, error)
 		return 0, 0, fmt.Errorf("uso del almacén de originales: %w", err)
 	}
 	return bytes, count, nil
+}
+
+// hashOriginal identifica un original por proyecto y contenido exacto.
+func hashOriginal(project, content string) string {
+	sum := sha256.Sum256([]byte(project + "\x00" + content))
+	return hex.EncodeToString(sum[:])
 }
 
 func gzipBytes(s string) ([]byte, error) {

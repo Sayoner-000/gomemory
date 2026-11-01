@@ -35,6 +35,18 @@ func (f *fakeCaptureMemories) ImportMemory(m *domain.Memory) (int64, error)    {
 func (f *fakeCaptureMemories) Search(project, query string, limit int) ([]domain.Memory, error) {
 	return nil, nil
 }
+func (f *fakeCaptureMemories) DeleteMany(project string, ids []int64) (int64, error) {
+	var deleted int64
+	for _, id := range ids {
+		if ok, err := f.Delete(project, id); err != nil {
+			return deleted, err
+		} else if ok {
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
 func (f *fakeCaptureMemories) Delete(project string, id int64) (bool, error) { return false, nil }
 func (f *fakeCaptureMemories) SecondsSinceLastSave(project string) (int64, bool, error) {
 	return 0, false, nil

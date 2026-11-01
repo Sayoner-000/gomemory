@@ -27,6 +27,18 @@ func (s *spyMemoryRepo) ImportMemory(m *domain.Memory) (int64, error)           
 func (s *spyMemoryRepo) Search(project, query string, limit int) ([]domain.Memory, error) {
 	return nil, nil
 }
+func (s *spyMemoryRepo) DeleteMany(project string, ids []int64) (int64, error) {
+	var deleted int64
+	for _, id := range ids {
+		if ok, err := s.Delete(project, id); err != nil {
+			return deleted, err
+		} else if ok {
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
 func (s *spyMemoryRepo) Delete(project string, id int64) (bool, error) { return false, nil }
 func (s *spyMemoryRepo) SecondsSinceLastSave(project string) (int64, bool, error) {
 	return 0, false, nil

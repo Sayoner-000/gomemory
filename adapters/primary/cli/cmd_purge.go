@@ -81,7 +81,7 @@ func CmdPurge(deps *Deps, args []string) {
 	}
 
 	deleted, err := deps.MaintenanceRepo.Purge(filter)
-	if err != nil {
+	if err != nil && !avisarLimpiezaPendiente(err) {
 		fail("purgar: %v", err)
 	}
 

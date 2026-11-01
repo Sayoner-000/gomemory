@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"mem/adapters/secondary/persistence"
+	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
 )
@@ -201,4 +202,43 @@ func insertRawTopicDuplicate(t *testing.T, db *sql.DB, project, topicKey, conten
 	}
 	id, _ := res.LastInsertId()
 	return id
+}
+
+// repoQueCuentaBorrados delega en el repositorio real y cuenta cómo se borra.
+type repoQueCuentaBorrados struct {
+	ports.MemoryRepository
+	sueltos, lotes int
+}
+
+func (r *repoQueCuentaBorrados) Delete(project string, id int64) (bool, error) {
+	r.sueltos++
+	return r.MemoryRepository.Delete(project, id)
+}
+
+func (r *repoQueCuentaBorrados) DeleteMany(project string, ids []int64) (int64, error) {
+	r.lotes++
+	return r.MemoryRepository.DeleteMany(project, ids)
+}
+
+// TestConsolidate_BorradoPorLoteUnico cubre C-16: reescribir el índice una vez
+// por fila multiplicaba el coste; dos grupos se borran en una sola operación.
+func TestConsolidate_BorradoPorLoteUnico(t *testing.T) {
+	db, _ := persistence.Init(t.TempDir())
+	defer func() { _ = db.Close() }()
+	for _, tema := range []string{"tema-a", "tema-b"} {
+		insertRawTopicDuplicate(t, db, "proj", tema, tema+" contenido antiguo")
+		insertRawTopicDuplicate(t, db, "proj", tema, tema+" contenido nuevo")
+	}
+	repo := &repoQueCuentaBorrados{MemoryRepository: persistence.NewMemoryRepository(db)}
+
+	report, err := usecases.ConsolidateMemories(repo, "proj", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Groups) != 2 {
+		t.Fatalf("grupos = %d, quiero 2", len(report.Groups))
+	}
+	if repo.sueltos != 0 || repo.lotes != 1 {
+		t.Fatalf("borrados sueltos=%d lotes=%d, quiero 0 y 1", repo.sueltos, repo.lotes)
+	}
 }

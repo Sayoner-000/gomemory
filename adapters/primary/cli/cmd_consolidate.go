@@ -20,7 +20,7 @@ func CmdConsolidate(deps *Deps, args []string) {
 	}
 
 	report, err := usecases.ConsolidateMemories(deps.MemoryRepo, deps.Project, *apply)
-	if err != nil {
+	if err != nil && !avisarLimpiezaPendiente(err) {
 		fail("consolidar memorias: %v", err)
 	}
 

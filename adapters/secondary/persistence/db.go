@@ -142,7 +142,7 @@ func openDBFile(path string) (*sql.DB, error) {
 	if f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600); err == nil {
 		_ = f.Close()
 	}
-	db, err := sql.Open("sqlite", sqliteDSN(path, 5000))
+	db, err := sql.Open("sqlite", sqliteDSN(path, esperaOcupadaMs))
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
@@ -190,7 +190,10 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 6
+const schemaVersion = 7
+
+// esperaOcupadaMs es el busy_timeout de cada conexión.
+const esperaOcupadaMs = 5000
 
 type schemaExecer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -219,17 +222,60 @@ func migrate(db *sql.DB) error {
 	if version >= schemaVersion {
 		return nil
 	}
+	// Una base sin memorias no es necesariamente nueva: pudo vaciarse antes de
+	// actualizar. La distingue que la tabla existiera antes de crear el esquema.
+	preexistia, err := tablaMemoriasExiste(tx)
+	if err != nil {
+		return err
+	}
 	if err := dropHCDV1(tx, version); err != nil {
 		return err
 	}
 	if err := migrateSchema(tx); err != nil {
 		return err
 	}
+	// Solo retira filas cuya memoria ya no existe: el esquema no cambia.
+	if err := limpiarIndiceDeMemorias(tx); err != nil {
+		return err
+	}
 	// PRAGMA no admite parámetros; el valor interpolado es una constante.
 	if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
 		return fmt.Errorf("set schema version: %w", err)
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if preexistia {
+		limpiezaUnica(db)
+	}
+	return nil
+}
+
+func tablaMemoriasExiste(tx *sql.Tx) (bool, error) {
+	var existe bool
+	err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memories')`).Scan(&existe)
+	if err != nil {
+		return false, fmt.Errorf("comprobar base existente: %w", err)
+	}
+	return existe, nil
+}
+
+// limpiezaUnica retira de una base existente el texto que las versiones
+// anteriores dejaron en páginas libres (HCD-013). Corre tras confirmar el esquema
+// y se intenta una sola vez: un fallo no impide abrir la base ni hace esperar a
+// cada apertura, y lo repara el siguiente purge, gc o compact (Q10).
+func limpiezaUnica(db *sql.DB) {
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return
+	}
+	defer func() { _ = conn.Close() }()
+	defer conEsperaCorta(ctx, conn)()
+	if _, err := conn.ExecContext(ctx, `VACUUM`); err != nil {
+		return
+	}
+	_ = vaciarWAL(ctx, conn)
 }
 
 // migrateSchema aplica el esquema de forma SOLO ADITIVA (specs/009-mitigacion-riesgos,

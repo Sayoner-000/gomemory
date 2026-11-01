@@ -758,7 +758,7 @@ func (m model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		deleted, err := m.memRepo.Delete(m.project, m.deleteTarget.ID)
 		m.deleteConfirm = false
 		m.statusTimer = 30
-		if err != nil {
+		if err != nil && !deleted {
 			m.statusMsg = fmt.Sprintf("Error al eliminar la memoria: %v", err)
 			return m, nil
 		}
@@ -769,7 +769,7 @@ func (m model) updateDeleteConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		m.memories, _ = m.memRepo.List(m.project, 200)
 		m.applyFilter()
-		m.statusMsg = fmt.Sprintf("Memoria %d eliminada", m.deleteTarget.ID)
+		m.statusMsg = conResultadoDeLimpieza(fmt.Sprintf("Memoria %d eliminada", m.deleteTarget.ID), err)
 		return m, nil
 	}
 
@@ -883,10 +883,13 @@ func (m model) updateMaintenance(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		case 1: // Compactar — no destructivo, se ejecuta directo (FR-006)
 			before, after, err := m.maintenanceRepo.Compact()
-			if err != nil {
+			if err != nil && !errors.Is(err, domain.ErrLimpiezaPendiente) {
 				m.statusMsg = fmt.Sprintf("Error al compactar: %v", err)
 			} else {
 				m.statusMsg = fmt.Sprintf("Compactado: %s → %s", humanize.Bytes(uint64(before)), humanize.Bytes(uint64(after)))
+				if err != nil {
+					m.statusMsg = fmt.Sprintf("Sin compactar del todo, con aviso: %v", err)
+				}
 				m.stats, _ = m.maintenanceRepo.Stats(m.project)
 			}
 			m.statusTimer = 30
@@ -941,14 +944,11 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		if m.maintAction == "consolidate" {
 			report, err := usecases.ConsolidateMemories(m.memRepo, m.project, true)
-			if err != nil {
-				m.statusMsg = fmt.Sprintf("Error al consolidar: %v", err)
-			} else {
-				m.statusMsg = fmt.Sprintf("Consolidación: %d grupo(s), %d fila(s) fundida(s)", len(report.Groups), report.DeletedCount)
-				m.memories, _ = m.memRepo.List(m.project, 200)
-				m.applyFilter()
-				m.stats, _ = m.maintenanceRepo.Stats(m.project)
-			}
+			m.statusMsg = conResultadoDeLimpieza(fmt.Sprintf("Consolidación: %d grupo(s), %d fila(s) fundida(s)", len(report.Groups), report.DeletedCount), err)
+			// También con error: los grupos ya fundidos no vuelven atrás.
+			m.memories, _ = m.memRepo.List(m.project, 200)
+			m.applyFilter()
+			m.stats, _ = m.maintenanceRepo.Stats(m.project)
 			m.statusTimer = 30
 			m.maintErr = ""
 			m.screen = screenMaintenance
@@ -963,10 +963,10 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		deleted, err := m.maintenanceRepo.Purge(filter)
-		if err != nil {
+		if err != nil && deleted == 0 {
 			m.statusMsg = fmt.Sprintf("Error: %v", err)
 		} else {
-			m.statusMsg = fmt.Sprintf("%s: %d memoria(s) eliminada(s)", actionLabel, deleted)
+			m.statusMsg = conResultadoDeLimpieza(fmt.Sprintf("%s: %d memoria(s) eliminada(s)", actionLabel, deleted), err)
 			m.memories, _ = m.memRepo.List(m.project, 200)
 			m.applyFilter()
 			m.stats, _ = m.maintenanceRepo.Stats(m.project)
@@ -980,6 +980,18 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.maintConfirm, cmd = m.maintConfirm.Update(msg)
 	return m, cmd
+}
+
+// conResultadoDeLimpieza presenta un borrado ya confirmado según la causa: una
+// limpieza pendiente es un éxito con aviso, cualquier otra cosa es un error.
+func conResultadoDeLimpieza(exito string, err error) string {
+	switch {
+	case err == nil:
+		return exito
+	case errors.Is(err, domain.ErrLimpiezaPendiente):
+		return fmt.Sprintf("%s, con aviso: %v", exito, err)
+	}
+	return fmt.Sprintf("Error: %v", err)
 }
 
 // ─── Config screen ──────────────────────────────────────────────────
@@ -1691,17 +1703,24 @@ func (m model) updateOptimizeConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		group := m.dupGroups[m.dupGroupIdx]
-		deleted := 0
+		var ids []int64
 		for i, mem := range group.Memories {
 			if i == m.dupKeepIdx || m.dupExclude[mem.ID] {
 				continue
 			}
-			if ok, err := m.memRepo.Delete(m.project, mem.ID); err == nil && ok {
-				deleted++
-			}
+			ids = append(ids, mem.ID)
+		}
+		deleted, err := m.memRepo.DeleteMany(m.project, ids)
+		if err != nil && deleted == 0 {
+			m.statusMsg = fmt.Sprintf("Error: %v", err)
+			m.statusTimer = 60
+			m.dupErr = ""
+			m.screen = screenOptimize
+			return m, nil
 		}
 
 		m.statusMsg = fmt.Sprintf("Grupo optimizado: %d memoria(s) eliminada(s), se conservó #%d", deleted, group.Memories[m.dupKeepIdx].ID)
+		m.statusMsg = conResultadoDeLimpieza(m.statusMsg, err)
 		m.statusTimer = 60
 		m.memories, _ = m.memRepo.List(m.project, 200)
 		m.applyFilter()
@@ -1760,19 +1779,25 @@ func (m model) updateOptimizeAllConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		deleted := 0
+		var ids []int64
 		for _, g := range m.dupGroups {
 			for _, mem := range g.Memories {
-				if mem.ID == g.SuggestedKeepID {
-					continue
-				}
-				if ok, err := m.memRepo.Delete(m.project, mem.ID); err == nil && ok {
-					deleted++
+				if mem.ID != g.SuggestedKeepID {
+					ids = append(ids, mem.ID)
 				}
 			}
 		}
+		deleted, err := m.memRepo.DeleteMany(m.project, ids)
+		if err != nil && deleted == 0 {
+			m.statusMsg = fmt.Sprintf("Error: %v", err)
+			m.statusTimer = 60
+			m.dupErr = ""
+			m.screen = screenOptimize
+			return m, nil
+		}
 
 		m.statusMsg = fmt.Sprintf("Compactación completa: %d memoria(s) eliminada(s) en %d grupo(s)", deleted, len(m.dupGroups))
+		m.statusMsg = conResultadoDeLimpieza(m.statusMsg, err)
 		m.statusTimer = 60
 		m.memories, _ = m.memRepo.List(m.project, 200)
 		m.applyFilter()

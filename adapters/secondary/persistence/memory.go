@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -735,32 +736,30 @@ func ImportMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	return id, nil
 }
 
+// DeleteMemory comparte la política de borrado. El resultado indica si la memoria
+// se borró, aunque la limpieza posterior no terminara.
 func DeleteMemory(db *sql.DB, project string, id int64) (bool, error) {
-	tx, err := db.Begin()
+	deleted, err := DeleteMemories(db, project, []int64{id})
+	return deleted > 0, err
+}
+
+// DeleteMemories borra varias memorias en una sola operación. Es la vía para
+// borrar en bucle: reescribir el índice una vez por fila multiplica el coste.
+func DeleteMemories(db *sql.DB, project string, ids []int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	// Un solo parámetro JSON: un lote grande agotaría las variables de SQLite.
+	lista, err := json.Marshal(ids)
 	if err != nil {
-		return false, fmt.Errorf("delete memory: %w", err)
+		return 0, fmt.Errorf("delete memory: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
-	res, err := tx.Exec(`DELETE FROM memories WHERE id = ? AND project = ?`, id, project)
+	deleted, err := borrarConGarantia(db, `project = ? AND id IN (SELECT value FROM json_each(?))`,
+		[]any{project, string(lista)}, alcanceBorrado{project: project})
 	if err != nil {
-		return false, fmt.Errorf("delete memory: %w", err)
+		return deleted, fmt.Errorf("delete memory: %w", err)
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("delete memory: %w", err)
-	}
-	if affected == 0 {
-		return false, nil
-	}
-	// El contenido olvidado no debe sobrevivir en el índice. Solo se tolera la
-	// tabla ausente de una build sin FTS5.
-	if _, err = tx.Exec(`DELETE FROM memory_search WHERE memory_id = ?`, id); err != nil && !strings.Contains(err.Error(), "no such table") {
-		return false, fmt.Errorf("delete memory: índice de búsqueda: %w", err)
-	}
-	if err = tx.Commit(); err != nil {
-		return false, fmt.Errorf("delete memory: %w", err)
-	}
-	return true, nil
+	return deleted, nil
 }
 
 // SearchMemories busca memorias por relevancia (specs/009-mitigacion-riesgos,

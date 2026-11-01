@@ -60,12 +60,23 @@ func ConsolidateMemories(memRepo ports.MemoryRepository, project string, apply b
 		return report, nil
 	}
 
+	// El borrado va al final y en una sola operación. Un fallo a mitad borra lo
+	// ya fundido: esas memorias ya están contenidas en su fila superviviente.
+	var fundidas []int64
+	var fallo error
 	for _, g := range groups {
-		if err := applyGroup(memRepo, project, g); err != nil {
-			return report, err
+		ids, err := applyGroup(memRepo, project, g)
+		if err != nil {
+			fallo = err
+			break
 		}
+		fundidas = append(fundidas, ids...)
 	}
-	return report, nil
+	// El error conserva ErrLimpiezaPendiente: lo fundido ya se borró.
+	if _, err := memRepo.DeleteMany(project, fundidas); err != nil && fallo == nil {
+		fallo = fmt.Errorf("eliminar memorias fundidas: %w", err)
+	}
+	return report, fallo
 }
 
 // groupByTopicKey agrupa por project+topic_key (FR-026). Las memorias sin
@@ -118,21 +129,21 @@ func buildGroups(criterion string, byKey map[string][]domain.Memory) []Consolida
 	return groups
 }
 
-// applyGroup funde un grupo en su fila más reciente y elimina el resto.
-func applyGroup(memRepo ports.MemoryRepository, project string, g ConsolidationGroup) error {
+// applyGroup funde un grupo en su fila más reciente y devuelve los ids del resto,
+// ya sobrantes.
+func applyGroup(memRepo ports.MemoryRepository, project string, g ConsolidationGroup) ([]int64, error) {
 	kept := g.Memories[len(g.Memories)-1]
 	mergedContent := mergeContents(g.Memories)
 	if mergedContent != kept.Content {
 		if err := memRepo.UpdateContent(project, kept.ID, kept.Title, mergedContent); err != nil {
-			return fmt.Errorf("fusionar grupo %s=%q en id=%d: %w", g.Criterion, g.Key, kept.ID, err)
+			return nil, fmt.Errorf("fusionar grupo %s=%q en id=%d: %w", g.Criterion, g.Key, kept.ID, err)
 		}
 	}
+	ids := make([]int64, 0, len(g.Memories)-1)
 	for _, m := range g.Memories[:len(g.Memories)-1] {
-		if _, err := memRepo.Delete(project, m.ID); err != nil {
-			return fmt.Errorf("eliminar id=%d fundido en id=%d: %w", m.ID, kept.ID, err)
-		}
+		ids = append(ids, m.ID)
 	}
-	return nil
+	return ids, nil
 }
 
 // mergeContents concatena los textos DISTINTOS de un grupo, en orden, sin

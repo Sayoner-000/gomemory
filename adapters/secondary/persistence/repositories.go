@@ -58,6 +58,10 @@ func (r *MemoryRepository) Delete(project string, id int64) (bool, error) {
 	return DeleteMemory(r.db, project, id)
 }
 
+func (r *MemoryRepository) DeleteMany(project string, ids []int64) (int64, error) {
+	return DeleteMemories(r.db, project, ids)
+}
+
 func (r *MemoryRepository) SecondsSinceLastSave(project string) (int64, bool, error) {
 	return SecondsSinceLastSave(r.db, project)
 }

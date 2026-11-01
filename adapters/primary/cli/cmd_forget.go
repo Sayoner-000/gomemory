@@ -25,7 +25,7 @@ func CmdForget(deps *Deps, args []string) {
 	project := deps.ProjectRepo.Key(root)
 
 	deleted, err := deps.MemoryRepo.Delete(project, id)
-	if err != nil {
+	if err != nil && !avisarLimpiezaPendiente(err) {
 		fail("borrar memoria: %v", err)
 	}
 	if !deleted {

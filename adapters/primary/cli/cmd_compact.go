@@ -10,7 +10,7 @@ import (
 // reporta tamaño antes/después, o informa explícitamente que no había
 // espacio significativo que liberar (Acceptance Scenario US2.2).
 func FormatCompactResult(before, after int64) string {
-	if before == after {
+	if after >= before {
 		return fmt.Sprintf("La base de datos ya estaba compacta (%s) — nada que liberar.", humanize.Bytes(uint64(before)))
 	}
 	freed := before - after
@@ -21,6 +21,9 @@ func FormatCompactResult(before, after int64) string {
 func CmdCompact(deps *Deps, args []string) {
 	before, after, err := deps.MaintenanceRepo.Compact()
 	if err != nil {
+		if avisarLimpiezaPendiente(err) {
+			return
+		}
 		fail("compactar: %v", err)
 	}
 	humanln(FormatCompactResult(before, after))

@@ -79,10 +79,8 @@ func TestDeleteMemory_NoDejaIndice(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Un índice que no se puede borrar no debe dejar el contenido olvidado atrás.
-	if _, err = db.Exec(`DROP TABLE memory_search`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(`CREATE TABLE memory_search (rowid_viejo INTEGER)`); err != nil {
+	// Se rompe un índice FTS5 real: una tabla plana ya no es un índice (C-30).
+	if _, err = db.Exec(`DROP TABLE memory_search_data`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = DeleteMemory(db, "p", id); err == nil {

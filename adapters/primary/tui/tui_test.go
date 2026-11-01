@@ -149,6 +149,126 @@ func TestList_EliminaMemoriaFiltradaTrasConfirmar(t *testing.T) {
 	}
 }
 
+// C-25: con el borrado confirmado la lista se recarga, sea cual sea la limpieza.
+func TestList_BorradoConfirmadoRecargaLaLista(t *testing.T) {
+	for nombre, err := range map[string]error{
+		"pendiente": fmt.Errorf("el texto sigue en disco: %w", domain.ErrLimpiezaPendiente),
+		"fallo":     errors.New("disco lleno"),
+	} {
+		t.Run(nombre, func(t *testing.T) {
+			mems := []domain.Memory{{ID: 1, Title: "uno"}, {ID: 2, Title: "dos"}}
+			repo := &fakeMemRepo{mems: mems, errTrasBorrar: err}
+			m := newTestModel(mems, 20)
+			m.memRepo = repo
+
+			mm, _ := m.updateList(keyMsg("d"))
+			m = mm.(model)
+			mm, _ = m.updateList(keyMsg("s"))
+			m = mm.(model)
+
+			if len(m.memories) != 0 {
+				t.Fatalf("la lista debe recargarse: %d", len(m.memories))
+			}
+			if !strings.Contains(m.statusMsg, "disco") {
+				t.Fatalf("el aviso debe mostrarse: %q", m.statusMsg)
+			}
+		})
+	}
+}
+
+type purgaConResultado struct {
+	fakeMaintenanceRepo
+	borradas int64
+	err      error
+}
+
+func (p purgaConResultado) Purge(ports.PurgeFilter) (int64, error) { return p.borradas, p.err }
+
+var (
+	limpiezaDePrueba = fmt.Errorf("el texto sigue en disco: %w", domain.ErrLimpiezaPendiente)
+	falloDePrueba    = errors.New("disco lleno")
+)
+
+// comprobarPorCausa exige éxito con aviso en una limpieza pendiente y error en un
+// fallo: el conteo borrado no decide cómo se presenta.
+func comprobarPorCausa(t *testing.T, causa error, mensaje string) {
+	t.Helper()
+	esError := strings.HasPrefix(mensaje, "Error")
+	if errors.Is(causa, domain.ErrLimpiezaPendiente) {
+		if esError || !strings.Contains(mensaje, "con aviso") {
+			t.Fatalf("una limpieza pendiente es éxito con aviso: %q", mensaje)
+		}
+		return
+	}
+	if !esError {
+		t.Fatalf("un fallo no puede presentarse como éxito: %q", mensaje)
+	}
+}
+
+func TestList_PorCausaBorradoIndividual(t *testing.T) {
+	for _, causa := range []error{limpiezaDePrueba, falloDePrueba} {
+		mems := []domain.Memory{{ID: 1, Title: "uno"}}
+		m := newTestModel(mems, 20)
+		m.memRepo = &fakeMemRepo{mems: mems, errTrasBorrar: causa}
+		mm, _ := m.updateList(keyMsg("d"))
+		m = mm.(model)
+		mm, _ = m.updateList(keyMsg("s"))
+		comprobarPorCausa(t, causa, mm.(model).statusMsg)
+	}
+}
+
+func TestMantenimiento_PorCausaPurga(t *testing.T) {
+	for _, causa := range []error{limpiezaDePrueba, falloDePrueba} {
+		confirmar := textinput.New()
+		confirmar.SetValue("demo")
+		m := model{screen: screenMaintenanceConfirm, project: "demo", memRepo: &fakeMemRepo{}, ready: true, maintAction: "purge",
+			maintConfirm: confirmar, maintenanceRepo: purgaConResultado{borradas: 2, err: causa}}
+		mm, _ := m.updateMaintenanceConfirm(keyMsg("enter"))
+		comprobarPorCausa(t, causa, mm.(model).statusMsg)
+	}
+}
+
+// P2-02: con el borrado confirmado la consolidación recarga también ante un fallo.
+func TestMantenimiento_PorCausaConsolidacion(t *testing.T) {
+	for _, causa := range []error{limpiezaDePrueba, falloDePrueba} {
+		mems := []domain.Memory{
+			{ID: 1, Project: "demo", Type: domain.Decision, Title: "a", Content: "texto repetido", TopicKey: "tema"},
+			{ID: 2, Project: "demo", Type: domain.Decision, Title: "b", Content: "texto repetido", TopicKey: "tema"},
+		}
+		repo := &fakeMemRepo{mems: mems, errTrasLote: causa}
+		confirmar := textinput.New()
+		confirmar.SetValue("demo")
+		m := model{screen: screenMaintenanceConfirm, project: "demo", memRepo: repo, ready: true, maintAction: "consolidate",
+			maintConfirm: confirmar, maintenanceRepo: fakeMaintenanceRepo{}, memories: []domain.Memory{{ID: 99}}}
+		mm, _ := m.updateMaintenanceConfirm(keyMsg("enter"))
+		got := mm.(model)
+		if len(got.memories) == 1 && got.memories[0].ID == 99 {
+			t.Fatalf("la lista debe recargarse tras un borrado confirmado: %v", causa)
+		}
+		comprobarPorCausa(t, causa, got.statusMsg)
+	}
+}
+
+func TestOptimizeFlow_PorCausaLote(t *testing.T) {
+	for _, causa := range []error{limpiezaDePrueba, falloDePrueba} {
+		memFixture := duplicatePreferenceFixture()
+		repo := &fakeMemRepo{mems: memFixture, errTrasLote: causa}
+		m := model{memRepo: repo, project: "demo", memories: memFixture, filtered: memFixture, ready: true, width: 100, height: 30, dupConfirm: textinput.New()}
+		for _, paso := range []func(model) (tea.Model, tea.Cmd){
+			func(m model) (tea.Model, tea.Cmd) { return m.updateList(keyMsg("o")) },
+			func(m model) (tea.Model, tea.Cmd) { return m.updateOptimize(keyMsg("enter")) },
+			func(m model) (tea.Model, tea.Cmd) { return m.updateOptimizeDetail(keyMsg("c")) },
+			func(m model) (tea.Model, tea.Cmd) { return m.updateOptimizeConfirm(keyMsg("s")) },
+			func(m model) (tea.Model, tea.Cmd) { return m.updateOptimizeConfirm(keyMsg("i")) },
+			func(m model) (tea.Model, tea.Cmd) { return m.updateOptimizeConfirm(keyMsg("enter")) },
+		} {
+			mm, _ := paso(m)
+			m = mm.(model)
+		}
+		comprobarPorCausa(t, causa, m.statusMsg)
+	}
+}
+
 func TestList_CancelaEliminacionIndividual(t *testing.T) {
 	mems := manyMemories(1)
 	repo := &fakeMemRepo{mems: mems}
@@ -171,8 +291,12 @@ func TestList_CancelaEliminacionIndividual(t *testing.T) {
 // ─── fakeMemRepo ──────────────────────────────────────────────────
 
 type fakeMemRepo struct {
-	mems    []domain.Memory
-	deleted []int64
+	mems          []domain.Memory
+	deleted       []int64
+	lotes         int
+	falloLote     error
+	errTrasBorrar error
+	errTrasLote   error
 }
 
 func (f *fakeMemRepo) Insert(m *domain.Memory) (int64, error) {
@@ -210,7 +334,31 @@ func (f *fakeMemRepo) Search(project, query string, limit int) ([]domain.Memory,
 	return f.mems, nil
 }
 
+func (f *fakeMemRepo) DeleteMany(project string, ids []int64) (int64, error) {
+	f.lotes++
+	if f.falloLote != nil {
+		return 0, f.falloLote
+	}
+	if f.errTrasLote != nil {
+		f.deleted = append(f.deleted, ids...)
+		return int64(len(ids)), f.errTrasLote
+	}
+	var deleted int64
+	for _, id := range ids {
+		if ok, err := f.Delete(project, id); err != nil {
+			return deleted, err
+		} else if ok {
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
 func (f *fakeMemRepo) Delete(project string, id int64) (bool, error) {
+	if f.errTrasBorrar != nil {
+		f.mems = f.mems[:0]
+		return true, f.errTrasBorrar
+	}
 	for i, m := range f.mems {
 		if m.ID == id {
 			f.mems = append(f.mems[:i], f.mems[i+1:]...)
@@ -294,6 +442,9 @@ func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 	if len(repo.deleted) != 1 {
 		t.Fatalf("esperaba exactamente 1 Delete, hubo %d: %v", len(repo.deleted), repo.deleted)
 	}
+	if repo.lotes != 1 {
+		t.Fatalf("el grupo debe borrarse en un solo lote, hubo %d", repo.lotes)
+	}
 	if repo.deleted[0] == keepID {
 		t.Fatalf("se borró la memoria canónica #%d, no debía tocarse", keepID)
 	}
@@ -302,6 +453,36 @@ func TestOptimizeFlow_DetectsAndDeletesDuplicateGroup(t *testing.T) {
 	}
 	if m.screen != screenOptimize {
 		t.Fatalf("esperaba volver a screenOptimize, quedó en %v", m.screen)
+	}
+}
+
+// C-23: un fallo del lote se muestra; antes se presentaba como éxito.
+func TestOptimizeFlow_BorradoPorLoteFallaYLoMuestra(t *testing.T) {
+	memFixture := duplicatePreferenceFixture()
+	repo := &fakeMemRepo{mems: memFixture, falloLote: errors.New("WAL retenido")}
+	m := model{memRepo: repo, project: "demo", memories: memFixture, filtered: memFixture, ready: true, width: 100, height: 30, dupConfirm: textinput.New()}
+
+	mm, _ := m.updateList(keyMsg("o"))
+	m = mm.(model)
+	mm, _ = m.updateOptimize(keyMsg("enter"))
+	m = mm.(model)
+	mm, _ = m.updateOptimizeDetail(keyMsg("c"))
+	m = mm.(model)
+	mm, _ = m.updateOptimizeConfirm(keyMsg("s"))
+	m = mm.(model)
+	mm, _ = m.updateOptimizeConfirm(keyMsg("i"))
+	m = mm.(model)
+	mm, _ = m.updateOptimizeConfirm(keyMsg("enter"))
+	m = mm.(model)
+
+	if !strings.Contains(m.statusMsg, "WAL retenido") {
+		t.Fatalf("el error debe mostrarse: %q", m.statusMsg)
+	}
+	if strings.Contains(m.statusMsg, "optimizado") {
+		t.Fatalf("no puede presentarse como éxito: %q", m.statusMsg)
+	}
+	if len(m.dupGroups) != 1 {
+		t.Fatalf("el grupo debe seguir disponible: %d", len(m.dupGroups))
 	}
 }
 

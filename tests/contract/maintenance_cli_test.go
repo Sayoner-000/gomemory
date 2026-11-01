@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +10,7 @@ import (
 
 	"mem/adapters/primary/cli"
 	"mem/adapters/secondary/persistence"
+	"mem/application/ports"
 	"mem/domain"
 )
 
@@ -232,5 +235,123 @@ func TestFormatCompactResultNoSpaceToReclaim(t *testing.T) {
 	msg := cli.FormatCompactResult(500_000, 500_000)
 	if !strings.Contains(strings.ToLower(msg), "nada que liberar") && !strings.Contains(strings.ToLower(msg), "sin espacio") {
 		t.Fatalf("expected mensaje explicito de 'nada que liberar', got %q", msg)
+	}
+}
+
+var limpiezaPendiente = fmt.Errorf("1 memoria(s) borrada(s), pero el texto sigue en disco: %w", domain.ErrLimpiezaPendiente)
+
+type memoriasConLimpiezaPendiente struct{ ports.MemoryRepository }
+
+func (memoriasConLimpiezaPendiente) Delete(string, int64) (bool, error) {
+	return true, limpiezaPendiente
+}
+
+func (memoriasConLimpiezaPendiente) DeleteMany(string, []int64) (int64, error) {
+	return 1, limpiezaPendiente
+}
+
+type mantenimientoConLimpiezaPendiente struct{ ports.MaintenanceRepository }
+
+func (mantenimientoConLimpiezaPendiente) Purge(ports.PurgeFilter) (int64, error) {
+	return 1, limpiezaPendiente
+}
+
+func (mantenimientoConLimpiezaPendiente) Compact() (int64, int64, error) {
+	return 10, 10, limpiezaPendiente
+}
+
+// C-25: un borrado confirmado con limpieza pendiente no sale con error. Si estas
+// llamadas fallaran, clikit.Fail terminaría el proceso de pruebas.
+func TestLimpiezaPendiente_CLIInformaExito(t *testing.T) {
+	deps, _, cleanup := chdirTemp(t)
+	defer cleanup()
+	deps.MemoryRepo = memoriasConLimpiezaPendiente{deps.MemoryRepo}
+	deps.MaintenanceRepo = mantenimientoConLimpiezaPendiente{deps.MaintenanceRepo}
+
+	cli.CmdForget(deps, []string{"1"})
+	cli.CmdPurge(deps, []string{"--yes"})
+	cli.CmdGC(deps, []string{"--yes"})
+	cli.CmdCompact(deps, nil)
+}
+
+// capturar devuelve lo que fn escribe en stdout y stderr.
+func capturar(t *testing.T, fn func()) (salida, errores string) {
+	t.Helper()
+	leer := func(destino **os.File) func() string {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		original := *destino
+		*destino = w
+		return func() string {
+			*destino = original
+			_ = w.Close()
+			datos, _ := io.ReadAll(r)
+			return string(datos)
+		}
+	}
+	finSalida := leer(&os.Stdout)
+	finErrores := leer(&os.Stderr)
+	fn()
+	return finSalida(), finErrores()
+}
+
+// C-25: el aviso va a stderr; stdout conserva el resultado para quien lo procesa.
+func TestLimpiezaPendiente_AvisoEnStderr(t *testing.T) {
+	deps, _, cleanup := chdirTemp(t)
+	defer cleanup()
+	deps.MemoryRepo = memoriasConLimpiezaPendiente{deps.MemoryRepo}
+
+	salida, errores := capturar(t, func() { cli.CmdForget(deps, []string{"1"}) })
+	if !strings.Contains(errores, "sigue en disco") {
+		t.Fatalf("el aviso debe ir a stderr: %q", errores)
+	}
+	if strings.Contains(salida, "sigue en disco") {
+		t.Fatalf("el aviso no debe ir a stdout: %q", salida)
+	}
+}
+
+// M-03: con el WAL retenido no se informa espacio liberado.
+func TestCompactPendiente_NoInformaLiberado(t *testing.T) {
+	deps, _, cleanup := chdirTemp(t)
+	defer cleanup()
+	deps.MaintenanceRepo = mantenimientoConLimpiezaPendiente{deps.MaintenanceRepo}
+
+	salida, errores := capturar(t, func() { cli.CmdCompact(deps, nil) })
+	if strings.Contains(salida, "nada que liberar") || strings.Contains(salida, "liberado") {
+		t.Fatalf("no puede informar espacio con el WAL retenido: %q", salida)
+	}
+	if !strings.Contains(errores, "sigue en disco") {
+		t.Fatalf("falta el aviso: %q", errores)
+	}
+}
+
+// M-03: si el archivo creció no hay nada liberado ni un tamaño negativo.
+func TestFormatCompactResultSinEspacioLiberado(t *testing.T) {
+	msg := cli.FormatCompactResult(100_000, 200_000)
+	if strings.Contains(msg, "EB") || strings.Contains(msg, "liberado:") {
+		t.Fatalf("resultado imposible: %q", msg)
+	}
+}
+
+type consolidableConLimpiezaPendiente struct{ memoriasConLimpiezaPendiente }
+
+func (consolidableConLimpiezaPendiente) ListAll(project string) ([]domain.Memory, error) {
+	return []domain.Memory{
+		{ID: 1, Project: project, Type: domain.Decision, Title: "a", Content: "texto repetido", TopicKey: "tema"},
+		{ID: 2, Project: project, Type: domain.Decision, Title: "b", Content: "texto repetido", TopicKey: "tema"},
+	}, nil
+}
+
+// C-25: consolidar con limpieza pendiente también es éxito con advertencia.
+func TestConsolidate_LimpiezaPendienteInformaExito(t *testing.T) {
+	deps, _, cleanup := chdirTemp(t)
+	defer cleanup()
+	deps.MemoryRepo = consolidableConLimpiezaPendiente{memoriasConLimpiezaPendiente{deps.MemoryRepo}}
+
+	_, errores := capturar(t, func() { cli.CmdConsolidate(deps, []string{"--apply"}) })
+	if !strings.Contains(errores, "sigue en disco") {
+		t.Fatalf("falta el aviso: %q", errores)
 	}
 }

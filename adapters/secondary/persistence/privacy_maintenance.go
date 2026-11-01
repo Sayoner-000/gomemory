@@ -280,18 +280,14 @@ func parseChannelRecordID(id string) (agent, scope, kind string, err error) {
 }
 
 // WithTransaction ejecuta fn en una transacción inmediata sobre una conexión
-// dedicada con secure_delete activo: las páginas liberadas se sobrescriben
-// en vez de quedar con el texto anterior.
+// dedicada. secure_delete viene activo desde el DSN: las páginas liberadas se
+// sobrescriben en vez de quedar con el texto anterior.
 func (s *PrivacyMaintenanceStore) WithTransaction(ctx context.Context, project string, fn func(ports.PrivacyTransaction) error) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return classifySQLite(err)
 	}
 	defer func() { _ = conn.Close() }()
-	if _, err := conn.ExecContext(ctx, `PRAGMA secure_delete = ON`); err != nil {
-		return classifySQLite(err)
-	}
-	defer func() { _, _ = conn.ExecContext(context.WithoutCancel(ctx), `PRAGMA secure_delete = OFF`) }()
 
 	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
