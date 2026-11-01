@@ -292,18 +292,39 @@ func InstallSocraticaSkill(body string, wrappers map[string]string) ([]string, e
 			continue
 		}
 		dest := filepath.Join(append([]string{base}, t.file...)...)
+		// Antes de comparar: leer seguiría el enlace y lo daría por instalado.
+		if err := rechazarEnlace(dest); err != nil {
+			return written, err
+		}
 		if previo, err := os.ReadFile(dest); err == nil && string(previo) == content {
 			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return written, err
-		}
-		if err := os.WriteFile(dest, []byte(content), 0o644); err != nil {
+		if err := writeWrapperFile(dest, []byte(content)); err != nil {
 			return written, err
 		}
 		written = append(written, dest)
 	}
 	return written, nil
+}
+
+// writeWrapperFile rechaza un envoltorio simbólico, que os.WriteFile truncaría,
+// pero admite una carpeta commands enlazada a dotfiles: es un layout habitual y
+// el rename ocurre dentro de su destino real. La escritura es atómica.
+func writeWrapperFile(dest string, data []byte) error {
+	if err := rechazarEnlace(dest); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	return WriteConfigFile(dest, data)
+}
+
+func rechazarEnlace(dest string) error {
+	if info, err := os.Lstat(dest); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s es un enlace simbólico: gomemory no escribe a través de él", dest)
+	}
+	return nil
 }
 
 // writeManagedFile escribe un archivo que gomemory gestiona dentro de la

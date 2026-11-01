@@ -3,6 +3,7 @@ package setup
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -416,4 +417,94 @@ func TestInstallAgentSkill_OpenCodeDestinoGlobalYMigracion(t *testing.T) {
 			t.Errorf("otra skill no se toca: %v", err)
 		}
 	})
+}
+
+func saltarEnWindows(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("depende de enlaces simbólicos y permisos POSIX")
+	}
+}
+
+func socraticaWrapperHome(t *testing.T) (string, string) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	comandos := filepath.Join(home, ".claude", "commands")
+	if err := os.MkdirAll(comandos, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return home, filepath.Join(comandos, "socratic-q.md")
+}
+
+// C-09: un envoltorio simbólico se rechaza y el archivo apuntado queda intacto.
+func TestSocraticaWrapper_RechazaDestinoSimbolico(t *testing.T) {
+	saltarEnWindows(t)
+	home, dest := socraticaWrapperHome(t)
+	apuntado := filepath.Join(home, "dotfile.md")
+	if err := os.Symlink(apuntado, dest); err != nil {
+		t.Fatal(err)
+	}
+	// IND-03: también si el archivo apuntado ya coincide con el envoltorio.
+	for _, previo := range []string{"mío", "nuevo"} {
+		if err := os.WriteFile(apuntado, []byte(previo), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := InstallSocraticaSkill("cuerpo", map[string]string{"socratic-q.md": "nuevo"}); err == nil {
+			t.Fatalf("un destino simbólico debe rechazarse con contenido %q", previo)
+		}
+		if datos, _ := os.ReadFile(apuntado); string(datos) != previo {
+			t.Fatalf("el archivo apuntado cambió: %q", datos)
+		}
+	}
+}
+
+// C-10: si no se puede completar la escritura, el envoltorio previo queda
+// intacto: la escritura va a un temporal del directorio, que aquí es de solo
+// lectura, y solo un rename la publica.
+func TestSocraticaWrapper_FalloConservaElPrevio(t *testing.T) {
+	saltarEnWindows(t)
+	_, dest := socraticaWrapperHome(t)
+	if err := os.WriteFile(dest, []byte("previo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Dir(dest)
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	if _, err := InstallSocraticaSkill("cuerpo", map[string]string{"socratic-q.md": "nuevo"}); err == nil {
+		t.Fatal("la escritura debe fallar en un directorio de solo lectura")
+	}
+	if datos, _ := os.ReadFile(dest); string(datos) != "previo" {
+		t.Fatalf("el envoltorio previo cambió: %q", datos)
+	}
+}
+
+// C-19: un directorio commands enlazado a dotfiles es un layout habitual: el
+// envoltorio se escribe en su destino real y el enlace se conserva.
+func TestSocraticaWrapper_EscribeAtravesDeDirectorioEnlazado(t *testing.T) {
+	saltarEnWindows(t)
+	home, dest := socraticaWrapperHome(t)
+	comandos := filepath.Dir(dest)
+	real := filepath.Join(home, "dotfiles", "commands")
+	if err := os.MkdirAll(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(comandos); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, comandos); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InstallSocraticaSkill("cuerpo", map[string]string{"socratic-q.md": "nuevo"}); err != nil {
+		t.Fatalf("un directorio enlazado debe admitirse: %v", err)
+	}
+	if datos, _ := os.ReadFile(filepath.Join(real, "socratic-q.md")); string(datos) != "nuevo" {
+		t.Fatalf("el envoltorio no llegó al destino real: %q", datos)
+	}
+	if info, err := os.Lstat(comandos); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("el enlace debe conservarse: %v", err)
+	}
 }
