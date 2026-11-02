@@ -133,6 +133,8 @@ func TestOpenCodeV2_RamaV1ConservaGanchos(t *testing.T) {
 // la misma que antes de la feature 032 (copia en specs/…/baseline). La rama v2
 // se añadió aparte; si alguien toca la fábrica, este contrato obliga a
 // decidirlo a conciencia y actualizar la referencia.
+// HCD-014 Q3 A: referencia actualizada únicamente para propagar session_id al
+// hook de compresión y conceder recuperación automática a la sesión propietaria.
 func TestOpenCodeV2_FabricaV1IdenticaALaReferencia(t *testing.T) {
 	ref, err := os.ReadFile("../../specs/032-opencode-v2-plugin-compat/baseline/gomemory.v1.ts")
 	if err != nil {

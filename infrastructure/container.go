@@ -70,7 +70,8 @@ type Container struct {
 	CompressionLevel ports.CompressionLevel
 	// OriginalStore guarda los originales que el motor nativo omite, para
 	// pack_retrieve / mem pack retrieve (feature 033).
-	OriginalStore ports.OriginalStoreRepository
+	OriginalStore           ports.OriginalStoreRepository
+	AutomaticOriginalGrants ports.AutomaticOriginalGrantsRepository
 	// DeliveredBlocks: registro por bloques de lo entregado en la sesión.
 	DeliveredBlocks ports.DeliveredBlocksRepository
 	// CompressionStats/CompressionTuning: estadísticas y ajuste adaptativo.
@@ -317,6 +318,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		ADRSyncRepo:                  adrSyncRepo,
 		Compressor:                   engine,
 		OriginalStore:                originalStore,
+		AutomaticOriginalGrants:      persistence.NewAutomaticOriginalGrantsRepository(db),
 		DeliveredBlocks:              persistence.NewDeliveredBlocksRepository(db, project, clock.SystemClock{}),
 		CompressionStats:             compressionStats,
 		CompressionTuning:            compressionTuning,
@@ -456,6 +458,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		SpecKitReader:                c.SpecKitReader,
 		CompressionLevel:             c.CompressionLevel,
 		OriginalStore:                c.OriginalStore,
+		AutomaticOriginalGrants:      c.AutomaticOriginalGrants,
 		DeliveredBlocks:              c.DeliveredBlocks,
 		CompressionStats:             c.CompressionStats,
 		CompressionTuning:            c.CompressionTuning,

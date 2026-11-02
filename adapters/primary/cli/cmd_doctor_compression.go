@@ -8,23 +8,25 @@ import (
 	"strings"
 
 	"mem/application/ports"
+	"mem/application/usecases"
 	"mem/domain"
 )
 
 // doctorCompressionJSON es la sección «Compresión» de `mem doctor` (feature
 // 033, FR-029), también bajo la clave "compression" de --json.
 type doctorCompressionJSON struct {
-	Level          string            `json:"level"`
-	Origin         string            `json:"origin"`
-	OriginalsBytes int64             `json:"originals_bytes"`
-	OriginalsMax   int64             `json:"originals_max_bytes"`
-	OriginalsRefs  int               `json:"originals_refs"`
-	NearLimit      bool              `json:"near_limit"`
-	StoreWritable  bool              `json:"store_writable"`
-	ToolOutput     map[string]string `json:"tool_output_hooks"`
-	Mechanisms     map[string]string `json:"mechanisms"`
-	Tuning         []string          `json:"tuning"`
-	Problems       []string          `json:"problems"`
+	Level          string                                `json:"level"`
+	Origin         string                                `json:"origin"`
+	OriginalsBytes int64                                 `json:"originals_bytes"`
+	OriginalsMax   int64                                 `json:"originals_max_bytes"`
+	OriginalsRefs  int                                   `json:"originals_refs"`
+	NearLimit      bool                                  `json:"near_limit"`
+	StoreWritable  bool                                  `json:"store_writable"`
+	ToolOutput     map[string]string                     `json:"tool_output_hooks"`
+	Mechanisms     map[string]string                     `json:"mechanisms"`
+	Tuning         []string                              `json:"tuning"`
+	Problems       []string                              `json:"problems"`
+	Coverage       []ports.CompressionCoverageAssessment `json:"coverage"`
 }
 
 // Estado del hook de salidas por runtime. Los valores de Codex y OpenCode
@@ -42,8 +44,12 @@ func toolOutputHookStates(root string, enabled bool) map[string]string {
 	// La política local no es una prueba del soporte del host instalado.
 	// El rechazo histórico no se extrapola a otra versión ni superficie.
 	if home, err := os.UserHomeDir(); err == nil {
-		if data, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml")); err == nil && strings.Contains(string(data), "hook tool-output codex") {
-			states["codex"] += " · hook antiguo registrado: ejecuta mem install para retirarlo"
+		if data, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml")); err == nil {
+			if strings.Contains(string(data), "hook tool-output codex-shell") {
+				states["codex"] = "hook shell registrado; condicionado a versión comprobada y confianza del host; no demuestra cobertura de MCP ni historial"
+			} else if strings.Contains(string(data), "hook tool-output codex") {
+				states["codex"] += " · hook antiguo registrado: ejecuta mem install para retirarlo"
+			}
 		}
 	}
 	states["opencode"] = "activo (best-effort: emite reescritura, la sustitución depende del runtime)"
@@ -58,6 +64,7 @@ func buildDoctorCompression(deps *Deps, root string) doctorCompressionJSON {
 	out := doctorCompressionJSON{
 		Level:      domain.ParseCompressionLevel(st.ContextCompressionLevel, st.ContextCompressionDisabled),
 		ToolOutput: toolOutputHookStates(root, st.ToolOutputCompression),
+		Coverage:   usecases.BuildCompressionCoverageMatrix(deps.CompressionCoverage),
 		Tuning:     []string{},
 		Problems:   []string{},
 		Mechanisms: map[string]string{
@@ -114,6 +121,9 @@ func printDoctorCompression(c doctorCompressionJSON) {
 	}
 	for _, mechanism := range []string{"own_output", "selection", "session_delta", "external_output", "conversation_compaction"} {
 		humanf("  %s: %s\n", mechanism, c.Mechanisms[mechanism])
+	}
+	for _, row := range c.Coverage {
+		humanf("  cobertura (%s/%s, versión=%q modalidad=%q): %s · %s\n", row.Scope.Agent, row.Scope.ContentClass, row.Scope.Version, row.Scope.Mode, row.Status, row.Reason)
 	}
 	for _, t := range c.Tuning {
 		humanln("  ajuste adaptativo: " + t)

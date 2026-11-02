@@ -414,6 +414,14 @@ func ensureCodexHooksFeature(base string) string {
 // herramientas (feature 033) en config.toml. Solo toca grupos cuyo comando es
 // `hook tool-output`; los hooks ajenos y el resto del ciclo no cambian.
 func syncCodexToolOutputHook(config []byte, memCommand string, enabled bool) ([]byte, bool, error) {
+	return syncCodexOutputHook(config, memCommand, enabled, setup.CodexToolOutputHook)
+}
+
+func syncCodexShellFeedbackHook(config []byte, memCommand string, supported bool) ([]byte, bool, error) {
+	return syncCodexOutputHook(config, memCommand, supported, setup.CodexShellFeedbackHook)
+}
+
+func syncCodexOutputHook(config []byte, memCommand string, enabled bool, h setup.CodexHook) ([]byte, bool, error) {
 	doc := map[string]any{}
 	if len(bytes.TrimSpace(config)) > 0 {
 		if err := toml.Unmarshal(config, &doc); err != nil {
@@ -424,10 +432,10 @@ func syncCodexToolOutputHook(config []byte, memCommand string, enabled bool) ([]
 	if hooks == nil {
 		hooks = make(map[string]any)
 	}
-	h := setup.CodexToolOutputHook
 	grupos, _ := anySlice(hooks[h.Event])
 	kept := make([]any, 0, len(grupos)+1)
 	present := false
+	ownActions := 0
 	// Solo cuenta como propia la acción cuyo command invoca `mem hook
 	// tool-output`; un hook ajeno con ese literal (en su comando, su matcher o
 	// junto a la nuestra en el mismo grupo) se conserva (R4-02).
@@ -444,6 +452,7 @@ func syncCodexToolOutputHook(config []byte, memCommand string, enabled bool) ([]
 			cmd, _ := accion["command"].(string)
 			if setup.GomemoryHookIndex(cmd, "tool-output") >= 0 {
 				present = true
+				ownActions++
 				continue
 			}
 			ajenas = append(ajenas, a)
@@ -455,7 +464,7 @@ func syncCodexToolOutputHook(config []byte, memCommand string, enabled bool) ([]
 			kept = append(kept, grupo)
 		}
 	}
-	if present == enabled && (!enabled || setup.CodexHookPresente(hooks, h)) {
+	if present == enabled && (!enabled || (ownActions == 1 && setup.CodexHookPresente(hooks, h))) {
 		return config, false, nil
 	}
 	if enabled {

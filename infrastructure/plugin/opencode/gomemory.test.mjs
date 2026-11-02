@@ -481,6 +481,7 @@ test('v2 (037): content string reducido llega al consumidor y conserva los demá
   const f = await v2Fixture({ outputs: compressing });
   const ev = await afterTool(f, { result: { content: BIG, title: 'ls', metadata: { exit: 0 } } });
   assert.deepEqual(ev.result, { content: 'REDUCIDO', title: 'ls', metadata: { exit: 0 } });
+  assert.equal(JSON.parse(f.hookCalls('tool-output').find(c => c.input).input).session_id, 's1');
   await f.cleanup();
 });
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"os"
 
 	"mem/application/ports"
 	"mem/application/usecases"
@@ -110,6 +111,14 @@ func deliverSearchDoc(deps *Deps, raw string) string {
 func resetDeliveries(deps *Deps) {
 	if deps == nil {
 		return
+	}
+	// The recovery hint is delivered once per retained conversation too. Its
+	// marker must expire with the delta, otherwise new references after a
+	// compaction can arrive without instructions for recovering their originals.
+	if deps.ProjectRepo != nil {
+		if root, err := deps.ProjectRepo.FindRoot(); err == nil {
+			_ = os.Remove(markersNotePath(root))
+		}
 	}
 	if deps.DeliveryLog != nil {
 		_ = deps.DeliveryLog.Reset()

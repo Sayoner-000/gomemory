@@ -439,7 +439,7 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
             // que en Claude Code (feature 035, FR-013). Mejor esfuerzo: si el
             // runtime no lo expone, viaja vacío y la salida se trata como antes.
             const command = (input as any)?.args?.command ?? (output as any)?.metadata?.command ?? "";
-            const res = await memWithStdin(["hook", "tool-output", "opencode"], JSON.stringify({ tool: input.tool, output: output.output, command }));
+            const res = await memWithStdin(["hook", "tool-output", "opencode"], JSON.stringify({ tool: input.tool, output: output.output, command, session_id: input.sessionID ?? "" }));
             if (res) {
               const parsed = JSON.parse(res);
               if (typeof parsed?.output === "string") output.output = parsed.output;

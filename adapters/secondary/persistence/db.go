@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 7
+const schemaVersion = 8
 
 // esperaOcupadaMs es el busy_timeout de cada conexión.
 const esperaOcupadaMs = 5000
@@ -587,6 +587,19 @@ func migrateSchema(ex schemaExecer) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_compression_originals_expires ON compression_originals(expires_at);
 	CREATE INDEX IF NOT EXISTS idx_compression_originals_access ON compression_originals(last_access_at);
+	CREATE TABLE IF NOT EXISTS automatic_original_grants (
+		project TEXT NOT NULL,
+		agent TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		ref TEXT NOT NULL REFERENCES compression_originals(ref) ON DELETE CASCADE,
+		PRIMARY KEY (project, agent, session_id, ref)
+	);
+	CREATE INDEX IF NOT EXISTS idx_automatic_original_grants_ref ON automatic_original_grants(ref);
+	CREATE TRIGGER IF NOT EXISTS revoke_automatic_original_grants
+	AFTER DELETE ON compression_originals
+	BEGIN
+		DELETE FROM automatic_original_grants WHERE ref = OLD.ref;
+	END;
 	CREATE TABLE IF NOT EXISTS delivered_blocks (
 		session_id TEXT NOT NULL,
 		block_hash TEXT NOT NULL,

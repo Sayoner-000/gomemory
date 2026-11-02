@@ -49,6 +49,9 @@ command = "otro-hook"
 // en cualquier ámbito y directorio) retira el hook de salidas, sin mirar el
 // ajuste del proyecto ni tocar hooks ajenos.
 func TestSetupCodexGlobalRetiraElHookDeSalidas(t *testing.T) {
+	// Sin una versión comprobada se retiran tanto el dialecto legado como el
+	// candidato shell. La instalación compatible tiene su prueba HCD-014.
+	t.Setenv("PATH", t.TempDir())
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home) // Windows

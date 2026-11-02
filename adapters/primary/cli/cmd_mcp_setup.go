@@ -517,15 +517,17 @@ func setupCodexGlobal(ref BinRef) bool {
 		hooksAdded = añadidos
 	}
 
-	// Retira el hook de salidas de herramientas que registraba la feature 033.
-	// Codex rechaza siempre updatedMCPToolOutput («PostToolUse hook returned
-	// unsupported updatedMCPToolOutput», codex-rs/hooks/src/engine/
-	// output_parser.rs): nunca comprimió nada y solo mostraba «Hook failed» en
-	// cada herramienta MCP. Vive en la configuración global, así que se retira
-	// sin mirar el ajuste de ningún proyecto.
-	if sinHook, retirado, err := syncCodexToolOutputHook([]byte(migrated), ref.MCPCommand, false); err == nil && retirado {
-		migrated = string(sinHook)
-		fmt.Println("  ✅ codex: retirado el hook de salidas de herramientas (Codex no admite reescribirlas)")
+	// HCD-014: el antiguo updatedMCPToolOutput sigue retirado. Solo la versión
+	// comprobada recibe el nuevo borde shell continue:false; cada ejecución
+	// respeta tool_output_compression y vuelve a comprobar la versión del host.
+	shellSupported := setup.CodexShellFeedbackSupported()
+	if candidate, changed, err := syncCodexShellFeedbackHook([]byte(migrated), ref.MCPCommand, shellSupported); err == nil && changed {
+		migrated = string(candidate)
+		if shellSupported {
+			fmt.Println("  ✅ codex: hook shell recuperable registrado para la versión comprobada; requiere confiar el hook en Codex")
+		} else {
+			fmt.Println("  ✅ codex: retirado el hook de salida no compatible con una versión comprobada")
+		}
 	}
 
 	if migrated == string(originalData) && !hooksConsolidated {

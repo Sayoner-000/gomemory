@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,8 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"mem/adapters/primary/setup"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -20,9 +23,9 @@ import (
 // modelo, en los runtimes cuyo sistema de ganchos lo permite (verificado contra
 // los binarios: Claude Code 2.1.282 con updatedToolOutput para todas las
 // herramientas; OpenCode con output.output mutable en tool.execute.after).
-// Codex NO lo permite: su parser de hooks rechaza siempre updatedMCPToolOutput
-// («PostToolUse hook returned unsupported updatedMCPToolOutput»,
-// codex-rs/hooks/src/engine/output_parser.rs), así que con Codex no se emite nada.
+// El dialecto legado Codex permanece silencioso: updatedMCPToolOutput no está
+// admitido. El dialecto optativo codex-shell usa continue:false + stopReason
+// únicamente para Bash textual en la versión comprobada (HCD-014).
 //
 // Invariantes:
 //   - H1: ante cualquier duda, salida vacía y código 0 (el runtime usa la
@@ -47,19 +50,8 @@ func toolOutputIsExcluded(name string) bool {
 	return strings.HasPrefix(name, "mcp__gomemory__") || strings.HasPrefix(name, "gomemory_")
 }
 
-// readCommandPrefixes son los comandos de shell cuya salida es una lectura
-// exacta o un diagnóstico (feature 035, FR-013): el agente la pidió literal,
-// y comprimirla le entregó código sin indentación y diagnósticos incompletos.
-var readCommandPrefixes = []string{"sed ", "cat ", "head ", "tail ", "git diff", "git show", "mem doctor"}
-
 func isReadCommand(cmd string) bool {
-	cmd = strings.TrimSpace(cmd)
-	for _, p := range readCommandPrefixes {
-		if strings.HasPrefix(cmd, p) {
-			return true
-		}
-	}
-	return false
+	return domain.IsExactReadCommand(cmd)
 }
 
 // toolOutputExclusion dice si la salida descrita por payload nunca se
@@ -161,6 +153,24 @@ func rewriteToolOutput(runtime string, payload []byte, compress compressFunc) []
 		return nil
 	}
 	switch runtime {
+	case "codex-shell":
+		// HCD-014: contrato observado en Codex 0.166.0 interactivo. El
+		// dialecto legado sigue mudo y esta ruta no se extrapola a MCP ni a
+		// objetos de salida desconocidos. La instalación y el hook comprueban
+		// la versión antes de usarla.
+		var ev struct {
+			ToolName     string `json:"tool_name"`
+			ToolResponse string `json:"tool_response"`
+		}
+		if json.Unmarshal(payload, &ev) != nil || ev.ToolName != "Bash" || ev.ToolResponse == "" {
+			return nil
+		}
+		c, ok := compress(ev.ToolResponse)
+		if !ok {
+			return nil
+		}
+		out, _ := json.Marshal(map[string]any{"continue": false, "stopReason": c})
+		return out
 	case "opencode":
 		var ev struct {
 			Tool   string `json:"tool"`
@@ -233,11 +243,22 @@ func hookToolOutput(deps *Deps, args []string) {
 	if !settings.ToolOutputCompression || len(args) == 0 || deps.Compressor == nil {
 		os.Exit(0)
 	}
+	if args[0] == "codex-shell" && !setup.CodexShellFeedbackSupported() {
+		os.Exit(0)
+	}
 	payload, err := io.ReadAll(io.LimitReader(os.Stdin, int64(domain.CompressionMaxInputBytes)*2))
 	if err != nil {
 		os.Exit(0)
 	}
 	root, _ := deps.ProjectRepo.FindRoot()
+	var identity struct {
+		SessionID string `json:"session_id"`
+	}
+	_ = json.Unmarshal(payload, &identity)
+	agent := args[0]
+	if agent == "codex-shell" {
+		agent = "codex"
+	}
 	if name, excluded := toolOutputExclusion(args[0], payload); excluded {
 		recordGuard(deps, args[0], domain.GuardToolOutputExcluded, name)
 		os.Exit(0)
@@ -251,6 +272,16 @@ func hookToolOutput(deps *Deps, args []string) {
 			PreserveURLs: true, PreservePaths: true, PreserveErrors: true, ToolOutput: true})
 		if err != nil || len(res.Refs) == 0 {
 			return "", false
+		}
+		// Legacy hosts without an identity retain manual project recovery only.
+		// Never guess a host session from the memory session of this subprocess.
+		if identity.SessionID != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), domain.StoreTimeout)
+			err := usecases.GrantAutomaticOriginals(ctx, deps.OriginalStore, deps.AutomaticOriginalGrants, ports.AutomaticOriginalScope{Project: deps.Project, Agent: agent, SessionID: identity.SessionID}, res.Refs)
+			cancel()
+			if err != nil {
+				return "", false
+			}
 		}
 		return res.Content + retrieveHintOnce(root), true
 	}

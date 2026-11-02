@@ -70,9 +70,13 @@ type Deps struct {
 	// resuelto en el composition root a partir de context_compression_level y
 	// del heredado context_compression_disabled.
 	CompressionLevel ports.CompressionLevel
+	// CompressionCoverage es una captura ya disponible, nunca una sonda que
+	// doctor ejecute implícitamente. Sin ella la cobertura queda no verificada.
+	CompressionCoverage *ports.CompressionCoverageSnapshot
 	// OriginalStore devuelve los originales omitidos por el motor nativo
 	// (pack_retrieve). Puede ser nil: la recuperación responde «no encontrada».
-	OriginalStore ports.OriginalStoreRepository
+	OriginalStore           ports.OriginalStoreRepository
+	AutomaticOriginalGrants ports.AutomaticOriginalGrantsRepository
 	// DeliveredBlocks registra qué entradas recibió ya el agente en la sesión,
 	// para el delta del nivel max (feature 033, FR-018). Puede ser nil.
 	DeliveredBlocks ports.DeliveredBlocksRepository

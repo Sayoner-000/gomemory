@@ -159,13 +159,26 @@ func cmdPackCompress(deps *Deps, args []string) {
 func cmdPackRetrieve(deps *Deps, args []string) {
 	fs := newFlagSet("pack retrieve", flag.ContinueOnError)
 	project := fs.String("project", deps.Project, "Proyecto que guardó la ref (default: proyecto actual)")
+	automatic := fs.Bool("automatic", false, "Recuperar solo con permiso de la sesión del host")
+	agent := fs.String("agent", "", "Agente propietario para recuperación automática: codex|claude|opencode")
+	sessionID := fs.String("session-id", "", "Identidad estable de sesión del host para recuperación automática")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 1 {
 		fail("uso: mem pack retrieve [--project P] <ref>")
 	}
 	ref := fs.Arg(0)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*domain.StoreTimeout)
 	defer cancel()
-	content, meta, err := usecases.RetrieveOriginal(ctx, deps.OriginalStore, *project, ref)
+	var content string
+	var meta ports.OriginalMeta
+	var err error
+	if *automatic {
+		content, meta, err = usecases.RetrieveAutomaticOriginal(ctx, deps.OriginalStore, deps.AutomaticOriginalGrants, ports.AutomaticOriginalScope{Project: *project, Agent: *agent, SessionID: *sessionID}, ref)
+	} else {
+		if *agent != "" || *sessionID != "" {
+			fail("--agent y --session-id requieren --automatic")
+		}
+		content, meta, err = usecases.RetrieveOriginal(ctx, deps.OriginalStore, *project, ref)
+	}
 	if errors.Is(err, usecases.ErrOriginalNotFound) {
 		fmt.Fprintf(os.Stderr, "ref %s no encontrada o caducada; vuelve a pedir el contenido a su fuente\n", strings.TrimSpace(ref))
 		os.Exit(2)

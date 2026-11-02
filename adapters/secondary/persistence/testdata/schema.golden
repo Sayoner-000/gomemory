@@ -1,6 +1,7 @@
-user_version=7
+user_version=8
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
+index|idx_automatic_original_grants_ref|automatic_original_grants|CREATE INDEX idx_automatic_original_grants_ref ON automatic_original_grants(ref)
 index|idx_code_edges_from|code_edges|CREATE INDEX idx_code_edges_from ON code_edges(from_id)
 index|idx_code_edges_src_file|code_edges|CREATE INDEX idx_code_edges_src_file ON code_edges(src_file_id)
 index|idx_code_edges_to|code_edges|CREATE INDEX idx_code_edges_to ON code_edges(to_id)
@@ -33,6 +34,7 @@ index|idx_socratica_history_scope|socratica_history|CREATE INDEX idx_socratica_h
 index|idx_socratica_one_pending|socratica_flows|CREATE UNIQUE INDEX idx_socratica_one_pending ON socratica_flows(project, client) WHERE phase NOT IN ('dispatched','cancelled')
 index|idx_usage_created|usage_records|CREATE INDEX idx_usage_created ON usage_records(created_at DESC)
 index|idx_usage_project_session|usage_records|CREATE INDEX idx_usage_project_session ON usage_records(project, session_id)
+index|sqlite_autoindex_automatic_original_grants_1|automatic_original_grants|
 index|sqlite_autoindex_channel_activity_1|channel_activity|
 index|sqlite_autoindex_code_edges_1|code_edges|
 index|sqlite_autoindex_code_files_1|code_files|
@@ -73,6 +75,13 @@ table|adr_sync_records|adr_sync_records|CREATE TABLE adr_sync_records (
 		last_synced_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
 		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
 		FOREIGN KEY (memory_id) REFERENCES memories(id)
+	)
+table|automatic_original_grants|automatic_original_grants|CREATE TABLE automatic_original_grants (
+		project TEXT NOT NULL,
+		agent TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		ref TEXT NOT NULL REFERENCES compression_originals(ref) ON DELETE CASCADE,
+		PRIMARY KEY (project, agent, session_id, ref)
 	)
 table|channel_activity|channel_activity|CREATE TABLE channel_activity (
 		project TEXT NOT NULL,
@@ -433,6 +442,11 @@ table|usage_records|usage_records|CREATE TABLE usage_records (
 		emitted_tokens INTEGER NOT NULL DEFAULT 0,
 		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours'))
 	)
+trigger|revoke_automatic_original_grants|compression_originals|CREATE TRIGGER revoke_automatic_original_grants
+	AFTER DELETE ON compression_originals
+	BEGIN
+		DELETE FROM automatic_original_grants WHERE ref = OLD.ref;
+	END
 col|adr_sync_records|0|id|INTEGER|0||1
 col|adr_sync_records|1|project|TEXT|1||0
 col|adr_sync_records|2|memory_id|INTEGER|0||0
@@ -444,6 +458,10 @@ col|adr_sync_records|7|status|TEXT|1||0
 col|adr_sync_records|8|content_hash|TEXT|1|''|0
 col|adr_sync_records|9|last_synced_at|TEXT|1|datetime('now', '-5 hours')|0
 col|adr_sync_records|10|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|automatic_original_grants|0|project|TEXT|1||1
+col|automatic_original_grants|1|agent|TEXT|1||2
+col|automatic_original_grants|2|session_id|TEXT|1||3
+col|automatic_original_grants|3|ref|TEXT|1||4
 col|channel_activity|0|project|TEXT|1||1
 col|channel_activity|1|agent|TEXT|1||2
 col|channel_activity|2|scope|TEXT|1||3

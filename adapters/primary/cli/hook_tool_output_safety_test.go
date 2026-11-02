@@ -23,6 +23,7 @@ func TestToolOutputExclusion_ComandosDeLecturaExacta(t *testing.T) {
 	for _, cmd := range []string{
 		"sed -n 1,80p adapters/x.go", "cat go.mod", "head -50 a.txt", "tail -n 20 log.txt",
 		"git diff HEAD~1", "git show abc123", "mem doctor", "  cat con-espacios-iniciales.go",
+		"mem pack retrieve abc123", "/opt/bin/mem pack retrieve --automatic --agent claude --session-id s abc123",
 	} {
 		p := claudeBashPayload(cmd)
 		if name, excluded := toolOutputExclusion("claude", p); !excluded || name == "" {
@@ -35,7 +36,7 @@ func TestToolOutputExclusion_ComandosDeLecturaExacta(t *testing.T) {
 }
 
 func TestToolOutputExclusion_NoExcluyeOtrosComandos(t *testing.T) {
-	for _, cmd := range []string{"go test ./...", "awk 'NR<=200' a.go", "grep -rn func .", "catalog-tool run", "headless start"} {
+	for _, cmd := range []string{"go test ./...", "awk 'NR<=200' a.go", "grep -rn func .", "catalog-tool run", "headless start", "mem pack compress a.txt", "memo pack retrieve abc123"} {
 		if _, excluded := toolOutputExclusion("claude", claudeBashPayload(cmd)); excluded {
 			t.Errorf("%q no es una lectura exacta: no debe excluirse", cmd)
 		}
