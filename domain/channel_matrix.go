@@ -201,6 +201,8 @@ var ChannelMatrix = []MatrixCell{
 		Path: []string{".gemini", "config", "hooks.json"}, Managed: true},
 	{Agent: "agy", Kind: KindPlanEntry, Scope: ScopeUser,
 		Path: []string{".gemini", "config", "hooks.json"}, Managed: true},
+	{Agent: "agy", Kind: KindNativeWrapper, Scope: ScopeUser,
+		Path: []string{".gemini", "config", "skills"}, Managed: true},
 	{Agent: "agy", Kind: KindPlanGuard, Scope: ScopeUser,
 		NotApplicableReason: "no se observó ninguna llamada a herramienta que marque «estoy presentando el plan»"},
 

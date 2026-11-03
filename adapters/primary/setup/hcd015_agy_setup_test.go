@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"mem/domain"
 )
 
 var agyRef = AgentRef{HookCommand: "mem", MCPCommand: "mem", MCPArgs: []string{"mcp"}}
@@ -54,7 +56,7 @@ func TestHCD015InstallAgy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(changed) != 3 {
+	if len(changed) != 2 {
 		t.Fatalf("archivos cambiados: %v", changed)
 	}
 	if len(agyBackups(t, home)) != 2 {
@@ -123,5 +125,86 @@ func TestHCD015MigrateManualGroup(t *testing.T) {
 	}
 	if !found {
 		t.Error("la copia previa no conserva el grupo manual")
+	}
+}
+
+func agySkillPaths(t *testing.T, home string) []string {
+	t.Helper()
+	var paths []string
+	for _, entry := range readAgyJSON(t, home, "skills.json")["entries"].([]any) {
+		paths = append(paths, entry.(map[string]any)["path"].(string))
+	}
+	return paths
+}
+
+func TestHCD016InstallDoesNotAddSkillsEntry(t *testing.T) {
+	home := t.TempDir()
+	if _, err := InstallAgyGlobal(home, agyRef, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(agyConfigDir(home), "skills.json")); !os.IsNotExist(err) {
+		t.Fatalf("la carpeta global de agy no necesita skills.json: %v", err)
+	}
+}
+
+func TestHCD016InstallRepairsTildeSkillPaths(t *testing.T) {
+	home := t.TempDir()
+	absolute := filepath.Join(home, ".agents", "skills")
+	writeAgyFile(t, home, "skills.json", `{"entries":[
+		{"path":"~/.claude/skills","exclude":["synced"]},
+		{"path":"~/.agents/skills"},
+		{"path":"`+absolute+`"},
+		{"path":"/opt/skills"}]}`)
+	now := time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
+	if _, err := InstallAgyGlobal(home, agyRef, now); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(agySkillPaths(t, home), "|")
+	want := filepath.Join(home, ".claude", "skills") + "|" + absolute + "|/opt/skills"
+	if got != want {
+		t.Fatalf("rutas de skills:\n got %s\nwant %s", got, want)
+	}
+	entry := readAgyJSON(t, home, "skills.json")["entries"].([]any)[0].(map[string]any)
+	if entry["exclude"] == nil {
+		t.Error("se perdieron las exclusiones de la entrada reparada")
+	}
+	if changed, err := InstallAgyGlobal(home, agyRef, now.Add(time.Hour)); err != nil || len(changed) != 0 {
+		t.Errorf("no es idempotente: %v, %v", changed, err)
+	}
+}
+
+func TestHCD016AgySkillTargetDoesNotDependOnClaude(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	const body = "---\nname: hcd\ndescription: fixture\n---\ncuerpo\n"
+
+	if written, err := InstallAgentSkill("hcd", body); err != nil || len(written) != 0 {
+		t.Fatalf("sin agy no se escribe nada: %v, %v", written, err)
+	}
+	if err := os.MkdirAll(agyConfigDir(home), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	written, err := InstallAgentSkill("hcd", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(agyConfigDir(home), "skills", "hcd", "SKILL.md")
+	if len(written) != 1 || written[0] != want {
+		t.Fatalf("destinos: %v", written)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude")); !os.IsNotExist(err) {
+		t.Errorf("no debe crear la carpeta de Claude: %v", err)
+	}
+}
+
+func TestHCD016AgySkillsAreManagedForUninstall(t *testing.T) {
+	found := false
+	for _, cell := range domain.CellsForActivity(domain.ActivityUninstallGlobal) {
+		if cell.Agent == "agy" && cell.Kind == domain.KindNativeWrapper {
+			found = strings.HasSuffix(filepath.Join(cell.Path...), filepath.Join(".gemini", "config", "skills"))
+		}
+	}
+	if !found {
+		t.Error("la retirada global no cubre las skills de agy")
 	}
 }

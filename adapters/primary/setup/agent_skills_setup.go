@@ -53,6 +53,8 @@ var skillTargets = []skillTarget{
 	{agent: "claude", dir: []string{".claude"}, skills: []string{"skills"}},
 	{agent: "codex", dir: []string{".codex"}, skills: []string{"skills"}},
 	{agent: "opencode", dir: []string{".config", "opencode"}, skills: []string{"skills"}},
+	// Carpeta global documentada de agy: no requiere ninguna entrada en skills.json.
+	{agent: "agy", dir: []string{".gemini", "config"}, skills: []string{"skills"}},
 }
 
 // legacySkillTargets son destinos que versiones anteriores usaron. La
@@ -213,7 +215,7 @@ func InstallExistingSkillsForAgents(planMethod, constitutionBody string) ([]stri
 
 	if strings.TrimSpace(planMethod) != "" {
 		p, err := InstallAgentSkill("atomic-decomposition",
-			atomicPlanSkillFrontmatter+strings.TrimSpace(planMethod)+"\n", "codex", "opencode")
+			atomicPlanSkillFrontmatter+strings.TrimSpace(planMethod)+"\n", "codex", "opencode", "agy")
 		written = append(written, p...)
 		if err != nil {
 			return written, err

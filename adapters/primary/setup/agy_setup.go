@@ -22,8 +22,6 @@ const agyHookGroup = "gomemory-lifecycle"
 // agyToolMatcher limita los hooks de herramienta a las que expand clasifica.
 const agyToolMatcher = "run_command|write_file|edit_file|invoke_subagent"
 
-const agySkillsPath = "~/.agents/skills"
-
 func agyConfigDir(home string) string {
 	return filepath.Join(home, ".gemini", "config")
 }
@@ -47,7 +45,7 @@ func agyLifecycleGroup(ref AgentRef) map[string]any {
 	}
 }
 
-// InstallAgyGlobal registra el MCP, los hooks y las skills de gomemory y
+// InstallAgyGlobal registra el MCP y los hooks de gomemory, repara skills.json y
 // devuelve los archivos que cambió. Es idempotente y conserva lo ajeno.
 func InstallAgyGlobal(home string, ref AgentRef, now time.Time) ([]string, error) {
 	dir := agyConfigDir(home)
@@ -67,7 +65,7 @@ func InstallAgyGlobal(home string, ref AgentRef, now time.Time) ([]string, error
 			doc["mcpServers"] = servers
 		}},
 		{"hooks.json", func(doc map[string]any) { doc[agyHookGroup] = agyLifecycleGroup(ref) }},
-		{"skills.json", addAgySkillsEntry},
+		{"skills.json", func(doc map[string]any) { repairAgySkillPaths(doc, home) }},
 	}
 	var changed []string
 	for _, edit := range edits {
@@ -84,7 +82,6 @@ func InstallAgyGlobal(home string, ref AgentRef, now time.Time) ([]string, error
 }
 
 // UninstallAgyGlobal retira el MCP y los hooks de gomemory, con copia previa.
-// La entrada de skills.json se conserva: esa carpeta no es exclusiva de gomemory.
 func UninstallAgyGlobal(home string, now time.Time) ([]string, error) {
 	dir := agyConfigDir(home)
 	edits := []struct {
@@ -115,14 +112,33 @@ func UninstallAgyGlobal(home string, now time.Time) ([]string, error) {
 	return changed, nil
 }
 
-func addAgySkillsEntry(doc map[string]any) {
-	entries, _ := doc["entries"].([]any)
-	for _, entry := range entries {
-		if item, ok := entry.(map[string]any); ok && item["path"] == agySkillsPath {
-			return
-		}
+// repairAgySkillPaths convierte a absolutas las rutas de skills.json: agy 1.4.12
+// descarta las que empiezan por ~ y solo lo registra en su log.
+func repairAgySkillPaths(doc map[string]any, home string) {
+	entries, ok := doc["entries"].([]any)
+	if !ok {
+		return
 	}
-	doc["entries"] = append(entries, map[string]any{"path": agySkillsPath, "exclude": []any{`\..*`}})
+	seen := map[string]bool{}
+	repaired := make([]any, 0, len(entries))
+	for _, entry := range entries {
+		item, ok := entry.(map[string]any)
+		if !ok {
+			repaired = append(repaired, entry)
+			continue
+		}
+		path, _ := item["path"].(string)
+		if rest, tilde := strings.CutPrefix(path, "~/"); tilde {
+			path = filepath.Join(home, rest)
+			item["path"] = path
+		}
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		repaired = append(repaired, item)
+	}
+	doc["entries"] = repaired
 }
 
 // editAgyConfig aplica edit y escribe solo si el contenido cambia. Un archivo

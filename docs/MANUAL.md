@@ -1021,7 +1021,7 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 |--------|-----------|-------|
 | **Claude Code** | `~/.claude.json` → `mcpServers.gomemory` (scope `user`) | Registrado vía `claude mcp add`, con detección de colisión de nombre |
 | **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
-| **Antigravity CLI** | `~/.gemini/config/mcp_config.json` → `mcpServers.gomemory` | Se activa con `--agents agy`. Escribe hooks en `hooks.json` y skills en `skills.json`, y guarda antes una copia. No comprime salidas ni avisa tras compactar |
+| **Antigravity CLI** | `~/.gemini/config/mcp_config.json` → `mcpServers.gomemory` | Se activa con `--agents agy`. Escribe hooks en `hooks.json` y skills en `~/.gemini/config/skills`, y guarda antes una copia de cada archivo de configuración. No comprime salidas ni avisa tras compactar |
 | **OpenCode** | `~/.config/opencode/opencode.json` → `mcp.gomemory` | OpenCode mergea la config de usuario con la del proyecto activo (confirmado con `opencode debug config`); el plugin se instala en el mismo paso |
 
 **Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor (sin registro global conocido), opcional para Claude/Codex/OpenCode:

@@ -170,7 +170,7 @@ garantía completa sin una sola línea modificada en gomemory.
 
 ## Antigravity CLI (`agy`)
 
-`mem install --agents agy` escribe el MCP, las skills y los hooks en `~/.gemini/config`. Guarda antes una copia de cada archivo y reemplaza el grupo manual `gomemory-lifecycle`. Cada hook ejecuta `mem hook agy <evento>`.
+`mem install --agents agy` escribe el MCP y los hooks en `~/.gemini/config` e instala allí las skills. Guarda antes una copia de cada archivo y reemplaza el grupo manual `gomemory-lifecycle`. Cada hook ejecuta `mem hook agy <evento>`.
 
 | Evento de agy | gomemory |
 |---|---|
@@ -180,7 +180,7 @@ garantía completa sin una sola línea modificada en gomemory.
 | `PostToolUse` | actividad; no recibe la salida de la herramienta |
 | `Stop` | checkpoint del turno |
 
-En agy 1.4.12 no hay compresión automática de salidas ni aviso tras compactar. `allow` no aprueba nada: la decisión sigue siendo de los permisos de agy. `mem doctor` marca como desactualizada cualquier otra versión. `skills.json` añade `~/.agents/skills`. La desinstalación conserva esa entrada porque esa carpeta no es solo de gomemory. Evidencia: `docs/evidence/hcd015/`.
+En agy 1.4.12 no hay compresión automática de salidas ni aviso tras compactar. `allow` no aprueba nada: la decisión sigue siendo de los permisos de agy. `mem doctor` marca como desactualizada cualquier otra versión. Las skills se instalan en `~/.gemini/config/skills`, la carpeta global de agy. La instalación también convierte a rutas absolutas las entradas de `skills.json` que empiezan por `~`, porque agy las descarta. Evidencia: `docs/evidence/hcd015/`.
 
 ## Ver también
 
