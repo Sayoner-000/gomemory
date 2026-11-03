@@ -101,6 +101,8 @@ func (a *ActivationInspector) inspectAgentScope(agent domain.AgentCapability, di
 			// Codex sostiene el nivel 2 por un hook de su config.toml, no por
 			// un archivo cuya sola presencia baste: verificarlo donde vive.
 			out = append(out, inspectCodexPlanEntry())
+		case agent.Name == "agy" && scope == domain.ScopeUser:
+			out = append(out, InspectAgyEntry(dir, agyInstalledVersion()))
 		case scope == domain.ScopeUser:
 			// inspectClaudeHook busca en .claude/settings.json — un mecanismo
 			// exclusivo de Claude Code. Un agente con otro dialecto (opencode)

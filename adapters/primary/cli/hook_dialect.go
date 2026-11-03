@@ -24,13 +24,15 @@ const (
 	dialectJSON    hookDialect = "json"
 	dialectClaude  hookDialect = "claude"
 	dialectText    hookDialect = "text"
+	// dialectAgy devuelve texto, como dialectText, a la traducción de hook_agy.go.
+	dialectAgy hookDialect = "agy"
 )
 
 // isKnownDialect reporta si s nombra uno de los cuatro dialectos del
-// contrato, para distinguir un --emit válido de uno inventado.
+// contrato o el de agy, para distinguir un --emit válido de uno inventado.
 func isKnownDialect(s string) bool {
 	switch hookDialect(s) {
-	case dialectNeutral, dialectJSON, dialectClaude, dialectText:
+	case dialectNeutral, dialectJSON, dialectClaude, dialectText, dialectAgy:
 		return true
 	}
 	return false
@@ -129,7 +131,7 @@ func renderGuardDecision(d hookDialect, decision planGuardDecision) hookRendered
 		out, _ := json.Marshal(map[string]any{"decision": "deny", "reason": decision.reason})
 		return hookRenderedOutput{stdout: string(out)}
 
-	case dialectText:
+	case dialectText, dialectAgy:
 		if !decision.deny {
 			return hookRenderedOutput{}
 		}
@@ -256,7 +258,7 @@ func renderExpandOutput(d hookDialect, event domain.ExpandEvent, out domain.Expa
 			}
 			raw, _ := json.Marshal(map[string]any{"decision": "block", "reason": out.Reason})
 			return hookRenderedOutput{stdout: string(raw)}
-		case dialectText:
+		case dialectText, dialectAgy:
 			return hookRenderedOutput{stdout: "BLOCK: " + out.Reason}
 		default:
 			return hookRenderedOutput{stderr: out.Reason, exitCode: 1}

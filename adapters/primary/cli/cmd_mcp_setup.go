@@ -39,6 +39,7 @@ var globalScopeAgents = map[string]bool{
 	"claude":   true,
 	"codex":    true,
 	"opencode": true,
+	"agy":      true,
 }
 
 // defaultAgentList es el valor por defecto de --agents.
@@ -342,6 +343,8 @@ func runGlobalScopeAgent(agent string, ref BinRef) bool {
 		return setupCodexGlobal(ref)
 	case "opencode":
 		return setupOpenCodeGlobal(ref)
+	case "agy":
+		return setupAgyGlobal(ref)
 	default:
 		return false
 	}
@@ -358,6 +361,25 @@ func setupOpenCodeGlobal(ref BinRef) bool {
 	if err := setup.InstallOpenCodeGlobal(agentRef); err != nil {
 		fmt.Printf("  ⚠️  opencode: %v\n", err)
 		return false
+	}
+	return true
+}
+
+// setupAgyGlobal registra gomemory en ~/.gemini/config, común a todos los
+// proyectos de agy, con copia previa de cada archivo que cambie.
+func setupAgyGlobal(ref BinRef) bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf("  ⚠️  agy: no se pudo determinar el home: %v\n", err)
+		return false
+	}
+	changed, err := setup.InstallAgyGlobal(home, setup.AgentRef{HookCommand: ref.HookCommand, MCPCommand: ref.MCPCommand, MCPArgs: ref.MCPArgs}, time.Now())
+	if err != nil {
+		fmt.Printf("  ⚠️  agy: %v\n", err)
+		return false
+	}
+	for _, path := range changed {
+		fmt.Printf("  ✅ agy: %s\n", path)
 	}
 	return true
 }

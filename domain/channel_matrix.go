@@ -189,6 +189,21 @@ var ChannelMatrix = []MatrixCell{
 	{Agent: "opencode", Kind: KindPlanGuard, Scope: ScopeUser,
 		NotApplicableReason: "el agente no expone una llamada a herramienta que marque «estoy presentando el plan»: el cambio de modo viaja por la RPC session/set_mode, no por una tool, así que permission.ask y tool.execute.before no tienen qué interceptar"},
 
+	// ── agy · usuario ────────────────────────────────────────────────────
+	// Se registra una vez por máquina en ~/.gemini/config.
+	{Agent: "agy", Kind: KindInstructions, Scope: ScopeUser,
+		NotApplicableReason: "el protocolo llega por MCP y por los hooks; gomemory no escribe archivos de instrucciones de agy"},
+	{Agent: "agy", Kind: KindServerConfig, Scope: ScopeUser,
+		Path: []string{".gemini", "config", "mcp_config.json"}, ConfigKey: "mcpServers", Managed: true},
+	{Agent: "agy", Kind: KindLifecycleHook, Scope: ScopeUser,
+		Path: []string{".gemini", "config", "hooks.json"}, Managed: true},
+	{Agent: "agy", Kind: KindTurnReminder, Scope: ScopeUser,
+		Path: []string{".gemini", "config", "hooks.json"}, Managed: true},
+	{Agent: "agy", Kind: KindPlanEntry, Scope: ScopeUser,
+		Path: []string{".gemini", "config", "hooks.json"}, Managed: true},
+	{Agent: "agy", Kind: KindPlanGuard, Scope: ScopeUser,
+		NotApplicableReason: "no se observó ninguna llamada a herramienta que marque «estoy presentando el plan»"},
+
 	// ── codex · usuario ──────────────────────────────────────────────────
 	// Codex configura una sola vez por máquina: no tiene equivalente por
 	// proyecto, y por eso no declara ScopeProject en KnownAgents.

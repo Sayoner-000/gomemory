@@ -1,0 +1,113 @@
+{
+ "schema_version": 1,
+ "agy_version": "1.4.12",
+ "source": "docs/evidence/hcd015/agy-native.md",
+ "events": {
+  "SessionStart": {
+   "artifactDirectoryPath": "/agy/brain",
+   "conversationId": "00000000-0000-4000-8000-000000000015",
+   "lastUserInput": "fixture",
+   "modelName": "gemini-3.8-flash-medium",
+   "transcriptPath": "/agy/brain/transcript_full.jsonl",
+   "workspacePaths": [
+    "/workspace/project"
+   ]
+  },
+  "PreInvocation": {
+   "artifactDirectoryPath": "/agy/brain",
+   "conversationId": "00000000-0000-4000-8000-000000000015",
+   "initialNumSteps": 1,
+   "invocationNum": 0,
+   "lastUserInput": "fixture",
+   "modelName": "gemini-3.8-flash-medium",
+   "transcriptPath": "/agy/brain/transcript_full.jsonl",
+   "workspacePaths": [
+    "/workspace/project"
+   ]
+  },
+  "PreToolUse": {
+   "artifactDirectoryPath": "/agy/brain",
+   "conversationId": "00000000-0000-4000-8000-000000000015",
+   "lastUserInput": "fixture",
+   "modelName": "gemini-3.8-flash-medium",
+   "stepIdx": 5,
+   "toolCall": {
+    "args": {
+     "CommandLine": "printf HCD015_OK",
+     "WaitMsBeforeAsync": 5000,
+     "toolSummary": "Run printf HCD015_OK"
+    },
+    "name": "run_command"
+   },
+   "transcriptPath": "/agy/brain/transcript_full.jsonl",
+   "workspacePaths": [
+    "/workspace/project"
+   ]
+  },
+  "PostToolUse": {
+   "artifactDirectoryPath": "/agy/brain",
+   "conversationId": "00000000-0000-4000-8000-000000000015",
+   "error": "",
+   "lastUserInput": "fixture",
+   "modelName": "gemini-3.8-flash-medium",
+   "stepIdx": 5,
+   "toolCall": {
+    "args": {
+     "CommandLine": "printf HCD015_OK",
+     "WaitMsBeforeAsync": 5000,
+     "toolSummary": "Run printf HCD015_OK"
+    },
+    "name": "run_command"
+   },
+   "transcriptPath": "/agy/brain/transcript_full.jsonl",
+   "workspacePaths": [
+    "/workspace/project"
+   ]
+  },
+  "PostInvocation": {
+   "artifactDirectoryPath": "/agy/brain",
+   "conversationId": "00000000-0000-4000-8000-000000000015",
+   "initialNumSteps": 1,
+   "invocationNum": 0,
+   "lastUserInput": "fixture",
+   "modelName": "gemini-3.8-flash-medium",
+   "transcriptPath": "/agy/brain/transcript_full.jsonl",
+   "workspacePaths": [
+    "/workspace/project"
+   ]
+  },
+  "PreToolUseDenied": {
+   "artifactDirectoryPath": "/agy/brain",
+   "conversationId": "00000000-0000-4000-8000-000000000015",
+   "lastUserInput": "fixture",
+   "modelName": "gemini-3.8-flash-medium",
+   "stepIdx": 9,
+   "toolCall": {
+    "args": {
+     "CommandLine": "printf HCD015_DENY",
+     "WaitMsBeforeAsync": 5000,
+     "toolSummary": "Run printf HCD015_DENY"
+    },
+    "name": "run_command"
+   },
+   "transcriptPath": "/agy/brain/transcript_full.jsonl",
+   "workspacePaths": [
+    "/workspace/project"
+   ]
+  },
+  "Stop": {
+   "artifactDirectoryPath": "/agy/brain",
+   "conversationId": "00000000-0000-4000-8000-000000000015",
+   "error": "",
+   "executionNum": 0,
+   "fullyIdle": true,
+   "lastUserInput": "fixture",
+   "modelName": "gemini-3.8-flash-medium",
+   "terminationReason": "NO_TOOL_CALL",
+   "transcriptPath": "/agy/brain/transcript_full.jsonl",
+   "workspacePaths": [
+    "/workspace/project"
+   ]
+  }
+ }
+}

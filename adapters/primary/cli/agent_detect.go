@@ -23,6 +23,7 @@ var installAgents = []installAgent{
 	{name: "claude", label: "Claude Code", bins: []string{"claude"}, dirs: [][]string{{".claude"}}},
 	{name: "codex", label: "Codex", bins: []string{"codex"}, dirs: [][]string{{".codex"}}},
 	{name: "opencode", label: "OpenCode", bins: []string{"opencode"}, dirs: [][]string{{".config", "opencode"}, {".opencode"}}},
+	{name: "agy", label: "Antigravity CLI", bins: []string{"agy"}, dirs: [][]string{{".gemini", "config"}}},
 	{name: "cursor", label: "Cursor", bins: []string{"cursor"}, dirs: [][]string{{".cursor"}}},
 }
 

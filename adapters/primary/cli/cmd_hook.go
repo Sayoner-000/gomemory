@@ -96,6 +96,8 @@ func CmdHook(deps *Deps, args []string) {
 		hookToolOutput(deps, args[1:])
 	case "expand":
 		hookExpand(deps, args[1:])
+	case "agy":
+		hookAgy(args[1:])
 	default:
 		// Evento desconocido: salida vacía, sin error.
 		os.Exit(0)

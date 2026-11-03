@@ -32,7 +32,7 @@ type doctorCompressionJSON struct {
 // Estado del hook de salidas por runtime. Los valores de Codex y OpenCode
 // reflejan lo verificado contra los binarios (research R11, tarea T062).
 func toolOutputHookStates(root string, enabled bool) map[string]string {
-	states := map[string]string{"claude": "inactivo", "codex": "solo en origen; sustitución externa deshabilitada por gomemory; soporte del host actual sin verificar (rechazo histórico en Codex 0.159.0)", "opencode": "inactivo"}
+	states := map[string]string{"agy": "no disponible: PostToolUse de agy no entrega la salida", "claude": "inactivo", "codex": "solo en origen; sustitución externa deshabilitada por gomemory; soporte del host actual sin verificar (rechazo histórico en Codex 0.159.0)", "opencode": "inactivo"}
 	if !enabled {
 		return states
 	}
@@ -116,7 +116,7 @@ func printDoctorCompression(c doctorCompressionJSON) {
 	humanln("\nCompresión:")
 	humanf("  nivel: %s (%s)\n", c.Level, c.Origin)
 	humanf("  originales: %.1f MB de %.0f MB · %d refs · escribible: %v\n", float64(c.OriginalsBytes)/(1<<20), float64(c.OriginalsMax)/(1<<20), c.OriginalsRefs, c.StoreWritable)
-	for _, rt := range []string{"claude", "codex", "opencode"} {
+	for _, rt := range []string{"claude", "codex", "opencode", "agy"} {
 		humanf("  hook de salidas (%s): %s\n", rt, c.ToolOutput[rt])
 	}
 	for _, mechanism := range []string{"own_output", "selection", "session_delta", "external_output", "conversation_compaction"} {

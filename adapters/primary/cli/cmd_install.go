@@ -330,6 +330,13 @@ func CmdInstall(deps *Deps, args []string) {
 			addStep("Integración Codex", fmt.Errorf("no se pudo configurar Codex"), "repite mem install --yes --agents codex")
 		}
 	}
+	if sel.scope == "project" && sel.has("agy") {
+		if setupAgyGlobal(br) {
+			addStep("Integración Antigravity CLI", nil, "")
+		} else {
+			addStep("Integración Antigravity CLI", fmt.Errorf("no se pudo configurar agy"), "repite mem install --yes --agents agy")
+		}
+	}
 	// FR-019 (040): las cinco skills de expand se instalan siempre en los
 	// harness presentes, también con alcance proyecto; en global ya las
 	// instala runGlobalScopeSetup (C-006).

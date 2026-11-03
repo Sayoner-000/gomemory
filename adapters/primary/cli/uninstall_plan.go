@@ -275,6 +275,11 @@ func globalRemover(home string, c domain.MatrixCell) (label string, present func
 			_, err := removeLegacyCodexHooksJSON(path)
 			return err
 		}
+	case strings.HasSuffix(rel, filepath.Join(".gemini", "config", "hooks.json")):
+		return "Hooks de gomemory en " + path, contains("gomemory-lifecycle"), func() error {
+			_, err := setup.UninstallAgyGlobal(home, time.Now())
+			return err
+		}
 	case strings.HasSuffix(rel, filepath.Join(".claude", "settings.json")):
 		return "Hooks y permisos de gomemory en " + path, contains("mem hook", "gomemory"), func() error {
 			removeClaudePlugin(home)

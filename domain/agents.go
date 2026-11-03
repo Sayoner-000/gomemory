@@ -211,6 +211,30 @@ var KnownAgents = []AgentCapability{
 			CompactionSummaryInput: "PostCompact no recibe el resumen compactado en su payload de entrada",
 		},
 	},
+	{
+		Name:    "agy",
+		Dialect: DialectText,
+		Levels: map[AgentLevel]bool{
+			AgentLevelEntry:     true,
+			AgentLevelTextFloor: true,
+		},
+		Scopes: map[AgentScope]bool{
+			// Solo usuario: se registra en ~/.gemini/config, común a todos los
+			// proyectos (docs/evidence/hcd015/agy-native.md).
+			ScopeUser: true,
+		},
+		GuardUnavailableReason: "no se observó ninguna llamada a herramienta que marque «estoy presentando el plan»",
+		// Sin evento de compactación en agy 1.4.12: gomemory no se entera de que
+		// ocurrió ni recibe el resumen.
+		CompactionUnavailable: map[CompactionCapability]string{
+			CompactionPreCompactInput:    "agy 1.4.12 no ofrece evento de compactación",
+			CompactionPostCompactChannel: "agy 1.4.12 no ofrece evento de compactación ni aviso tras compactar",
+			CompactionSubagentFinalText:  "los hooks de agy 1.4.12 no entregan el texto final del subagente",
+			CompactionAgentTurnChannel:   "no se comprobó un canal hacia el agente al cerrar el turno",
+			CompactionHumanChannel:       "no se comprobó un canal hacia la persona desde los hooks",
+			CompactionSummaryInput:       "ningún hook de agy 1.4.12 recibe el resumen compactado",
+		},
+	},
 }
 
 // AgentByName busca una entrada del registro por nombre. ok=false significa

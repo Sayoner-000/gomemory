@@ -168,6 +168,20 @@ Ese script es la base del test de agnosticismo del proyecto
 (`tests/integration/foreign_agent_test.go`): un cliente que imita a un agente desconocido obtiene la
 garantía completa sin una sola línea modificada en gomemory.
 
+## Antigravity CLI (`agy`)
+
+`mem install --agents agy` escribe el MCP, las skills y los hooks en `~/.gemini/config`. Guarda antes una copia de cada archivo y reemplaza el grupo manual `gomemory-lifecycle`. Cada hook ejecuta `mem hook agy <evento>`.
+
+| Evento de agy | gomemory |
+|---|---|
+| `SessionStart` | contexto de arranque |
+| `PreInvocation` (primera del turno) | contexto del prompt |
+| `PreToolUse` | reglas de `expand`; responde `allow` o `deny` |
+| `PostToolUse` | actividad; no recibe la salida de la herramienta |
+| `Stop` | checkpoint del turno |
+
+En agy 1.4.12 no hay compresión automática de salidas ni aviso tras compactar. `allow` no aprueba nada: la decisión sigue siendo de los permisos de agy. `mem doctor` marca como desactualizada cualquier otra versión. `skills.json` añade `~/.agents/skills`. La desinstalación conserva esa entrada porque esa carpeta no es solo de gomemory. Evidencia: `docs/evidence/hcd015/`.
+
 ## Ver también
 
 - `mem doctor [--json] [--strict]` — reporte de cobertura de canales por agente.

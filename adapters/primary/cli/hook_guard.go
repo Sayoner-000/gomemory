@@ -186,6 +186,8 @@ func agentOfDialect(d hookDialect) string {
 		return "opencode"
 	case dialectClaude:
 		return "claude"
+	case dialectAgy:
+		return "agy"
 	default:
 		return "otro"
 	}
