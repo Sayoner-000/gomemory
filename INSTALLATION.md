@@ -81,6 +81,8 @@ usuario, disponible automáticamente en cualquier proyecto:
 mem setup-mcp --scope global --agents claude,codex,opencode
 ```
 
+Antigravity CLI no está incluido en ese comando. Para activarlo, ejecuta `mem setup-mcp --scope global --agents agy` o `mem install --agents agy`. gomemory escribe MCP, hooks y skills en `~/.gemini/config`, guarda antes una copia de cada archivo y reemplaza el grupo manual `gomemory-lifecycle` si lo tenías.
+
 - Para Claude Code, este mismo comando también escribe los hooks del modo
   plan atómico determinista en `~/.claude/settings.json` (guard + entry +
   recordatorio de texto) — no es solo el registro del servidor MCP. Verifica

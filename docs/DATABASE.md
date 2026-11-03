@@ -66,6 +66,10 @@ La v4 (catálogo HCD v1, 16 tablas) solo existió en la rama 045 y nunca se publ
 
 La cola transitoria `.memory/expand-observations.ndjson` tiene límite de 256 KiB. El plegado confirma hasta 500 observaciones y luego retira sus UUID de la cola; repetir un lote no incrementa los contadores. La reconciliación global ocurre después del commit y se reintenta por estado. `mem sanitize` informa por separado `instinct_stats`, `instinct_global` e `instinct_queue`.
 
+## Originales por sesión (HCD-014, esquema v8)
+
+`automatic_original_grants` guarda qué sesión de qué agente puede recuperar cada ref en un proyecto. Al borrar un original, un trigger borra sus permisos. La recuperación manual por CLI o MCP funciona por proyecto y no consulta esta tabla.
+
 ## Configuración y preparación de mem.db
 
 La apertura prepara el esquema de forma aditiva en una sola transacción inmediata. La versión se guarda en `PRAGMA user_version`: si es mayor o igual que `schemaVersion`, la apertura omite la transacción y el DDL, por lo que una base preparada no espera el bloqueo de otro escritor. Una versión mayor, escrita por un binario más nuevo, nunca se reduce. Dentro de la transacción se vuelve a leer la versión antes de crear estructuras, para cubrir aperturas concurrentes.

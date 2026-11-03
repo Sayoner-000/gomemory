@@ -5,6 +5,35 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.44.0] - 2026-11-02
+
+### Added
+
+- gomemory ya funciona con Antigravity CLI (`agy`). Se activa con `mem install --agents agy` o `mem setup-mcp --scope global --agents agy`, que escriben MCP, hooks y skills en `~/.gemini/config`. Antes de cambiar un archivo guardan una copia, y no tocan la configuración de otras herramientas.
+- En agy, los hooks entregan el contexto, aplican las reglas de `expand` y registran lo que se hizo en cada turno. Ya no dependen de `jq` ni de rutas de Claude. Si un hook falla, agy sigue funcionando.
+- `mem doctor` muestra agy y avisa si su versión no es la comprobada, 1.4.12. `mem uninstall` quita solo las entradas de gomemory.
+- `mem doctor` indica por agente y tipo de contenido qué compresión está instalada, cuál se ejecutó y cuál llegó al modelo.
+- `mem pack retrieve --automatic --agent <agente> --session-id <id>` solo devuelve originales a la sesión que los generó. El esquema pasa a la versión 8 con la tabla `automatic_original_grants`. La recuperación manual sigue funcionando por proyecto.
+- En Codex 0.166.0, el hook `tool-output codex-shell` puede sustituir resultados de `Bash`. Solo actúa en esa versión y después de confiar en el hook.
+- OpenCode envía `session_id` al hook de salidas.
+
+### Changed
+
+- `mem install` reemplaza el grupo manual `gomemory-lifecycle` de agy por el grupo oficial, con copia previa.
+- El instalador interactivo acepta `agy` en `--agents`.
+
+### Fixed
+
+- La primera salida reducida tras compactar vuelve a incluir la nota de recuperación.
+- `mem pack retrieve` ejecutado por shell devuelve el original completo. Antes, el hook volvía a comprimirlo.
+
+### Known issues
+
+- agy no tiene compresión automática de salidas ni aviso tras compactar, porque `PostToolUse` no recibe la salida y no existe un evento de compactación. Se probó con `agy -p`; faltan la sesión interactiva, los subagentes y las herramientas de edición.
+- En agy, el primer prompt nombra `ToolSearch`, que es una herramienta de Claude Code.
+- `skills.json` añade `~/.agents/skills`. Las skills que gomemory instala en otras carpetas no se registran con esa entrada.
+- HCD-014 sigue abierta. Solo Claude tiene una comparación real: 33200 bytes menos en seis casos sintéticos, que no equivalen a tokens facturados. En Codex, dos ejecuciones no redujeron la salida cuando el shell corría dentro de su herramienta `exec`. OpenCode está sin comparar.
+
 ## [v2.43.1] - 2026-11-01
 
 ### Fixed

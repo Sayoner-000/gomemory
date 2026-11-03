@@ -426,7 +426,7 @@ mem setup claude-code
 El Memory Protocol es un conjunto de reglas que le dicen al agente cuándo
 guardar, buscar y cerrar sesión de memoria.
 
-- **Con integración de ciclo de vida (OpenCode, Claude Code, Codex)**: se
+- **Con integración de ciclo de vida (OpenCode, Claude Code, Codex, Antigravity CLI)**: se
   inyecta automáticamente y los hooks registran la actividad compatible.
 - **Solo MCP (Cursor)**: el servidor MCP entrega el
   protocolo en la respuesta `initialize`, así que cualquier cliente MCP lo
@@ -1021,6 +1021,7 @@ Dos formas de configurar agentes, según si soportan registro MCP a nivel de usu
 |--------|-----------|-------|
 | **Claude Code** | `~/.claude.json` → `mcpServers.gomemory` (scope `user`) | Registrado vía `claude mcp add`, con detección de colisión de nombre |
 | **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
+| **Antigravity CLI** | `~/.gemini/config/mcp_config.json` → `mcpServers.gomemory` | Se activa con `--agents agy`. Escribe hooks en `hooks.json` y skills en `skills.json`, y guarda antes una copia. No comprime salidas ni avisa tras compactar |
 | **OpenCode** | `~/.config/opencode/opencode.json` → `mcp.gomemory` | OpenCode mergea la config de usuario con la del proyecto activo (confirmado con `opencode debug config`); el plugin se instala en el mismo paso |
 
 **Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor (sin registro global conocido), opcional para Claude/Codex/OpenCode:
@@ -1436,7 +1437,7 @@ mem settings --show
 
 La TUI expone las mismas opciones en la pantalla **Configuración**. Después de
 cambiar `--tool-output-compression`, ejecuta `mem install` para registrar o
-retirar el hook del runtime (Claude Code y OpenCode; Codex no lo admite).
+retirar el hook del runtime. Claude Code y OpenCode lo admiten. Codex 0.166.0 solo cubre shell, y únicamente después de confiar el hook. Antigravity CLI no lo admite: `PostToolUse` no entrega la salida.
 
 `get_context` y `get_plan_context` aceptan `full=true` para volver a recibir
 todo el contenido aunque ya se haya enviado durante la sesión. Úsalo cuando

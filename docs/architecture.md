@@ -8,7 +8,7 @@ Desde `specs/005-global-mcp-store`, "por proyecto" describe el
 **aislamiento de datos** (cada proyecto tiene su propio `mem.db`, identificado
 por su git-root), no una instalación física dentro del repo: el servidor MCP
 se registra **una sola vez por máquina** para los agentes que lo soportan
-(Claude Code, Codex y OpenCode), y el store de datos vive en un directorio global del
+(Claude Code, Codex, OpenCode y Antigravity CLI), y el store de datos vive en un directorio global del
 usuario, creado solo al primer uso — sin `mem install` ni archivos nuevos en
 el árbol del proyecto.
 
@@ -36,7 +36,7 @@ el árbol del proyecto.
                               │
    ┌───────────┬──────────────┼──────────────┬───────────────────────┐
    ▼           ▼              ▼              ▼                       ▼
-OpenCode (global*)  Claude (global*)  Codex (global*)  Cursor (por proyecto)
+OpenCode (global*)  Claude (global*)  Codex (global*)  agy (global*)  Cursor (por proyecto)
 
 * Registro global: una vez por máquina, vía `mem setup-mcp --scope global`.
   El resto de agentes siguen usando config MCP por proyecto (`--scope project`,
