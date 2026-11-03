@@ -594,7 +594,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		if proj == "" {
 			proj = project
 		}
-		rctx, cancel := context.WithTimeout(ctx, 2*domain.StoreTimeout)
+		rctx, cancel := context.WithTimeout(ctx, domain.RetrieveTimeout)
 		defer cancel()
 		content, meta, err := usecases.RetrieveOriginal(rctx, deps.OriginalStore, proj, in.Ref)
 		if err != nil {

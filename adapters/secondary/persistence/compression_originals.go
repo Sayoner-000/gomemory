@@ -148,16 +148,19 @@ func (r *OriginalStoreRepository) Get(ctx context.Context, ref string) (string, 
 	if domain.IsPrivateContent(content) {
 		return "", ports.OriginalMeta{}, false, domain.ErrProtectedContent
 	}
+	// Renovar es mantenimiento: con la base ocupada, el original ya leído se
+	// devuelve igualmente y conserva su caducidad.
+	lastAccessAt, expiresAt := parseTS(lastAccess), parseTS(expires)
 	if _, err := r.db.ExecContext(ctx,
 		`UPDATE compression_originals SET last_access_at = ?, expires_at = ? WHERE ref = ?`,
-		formatTS(now), formatTS(now.Add(r.ttl)), ref); err != nil {
-		return "", ports.OriginalMeta{}, false, fmt.Errorf("renovar original: %w", err)
+		formatTS(now), formatTS(now.Add(r.ttl)), ref); err == nil {
+		lastAccessAt, expiresAt = now, now.Add(r.ttl)
 	}
 	meta.Ref = ref
 	meta.ContentType = contentType
 	meta.CreatedAt = parseTS(created)
-	meta.LastAccessAt = now
-	meta.ExpiresAt = now.Add(r.ttl)
+	meta.LastAccessAt = lastAccessAt
+	meta.ExpiresAt = expiresAt
 	return content, meta, true, nil
 }
 

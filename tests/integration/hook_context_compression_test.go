@@ -56,7 +56,7 @@ func TestHookContextCompression(t *testing.T) {
 				for _, r := range refs {
 					got := correrMem(t, bin, dir, env, "", "pack", "retrieve", r)
 					if got.code != 0 || !strings.Contains(got.stdout, "ERROR lote id=217") {
-						t.Errorf("ref %s no devuelve el original (code=%d)", r, got.code)
+						t.Errorf("ref %s no devuelve el original (code=%d): %s", r, got.code, got.stderr)
 					}
 				}
 				if len(refs) > 0 && !strings.Contains(out, "pack_retrieve(ref=X)") {

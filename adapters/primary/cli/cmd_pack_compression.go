@@ -166,7 +166,7 @@ func cmdPackRetrieve(deps *Deps, args []string) {
 		fail("uso: mem pack retrieve [--project P] <ref>")
 	}
 	ref := fs.Arg(0)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*domain.StoreTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), domain.RetrieveTimeout)
 	defer cancel()
 	var content string
 	var meta ports.OriginalMeta

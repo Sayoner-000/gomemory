@@ -51,6 +51,9 @@ const (
 	HookInlineContextMaxChars = 10000
 	// HookBudget: presupuesto total del hook de salidas de herramientas.
 	HookBudget = 150 * time.Millisecond
+	// RetrieveTimeout: plazo de recuperar un original a petición, que supera la
+	// espera por base ocupada. No se usa en hooks, que tienen presupuesto propio.
+	RetrieveTimeout = 6 * time.Second
 	// StoreTimeout: plazo del puente entre puertos sin ctx y los puertos nuevos
 	// con ctx (excepción E-002 de la constitución): nunca se llama a un
 	// repositorio nuevo con context.Background() sin plazo.
