@@ -5,6 +5,13 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.44.3] - 2026-11-02
+
+### Fixed
+
+- `mem pack retrieve` y `pack_retrieve` devuelven el original aunque la base esté ocupada. Antes, si no podían renovar su caducidad, fallaban con el original ya leído. En ese caso, el original conserva la caducidad que tenía.
+- La recuperación de originales por CLI y MCP tiene un plazo propio de 6 segundos, en lugar de 1 segundo.
+
 ## [v2.44.2] - 2026-11-02
 
 ### Fixed

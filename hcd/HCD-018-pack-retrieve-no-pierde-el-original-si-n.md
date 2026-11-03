@@ -37,8 +37,10 @@ Reintentar el job o relajar la prueba. No corrige la pérdida de la recuperació
       FAIL
       FAIL	mem/adapters/secondary/persistence	5.339s
       FAIL
-- 2026-11-03 01:35 · tarea 1 · verde · vigente · `go test ./adapters/secondary/persistence -run '^TestHCD018' -count=1` (salida 0)
+- 2026-11-03 01:35 · tarea 1 · verde · caducada · `go test ./adapters/secondary/persistence -run '^TestHCD018' -count=1` (salida 0)
       ok  	mem/adapters/secondary/persistence	5.295s
+- 2026-11-03 01:48 · tarea 1 · verde · vigente · `go test ./adapters/secondary/persistence -run '^TestHCD018' -count=1` (salida 0)
+      ok  	mem/adapters/secondary/persistence	5.523s
 
 ## Siguiente
-Seguir el paso que indique el motor.
+Cerrada con aprobación sobre la revisión 7dd3a3ae51e4.
