@@ -84,7 +84,7 @@ covers global vs. project scope, `mem setup-mcp`, updates and troubleshooting.
 flowchart LR
     subgraph agents [Agents]
         direction TB
-        hooked["Claude Code · Codex · OpenCode"]
+        hooked["Claude Code · Codex · OpenCode · agy"]
     end
 
     subgraph mem [mem · one Go binary]
@@ -130,6 +130,7 @@ what you see in the terminal is what the agent gets.
 | Claude Code | ✅ | ✅ |
 | Codex | ✅ | ✅ |
 | OpenCode | ✅ | ✅ |
+| Antigravity CLI (`agy`) | ✅ | ✅ Without automatic tool output compression |
 
 Using an agent that isn't listed? [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md)
 explains how to connect it.
