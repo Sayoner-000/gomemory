@@ -150,10 +150,14 @@ func TestHCD016InstallDoesNotAddSkillsEntry(t *testing.T) {
 func TestHCD016InstallRepairsTildeSkillPaths(t *testing.T) {
 	home := t.TempDir()
 	absolute := filepath.Join(home, ".agents", "skills")
+	quoted, err := json.Marshal(absolute)
+	if err != nil {
+		t.Fatal(err)
+	}
 	writeAgyFile(t, home, "skills.json", `{"entries":[
 		{"path":"~/.claude/skills","exclude":["synced"]},
 		{"path":"~/.agents/skills"},
-		{"path":"`+absolute+`"},
+		{"path":`+string(quoted)+`},
 		{"path":"/opt/skills"}]}`)
 	now := time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
 	if _, err := InstallAgyGlobal(home, agyRef, now); err != nil {
@@ -176,6 +180,7 @@ func TestHCD016InstallRepairsTildeSkillPaths(t *testing.T) {
 func TestHCD016AgySkillTargetDoesNotDependOnClaude(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	const body = "---\nname: hcd\ndescription: fixture\n---\ncuerpo\n"
 
 	if written, err := InstallAgentSkill("hcd", body); err != nil || len(written) != 0 {
