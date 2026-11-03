@@ -5,6 +5,19 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.44.1] - 2026-11-02
+
+### Fixed
+
+- En agy, las skills de gomemory, incluido `/hcd`, se instalan en `~/.gemini/config/skills`. Ya no dependen de que Claude Code esté instalado.
+- `mem install --agents agy` ya no escribe `~/.agents/skills` en `skills.json`, y convierte a rutas absolutas las entradas que empiezan por `~/`. agy 1.4.12 descarta esas entradas y solo lo registra en su log.
+- `mem uninstall` retira también las skills de `~/.gemini/config/skills`.
+
+### Known issues
+
+- En agy, el primer prompt sigue nombrando `ToolSearch`, que es una herramienta de Claude Code.
+- No se probó `/hcd` en una sesión interactiva de agy.
+
 ## [v2.44.0] - 2026-11-02
 
 ### Added
