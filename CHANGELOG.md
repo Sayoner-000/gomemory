@@ -5,6 +5,15 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.44.2] - 2026-11-02
+
+### Fixed
+
+- Un original guardado como `título: contenido` ya no se retira mientras una memoria viva contenga ese mismo texto.
+- Dos planes aprobados con el mismo título ya no se pisan: cada plan tiene una clave derivada de su contenido, y reenviar el mismo plan actualiza su memoria.
+- `install.sh --uninstall` avisa y termina con error si no puede borrar un binario. Antes lo daba por no encontrado.
+- `mem consolidate` informa las memorias que borró de verdad. Antes, tras un fallo a mitad, informaba el total previsto.
+
 ## [v2.44.1] - 2026-11-02
 
 ### Fixed
