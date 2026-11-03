@@ -127,11 +127,11 @@ func borrarDevolviendoContenido(ctx context.Context, tx *sql.Tx, where string, a
 // dentro de otro sobrevive hasta caducar (HCD-013, Q12).
 func retirarCopiasExactas(ctx context.Context, tx *sql.Tx, borradas []memoriaBorrada) error {
 	// Un hash puede corresponder a varias memorias: «t» + X y otra con contenido «t: X».
-	porHash := make(map[string][]memoriaBorrada, len(borradas)*2)
+	porHash := make(map[string][]candidataCopia, len(borradas)*2)
 	hashes := make([]string, 0, len(borradas)*2)
 	anotar := func(b memoriaBorrada, texto string) {
 		hash := hashOriginal(b.project, texto)
-		porHash[hash] = append(porHash[hash], b)
+		porHash[hash] = append(porHash[hash], candidataCopia{memoriaBorrada: b, forma: texto})
 		hashes = append(hashes, hash)
 	}
 	for _, b := range borradas {
@@ -159,11 +159,28 @@ func retirarCopiasExactas(ctx context.Context, tx *sql.Tx, borradas []memoriaBor
 	return nil
 }
 
-func algunContenidoVivo(ctx context.Context, tx *sql.Tx, candidatas []memoriaBorrada) (bool, error) {
-	for _, b := range candidatas {
-		vivo, err := contenidoVivo(ctx, tx, b.project, b.content)
-		if err != nil || vivo {
-			return vivo, err
+// candidataCopia es una memoria borrada junto a la forma exacta cuyo hash se
+// anotó: su contenido o «título: contenido» (ADM-01).
+type candidataCopia struct {
+	memoriaBorrada
+	forma string
+}
+
+// algunContenidoVivo comprueba la misma forma que produjo el hash: un original
+// «T: abc» sigue vivo si una memoria viva contiene «T: abc». Para la forma con
+// título también cuenta el contenido plano vivo; conservar de más solo retrasa
+// la retirada hasta la caducidad, retirar de menos rompe una ref viva.
+func algunContenidoVivo(ctx context.Context, tx *sql.Tx, candidatas []candidataCopia) (bool, error) {
+	for _, c := range candidatas {
+		textos := []string{c.forma}
+		if c.forma != c.content {
+			textos = append(textos, c.content)
+		}
+		for _, texto := range textos {
+			vivo, err := contenidoVivo(ctx, tx, c.project, texto)
+			if err != nil || vivo {
+				return vivo, err
+			}
 		}
 	}
 	return false, nil

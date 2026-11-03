@@ -114,19 +114,29 @@ is_own_binary() {
 }
 
 uninstall() {
-  local removed=0 kept=0
+  local removed=0 kept=0 failed=0
   for dir in "${GOMEMORY_BIN_DIR:-}" "/usr/local/bin" "$HOME/.local/bin"; do
     [ -z "$dir" ] && continue
     [ -e "$dir/$BIN_NAME" ] || [ -L "$dir/$BIN_NAME" ] || continue
     if is_own_binary "$dir/$BIN_NAME"; then
-      rm -f "$dir/$BIN_NAME" && ok "Eliminado $dir/$BIN_NAME" && removed=1
+      # ADM-04: un rm fallido no es «no encontrado»; se avisa y se sale con 1.
+      if rm -f "$dir/$BIN_NAME"; then
+        ok "Eliminado $dir/$BIN_NAME"
+        removed=1
+      else
+        err "No se pudo eliminar $dir/$BIN_NAME"
+        failed=1
+      fi
     else
       info "Se conserva $dir/$BIN_NAME: no se reconoce como binario de gomemory."
       kept=1
     fi
   done
-  [ "$removed" -eq 0 ] && [ "$kept" -eq 0 ] && info "No se encontró el binario $BIN_NAME instalado."
+  if [ "$removed" -eq 0 ] && [ "$kept" -eq 0 ] && [ "$failed" -eq 0 ]; then
+    info "No se encontró el binario $BIN_NAME instalado."
+  fi
   info "Nota: la config y la memoria por-proyecto se quitan con 'mem uninstall <proyecto>'."
+  [ "$failed" -eq 0 ] || exit 1
   exit 0
 }
 

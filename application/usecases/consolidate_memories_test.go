@@ -2,6 +2,7 @@ package usecases_test
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 
@@ -240,5 +241,45 @@ func TestConsolidate_BorradoPorLoteUnico(t *testing.T) {
 	}
 	if repo.sueltos != 0 || repo.lotes != 1 {
 		t.Fatalf("borrados sueltos=%d lotes=%d, quiero 0 y 1", repo.sueltos, repo.lotes)
+	}
+}
+
+// repoQueFallaAlFundir falla en la segunda fusión de contenido.
+type repoQueFallaAlFundir struct {
+	ports.MemoryRepository
+	fusiones int
+}
+
+func (r *repoQueFallaAlFundir) UpdateContent(project string, id int64, title, content string) error {
+	r.fusiones++
+	if r.fusiones > 1 {
+		return errFusion
+	}
+	return r.MemoryRepository.UpdateContent(project, id, title, content)
+}
+
+var errFusion = errors.New("fusión fallida")
+
+// ADM-05: un fallo a mitad de la consolidación informa las filas realmente
+// borradas, no el total previsto de los grupos.
+func TestConsolidate_FalloParcialInformaLoBorrado(t *testing.T) {
+	db, _ := persistence.Init(t.TempDir())
+	defer func() { _ = db.Close() }()
+	for _, tema := range []string{"tema-a", "tema-b"} {
+		insertRawTopicDuplicate(t, db, "proj", tema, tema+" contenido antiguo")
+		insertRawTopicDuplicate(t, db, "proj", tema, tema+" contenido nuevo")
+	}
+	repo := &repoQueFallaAlFundir{MemoryRepository: persistence.NewMemoryRepository(db)}
+
+	report, err := usecases.ConsolidateMemories(repo, "proj", true)
+	if !errors.Is(err, errFusion) {
+		t.Fatalf("se esperaba el fallo de fusión, got %v", err)
+	}
+	var quedan int
+	if err := db.QueryRow(`SELECT count(*) FROM memories WHERE project = 'proj'`).Scan(&quedan); err != nil {
+		t.Fatal(err)
+	}
+	if borradas := 4 - quedan; report.DeletedCount != borradas || borradas != 1 {
+		t.Fatalf("DeletedCount = %d, borradas de verdad = %d (quiero 1)", report.DeletedCount, borradas)
 	}
 }

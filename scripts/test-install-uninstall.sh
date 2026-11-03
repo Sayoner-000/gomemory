@@ -57,4 +57,21 @@ printf '\177ELF gomemory-protocol-v12 resto' > "$tmp/propio/mem"
 desinstalar "$tmp/propio" >/dev/null
 [ ! -e "$tmp/propio/mem" ] || fallo "no se borró el binario propio"
 
+# ADM-04: si rm falla, no dice «No se encontró» y sale distinto de 0. Como root
+# el directorio sin escritura no impide borrar, así que el caso no aplica.
+if [ "$(id -u)" -ne 0 ]; then
+  mkdir -p "$tmp/protegido"
+  printf 'gomemory-protocol-v12' > "$tmp/protegido/mem"
+  chmod 555 "$tmp/protegido"
+  estado=0
+  salida="$(desinstalar "$tmp/protegido")" || estado=$?
+  chmod 755 "$tmp/protegido"
+  [ "$estado" -ne 0 ] || fallo "un rm fallido sale con 0"
+  [ -f "$tmp/protegido/mem" ] || fallo "el binario protegido desapareció"
+  printf '%s' "$salida" | grep -q "No se pudo eliminar $tmp/protegido/mem" || fallo "sin aviso del rm fallido"
+  if printf '%s' "$salida" | grep -q 'No se encontró'; then
+    fallo "presenta un rm fallido como «no encontrado»"
+  fi
+fi
+
 echo "OK: --uninstall solo retira binarios propios"

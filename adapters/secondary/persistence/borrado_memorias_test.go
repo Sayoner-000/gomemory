@@ -536,6 +536,8 @@ func TestCopiaViva_ConservaSoloLoQueSigueVivo(t *testing.T) {
 		{"bloque mixto", "t", largo, "otra cosa distinta", "otra cosa distinta\n" + largo, false},
 		{"corta con título", "Titulo", "corto", "otra cosa distinta", "Titulo: corto", true},
 		{"corta viva", "Titulo", "corto", "corto", "Titulo: corto", false},
+		// ADM-01: la viva contiene la forma con título que produjo el hash.
+		{"corta viva con la forma", "Titulo", "corto", "Titulo: corto", "Titulo: corto", false},
 		{"corta dentro de otra viva", "Titulo", "corto", "esto es corto y largo", "Titulo: corto", true},
 	}
 	for _, c := range casos {

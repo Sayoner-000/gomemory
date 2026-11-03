@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -908,15 +910,26 @@ func hookPlanApproved(deps *Deps) {
 		sessionID = sess.ID
 	}
 
-	mem := domain.Memory{
+	mem := planMemory(project, sessionID, plan)
+	_, _ = deps.MemoryRepo.Insert(&mem)
+	os.Exit(0)
+}
+
+// planMemory arma la decisión de un plan aprobado con identidad explícita por
+// contenido (ADM-02/03): el título deriva del primer renglón y no basta para
+// distinguir planes, así que topic_key es «plan:» + 16 hex de sha256 del plan.
+// Dos planes distintos coexisten y un reenvío exacto hace upsert, con o sin la
+// ventana de dedup por título.
+func planMemory(project, sessionID, plan string) domain.Memory {
+	sum := sha256.Sum256([]byte(plan))
+	return domain.Memory{
 		Project:   project,
 		SessionID: sessionID,
 		Type:      domain.Decision,
 		Title:     planTitle(plan),
 		Content:   plan,
+		TopicKey:  "plan:" + hex.EncodeToString(sum[:])[:16],
 	}
-	_, _ = deps.MemoryRepo.Insert(&mem)
-	os.Exit(0)
 }
 
 // extractPlanFromPayload obtiene el texto del plan del payload del hook, aceptando

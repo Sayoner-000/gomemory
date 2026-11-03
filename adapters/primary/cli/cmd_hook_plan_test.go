@@ -71,3 +71,26 @@ func TestExtractPlanFromPayload_SinPlan(t *testing.T) {
 		t.Errorf("sin campo plan se esperaba cadena vacía, se obtuvo %q", got)
 	}
 }
+
+// ADM-02/03: la decisión de plan lleva identidad explícita por contenido. Dos
+// planes distintos con el mismo primer renglón no comparten clave; el mismo plan
+// sí, para que un reenvío haga upsert.
+func TestPlanMemory_TopicKeyPorContenido(t *testing.T) {
+	a := planMemory("proj", "s1", "Plan\n- paso A")
+	b := planMemory("proj", "s1", "Plan\n- paso B")
+	if a.Title != b.Title {
+		t.Fatalf("la prueba exige el mismo título: %q y %q", a.Title, b.Title)
+	}
+	if !strings.HasPrefix(a.TopicKey, "plan:") || len(a.TopicKey) != len("plan:")+16 {
+		t.Fatalf("topic_key inesperado: %q", a.TopicKey)
+	}
+	if a.TopicKey == b.TopicKey {
+		t.Fatalf("dos planes distintos comparten topic_key %q", a.TopicKey)
+	}
+	if again := planMemory("proj", "s2", "Plan\n- paso A"); again.TopicKey != a.TopicKey {
+		t.Fatalf("el mismo plan debe dar la misma clave: %q y %q", again.TopicKey, a.TopicKey)
+	}
+	if a.Content != "Plan\n- paso A" || a.Project != "proj" || a.SessionID != "s1" {
+		t.Fatalf("memoria de plan incompleta: %+v", a)
+	}
+}

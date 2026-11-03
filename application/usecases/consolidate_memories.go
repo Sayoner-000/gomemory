@@ -73,7 +73,11 @@ func ConsolidateMemories(memRepo ports.MemoryRepository, project string, apply b
 		fundidas = append(fundidas, ids...)
 	}
 	// El error conserva ErrLimpiezaPendiente: lo fundido ya se borró.
-	if _, err := memRepo.DeleteMany(project, fundidas); err != nil && fallo == nil {
+	// ADM-05: tras aplicar, DeletedCount es lo que de verdad se borró, no el total
+	// previsto: un fallo a mitad deja grupos sin fundir.
+	deleted, err := memRepo.DeleteMany(project, fundidas)
+	report.DeletedCount = int(deleted)
+	if err != nil && fallo == nil {
 		fallo = fmt.Errorf("eliminar memorias fundidas: %w", err)
 	}
 	return report, fallo
