@@ -109,6 +109,10 @@ func planAgyHook(event string, raw []byte) agyPlan {
 	return plan
 }
 
+func cleanAgyArg(s string) string {
+	return strings.Trim(strings.TrimSpace(s), "\"")
+}
+
 // agyTurnActivity extrae del transcript los archivos y comandos del último
 // turno. Una llamada denegada o fallida no cuenta como actividad realizada.
 func agyTurnActivity(path string) (files, commands []string) {
@@ -126,9 +130,13 @@ func agyTurnActivity(path string) (files, commands []string) {
 		for _, call := range pending.ToolCalls {
 			switch {
 			case call.Name == "run_command" && call.Args.CommandLine != "":
-				commands = append(commands, call.Args.CommandLine)
+				if cmd := cleanAgyArg(call.Args.CommandLine); cmd != "" {
+					commands = append(commands, cmd)
+				}
 			case call.Args.Path != "":
-				files = append(files, call.Args.Path)
+				if p := cleanAgyArg(call.Args.Path); p != "" {
+					files = append(files, p)
+				}
 			}
 		}
 		pending = nil
@@ -176,8 +184,8 @@ func agyToolPayload(event string, ev agyEvent) map[string]any {
 		"session_id":      ev.ConversationID,
 		"tool_name":       tool,
 		"tool_input": map[string]any{
-			"command":   ev.ToolCall.Args.CommandLine,
-			"file_path": ev.ToolCall.Args.Path,
+			"command":   cleanAgyArg(ev.ToolCall.Args.CommandLine),
+			"file_path": cleanAgyArg(ev.ToolCall.Args.Path),
 			"content":   content,
 		},
 	}

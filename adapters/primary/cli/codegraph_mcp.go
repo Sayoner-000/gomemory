@@ -15,11 +15,25 @@ import (
 	"mem/application/ports"
 )
 
-// codeGraphInstallCmd es el comando del manual que conecta el servidor MCP
-// de CodeGraph a los agentes detectados, en su configuración global.
-var codeGraphInstallCmd = []string{"install", "--target", "auto", "--location", "global", "--yes"}
+// codeGraphTargets traduce los agentes de gomemory a los ids de target del
+// instalador de CodeGraph.
+var codeGraphTargets = map[string]string{"claude": "claude", "codex": "codex", "opencode": "opencode", "agy": "antigravity"}
 
-const codeGraphInstallManual = "codegraph install --target auto --location global --yes"
+// codeGraphInstallArgs conecta el servidor MCP de CodeGraph solo a los agentes
+// que faltan. No usa --target auto: también conecta Gemini CLI, que crea
+// ~/.gemini/GEMINI.md y ~/.gemini/settings.json (HCD-020, Q1).
+func codeGraphInstallArgs(missing []string) []string {
+	targets := make([]string, 0, len(missing))
+	for _, agent := range missing {
+		targets = append(targets, codeGraphTargets[agent])
+	}
+	return []string{"install", "--target", strings.Join(targets, ","), "--location", "global", "--yes"}
+}
+
+// codeGraphManual es el comando que la persona puede ejecutar a mano.
+func codeGraphManual(missing []string) string {
+	return "codegraph " + strings.Join(codeGraphInstallArgs(missing), " ")
+}
 
 // codeGraphOn indica si CodeGraph forma parte del grafo externo activo: el
 // grafo no está desactivado, CodeGraph está entre los proveedores (o la
@@ -80,7 +94,24 @@ func codeGraphMCPState(home, root string) map[string]bool {
 		_ = json.Unmarshal(cfg.MCP["servers"], &nested)
 		state["opencode"] = jsonServerEntry(cfg.MCP["codegraph"]) || jsonServerEntry(nested["codegraph"])
 	}
+	if entry, ok := agyMCPServer(home, "codegraph"); ok {
+		state["agy"] = entry
+	}
 	return state
+}
+
+// agyMCPServer dice si el mcp_config.json de agy registra el servidor name.
+// ok=false si agy no tiene configuración: no hay nada que conectar.
+func agyMCPServer(home, name string) (registered, ok bool) {
+	data, err := os.ReadFile(filepath.Join(home, ".gemini", "config", "mcp_config.json"))
+	if err != nil {
+		return false, false
+	}
+	var cfg struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	_ = json.Unmarshal(data, &cfg)
+	return jsonServerEntry(cfg.MCPServers[name]), true
 }
 
 // projectMCPHasCodeGraph mira el .mcp.json de Claude en la raíz del proyecto.
@@ -140,15 +171,19 @@ func ensureCodeGraphMCP(s ports.SettingsData, home, root string) (console.StepRe
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 		if !codeGraphInstallerOK(ctx) {
-			step.Status, step.Manual = console.StepWarn, codeGraphInstallManual
+			step.Status, step.Manual = console.StepWarn, codeGraphManual(missing)
 			step.Detail = "el codegraph del PATH no ofrece install --target/--location; sin registrar en " + strings.Join(missing, ", ")
 			return step, true
 		}
-		cmd := exec.CommandContext(ctx, "codegraph", codeGraphInstallCmd...)
+		cmd := exec.CommandContext(ctx, "codegraph", codeGraphInstallArgs(missing)...)
 		out, err := cmd.CombinedOutput()
 		state = codeGraphMCPState(home, root)
+		requested := missing
 		if missing = codeGraphMissing(state); err != nil || len(missing) > 0 {
-			step.Status, step.Manual = console.StepWarn, codeGraphInstallManual
+			if len(missing) == 0 {
+				missing = requested
+			}
+			step.Status, step.Manual = console.StepWarn, codeGraphManual(missing)
 			step.Detail = "sin registrar en " + strings.Join(missing, ", ")
 			if err != nil {
 				step.Detail = strings.TrimSpace(err.Error() + " " + lastLine(string(out)))
@@ -160,9 +195,12 @@ func ensureCodeGraphMCP(s ports.SettingsData, home, root string) (console.StepRe
 	return step, true
 }
 
+// codeGraphAgents son los agentes cuya configuración global se revisa.
+var codeGraphAgents = []string{"claude", "codex", "opencode", "agy"}
+
 func codeGraphMissing(state map[string]bool) []string {
 	var out []string
-	for _, agent := range []string{"claude", "codex", "opencode"} {
+	for _, agent := range codeGraphAgents {
 		if registered, present := state[agent]; present && !registered {
 			out = append(out, agent)
 		}
@@ -172,7 +210,7 @@ func codeGraphMissing(state map[string]bool) []string {
 
 func codeGraphRegistered(state map[string]bool) []string {
 	var out []string
-	for _, agent := range []string{"claude", "codex", "opencode"} {
+	for _, agent := range codeGraphAgents {
 		if state[agent] {
 			out = append(out, agent)
 		}
@@ -186,10 +224,17 @@ func lastLine(s string) string {
 }
 
 // printDoctorCodeGraphMCP informa, cuando CodeGraph está en uso, en qué
-// agentes está conectado su servidor MCP y cómo conectarlo donde falte.
+// agentes está conectado su servidor MCP y cómo conectarlo donde falte. Antes
+// avisa si codebase-memory-mcp no está conectado a agy (solo diagnóstico).
 func printDoctorCodeGraphMCP(s ports.SettingsData, root string) {
 	home, err := os.UserHomeDir()
-	if err != nil || !codeGraphOn(s) {
+	if err != nil {
+		return
+	}
+	if msg, warn := agyCodebaseMemoryWarning(home); warn {
+		humanln("\ncodebase-memory-mcp:\n  ⚠ " + msg)
+	}
+	if !codeGraphOn(s) {
 		return
 	}
 	state := codeGraphMCPState(home, root)
@@ -197,14 +242,31 @@ func printDoctorCodeGraphMCP(s ports.SettingsData, root string) {
 		return
 	}
 	humanln("\nCodeGraph MCP:")
-	for _, agent := range []string{"claude", "codex", "opencode"} {
+	for _, agent := range codeGraphAgents {
 		registered, present := state[agent]
 		switch {
 		case !present:
 		case registered:
 			humanf("  ✅ %s: conectado\n", agent)
 		default:
-			humanf("  ❌ %s: sin conectar → %s\n", agent, codeGraphInstallManual)
+			humanf("  ❌ %s: sin conectar → %s\n", agent, codeGraphManual([]string{agent}))
 		}
 	}
+}
+
+// codebaseMemoryAgyManual es el comando del proveedor para conectarse a agy.
+// gomemory no lo ejecuta: también escribe ~/.gemini/GEMINI.md (HCD-020).
+const codebaseMemoryAgyManual = "codebase-memory-mcp install --clients=antigravity"
+
+// agyCodebaseMemoryWarning avisa cuando codebase-memory-mcp está instalado
+// pero no conectado a agy. Sin configuración de agy o sin binario no aplica.
+func agyCodebaseMemoryWarning(home string) (string, bool) {
+	if _, err := exec.LookPath("codebase-memory-mcp"); err != nil {
+		return "", false
+	}
+	registered, ok := agyMCPServer(home, "codebase-memory-mcp")
+	if !ok || registered {
+		return "", false
+	}
+	return "agy sin codebase-memory-mcp → " + codebaseMemoryAgyManual + " (ese instalador también escribe ~/.gemini/GEMINI.md)", true
 }

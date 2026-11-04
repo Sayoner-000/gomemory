@@ -186,6 +186,22 @@ func editAgyConfig(path string, now time.Time, edit func(map[string]any)) (bool,
 // (docs/evidence/hcd015/agy-native.md).
 const agyCheckedVersion = "1.4.12"
 
+// isAgyVersionCompatible determina si la versión de agy instalada es compatible
+// con el contrato de hooks observado (1.4.12 o parches de la serie 1.4.x).
+func isAgyVersionCompatible(version string) bool {
+	if version == agyCheckedVersion {
+		return true
+	}
+	return strings.HasPrefix(version, "1.4.")
+}
+
+// agyCompatibleVersion acepta la versión observada y sus parches (misma serie
+// mayor.menor): un parche no cambia el contrato de hooks.
+func agyCompatibleVersion(version string) bool {
+	series := agyCheckedVersion[:strings.LastIndex(agyCheckedVersion, ".")+1]
+	return version == agyCheckedVersion || strings.HasPrefix(version, series)
+}
+
 func agyInstalledVersion() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -209,7 +225,7 @@ func InspectAgyEntry(home, version string) domain.ActivationChannel {
 	case !bytes.Contains(data, []byte("hook agy PreInvocation")):
 		ch.State = domain.StateOutdated
 		ch.Detail = "grupo manual en " + path + "; reemplázalo con mem install --agents agy"
-	case version != agyCheckedVersion:
+	case !isAgyVersionCompatible(version):
 		ch.State = domain.StateOutdated
 		ch.Detail = fmt.Sprintf("agy %q sin comprobar; contrato observado en %s", version, agyCheckedVersion)
 	default:

@@ -875,9 +875,14 @@ orden o excluir un proveedor, por ejemplo:
 En cada proyecto, ejecuta `mem index` para crear o reconstruir el índice de
 CodeGraph y compruébalo con `codegraph status`. Con CodeGraph activo, `mem
 install` (y `mem update`, que lo ejecuta) conecta su servidor MCP a los agentes
-que aún no lo tengan, con `codegraph install --target auto --location global
---yes`, para que lo usen por su cuenta igual que codebase-memory-mcp; `mem
-doctor` muestra en qué agentes está conectado. `init` crea el índice local. Gomemory consulta `codegraph status --json` durante
+que gestiona (Claude, Codex, OpenCode y Antigravity) que aún no lo tengan, con
+`codegraph install --target <faltantes> --location global --yes` (Antigravity
+es el target `antigravity`), para que lo usen por su cuenta igual que
+codebase-memory-mcp. No usa `--target auto`, que también conectaría Gemini CLI
+y crearía `~/.gemini/GEMINI.md`. `mem doctor` muestra en qué agentes está
+conectado y avisa si codebase-memory-mcp falta en Antigravity; ese registro no
+lo hace gomemory, sino `codebase-memory-mcp install --clients=antigravity`, que
+también escribe `~/.gemini/GEMINI.md`. `init` crea el índice local. Gomemory consulta `codegraph status --json` durante
 su refresco desacoplado y, si hay archivos pendientes, ejecuta `codegraph sync`
 fuera del camino de los hooks. `mem context` muestra cada proveedor configurado
 que esté disponible.
@@ -1748,8 +1753,8 @@ byte a byte, sin logos ni colores.
 - CodeGraph se autodetecta en el PATH cuando `code_graph_providers` está
   vacío; con la lista explícita se fija orden o exclusión. Con CodeGraph
   activo, `mem install` conecta su servidor MCP a los agentes que aún no lo
-  tengan (`codegraph install --target auto --location global --yes`, previa
-  comprobación de identidad) y `mem doctor` muestra en qué agentes está
+  tengan (`codegraph install --target <faltantes> --location global --yes`,
+  previa comprobación de identidad; nunca `--target auto`) y `mem doctor` muestra en qué agentes está
   conectado.
 - `scripts/visual-smoke.py ./mem` verifica la presentación por PTY
   (temas × anchos × comandos) y la instalación real en un HOME aislado.

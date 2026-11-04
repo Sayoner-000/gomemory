@@ -213,3 +213,57 @@ func TestHCD016AgySkillsAreManagedForUninstall(t *testing.T) {
 		t.Error("la retirada global no cubre las skills de agy")
 	}
 }
+
+func TestInspectAgyEntry_FlexibleVersion(t *testing.T) {
+	home := t.TempDir()
+	hooks := `{"gomemory-lifecycle":{"SessionStart":[{"command":"mem hook agy SessionStart"}],"PreInvocation":[{"command":"mem hook agy PreInvocation"}]}}`
+	writeAgyFile(t, home, "hooks.json", hooks)
+
+	ch := InspectAgyEntry(home, "1.4.12")
+	if ch.State != domain.StateOK {
+		t.Fatalf("1.4.12 debe ser StateOK, obtenido: %v", ch.State)
+	}
+
+	chPatch := InspectAgyEntry(home, "1.4.13")
+	if chPatch.State != domain.StateOK {
+		t.Fatalf("1.4.13 debe ser StateOK, obtenido: %v (%s)", chPatch.State, chPatch.Detail)
+	}
+
+	chMajor := InspectAgyEntry(home, "2.0.0")
+	if chMajor.State != domain.StateOutdated {
+		t.Fatalf("2.0.0 debe ser StateOutdated, obtenido: %v", chMajor.State)
+	}
+}
+
+// HCD-020: InstallAgyGlobal solo gestiona su entrada; codegraph y
+// codebase-memory-mcp los registran sus instaladores y deben sobrevivir.
+func TestInstallAgyGlobal_ConservaMCPAjenos(t *testing.T) {
+	home := t.TempDir()
+	writeAgyFile(t, home, "mcp_config.json", `{"mcpServers":{"codegraph":{"command":"/bin/codegraph","args":["serve","--mcp"]},"codebase-memory-mcp":{"command":"/bin/codebase-memory-mcp","args":[]}},"otraClave":true}`)
+	now := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
+	if _, err := InstallAgyGlobal(home, agyRef, now); err != nil {
+		t.Fatal(err)
+	}
+	doc := readAgyJSON(t, home, "mcp_config.json")
+	servers, _ := doc["mcpServers"].(map[string]any)
+	for _, name := range []string{"gomemory", "codegraph", "codebase-memory-mcp"} {
+		if _, ok := servers[name]; !ok {
+			t.Fatalf("falta %s tras instalar: %v", name, servers)
+		}
+	}
+	if cg, _ := servers["codegraph"].(map[string]any); cg["command"] != "/bin/codegraph" {
+		t.Fatalf("codegraph alterado: %v", cg)
+	}
+	if doc["otraClave"] != true {
+		t.Fatalf("clave ajena perdida: %v", doc)
+	}
+	changed, err := InstallAgyGlobal(home, agyRef, now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range changed {
+		if strings.HasSuffix(path, "mcp_config.json") {
+			t.Fatalf("segunda instalación reescribió mcp_config.json: %v", changed)
+		}
+	}
+}

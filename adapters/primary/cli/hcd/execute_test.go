@@ -178,3 +178,12 @@ func TestEngineFullCeremony(t *testing.T) {
 		t.Fatalf("promote a full unit = %d %+v", code, r)
 	}
 }
+
+func TestHCDClient_Antigravity(t *testing.T) {
+	for _, client := range []string{"antigravity", "gemini"} {
+		p, err := parse([]string{"show", "--client", client})
+		if err != nil || p.client != client {
+			t.Errorf("parse(show --client %s) = %+v %v", client, p, err)
+		}
+	}
+}

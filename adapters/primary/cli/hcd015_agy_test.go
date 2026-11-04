@@ -108,6 +108,28 @@ func TestHCD015AgyStopRecordsTurnActivity(t *testing.T) {
 	}
 }
 
+func TestAgyCleanArgQuotes(t *testing.T) {
+	transcript := filepath.Join(t.TempDir(), "transcript_full.jsonl")
+	lines := []string{
+		`{"step_index":0,"type":"USER_INPUT","content":"turno actual"}`,
+		`{"step_index":1,"type":"PLANNER_RESPONSE","tool_calls":[{"name":"run_command","args":{"CommandLine":"\"go test ./...\""}},{"name":"write_file","args":{"Path":"\"/workspace/a.go\""}}]}`,
+		`{"step_index":2,"type":"GENERIC","content":"Command exited with code 0."}`,
+	}
+	if err := os.WriteFile(transcript, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	files, commands := agyTurnActivity(transcript)
+	if len(files) != 1 || files[0] != "/workspace/a.go" {
+		t.Fatalf("files esperado [/workspace/a.go], obtenido: %v", files)
+	}
+	if len(commands) != 1 || commands[0] != "go test ./..." {
+		t.Fatalf("commands esperado [go test ./...], obtenido: %v", commands)
+	}
+	if filepath.Ext(files[0]) != ".go" {
+		t.Fatalf("filepath.Ext fallo: %q", filepath.Ext(files[0]))
+	}
+}
+
 func TestHCD015AgyOutput(t *testing.T) {
 	envelope := `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"contexto real"}}`
 	got := string(agyHookResponse("PreInvocation", agyFixture(t, "PreInvocation"), func(string, agyCall) (string, error) { return envelope, nil }))
