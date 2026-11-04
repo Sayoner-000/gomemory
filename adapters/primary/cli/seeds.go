@@ -93,8 +93,21 @@ func CmdSeed(deps *Deps, _ []string) {
 	}
 	printSeedReport(os.Stdout, rep)
 	if doc, ok := domain.PinnedDocByAlias("constitution"); ok {
-		refreshSpeckitConstitution(os.Stdout, deps.Root, doc, embeddedTemplate(doc.Template))
+		_, topics, _ := seedDeps(deps)
+		refreshSpeckitConstitution(os.Stdout, deps.Root, doc, speckitConstitutionSource(topics, deps.Project, doc))
 	}
+}
+
+// speckitConstitutionSource devuelve la constitución vigente del proyecto: la de
+// la memoria o, si no existe, la plantilla del binario. Es la referencia con la
+// que debe coincidir la copia de Spec Kit; compararla con la plantilla daba un
+// aviso falso con toda constitución personalizada (HCD-024).
+func speckitConstitutionSource(topics ports.MemoryTopicQuerier, project string, doc domain.PinnedDoc) string {
+	res, err := usecases.ResolvePinnedDoc(topics, project, doc.TopicKey, embeddedTemplate(doc.Template))
+	if err != nil {
+		return ""
+	}
+	return res.Content
 }
 
 // refreshSpeckitConstitution mantiene al día la copia que dejó
@@ -127,7 +140,7 @@ func refreshSpeckitConstitution(w io.Writer, root string, doc domain.PinnedDoc, 
 		_, _ = fmt.Fprintf(w, "⚠ no se pudo actualizar %s: %v\n", ruta, err)
 		return
 	}
-	_, _ = fmt.Fprintln(w, "✓ .specify/memory/constitution.md actualizada a la versión por defecto de este binario")
+	_, _ = fmt.Fprintln(w, "✓ .specify/memory/constitution.md sincronizada con la constitución vigente")
 }
 
 // printSeedReport informa la siembra. Es lo que ve la persona durante

@@ -46,7 +46,7 @@ func TestRefreshSpeckitConstitution(t *testing.T) {
 		nombre, previo, want string
 		aviso                string
 	}{
-		{"intacta", "VIEJA\n", "NUEVA", "actualizada"},
+		{"intacta", "VIEJA\n", "NUEVA", "sincronizada"},
 		{"editada", "DEL EQUIPO", "DEL EQUIPO", "tiene ediciones"},
 		{"al día", "NUEVA", "NUEVA", ""},
 	}
