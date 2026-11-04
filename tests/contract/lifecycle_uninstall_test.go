@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"mem/adapters/secondary/atomicfs"
 )
 
 // installed prepara un proyecto instalado con una memoria guardada.
@@ -342,7 +344,7 @@ func TestUninstall_EscaneoPorDefectoYNoScan(t *testing.T) {
 
 func readAll(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	data, err := atomicfs.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}

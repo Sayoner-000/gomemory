@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"mem/adapters/secondary/atomicfs"
 )
 
 type sessionStartOutput struct {
@@ -203,11 +205,21 @@ func TestSessionStart_CacheCorrupta(t *testing.T) {
 	// (memoria 140: la carrera del refresco en segundo plano).
 	cache := filepath.Join(s.Data, "update-check.json")
 	for deadline := time.Now().Add(8 * time.Second); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
-		if strings.Contains(readAll(t, cache), "v99.0.0") {
+		if strings.Contains(tryReadAll(cache), "v99.0.0") {
 			return
 		}
 	}
 	t.Fatal("la consulta de fondo no reescribió la caché corrupta")
+}
+
+// tryReadAll lee un archivo de forma no fatal y compartida (tolerando
+// transitorios de reemplazo atómico en Windows).
+func tryReadAll(path string) string {
+	data, err := atomicfs.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 // FR-029, SC-006: con la caché vencida la consulta va en segundo plano; el
@@ -245,7 +257,7 @@ func TestSessionStart_ConsultaEnSegundoPlano(t *testing.T) {
 	}
 	deadline := time.Now().Add(apiDelay + 10*time.Second)
 	for time.Now().Before(deadline) {
-		if strings.Contains(readAll(t, cache), "v99.1.0") {
+		if strings.Contains(tryReadAll(cache), "v99.1.0") {
 			if hits.Load() < 1 {
 				t.Error("la caché cambió sin consultar")
 			}
@@ -253,5 +265,5 @@ func TestSessionStart_ConsultaEnSegundoPlano(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	t.Fatalf("la consulta de fondo no renovó la caché:\n%s", readAll(t, cache))
+	t.Fatalf("la consulta de fondo no renovó la caché:\n%s", tryReadAll(cache))
 }
