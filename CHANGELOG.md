@@ -5,6 +5,13 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.45.1] - 2026-11-04
+
+### Fixed
+
+- `mem setup-mcp --scope global` muestra Antigravity CLI aunque no haya nada que cambiar: `✓ agy: ya registrado en ~/.gemini/config (sin cambios)`. Antes no imprimía ninguna línea de agy, aunque lo contaba entre los registros completados.
+- Cuando todas las habilidades ya están instaladas, el panel Habilidades de `setup-mcp` muestra `✓ todas al día (sin cambios)` en lugar de quedar vacío.
+
 ## [v2.45.0] - 2026-11-04
 
 ### Added
