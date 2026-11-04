@@ -48,7 +48,7 @@ func CmdSetup(deps *Deps, args []string) {
 		MCPArgs:     br.MCPArgs,
 	}
 
-	humanf("🔌 Instalando plugin de gomemory para %s\n\n", *agent)
+	humanf("Instalando plugin de gomemory para %s\n\n", *agent)
 
 	switch *agent {
 	case "opencode":
@@ -65,6 +65,6 @@ func CmdSetup(deps *Deps, args []string) {
 		os.Exit(1)
 	}
 
-	humanf("\n✅ Plugin %s instalado. Reinicia el agente para activarlo.\n", *agent)
+	humanf("\n✓ Plugin %s instalado. Reinicia el agente para activarlo.\n", *agent)
 	_ = port
 }

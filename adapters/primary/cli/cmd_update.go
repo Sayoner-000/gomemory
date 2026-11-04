@@ -69,11 +69,11 @@ func CmdUpdate(deps *Deps, args []string) {
 	}
 
 	current := "v" + strings.TrimPrefix(version.Version, "v")
-	fmt.Printf("Actual: %s → Disponible: %s\n", current, target)
+	humanf("Actual: %s → Disponible: %s\n", current, target)
 
 	if *checkOnly {
 		if current == target {
-			fmt.Println("Ya estás en la última versión.")
+			humanln("Ya estás en la última versión.")
 		}
 		// --check también renueva la caché del aviso de versión (FR-028).
 		if !updateCheckDisabled("") {
@@ -83,13 +83,13 @@ func CmdUpdate(deps *Deps, args []string) {
 	}
 
 	if current == target {
-		fmt.Println("Ya estás actualizado, nada que hacer.")
+		humanln("Ya estás actualizado, nada que hacer.")
 		// El aviso de hooks duplicados recomienda `mem update`: también al día
 		// tiene que corregirlos (feature 035, FR-001).
 		if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 			if self, e := os.Executable(); e == nil {
 				if e := runIn(root, self, "install", root, "--yes"); e != nil {
-					fmt.Printf("  ⚠️ No se pudo refrescar la integración: %v\n", e)
+					humanf("  ⚠ No se pudo refrescar la integración: %v\n", e)
 				}
 			}
 			dedupProjectHooksReport(root)
@@ -113,13 +113,13 @@ func CmdUpdate(deps *Deps, args []string) {
 	// corre cuando llega la siguiente actualización.
 	removeStaleBinary(dest)
 	if dest != self {
-		fmt.Printf("  🎯 Se actualiza el binario global %s\n", dest)
+		humanf("  Se actualiza el binario global %s\n", dest)
 	}
 	// FR-025: con terminal interactiva se confirma antes de sustituir nada.
 	mode := console.DetectMode(console.DetectEnv(), *yes)
 	ui := console.New(mode)
 	if ok, err := confirmUpdate(ui, current, target, dest); err != nil || !ok {
-		fmt.Println("Actualización cancelada. No se modificó nada.")
+		humanln("Actualización cancelada. No se modificó nada.")
 		return
 	}
 
@@ -143,8 +143,8 @@ func CmdUpdate(deps *Deps, args []string) {
 	}
 
 	if err := checkReplaceable(dest); err != nil {
-		fmt.Printf("  ⚠️  No se puede escribir en %s: %v\n", filepath.Dir(dest), err)
-		fmt.Println("      Actualiza con permisos: sudo mem update (o reinstala con scripts/install.sh)")
+		humanf("  ⚠ No se puede escribir en %s: %v\n", filepath.Dir(dest), err)
+		humanln("      Actualiza con permisos: sudo mem update (o reinstala con scripts/install.sh)")
 		abort("Binario", "no se puede escribir en "+filepath.Dir(dest), "sudo mem update")
 	}
 
@@ -158,37 +158,37 @@ func CmdUpdate(deps *Deps, args []string) {
 	url := fmt.Sprintf("%s/download/%s/%s", releaseDownloadBase, target, asset)
 	archivePath := filepath.Join(tmpDir, asset)
 
-	fmt.Printf("  ⬇️  Descargando %s\n", url)
+	humanf("  Descargando %s\n", url)
 	if err := downloadFile(client, url, archivePath); err != nil {
 		abort("Descarga", err.Error(), "")
 	}
 	step("Descarga", asset+" "+target, console.StepOK, "")
 
 	// FR-032: sin checksum verificado no se toca el binario instalado.
-	fmt.Println("  🔐 Verificando checksum...")
+	humanln("  Verificando checksum...")
 	if err := verifyReleaseChecksum(context.Background(), releasePortOf(deps), target, asset, archivePath); err != nil {
-		fmt.Printf("  ✗ checksum: %v\n", err)
-		fmt.Println("      No se modificó el binario instalado.")
+		humanf("  ✗ checksum: %v\n", err)
+		humanln("      No se modificó el binario instalado.")
 		abort("Checksum", err.Error()+"; no se modificó el binario instalado", "")
 	}
-	fmt.Println("  ✅ Checksum verificado")
+	humanln("  ✓ Checksum verificado")
 	step("Checksum", "verificado", console.StepOK, "")
 
-	fmt.Println("  📦 Extrayendo binario...")
+	humanln("  Extrayendo binario...")
 	newBin, err := extractBinary(archivePath, tmpDir)
 	if err != nil {
 		abort("Binario", fmt.Sprintf("extraer: %v", err), "")
 	}
 
-	fmt.Println("  🔄 Reemplazando binario actual...")
+	humanln("  Reemplazando binario actual...")
 	if err := replaceSelf(dest, newBin); err != nil {
 		abort("Binario", fmt.Sprintf("reemplazar %s: %v", dest, err), "")
 	}
-	fmt.Printf("  ✅ Binario actualizado a %s\n", target)
+	humanf("  ✓ Binario actualizado a %s\n", target)
 	step("Binario", dest+" ("+current+" → "+target+")", console.StepOK, "")
 
 	if rootErr != nil {
-		fmt.Println("  ℹ️  No se detectó un proyecto con .memory/ en el cwd; solo se actualizó el binario.")
+		humanln("  ○ No se detectó un proyecto con .memory/ en el cwd; solo se actualizó el binario.")
 		summary()
 		return
 	}
@@ -196,25 +196,25 @@ func CmdUpdate(deps *Deps, args []string) {
 	// Con el global al día, una copia local del proyecto sobra (FR-003).
 	if dest != self {
 		if c, retired, err := retireLocalCopy(root, dest); retired {
-			fmt.Printf("  ✅ %s\n", retiredNotice(c, dest))
+			humanf("  ✓ %s\n", retiredNotice(c, dest))
 			step("Copia local", retiredNotice(c, dest), console.StepOK, "")
 		} else if err != nil {
-			fmt.Printf("  ⚠️  No se pudo retirar %s: %v → bórralo a mano\n", c.Path, err)
+			humanf("  ⚠ No se pudo retirar %s: %v → bórralo a mano\n", c.Path, err)
 			step("Copia local", fmt.Sprintf("no se pudo retirar %s: %v", c.Path, err), console.StepWarn, "rm "+c.Path)
 		}
 	}
 
 	// El refresco lo ejecuta el binario recién instalado: `self` puede ser la
 	// copia que se acaba de retirar.
-	fmt.Println("  🔌 Refrescando integración del proyecto (hooks, MCP, permisos)...")
+	humanln("  Refrescando integración del proyecto (hooks, MCP, permisos)...")
 	if err := runIn(root, dest, "install", root); err != nil {
-		fmt.Printf("  ⚠️  No se pudo refrescar la integración automáticamente: %v\n", err)
-		fmt.Printf("      Ejecuta manualmente: %s install %s\n", dest, root)
+		humanf("  ⚠ No se pudo refrescar la integración automáticamente: %v\n", err)
+		humanf("      Ejecuta manualmente: %s install %s\n", dest, root)
 		step("Integración del proyecto", err.Error(), console.StepWarn, dest+" install "+root)
 		summary()
 		return
 	}
-	fmt.Println("  ✅ Integración del proyecto refrescada")
+	humanln("  ✓ Integración del proyecto refrescada")
 	step("Integración del proyecto", "refrescada", console.StepOK, "")
 	summary()
 }
@@ -590,8 +590,8 @@ func dedupProjectHooksReport(root string) {
 	removed, err := setup.DedupClaudeProjectHooks(home, root)
 	switch {
 	case err != nil:
-		fmt.Printf("  ⚠️  No se pudieron retirar los hooks duplicados: %v\n", err)
+		humanf("  ⚠ No se pudieron retirar los hooks duplicados: %v\n", err)
 	case len(removed) > 0:
-		fmt.Printf("  ✅ Hooks duplicados retirados del proyecto (ya los cubre el global): %s\n", strings.Join(removed, ", "))
+		humanf("  ✓ Hooks duplicados retirados del proyecto (ya los cubre el global): %s\n", strings.Join(removed, ", "))
 	}
 }

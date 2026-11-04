@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -19,6 +20,10 @@ const (
 	StateWarn
 	StateFail
 	StateSkip
+	// StateSelected marca el elemento seleccionado (▸).
+	StateSelected
+	// StateFlagged marca un elemento destacado (⚑).
+	StateFlagged
 )
 
 // maxPanelWidth evita paneles de lado a lado en terminales muy anchas, donde
@@ -40,9 +45,31 @@ func stateGlyph(s StepState) string {
 		return "✗"
 	case StateSkip:
 		return "−"
+	case StateSelected:
+		return "▸"
+	case StateFlagged:
+		return "⚑"
 	}
 	return "○"
 }
+
+// Mark es la única fuente de símbolos de estado de la salida humana: el glifo
+// del estado pintado con lipgloss en su color de la paleta, o el glifo limpio
+// fuera de una terminal estilizada (sin TTY, NO_COLOR o TERM=dumb).
+func (l Layout) Mark(s StepState) string {
+	glyph := stateGlyph(s)
+	if !styledTerminal(l.env) {
+		return glyph
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(l.palette.StateColor(s))).Render(glyph)
+}
+
+// Glyph devuelve el glifo limpio del estado, para quien ya lo pinta con su
+// propio estilo (la TUI).
+func Glyph(s StepState) string { return stateGlyph(s) }
+
+// Mark devuelve el símbolo del estado para la terminal del proceso actual.
+func Mark(s StepState) string { return NewLayout(DetectEnv()).Mark(s) }
 
 // StateColor asigna cada estado a un token existente de la paleta.
 func (p Palette) StateColor(s StepState) string {
@@ -55,6 +82,10 @@ func (p Palette) StateColor(s StepState) string {
 		return p.Warning
 	case StateFail:
 		return p.Error
+	case StateSelected:
+		return p.Primary
+	case StateFlagged:
+		return p.Warning
 	}
 	return p.Muted
 }

@@ -96,7 +96,7 @@ func typeIcon(t string) string {
 	case string(domain.Decision):
 		return "◆"
 	case string(domain.Bugfix):
-		return "✕"
+		return console.Glyph(console.StateFail)
 	case string(domain.Pattern):
 		return "■"
 	case string(domain.Learning):
@@ -104,7 +104,7 @@ func typeIcon(t string) string {
 	case string(domain.Discovery):
 		return "◇"
 	case string(domain.Preference):
-		return "♥"
+		return console.Glyph(console.StateFlagged)
 	default:
 		return "●"
 	}

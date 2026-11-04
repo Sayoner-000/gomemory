@@ -3,9 +3,9 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"mem/adapters/primary/console"
 	"strings"
 
+	"mem/adapters/primary/console"
 	"mem/application/ports"
 	"mem/domain"
 )
@@ -88,7 +88,7 @@ func CmdSettings(deps *Deps, args []string) {
 			fail("aplicar auto-approve: %v", err)
 		}
 	}
-	humanln("✅ Settings actualizados")
+	humanln("✓ Settings actualizados")
 	printSettings(deps, root)
 }
 

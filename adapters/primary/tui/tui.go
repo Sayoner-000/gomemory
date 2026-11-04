@@ -455,7 +455,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case errors.Is(msg.err, ports.ErrIndexerNotInstalled):
 			m.statusMsg = "codebase-memory-mcp no disponible"
 		default:
-			m.statusMsg = fmt.Sprintf("⚠️ grafo externo: %v", msg.err)
+			m.statusMsg = console.Glyph(console.StateWarn) + " grafo externo: " + fmt.Sprint(msg.err)
 		}
 		m.statusTimer = 80
 		return m, nil
@@ -1395,7 +1395,7 @@ func (m model) updateConfig(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.statusTimer = 40
 			} else {
 				m.reindexInProgress = true
-				m.statusMsg = "🔗 Indexando grafo externo... (puede tardar, no bloquea la TUI)"
+				m.statusMsg = console.Glyph(console.StateRunning) + " Indexando grafo externo... (puede tardar, no bloquea la TUI)"
 				m.statusTimer = 999
 				cmd = m.reindexExternalGraphCmd()
 			}
@@ -1833,7 +1833,7 @@ func (m model) optimizeAllConfirmView() string {
 	b.WriteString("\n\n")
 
 	if m.dupErr != "" {
-		b.WriteString(errorStyle.Render("✕ " + m.dupErr))
+		b.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.dupErr))
 		b.WriteString("\n")
 	}
 
@@ -1897,7 +1897,7 @@ func (m model) optimizeDetailView() string {
 
 	var foot strings.Builder
 	if m.dupErr != "" {
-		foot.WriteString(errorStyle.Render("✕ " + m.dupErr))
+		foot.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.dupErr))
 		foot.WriteString("\n")
 	}
 	foot.WriteString(renderFooter("  ↑↓ elegir memoria  ·  enter marcar canónica  ·  space conservar/borrar  ·  c confirmar borrado  ·  esc volver"))
@@ -1963,7 +1963,7 @@ func (m model) optimizeConfirmView() string {
 	b.WriteString("\n\n")
 
 	if m.dupErr != "" {
-		b.WriteString(errorStyle.Render("✕ " + m.dupErr))
+		b.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.dupErr))
 		b.WriteString("\n")
 	}
 
@@ -2444,7 +2444,7 @@ func (m model) maintenanceConfirmView() string {
 	b.WriteString("\n\n")
 
 	if m.maintErr != "" {
-		b.WriteString(errorStyle.Render("✕ " + m.maintErr))
+		b.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.maintErr))
 		b.WriteString("\n")
 	}
 
@@ -2590,7 +2590,7 @@ func (m model) importView() string {
 	b.WriteString("\n\n")
 
 	if m.importErr != "" {
-		b.WriteString(errorStyle.Render("✕ " + m.importErr))
+		b.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.importErr))
 		b.WriteString("\n")
 	}
 
@@ -2613,7 +2613,7 @@ func (m model) editSettingView() string {
 	b.WriteString("\n\n")
 
 	if m.editSettingErr != "" {
-		b.WriteString(errorStyle.Render("✕ " + m.editSettingErr))
+		b.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.editSettingErr))
 		b.WriteString("\n")
 	}
 
@@ -2642,7 +2642,7 @@ func (m model) detailView() string {
 			content,
 			func() string {
 				if mem.Filepath != "" {
-					return "\n" + lipgloss.NewStyle().Foreground(faint).Italic(true).Render(truncate("📁 "+mem.Filepath, width))
+					return "\n" + lipgloss.NewStyle().Foreground(faint).Italic(true).Render(truncate(mem.Filepath, width))
 				}
 				return ""
 			}(),
@@ -2675,7 +2675,7 @@ func (m model) saveView() string {
 	b.WriteString("\n")
 
 	if m.saveErr != "" {
-		b.WriteString(errorStyle.Render("✕ " + m.saveErr))
+		b.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.saveErr))
 		b.WriteString("\n")
 	}
 

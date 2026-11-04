@@ -247,9 +247,9 @@ func printDoctorCodeGraphMCP(s ports.SettingsData, root string) {
 		switch {
 		case !present:
 		case registered:
-			humanf("  ✅ %s: conectado\n", agent)
+			humanf("  ✓ %s: conectado\n", agent)
 		default:
-			humanf("  ❌ %s: sin conectar → %s\n", agent, codeGraphManual([]string{agent}))
+			humanf("  ✗ %s: sin conectar → %s\n", agent, codeGraphManual([]string{agent}))
 		}
 	}
 }

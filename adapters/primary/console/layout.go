@@ -140,7 +140,7 @@ func (l Layout) styleLine(raw string) string {
 // styleText aplica la gramática sin ajustar: para contenido que otro
 // componente (un panel) ajusta a su propio ancho.
 func (l Layout) styleText(raw string) string {
-	line := glyphs.Replace(raw)
+	line := raw
 	trimmed := strings.TrimSpace(line)
 	indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
 	switch {
@@ -150,11 +150,11 @@ func (l Layout) styleText(raw string) string {
 		line = l.bold("▸ "+headingCase(trimmed), l.palette.Primary)
 	case statusGlyph(trimmed) >= 0:
 		state := StepState(statusGlyph(trimmed))
-		glyph, rest, _ := strings.Cut(trimmed, " ")
+		_, rest, _ := strings.Cut(trimmed, " ")
 		if state == StateSkip {
 			rest = l.Muted(rest)
 		}
-		line = indent + l.color(glyph, l.palette.StateColor(state)) + " " + rest
+		line = indent + l.Mark(state) + " " + rest
 	case strings.HasPrefix(trimmed, "Error:"):
 		line = indent + l.color(trimmed, l.palette.ErrorColor())
 	case strings.HasPrefix(trimmed, "Usa ") || strings.HasPrefix(trimmed, "Ejemplo:"):
@@ -213,7 +213,7 @@ func (l Layout) Report(title, meta, text string) string {
 		case indent != "" && statusGlyph(trimmed) < 0:
 			// Filas de datos sangradas: texto normal, sin el énfasis de
 			// categoría que la ayuda da a sus grupos.
-			body = append(body, glyphs.Replace(raw))
+			body = append(body, raw)
 		default:
 			body = append(body, l.styleText(raw))
 		}
@@ -221,12 +221,10 @@ func (l Layout) Report(title, meta, text string) string {
 	return l.Panel(title, meta, "", body)
 }
 
-var glyphs = strings.NewReplacer("✅ ", "✓ ", "⚠️  ", "⚠ ", "⚠️ ", "⚠ ", "❌ ", "✗ ", "➖ ", "− ", "ℹ️  ", "· ", "ℹ️ ", "· ")
-
 // statusGlyph devuelve el estado de una línea que empieza con glifo, o -1.
 func statusGlyph(trimmed string) int {
-	for state, glyph := range map[StepState]string{StateDone: "✓ ", StateWarn: "⚠ ", StateFail: "✗ ", StateSkip: "− "} {
-		if strings.HasPrefix(trimmed, glyph) {
+	for state := StatePending; state <= StateFlagged; state++ {
+		if strings.HasPrefix(trimmed, stateGlyph(state)+" ") {
 			return int(state)
 		}
 	}

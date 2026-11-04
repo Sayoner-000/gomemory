@@ -64,5 +64,5 @@ func CmdGC(deps *Deps, args []string) {
 		humanln("No había memorias más viejas que el umbral indicado.")
 		return
 	}
-	humanf("✅ %d memoria(s) eliminada(s) por garbage collection de %s.\n", deleted, purgeScopeLabel(filter))
+	humanf("✓ %d memoria(s) eliminada(s) por garbage collection de %s.\n", deleted, purgeScopeLabel(filter))
 }

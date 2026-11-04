@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"mem/adapters/primary/console"
 	"mem/application/usecases"
 	"mem/domain"
 )
@@ -177,7 +178,7 @@ func (m model) usageView() string {
 
 	switch {
 	case m.usageSnapshotErr != "":
-		b.WriteString(errorStyle.Render("✕ " + m.usageSnapshotErr))
+		b.WriteString(errorStyle.Render(console.Glyph(console.StateFail) + " " + m.usageSnapshotErr))
 		b.WriteString("\n\n")
 	case m.usageSnapshot != nil:
 		b.WriteString(usageSnapshotBlock(m.usageSnapshot.Stats))

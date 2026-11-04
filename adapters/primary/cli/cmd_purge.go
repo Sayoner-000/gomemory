@@ -89,5 +89,5 @@ func CmdPurge(deps *Deps, args []string) {
 		humanln("No había memorias que purgar en el alcance indicado.")
 		return
 	}
-	humanf("✅ %d memoria(s) eliminada(s) de %s.\n", deleted, purgeScopeLabel(filter))
+	humanf("✓ %d memoria(s) eliminada(s) de %s.\n", deleted, purgeScopeLabel(filter))
 }

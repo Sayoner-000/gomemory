@@ -155,7 +155,7 @@ func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
 			if err := os.WriteFile(destino, []byte(res.Content), 0o644); err != nil {
 				return fmt.Errorf("escribir %s: %w", destino, err)
 			}
-			_, _ = fmt.Fprintf(stderr, "✅ %s → %s\n", d.Alias, destino)
+			_, _ = fmt.Fprintf(stderr, "✓ %s → %s\n", d.Alias, destino)
 		}
 		return nil
 	}
@@ -170,7 +170,7 @@ func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	if !res.FromMemory {
-		_, _ = fmt.Fprintf(stderr, "⚠️  No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Alias)
+		_, _ = fmt.Fprintf(stderr, "⚠ No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Alias)
 	}
 
 	if *out == "" {
@@ -180,7 +180,7 @@ func docsExport(deps *Deps, args []string, stdout, stderr io.Writer) error {
 	if err := os.WriteFile(*out, []byte(res.Content), 0o644); err != nil {
 		return fmt.Errorf("escribir %s: %w", *out, err)
 	}
-	_, _ = fmt.Fprintf(stderr, "✅ %s → %s (%d líneas)\n", doc.Alias, *out, contarLineasCLI(res.Content))
+	_, _ = fmt.Fprintf(stderr, "✓ %s → %s (%d líneas)\n", doc.Alias, *out, contarLineasCLI(res.Content))
 	return nil
 }
 
@@ -243,11 +243,11 @@ func docsImport(deps *Deps, args []string, stderr io.Writer) error {
 	}
 	switch {
 	case res.Unchanged:
-		_, _ = fmt.Fprintf(stderr, "ℹ️  %s sin cambios\n", nombre)
+		_, _ = fmt.Fprintf(stderr, "○ %s sin cambios\n", nombre)
 	case res.Created:
-		_, _ = fmt.Fprintf(stderr, "✅ %s creado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
+		_, _ = fmt.Fprintf(stderr, "✓ %s creado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
 	default:
-		_, _ = fmt.Fprintf(stderr, "✅ %s actualizado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
+		_, _ = fmt.Fprintf(stderr, "✓ %s actualizado desde %s (%d líneas)\n", nombre, ruta, res.Lines)
 	}
 	return nil
 }
@@ -269,10 +269,10 @@ func docsReset(deps *Deps, args []string, stderr io.Writer) error {
 		return fmt.Errorf("restaurar %s: %w", doc.Alias, err)
 	}
 	if res.Unchanged {
-		_, _ = fmt.Fprintf(stderr, "ℹ️  %s ya estaba en su contenido por defecto\n", doc.Alias)
+		_, _ = fmt.Fprintf(stderr, "○ %s ya estaba en su contenido por defecto\n", doc.Alias)
 		return nil
 	}
-	_, _ = fmt.Fprintf(stderr, "✅ %s restaurado al contenido por defecto (%d líneas)\n", doc.Alias, res.Lines)
+	_, _ = fmt.Fprintf(stderr, "✓ %s restaurado al contenido por defecto (%d líneas)\n", doc.Alias, res.Lines)
 	return nil
 }
 

@@ -67,13 +67,13 @@ func retiraBloqueDeProyecto(path, nombre, backupDir string) (bool, error) {
 		return false, nil // nada que hacer, y nada que informar
 	}
 	if err != nil {
-		fmt.Printf("  ⚠️  %s no se pudo leer: %v\n", nombre, err)
+		humanf("  ⚠ %s no se pudo leer: %v\n", nombre, err)
 		return false, fmt.Errorf("%s no se pudo leer: %w", nombre, err)
 	}
 	content := string(datos)
 	rest, err := stripMarkedBlocks(content)
 	if err != nil {
-		fmt.Printf("  ⚠️  %s no se modificó: %v\n", nombre, err)
+		humanf("  ⚠ %s no se modificó: %v\n", nombre, err)
 		return false, fmt.Errorf("%s no se modificó: %w", nombre, err)
 	}
 	if rest == content {
@@ -83,16 +83,16 @@ func retiraBloqueDeProyecto(path, nombre, backupDir string) (bool, error) {
 	if backupDir != "" {
 		destino, err := copiaUnica(backupDir, nombre, datos)
 		if err != nil {
-			fmt.Printf("  ⚠️  %s: no se pudo respaldar (%v); se conserva el archivo\n", nombre, err)
+			humanf("  ⚠ %s: no se pudo respaldar (%v); se conserva el archivo\n", nombre, err)
 			return false, fmt.Errorf("%s: no se pudo respaldar: %w", nombre, err)
 		}
 		aviso = " (respaldado en " + destino + ")"
 	}
 	if err := writeRetired(path, rest); err != nil {
-		fmt.Printf("  ⚠️  %s: no se pudo retirar el bloque (%v)\n", nombre, err)
+		humanf("  ⚠ %s: no se pudo retirar el bloque (%v)\n", nombre, err)
 		return false, fmt.Errorf("%s: no se pudo retirar el bloque: %w", nombre, err)
 	}
-	fmt.Printf("  ✅ %s: bloque de gomemory retirado%s\n", nombre, aviso)
+	humanf("  ✓ %s: bloque de gomemory retirado%s\n", nombre, aviso)
 	return true, nil
 }
 
@@ -122,10 +122,10 @@ func limpiarGenerados(target string) {
 			continue
 		}
 		if err := os.Remove(ruta); err != nil {
-			fmt.Printf("  ⚠️  %s: no se pudo eliminar (%v)\n", nombre, err)
+			humanf("  ⚠ %s: no se pudo eliminar (%v)\n", nombre, err)
 			continue
 		}
-		fmt.Printf("  ✅ %s eliminado (la constitución vive en la memoria: ./mem docs show constitution)\n", nombre)
+		humanf("  ✓ %s eliminado (la constitución vive en la memoria: ./mem docs show constitution)\n", nombre)
 	}
 }
 
@@ -148,7 +148,7 @@ func limpiarConfigsDeAgente(target string) {
 
 		var cfg map[string]any
 		if err := json.Unmarshal(datos, &cfg); err != nil {
-			fmt.Printf("  ℹ️  %s: no se pudo interpretar el JSON, se deja intacto\n", rel)
+			humanf("  ○ %s: no se pudo interpretar el JSON, se deja intacto\n", rel)
 			continue
 		}
 
@@ -163,23 +163,23 @@ func limpiarConfigsDeAgente(target string) {
 		if len(servidores) == 0 {
 			dir := filepath.Dir(ruta)
 			if err := os.RemoveAll(dir); err != nil {
-				fmt.Printf("  ⚠️  %s: no se pudo eliminar (%v)\n", filepath.Base(dir), err)
+				humanf("  ⚠ %s: no se pudo eliminar (%v)\n", filepath.Base(dir), err)
 				continue
 			}
-			fmt.Printf("  ✅ %s/ eliminada (solo contenía la configuración de gomemory)\n", filepath.Base(dir))
+			humanf("  ✓ %s/ eliminada (solo contenía la configuración de gomemory)\n", filepath.Base(dir))
 			continue
 		}
 
 		cfg["mcpServers"] = servidores
 		salida, err := json.MarshalIndent(cfg, "", "  ")
 		if err != nil {
-			fmt.Printf("  ⚠️  %s: no se pudo serializar (%v), se deja intacto\n", rel, err)
+			humanf("  ⚠ %s: no se pudo serializar (%v), se deja intacto\n", rel, err)
 			continue
 		}
 		if err := setup.WriteConfigFile(ruta, salida); err != nil {
-			fmt.Printf("  ⚠️  %s: no se pudo escribir (%v)\n", rel, err)
+			humanf("  ⚠ %s: no se pudo escribir (%v)\n", rel, err)
 			continue
 		}
-		fmt.Printf("  ✅ %s: entrada de gomemory retirada (se conservan los demás servidores)\n", rel)
+		humanf("  ✓ %s: entrada de gomemory retirada (se conservan los demás servidores)\n", rel)
 	}
 }

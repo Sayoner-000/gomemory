@@ -284,11 +284,11 @@ func printDoctorCompaction(report domain.CoverageReport) {
 func doctorSymbol(state domain.ChannelState) string {
 	switch state {
 	case domain.StateOutdated, domain.StateDuplicated, domain.StateMissing:
-		return "❌"
+		return "✗"
 	case domain.StateNotApplicable:
-		return "➖"
+		return "−"
 	default:
-		return "✅"
+		return "✓"
 	}
 }
 
@@ -330,7 +330,7 @@ func printDoctorRemedies(report domain.CoverageReport) {
 
 	if len(orden) == 0 {
 		if report.Problems() == 0 {
-			humanln("\n✅ Sin problemas: todos los canales activos funcionan.")
+			humanln("\n✓ Sin problemas: todos los canales activos funcionan.")
 		}
 		return
 	}
@@ -343,7 +343,7 @@ func printDoctorRemedies(report domain.CoverageReport) {
 			humanf("    • %s\n", e)
 		}
 		if g.correccion.Advertencia != "" {
-			humanf("    ⚠️  %s\n", g.correccion.Advertencia)
+			humanf("    ⚠ %s\n", g.correccion.Advertencia)
 		}
 		humanf("    → %s\n", g.correccion.Comando)
 	}
@@ -409,7 +409,7 @@ func printDoctorLiveness(deps *Deps) {
 		if veredicto != domain.LivenessStale {
 			continue
 		}
-		aviso := fmt.Sprintf("  ⚠️  %s · %s · %s: %s", c.agent, c.scope, c.kind, detalle)
+		aviso := fmt.Sprintf("  ⚠ %s · %s · %s: %s", c.agent, c.scope, c.kind, detalle)
 		if lastErr != "" {
 			aviso += fmt.Sprintf("\n      último fallo registrado: %s", lastErr)
 		}

@@ -99,7 +99,7 @@ func CmdUninstall(deps *Deps, args []string) int {
 			{Value: string(domain.UninstallSystem), Label: "Todo gomemory del sistema", Hint: "sin dejar rastros"},
 		})
 		if err != nil {
-			fmt.Println("Desinstalación cancelada. No se eliminó nada.")
+			humanln("Desinstalación cancelada. No se eliminó nada.")
 			return uninstallExitOK
 		}
 		o.scope = domain.UninstallScope(scope)
@@ -125,7 +125,7 @@ func CmdUninstall(deps *Deps, args []string) int {
 			{Value: string(domain.MemoryKeep), Label: "Conservarla"},
 		})
 		if err != nil {
-			fmt.Println("Desinstalación cancelada. No se eliminó nada.")
+			humanln("Desinstalación cancelada. No se eliminó nada.")
 			return uninstallExitOK
 		}
 		pl.o.memory = domain.MemoryChoice(choice)
@@ -147,21 +147,21 @@ func CmdUninstall(deps *Deps, args []string) int {
 	printUninstallInventory(pl)
 
 	if o.dryRun {
-		fmt.Println("\n(simulación: no se modificó nada)")
+		humanln("\n(simulación: no se modificó nada)")
 		return uninstallExitOK
 	}
 	if len(pl.steps) == 0 {
-		fmt.Println("\nNo hay nada de gomemory que desinstalar.")
+		humanln("\nNo hay nada de gomemory que desinstalar.")
 		return uninstallExitOK
 	}
 	if ui == nil && !o.yes {
-		fmt.Println("\n✗ se requiere --yes para desinstalar sin terminal interactiva. No se eliminó nada.")
+		humanln("\n✗ se requiere --yes para desinstalar sin terminal interactiva. No se eliminó nada.")
 		return uninstallExitRefused
 	}
 	if ui != nil {
 		ok, err := confirmUninstall(ui, pl)
 		if err != nil || !ok {
-			fmt.Println("Desinstalación cancelada. No se eliminó nada.")
+			humanln("Desinstalación cancelada. No se eliminó nada.")
 			return uninstallExitOK
 		}
 	}
@@ -202,9 +202,9 @@ func printUninstallInventory(pl *uninstallPlanner) {
 	if pl.o.scope == domain.UninstallSystem {
 		scope = "todo el sistema"
 	}
-	fmt.Printf("🗑️  Desinstalar gomemory de %s\n", scope)
+	humanf("Desinstalar gomemory de %s\n", scope)
 	if pl.o.scope == domain.UninstallSystem && !pl.o.noScan {
-		fmt.Printf("  ℹ️  Proyectos buscados en %s (hasta %d niveles). Para buscar en otra ruta: --scan <dir>\n",
+		humanf("  ○ Proyectos buscados en %s (hasta %d niveles). Para buscar en otra ruta: --scan <dir>\n",
 			pl.o.scanRoot, domain.UninstallScanMaxDepth)
 	}
 	headers := []struct {
@@ -232,19 +232,19 @@ func printUninstallInventory(pl *uninstallPlanner) {
 			lines = append(lines, "    • "+label)
 		}
 		if len(lines) > 0 {
-			fmt.Printf("  %s:\n%s\n", h.title, strings.Join(lines, "\n"))
+			humanf("  %s:\n%s\n", h.title, strings.Join(lines, "\n"))
 		}
 	}
 	switch pl.o.memory {
 	case domain.MemoryExport:
-		fmt.Printf("  La memoria se exportará antes a %s\n", pl.o.exportDir)
+		humanf("  La memoria se exportará antes a %s\n", pl.o.exportDir)
 	case domain.MemoryKeep:
 		if dir, err := persistence.DataHome(); err == nil {
-			fmt.Printf("  La memoria se conserva en %s\n", dir)
+			humanf("  La memoria se conserva en %s\n", dir)
 		}
 	}
 	for _, s := range pl.skipped {
-		fmt.Printf("  ⚠️  No se pudo leer %s durante la búsqueda de proyectos\n", s)
+		humanf("  ⚠ No se pudo leer %s durante la búsqueda de proyectos\n", s)
 	}
 }
 
@@ -260,11 +260,11 @@ func runUninstall(pl *uninstallPlanner, styled bool) int {
 	}
 	plan.Sort()
 
-	fmt.Println()
+	humanln()
 	if pl.o.memory == domain.MemoryExport {
 		index, failed := usecases.ExportProjects(pl.o.exportDir, pl.exportTargets(), openStoreByKey)
 		if len(failed) == 0 {
-			fmt.Printf("  ✓ Memoria exportada a %s (%d proyecto(s))\n", pl.o.exportDir, len(index))
+			humanf("  ✓ Memoria exportada a %s (%d proyecto(s))\n", pl.o.exportDir, len(index))
 		}
 		// FR-009: la memoria cuya exportación falló no se borra.
 		for i := range plan.Items {
@@ -326,19 +326,19 @@ func removeIntegrationBlocks(target string) error {
 	for _, fname := range legacyAgentFiles {
 		fpath, err := setup.ProjectConfigPath(target, fname)
 		if err != nil {
-			fmt.Printf("  ⚠️  %v\n", err)
+			humanf("  ⚠ %v\n", err)
 			errs = append(errs, err)
 			continue
 		}
 		if _, err := os.Stat(fpath); os.IsNotExist(err) {
-			fmt.Printf("  ℹ️  %s: no encontrado\n", fname)
+			humanf("  ○ %s: no encontrado\n", fname)
 			continue
 		}
 		changed, err := retiraBloqueDeProyecto(fpath, fname, "")
 		if err != nil {
 			errs = append(errs, err)
 		} else if !changed {
-			fmt.Printf("  ℹ️  %s: se conserva tal cual\n", fname)
+			humanf("  ○ %s: se conserva tal cual\n", fname)
 		}
 	}
 	return errors.Join(errs...)
@@ -349,28 +349,28 @@ func removeMCPEntries(target string) {
 		rel := conf.path
 		fpath, err := setup.ProjectConfigPath(target, rel)
 		if err != nil {
-			fmt.Printf("  ⚠️  %v\n", err)
+			humanf("  ⚠ %v\n", err)
 			continue
 		}
 		data, err := os.ReadFile(fpath)
 		if err != nil {
-			fmt.Printf("  ℹ️  %s: no encontrado\n", rel)
+			humanf("  ○ %s: no encontrado\n", rel)
 			continue
 		}
 
 		var cfg map[string]interface{}
 		if err := json.Unmarshal(data, &cfg); err != nil {
-			fmt.Printf("  ⚠️  %s: JSON inválido, se conserva sin tocar\n", rel)
+			humanf("  ⚠ %s: JSON inválido, se conserva sin tocar\n", rel)
 			continue
 		}
 
 		ms, ok := cfg[conf.key].(map[string]interface{})
 		if !ok {
-			fmt.Printf("  ℹ️  %s: sin entrada gomemory\n", rel)
+			humanf("  ○ %s: sin entrada gomemory\n", rel)
 			continue
 		}
 		if _, has := ms["gomemory"]; !has {
-			fmt.Printf("  ℹ️  %s: sin entrada gomemory\n", rel)
+			humanf("  ○ %s: sin entrada gomemory\n", rel)
 			continue
 		}
 
@@ -379,10 +379,10 @@ func removeMCPEntries(target string) {
 
 		out, _ := json.MarshalIndent(cfg, "", "  ")
 		if err := setup.WriteConfigFile(fpath, out); err != nil {
-			fmt.Printf("  ⚠️  %s: error al escribir: %v\n", rel, err)
+			humanf("  ⚠ %s: error al escribir: %v\n", rel, err)
 			continue
 		}
-		fmt.Printf("  ✅ %s: entrada gomemory removida\n", rel)
+		humanf("  ✓ %s: entrada gomemory removida\n", rel)
 	}
 }
 
@@ -390,37 +390,37 @@ func removeClaudePlugin(target string) {
 	// Un plugin enlazado solo se omite: settings.json tiene su propia
 	// comprobación y su limpieza sigue.
 	if pluginDir, err := setup.ClaudePluginDir(target); err != nil {
-		fmt.Printf("  ⚠️  .claude/plugins/gomemory: %v\n", err)
+		humanf("  ⚠ .claude/plugins/gomemory: %v\n", err)
 	} else if _, err := os.Stat(pluginDir); err == nil {
 		if err := os.RemoveAll(pluginDir); err != nil {
-			fmt.Printf("  ⚠️  %s: error al eliminar: %v\n", pluginDir, err)
+			humanf("  ⚠ %s: error al eliminar: %v\n", pluginDir, err)
 		} else {
-			fmt.Printf("  ✅ %s: eliminado\n", pluginDir)
+			humanf("  ✓ %s: eliminado\n", pluginDir)
 		}
 	} else {
-		fmt.Println("  ℹ️  .claude/plugins/gomemory: no encontrado")
+		humanln("  ○ .claude/plugins/gomemory: no encontrado")
 	}
 
 	settingsPath, err := setup.ClaudeSettingsPath(target)
 	if err != nil {
-		fmt.Printf("  ⚠️  .claude/settings.json: %v\n", err)
+		humanf("  ⚠ .claude/settings.json: %v\n", err)
 		return
 	}
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
-		fmt.Println("  ℹ️  .claude/settings.json: no encontrado")
+		humanln("  ○ .claude/settings.json: no encontrado")
 		return
 	}
 
 	var settings map[string]interface{}
 	if err := json.Unmarshal(data, &settings); err != nil {
-		fmt.Println("  ⚠️  .claude/settings.json: JSON inválido, se conserva sin tocar")
+		humanln("  ⚠ .claude/settings.json: JSON inválido, se conserva sin tocar")
 		return
 	}
 
 	hooks, ok := settings["hooks"].(map[string]interface{})
 	if !ok {
-		fmt.Println("  ℹ️  .claude/settings.json: sin hooks de gomemory")
+		humanln("  ○ .claude/settings.json: sin hooks de gomemory")
 		return
 	}
 
@@ -448,30 +448,30 @@ func removeClaudePlugin(target string) {
 	}
 
 	if !changed {
-		fmt.Println("  ℹ️  .claude/settings.json: sin hooks de gomemory")
+		humanln("  ○ .claude/settings.json: sin hooks de gomemory")
 		return
 	}
 
 	settings["hooks"] = hooks
 	out, _ := json.MarshalIndent(settings, "", "  ")
 	if err := setup.WriteConfigFile(settingsPath, out); err != nil {
-		fmt.Printf("  ⚠️  .claude/settings.json: error al escribir: %v\n", err)
+		humanf("  ⚠ .claude/settings.json: error al escribir: %v\n", err)
 		return
 	}
-	fmt.Println("  ✅ .claude/settings.json: hooks de gomemory removidos")
+	humanln("  ✓ .claude/settings.json: hooks de gomemory removidos")
 }
 
 func removeClaudePermissions(target string) {
 	changed, err := setup.RemoveClaudePermissions(target)
 	if err != nil {
-		fmt.Printf("  ⚠️  .claude/settings.json: error al limpiar permisos: %v\n", err)
+		humanf("  ⚠ .claude/settings.json: error al limpiar permisos: %v\n", err)
 		return
 	}
 	if !changed {
-		fmt.Println("  ℹ️  .claude/settings.json: sin permisos de gomemory")
+		humanln("  ○ .claude/settings.json: sin permisos de gomemory")
 		return
 	}
-	fmt.Println("  ✅ .claude/settings.json: permisos de gomemory removidos")
+	humanln("  ✓ .claude/settings.json: permisos de gomemory removidos")
 }
 
 // removeOpenCodeArtifacts retira lo que InstallOpenCode escribe y que la entrada
@@ -486,17 +486,17 @@ func removeOpenCodeArtifacts(target string) {
 	changed, err := setup.RemoveOpenCodePermissions(target)
 	switch {
 	case err != nil:
-		fmt.Printf("  ⚠️  opencode.json: error al limpiar permisos: %v\n", err)
+		humanf("  ⚠ opencode.json: error al limpiar permisos: %v\n", err)
 	case changed:
-		fmt.Println("  ✅ opencode.json: permisos de gomemory removidos")
+		humanln("  ✓ opencode.json: permisos de gomemory removidos")
 	default:
-		fmt.Println("  ℹ️  opencode.json: sin permisos de gomemory")
+		humanln("  ○ opencode.json: sin permisos de gomemory")
 	}
 
 	// El plugin de OpenCode NO se elimina: vive en el HOME y lo comparten todos
 	// los proyectos. Se informa su ruta, misma política que ~/.codex/config.toml.
 	if ruta := setup.OpenCodePluginPath(); ruta != "" {
-		fmt.Printf("  ℹ️  %s no se elimina — es de ámbito de usuario y lo comparten todos tus proyectos; bórralo a mano si ya no usas gomemory en ninguno.\n", ruta)
+		humanf("  ○ %s no se elimina — es de ámbito de usuario y lo comparten todos tus proyectos; bórralo a mano si ya no usas gomemory en ninguno.\n", ruta)
 	}
 }
 
@@ -512,14 +512,14 @@ func removeNativeWrappers(target string) {
 	for _, seg := range setup.GeneratedWrapperPaths() {
 		ruta, err := setup.ProjectConfigPath(target, seg...)
 		if err != nil {
-			fmt.Printf("  ⚠️  %v\n", err)
+			humanf("  ⚠ %v\n", err)
 			continue
 		}
 		if _, err := os.Stat(ruta); err != nil {
 			continue
 		}
 		if err := os.Remove(ruta); err != nil {
-			fmt.Printf("  ⚠️  %s: error al eliminar: %v\n", filepath.Join(seg...), err)
+			humanf("  ⚠ %s: error al eliminar: %v\n", filepath.Join(seg...), err)
 			continue
 		}
 		retirados++
@@ -532,8 +532,8 @@ func removeNativeWrappers(target string) {
 		}
 	}
 	if retirados > 0 {
-		fmt.Printf("  ✅ %d envoltorio(s) nativo(s) retirado(s)\n", retirados)
+		humanf("  ✓ %d envoltorio(s) nativo(s) retirado(s)\n", retirados)
 	} else {
-		fmt.Println("  ℹ️  envoltorios nativos: no encontrados")
+		humanln("  ○ envoltorios nativos: no encontrados")
 	}
 }

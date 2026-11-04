@@ -78,7 +78,7 @@ func TestTableKeepsLongValuesOnNarrowScreens(t *testing.T) {
 func TestHumanCategoriesAndStatusesHaveVisualRoles(t *testing.T) {
 	e := Env{StdoutTTY: true, Width: 80, Getenv: func(string) string { return "" }}
 	l := NewLayout(e)
-	out := l.Document("  Memoria diaria\n  ✅ Memoria guardada\n  ⚠️  Falta integración\n  ❌ Falló la operación\n")
+	out := l.Document("  Memoria diaria\n  ✓ Memoria guardada\n  ⚠ Falta integración\n  ✗ Falló la operación\n")
 	if !strings.Contains(out, foreground(l.palette.Primary)+"  Memoria diaria") {
 		t.Fatalf("categoría sin énfasis: %q", out)
 	}
@@ -112,7 +112,7 @@ func TestSummaryUsesThemeStatusColors(t *testing.T) {
 
 func TestDocumentGramaticaComun(t *testing.T) {
 	l := NewLayout(styledEnv(60))
-	in := "CONFIGURACIÓN\nAuto-approve: true\nRuta MCP: /x\n  ➖ gomemory: sin cambios\nUsa --auto-approve=true para cambiar\nError: subcomando requerido\n"
+	in := "CONFIGURACIÓN\nAuto-approve: true\nRuta MCP: /x\n  − gomemory: sin cambios\nUsa --auto-approve=true para cambiar\nError: subcomando requerido\n"
 	out := l.Document(in)
 	plain := ansi.Strip(out)
 	for _, want := range []string{"╭─ Configuración", "│ Auto-approve: true", "Ruta MCP: /x", "│ − gomemory: sin cambios", "→ Usa --auto-approve=true para cambiar", "Error: subcomando requerido"} {

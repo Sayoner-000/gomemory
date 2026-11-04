@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"mem/adapters/primary/console"
 	"mem/adapters/primary/setup"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
@@ -225,7 +226,7 @@ func removeProjectIntegration(p string, keepsGlobal bool) error {
 	bloques := removeIntegrationBlocks(p)
 	removeMCPEntries(p)
 	if keepsGlobal {
-		fmt.Println("  ℹ️  ~/.codex/config.toml conserva [mcp_servers.gomemory] y los hooks del ciclo de gomemory — son configuración global compartida por todos los proyectos.")
+		fmt.Println("  " + console.Mark(console.StatePending) + " ~/.codex/config.toml conserva [mcp_servers.gomemory] y los hooks del ciclo de gomemory — son configuración global compartida por todos los proyectos.")
 	}
 	removeClaudePlugin(p)
 	removeClaudePermissions(p)
@@ -361,7 +362,7 @@ func (pl *uninstallPlanner) planBinaries() {
 			continue // no es gomemory: ni se borra ni se aconseja nada sobre él
 		}
 		if anchorErr != nil {
-			fmt.Printf("  ℹ️  %s se conserva (%v): bórralo a mano si quieres retirarlo\n", p, anchorErr)
+			fmt.Printf("  %s %s se conserva (%v): bórralo a mano si quieres retirarlo\n", console.Mark(console.StatePending), p, anchorErr)
 			continue
 		}
 		pl.add(domain.NewUninstallItem(domain.CategoryBinary, p, domain.KindFile), anchor.Remove)

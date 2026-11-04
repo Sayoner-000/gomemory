@@ -21,18 +21,18 @@ func TestPrintDoctorOpenCode(t *testing.T) {
 		{
 			nombre:   "dual en v2",
 			st:       setup.OpenCodeInstallStatus{Version: "2.0.16", Major: 2, PluginShape: setup.PluginShapeDual},
-			quiere:   []string{"OpenCode: v2.0.16 detectado", "plugin gomemory: dual (v1+v2) ✅"},
-			noQuiere: []string{"❌", "mem setup-mcp"},
+			quiere:   []string{"OpenCode: v2.0.16 detectado", "plugin gomemory: dual (v1+v2) ✓"},
+			noQuiere: []string{"✗", "mem setup-mcp"},
 		},
 		{
 			nombre: "solo v1 en v2",
 			st:     setup.OpenCodeInstallStatus{Version: "2.0.16", Major: 2, PluginShape: setup.PluginShapeV1Only},
-			quiere: []string{"plugin gomemory: solo v1 ❌", "mem setup-mcp --scope global --agents opencode"},
+			quiere: []string{"plugin gomemory: solo v1 ✗", "mem setup-mcp --scope global --agents opencode"},
 		},
 		{
 			nombre: "versión desconocida",
 			st:     setup.OpenCodeInstallStatus{PluginShape: setup.PluginShapeDual},
-			quiere: []string{"OpenCode: versión no detectada", "dual (v1+v2) ✅"},
+			quiere: []string{"OpenCode: versión no detectada", "dual (v1+v2) ✓"},
 		},
 		{
 			nombre: "ajeno y artefacto",
@@ -111,7 +111,7 @@ func TestPrintDoctorOpenCode_V1SinVersionNoEsVerde(t *testing.T) {
 	out := captureStdout(t, func() {
 		printDoctorOpenCode(setup.OpenCodeInstallStatus{PluginShape: setup.PluginShapeV1Only})
 	})
-	if strings.Contains(out, "✅") || !strings.Contains(out, "mem setup-mcp --scope global --agents opencode") {
+	if strings.Contains(out, "✓") || !strings.Contains(out, "mem setup-mcp --scope global --agents opencode") {
 		t.Errorf("solo v1 sin versión detectada debía pedir reinstalar, no mostrarse sano:\n%s", out)
 	}
 }

@@ -220,9 +220,9 @@ func installGlobalBinary(self string) error {
 	if err := copyFileMode(self, dest, 0o755); err != nil {
 		return err
 	}
-	humanf("  ✅ Binario global instalado en %s\n", dest)
+	humanf("  ✓ Binario global instalado en %s\n", dest)
 	if found, err := lookPathGlobal(); err != nil || !sameFilePath(found, dest) {
-		humanf("  ⚠️  %s no está en el PATH: añádelo para usar la instalación global\n", dir)
+		humanf("  ⚠ %s no está en el PATH: añádelo para usar la instalación global\n", dir)
 	}
 	return nil
 }

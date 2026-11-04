@@ -12,7 +12,7 @@ func formatGateNotice(res usecases.GateResult) string {
 		return ""
 	}
 	if !res.Checked {
-		return fmt.Sprintf("ℹ Comprobación de duplicados no realizada (%s): la memoria se guardó igual", res.Reason)
+		return fmt.Sprintf("○ Comprobación de duplicados no realizada (%s): la memoria se guardó igual", res.Reason)
 	}
 	lines := make([]string, 0, len(res.Candidates)+1)
 	for _, candidate := range res.Candidates {

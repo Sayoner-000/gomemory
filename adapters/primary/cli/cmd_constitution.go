@@ -61,7 +61,7 @@ func runPinnedShortcut(deps *Deps, alias string, args []string, stdout, stderr i
 		return err
 	}
 	if !res.FromMemory {
-		_, _ = fmt.Fprintf(stderr, "⚠️  No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Label)
+		_, _ = fmt.Fprintf(stderr, "⚠ No hay %s en la memoria de este proyecto; se muestra el contenido por defecto.\n", doc.Label)
 	}
 
 	if _, err := io.WriteString(stdout, res.Content); err != nil {
@@ -85,14 +85,14 @@ func syncHCDPlaybook(root, content string, stderr io.Writer) error {
 	dir := filepath.Join(root, "hcd")
 	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
-		_, _ = fmt.Fprintln(stderr, "ℹ️  Este proyecto no tiene hcd/; no se sincronizó ningún archivo.")
+		_, _ = fmt.Fprintln(stderr, "○ Este proyecto no tiene hcd/; no se sincronizó ningún archivo.")
 		return nil
 	}
 	destino := filepath.Join(dir, "hcd-playbook.md")
 	if err := setup.WriteConfigFile(destino, []byte(content)); err != nil {
 		return fmt.Errorf("escribir %s: %w", destino, err)
 	}
-	_, _ = fmt.Fprintf(stderr, "✅ %s actualizado\n", destino)
+	_, _ = fmt.Fprintf(stderr, "✓ %s actualizado\n", destino)
 	return nil
 }
 
@@ -104,7 +104,7 @@ func syncHCDPlaybook(root, content string, stderr io.Writer) error {
 func syncSpeckitConstitution(root, contenido string, stderr io.Writer) error {
 	info, err := os.Stat(filepath.Join(root, ".specify"))
 	if err != nil || !info.IsDir() {
-		_, _ = fmt.Fprintln(stderr, "ℹ️  Este proyecto no usa spec-kit; no se sincronizó ningún archivo.")
+		_, _ = fmt.Fprintln(stderr, "○ Este proyecto no usa spec-kit; no se sincronizó ningún archivo.")
 		return nil
 	}
 
@@ -119,6 +119,6 @@ func syncSpeckitConstitution(root, contenido string, stderr io.Writer) error {
 	if err := setup.WriteConfigFile(destino, []byte(contenido)); err != nil {
 		return fmt.Errorf("escribir %s: %w", destino, err)
 	}
-	_, _ = fmt.Fprintf(stderr, "✅ %s actualizado\n", destino)
+	_, _ = fmt.Fprintf(stderr, "✓ %s actualizado\n", destino)
 	return nil
 }

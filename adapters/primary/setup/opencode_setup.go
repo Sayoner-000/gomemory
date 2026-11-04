@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"mem/adapters/primary/console"
 )
 
 func InstallOpenCode(root string, ref AgentRef) error {
@@ -52,12 +54,12 @@ func registerOpenCodeGlobal(ref AgentRef) error {
 	if err := writeOpenCodeMCPFile(cfgPath, ref); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ opencode: MCP registrado en scope usuario (%s)\n", cfgPath)
+	console.Printf("  ✓ opencode: MCP registrado en scope usuario (%s)\n", cfgPath)
 
 	if err := writeOpenCodePermissions(cfgPath); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ opencode: tools MCP pre-aprobadas en scope usuario (%s)\n", cfgPath)
+	console.Printf("  ✓ opencode: tools MCP pre-aprobadas en scope usuario (%s)\n", cfgPath)
 	return nil
 }
 
@@ -103,7 +105,7 @@ func cleanupProjectOpenCodeRegistration(root string) {
 	}
 	var cfg map[string]interface{}
 	if json.Unmarshal(data, &cfg) != nil {
-		fmt.Println("  ℹ️  opencode.json: JSON ilegible, se conserva intacto")
+		console.Println("  ○ opencode.json: JSON ilegible, se conserva intacto")
 		return
 	}
 
@@ -145,11 +147,11 @@ func cleanupProjectOpenCodeRegistration(root string) {
 			return
 		}
 		_ = WriteConfigFile(cfgPath, out)
-		fmt.Println("  🧹 opencode: registro de proyecto retirado de opencode.json (conserva configuración ajena)")
+		console.Println("  opencode: registro de proyecto retirado de opencode.json (conserva configuración ajena)")
 		return
 	}
 	if err := os.Remove(cfgPath); err == nil {
-		fmt.Println("  🧹 opencode: opencode.json de proyecto retirado (la referencia vive en el scope usuario)")
+		console.Println("  opencode: opencode.json de proyecto retirado (la referencia vive en el scope usuario)")
 	}
 }
 
@@ -262,9 +264,9 @@ func installOpenCodePlugin(root string, ref AgentRef) error {
 		return fmt.Errorf("install opencode plugin: %w", err)
 	}
 	if count > 0 {
-		fmt.Printf("  ✅ opencode: plugin instalado en %s\n", filepath.Join(pluginsDir, "gomemory.ts"))
+		console.Printf("  ✓ opencode: plugin instalado en %s\n", filepath.Join(pluginsDir, "gomemory.ts"))
 	} else {
-		fmt.Println("  ✅ opencode: plugin ya instalado")
+		console.Println("  ✓ opencode: plugin ya instalado")
 	}
 	return nil
 }

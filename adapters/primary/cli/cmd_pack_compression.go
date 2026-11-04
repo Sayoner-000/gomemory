@@ -299,9 +299,9 @@ func cmdPackTune(deps *Deps, args []string) {
 		fail("%v", err)
 	}
 	if *typ == "" {
-		fmt.Println("✅ Agresividad máxima restablecida para todos los tipos")
+		fmt.Println(console.Mark(console.StateDone) + " Agresividad máxima restablecida para todos los tipos")
 	} else {
-		fmt.Printf("✅ Agresividad máxima restablecida para %s\n", *typ)
+		fmt.Printf("%s Agresividad máxima restablecida para %s\n", console.Mark(console.StateDone), *typ)
 	}
 }
 

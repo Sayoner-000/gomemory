@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"mem/adapters/primary/console"
 	"mem/adapters/primary/setup"
 	"mem/adapters/secondary/atomicfs"
 	"mem/adapters/secondary/persistence"
@@ -70,6 +71,10 @@ func CmdMCPSetup(deps *Deps, args []string) {
 	}
 
 	agentList := strings.Split(*agents, ",")
+	// Reporte sin preguntas: se presenta completo, con la estructura de Layout
+	// (como mem doctor).
+	console.BeginPage()
+	defer console.EndPage()
 
 	if *scope == "global" {
 		runGlobalScopeSetup(agentList)
@@ -93,7 +98,7 @@ func CmdMCPSetup(deps *Deps, args []string) {
 		fail("ruta inválida: %v", err)
 	}
 
-	fmt.Printf("🔌 Configurando MCP para gomemory en %s\n\n", absRoot)
+	humanf("Agentes (proyecto %s):\n", displayPath(absRoot))
 
 	generated := 0
 
@@ -130,24 +135,47 @@ func CmdMCPSetup(deps *Deps, args []string) {
 				generated++
 			}
 		default:
-			fmt.Printf("  ⚠️  Agente desconocido: %s (opciones: opencode, claude, cursor, codex, all)\n", agent)
+			humanf("  ⚠ Agente desconocido: %s (opciones: opencode, claude, cursor, codex, all)\n", agent)
 		}
 	}
 
-	fmt.Println()
+	humanln()
 	if generated > 0 {
-		fmt.Printf("✅ %d configuraciones MCP generadas. Reinicia el agente para que las detecte.\n", generated)
+		humanf("✓ %d configuraciones MCP generadas. Reinicia el agente para que las detecte.\n", generated)
 	} else {
-		fmt.Println("ℹ️  No se generaron configuraciones nuevas (ya existen o agentes no encontrados).")
+		humanln("○ No se generaron configuraciones nuevas (ya existen o agentes no encontrados).")
 	}
+}
+
+// skillSummary resume en una línea los archivos instalados de una familia de
+// habilidades: cuántos son y en qué carpetas, en vez de una línea por archivo.
+func skillSummary(label string, paths []string) {
+	if len(paths) == 0 {
+		return
+	}
+	var dirs []string
+	seen := map[string]bool{}
+	for _, p := range paths {
+		dir := filepath.Dir(p)
+		for _, anchor := range []string{"skills", "commands", "agents"} {
+			if i := strings.LastIndex(p, string(filepath.Separator)+anchor+string(filepath.Separator)); i >= 0 {
+				dir = p[:i+len(anchor)+1]
+				break
+			}
+		}
+		if d := displayPath(dir); !seen[d] {
+			seen[d] = true
+			dirs = append(dirs, d)
+		}
+	}
+	humanf("  ✓ %s: %d archivo(s) en %s\n", label, len(paths), strings.Join(dirs, ", "))
 }
 
 // runGlobalScopeSetup registra gomemory una sola vez a nivel de usuario, para
 // los agentes que lo soportan. cwd es irrelevante aquí: no hay "target",
 // porque el registro global aplica a todos los proyectos por igual.
 func runGlobalScopeSetup(agentList []string) map[string]bool {
-	fmt.Println("🔌 Registrando gomemory en scope global (una vez, para todos los proyectos)")
-	fmt.Println()
+	humanln("Agentes (scope global, una vez para todos los proyectos):")
 
 	ref := binRefFor(".")
 	generated := 0
@@ -167,7 +195,7 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 			continue
 		}
 		if !globalScopeAgents[agent] {
-			fmt.Printf("  ⚠️  %s no soporta --scope global (solo por proyecto): usa 'mem setup-mcp --scope project --agents %s --target <dir>'\n", agent, agent)
+			humanf("  ⚠ %s no soporta --scope global (solo por proyecto): usa 'mem setup-mcp --scope project --agents %s --target <dir>'\n", agent, agent)
 			continue
 		}
 		solicitados[agent] = true
@@ -196,6 +224,8 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	//
 	// Ahora el despacho va por tabla: un agente con escritor de hooks de ámbito
 	// de usuario lo recibe si fue solicitado, y ninguno más.
+	humanln()
+	humanln("Integración:")
 	if home, homeErr := os.UserHomeDir(); homeErr == nil {
 		for _, agent := range domain.KnownAgents {
 			if !solicitados[agent.Name] || !agent.Scopes[domain.ScopeUser] {
@@ -207,9 +237,9 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 			}
 			agentRef := setup.AgentRef{HookCommand: ref.HookCommand, MCPCommand: ref.MCPCommand, MCPArgs: ref.MCPArgs}
 			if err := escribir(home, agentRef); err != nil {
-				fmt.Printf("  ⚠️  hooks de modo plan (scope global, %s): %v\n", agent.Name, err)
+				humanf("  ⚠ hooks de modo plan (scope global, %s): %v\n", agent.Name, err)
 			} else {
-				fmt.Printf("  ✅ hooks de modo plan: %s\n", filepath.Join(home, ".claude", "settings.json"))
+				humanf("  ✓ hooks de modo plan: %s\n", displayPath(filepath.Join(home, ".claude", "settings.json")))
 				// Un proyecto instalado cuando el global no tenía estos hooks
 				// los registró él mismo; ahora correrían dos veces. Solo se
 				// conoce el proyecto del cwd: los demás los corrige su
@@ -233,27 +263,27 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	// proyecto y recibe el protocolo en el initialize de MCP.
 	written, err := setup.InstallAtomicPlanGlobal(PlanMethod())
 	if err != nil {
-		fmt.Printf("  ⚠️  planificación atómica (scope global): %v\n", err)
+		humanf("  ⚠ planificación atómica (scope global): %v\n", err)
 	}
 	if home, homeErr := os.UserHomeDir(); homeErr == nil {
 		retired, errs := retireGlobalBlocks(setup.GlobalInstructionPaths(home, solicitados), time.Now().Format("20060102-150405"))
 		for _, p := range retired {
-			fmt.Printf("  ✅ bloques de gomemory retirados de %s (copia junto al archivo)\n", p)
+			humanf("  ✓ bloques de gomemory retirados de %s (copia junto al archivo)\n", displayPath(p))
 		}
 		for _, e := range errs {
-			fmt.Printf("  ⚠️  %v\n", e)
+			humanf("  ⚠ %v\n", e)
 		}
 		omitidos := map[string]bool{}
 		for _, agent := range domain.KnownAgents {
 			omitidos[agent.Name] = !solicitados[agent.Name]
 		}
 		for _, p := range omittedGlobalBlocks(setup.GlobalInstructionPaths(home, omitidos)) {
-			fmt.Printf("  ℹ️  %s conserva bloques de gomemory: su agente no se eligió\n", p)
+			humanf("  ○ %s conserva bloques de gomemory: su agente no se eligió\n", displayPath(p))
 		}
 	}
-	for _, p := range written {
-		fmt.Printf("  ✅ planificación atómica: %s\n", p)
-	}
+	humanln()
+	humanln("Habilidades:")
+	skillSummary("planificación atómica", written)
 
 	// Guía de revisión adversarial por consenso (spec 027, FR-044): se
 	// distribuye solo en scope global y no por proyecto, porque es un protocolo
@@ -264,22 +294,18 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	// binario no pueda cumplir hoy.
 	skills, err := setup.InstallAdversarialReviewSkill(embeddedTemplate("adversarial-consensus-review/SKILL.md"))
 	if err != nil {
-		fmt.Printf("  ⚠️  revisión adversarial (scope global): %v\n", err)
+		humanf("  ⚠ revisión adversarial (scope global): %v\n", err)
 	}
-	for _, p := range skills {
-		fmt.Printf("  ✅ revisión adversarial: %s\n", p)
-	}
+	skillSummary("revisión adversarial", skills)
 	written = append(written, skills...)
 
 	// Auditoría defensiva multilenguaje: mismo canal y mismo criterio de ámbito
 	// que la revisión adversarial — es un método de trabajo del usuario.
 	auditoria, err := setup.InstallDefensiveQASkill(embeddedTemplate("defensive-qa-audit/SKILL.md"))
 	if err != nil {
-		fmt.Printf("  ⚠️  auditoría defensiva (scope global): %v\n", err)
+		humanf("  ⚠ auditoría defensiva (scope global): %v\n", err)
 	}
-	for _, p := range auditoria {
-		fmt.Printf("  ✅ auditoría defensiva: %s\n", p)
-	}
+	skillSummary("auditoría defensiva", auditoria)
 	written = append(written, auditoria...)
 
 	// Socratica: habilidad más envoltorios finos de /socratica, /socratic-q y /socratica-hu,
@@ -291,29 +317,23 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 		"socratica-hu.md": embeddedTemplate("socratica/commands/socratica-hu.md"),
 	})
 	if err != nil {
-		fmt.Printf("  ⚠️  socratica (scope global): %v\n", err)
+		humanf("  ⚠ socratica (scope global): %v\n", err)
 	}
-	for _, p := range socratica {
-		fmt.Printf("  ✅ socratica: %s\n", p)
-	}
+	skillSummary("socratica", socratica)
 	written = append(written, socratica...)
 
 	hcdPaths, hcdErr := installHCDSkills()
 	if hcdErr != nil {
-		fmt.Printf("  ⚠️ HCD skills: %v\n", hcdErr)
+		humanf("  ⚠ HCD skills: %v\n", hcdErr)
 	}
-	for _, p := range hcdPaths {
-		fmt.Printf("  ✅ HCD: %s\n", p)
-	}
+	skillSummary("HCD", hcdPaths)
 	written = append(written, hcdPaths...)
 
 	expanded, err := setup.InstallExpandSkills(expandSkillBodies())
 	if err != nil {
-		fmt.Printf("  ⚠️ expand skills: %v\n", err)
+		humanf("  ⚠ expand skills: %v\n", err)
 	}
-	for _, p := range expanded {
-		fmt.Printf("  ✅ expand: %s\n", p)
-	}
+	skillSummary("expand", expanded)
 	written = append(written, expanded...)
 
 	// Habilidades ya existentes hacia Codex y OpenCode. Cierra un hueco abierto
@@ -322,18 +342,16 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	// descomposición ni la constitución como habilidad descubrible.
 	previas, err := setup.InstallExistingSkillsForAgents(PlanMethod(), setup.ConstitutionSkillBody())
 	if err != nil {
-		fmt.Printf("  ⚠️  habilidades existentes (scope global): %v\n", err)
+		humanf("  ⚠ habilidades existentes (scope global): %v\n", err)
 	}
-	for _, p := range previas {
-		fmt.Printf("  ✅ habilidad: %s\n", p)
-	}
+	skillSummary("constitución y planificación", previas)
 	written = append(written, previas...)
 
-	fmt.Println()
+	humanln()
 	if generated > 0 || len(written) > 0 {
-		fmt.Printf("✅ %d registro(s) global(es) completados. Reinicia el agente para que los detecte.\n", generated)
+		humanf("✓ %d registro(s) global(es) completados. Reinicia el agente para que los detecte.\n", generated)
 	} else {
-		fmt.Println("ℹ️  No se completó ningún registro global nuevo.")
+		humanln("○ No se completó ningún registro global nuevo.")
 	}
 	return registered
 }
@@ -362,7 +380,7 @@ func setupOpenCodeGlobal(ref BinRef) bool {
 		MCPArgs:     ref.MCPArgs,
 	}
 	if err := setup.InstallOpenCodeGlobal(agentRef); err != nil {
-		fmt.Printf("  ⚠️  opencode: %v\n", err)
+		humanf("  ⚠ opencode: %v\n", err)
 		return false
 	}
 	return true
@@ -373,21 +391,21 @@ func setupOpenCodeGlobal(ref BinRef) bool {
 func setupAgyGlobal(ref BinRef) bool {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf("  ⚠️  agy: no se pudo determinar el home: %v\n", err)
+		humanf("  ⚠ agy: no se pudo determinar el home: %v\n", err)
 		return false
 	}
 	// agy va en el defecto de --agents: sin él instalado no se crea su config.
 	if !agentDetected(home, "agy") {
-		fmt.Println("  ℹ️  agy: no instalado (ni `agy` en el PATH ni ~/.gemini/config); se omite")
+		humanln("  ○ agy: no instalado (ni `agy` en el PATH ni ~/.gemini/config); se omite")
 		return false
 	}
 	changed, err := setup.InstallAgyGlobal(home, setup.AgentRef{HookCommand: ref.HookCommand, MCPCommand: ref.MCPCommand, MCPArgs: ref.MCPArgs}, time.Now())
 	if err != nil {
-		fmt.Printf("  ⚠️  agy: %v\n", err)
+		humanf("  ⚠ agy: %v\n", err)
 		return false
 	}
 	for _, path := range changed {
-		fmt.Printf("  ✅ agy: %s\n", path)
+		humanf("  ✓ agy: %s\n", displayPath(path))
 	}
 	return true
 }
@@ -405,21 +423,21 @@ func setupAgyGlobal(ref BinRef) bool {
 // sobrescribirla en silencio.
 func setupClaudeGlobal(ref BinRef) bool {
 	if _, err := exec.LookPath("claude"); err != nil {
-		fmt.Println("  ⚠️  claude: no se encontró el CLI 'claude' en el PATH, no se puede registrar en scope global")
+		humanln("  ⚠ claude: no se encontró el CLI 'claude' en el PATH, no se puede registrar en scope global")
 		return false
 	}
 
 	existing, err := readClaudeUserMCPEntry("gomemory")
 	if err != nil {
-		fmt.Printf("  ⚠️  claude: no se pudo leer ~/.claude.json: %v\n", err)
+		humanf("  ⚠ claude: no se pudo leer ~/.claude.json: %v\n", err)
 		return false
 	}
 	if existing != nil {
 		if existing.Command == ref.MCPCommand {
-			fmt.Println("  ✅ claude: ya registrado en scope global (~/.claude.json)")
+			humanln("  ✓ claude: ya registrado en scope global (~/.claude.json)")
 			return true
 		}
-		fmt.Printf("  ⚠️  claude: ya existe una entrada global 'gomemory' apuntando a %q (no a %q) — "+
+		humanf("  ⚠ claude: ya existe una entrada global 'gomemory' apuntando a %q (no a %q) — "+
 			"probablemente de otra herramienta. Resuélvelo manualmente antes de continuar: "+
 			"'claude mcp remove gomemory -s user' o renombra la entrada existente.\n", existing.Command, ref.MCPCommand)
 		return false
@@ -429,10 +447,10 @@ func setupClaudeGlobal(ref BinRef) bool {
 	cmd := exec.Command("claude", cmdArgs...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("  ⚠️  claude: error al registrar en scope global: %v\n%s\n", err, out)
+		humanf("  ⚠ claude: error al registrar en scope global: %v\n%s\n", err, out)
 		return false
 	}
-	fmt.Println("  ✅ claude: registrado en scope global (~/.claude.json)")
+	humanln("  ✓ claude: registrado en scope global (~/.claude.json)")
 	return true
 }
 
@@ -494,12 +512,12 @@ func setupCodexGlobal(ref BinRef) bool {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf("  ⚠️  codex: no se pudo determinar el home: %v\n", err)
+		humanf("  ⚠ codex: no se pudo determinar el home: %v\n", err)
 		return false
 	}
 	codexDir := filepath.Join(homeDir, ".codex")
 	if err := os.MkdirAll(codexDir, 0755); err != nil {
-		fmt.Printf("  ⚠️  codex: error al crear %s: %v\n", codexDir, err)
+		humanf("  ⚠ codex: error al crear %s: %v\n", codexDir, err)
 		return false
 	}
 	cfgPath := filepath.Join(codexDir, "config.toml")
@@ -507,7 +525,7 @@ func setupCodexGlobal(ref BinRef) bool {
 
 	data, readErr := os.ReadFile(cfgPath)
 	if readErr != nil && !os.IsNotExist(readErr) {
-		fmt.Printf("  ⚠️  codex: error al leer config.toml: %v\n", readErr)
+		humanf("  ⚠ codex: error al leer config.toml: %v\n", readErr)
 		return false
 	}
 	originalData := append([]byte(nil), data...)
@@ -518,14 +536,14 @@ func setupCodexGlobal(ref BinRef) bool {
 	if hooksReadErr == nil {
 		candidate, count, migrateErr := consolidateCodexHooks(data, hooksData)
 		if migrateErr != nil {
-			fmt.Printf("  ⚠️  codex: hooks.json no se migró; se conserva intacto: %v\n", migrateErr)
+			humanf("  ⚠ codex: hooks.json no se migró; se conserva intacto: %v\n", migrateErr)
 		} else {
 			original = string(candidate)
 			hooksMigrated = count
 			hooksConsolidated = true
 		}
 	} else if !os.IsNotExist(hooksReadErr) {
-		fmt.Printf("  ⚠️  codex: error al leer hooks.json; se conserva intacto: %v\n", hooksReadErr)
+		humanf("  ⚠ codex: error al leer hooks.json; se conserva intacto: %v\n", hooksReadErr)
 	}
 	migrated, removed := migrateLegacyCodexTables(original)
 	if !hasCodexGlobalTable(migrated) {
@@ -541,7 +559,7 @@ func setupCodexGlobal(ref BinRef) bool {
 	// corría sobre un solo canal de cinco y `mem doctor` ni lo reportaba.
 	hooksAdded := 0
 	if conHooks, añadidos, err := ensureCodexGomemoryHooks([]byte(migrated), ref.MCPCommand); err != nil {
-		fmt.Printf("  ⚠️  codex: no se pudieron registrar los hooks de gomemory; el resto del archivo no se toca: %v\n", err)
+		humanf("  ⚠ codex: no se pudieron registrar los hooks de gomemory; el resto del archivo no se toca: %v\n", err)
 	} else {
 		migrated = string(conHooks)
 		hooksAdded = añadidos
@@ -554,14 +572,14 @@ func setupCodexGlobal(ref BinRef) bool {
 	if candidate, changed, err := syncCodexShellFeedbackHook([]byte(migrated), ref.MCPCommand, shellSupported); err == nil && changed {
 		migrated = string(candidate)
 		if shellSupported {
-			fmt.Println("  ✅ codex: hook shell recuperable registrado para la versión comprobada; requiere confiar el hook en Codex")
+			humanln("  ✓ codex: hook shell recuperable registrado para la versión comprobada; requiere confiar el hook en Codex")
 		} else {
-			fmt.Println("  ✅ codex: retirado el hook de salida no compatible con una versión comprobada")
+			humanln("  ✓ codex: retirado el hook de salida no compatible con una versión comprobada")
 		}
 	}
 
 	if migrated == string(originalData) && !hooksConsolidated {
-		fmt.Println("  ✅ codex: ~/.codex/config.toml ya tiene el registro global de gomemory")
+		humanln("  ✓ codex: ~/.codex/config.toml ya tiene el registro global de gomemory")
 		return true
 	}
 
@@ -572,10 +590,10 @@ func setupCodexGlobal(ref BinRef) bool {
 	if removed > 0 || hooksConsolidated || hooksAdded > 0 {
 		backupPath, backupErr := backupCodexConfig(cfgPath, originalData, mode)
 		if backupErr != nil {
-			fmt.Printf("  ⚠️  codex: no se pudo respaldar config.toml; no se modifica: %v\n", backupErr)
+			humanf("  ⚠ codex: no se pudo respaldar config.toml; no se modifica: %v\n", backupErr)
 			return false
 		}
-		fmt.Printf("  ✅ codex: respaldo legado creado en %s\n", backupPath)
+		humanf("  ✓ codex: respaldo legado creado en %s\n", displayPath(backupPath))
 	}
 	var hooksBackupPath string
 	if hooksConsolidated {
@@ -586,31 +604,31 @@ func setupCodexGlobal(ref BinRef) bool {
 		var backupErr error
 		hooksBackupPath, backupErr = backupExistingFile(hooksPath, hooksData, hooksMode)
 		if backupErr != nil {
-			fmt.Printf("  ⚠️  codex: no se pudo respaldar hooks.json; no se modifica: %v\n", backupErr)
+			humanf("  ⚠ codex: no se pudo respaldar hooks.json; no se modifica: %v\n", backupErr)
 			return false
 		}
 	}
 
 	if err := writeFileAtomic(cfgPath, []byte(migrated), mode); err != nil {
-		fmt.Printf("  ⚠️  codex: error al escribir config.toml: %v\n", err)
+		humanf("  ⚠ codex: error al escribir config.toml: %v\n", err)
 		return false
 	}
 	if hooksBackupPath != "" {
 		if err := removeLegacyHooksJSON(hooksPath); err != nil {
 			_ = writeFileAtomic(cfgPath, originalData, mode)
-			fmt.Printf("  ⚠️  codex: no se pudo retirar hooks.json; config.toml fue restaurado: %v\n", err)
+			humanf("  ⚠ codex: no se pudo retirar hooks.json; config.toml fue restaurado: %v\n", err)
 			return false
 		}
-		fmt.Printf("  ✅ codex: hooks.json consolidado en config.toml (%d grupo(s) añadido(s)); respaldo en %s\n", hooksMigrated, hooksBackupPath)
+		humanf("  ✓ codex: hooks.json consolidado en config.toml (%d grupo(s) añadido(s)); respaldo en %s\n", hooksMigrated, hooksBackupPath)
 	}
 	if removed > 0 {
-		fmt.Printf("  ✅ codex: %d registro(s) gomemory_* legado(s) migrado(s)\n", removed)
+		humanf("  ✓ codex: %d registro(s) gomemory_* legado(s) migrado(s)\n", removed)
 	}
 	if hooksAdded > 0 {
-		fmt.Printf("  ✅ codex: %d hook(s) del ciclo de gomemory registrado(s) en config.toml\n", hooksAdded)
-		fmt.Println("  ℹ️  codex: autoriza los hooks nuevos en tu próxima sesión de Codex para que queden activos")
+		humanf("  ✓ codex: %d hook(s) del ciclo de gomemory registrado(s) en config.toml\n", hooksAdded)
+		humanln("  ○ codex: autoriza los hooks nuevos en tu próxima sesión de Codex para que queden activos")
 	}
-	fmt.Println("  ✅ codex: ~/.codex/config.toml actualizado con registro global (gomemory)")
+	humanln("  ✓ codex: ~/.codex/config.toml actualizado con registro global (gomemory)")
 	return true
 }
 
@@ -738,10 +756,10 @@ func setupOpenCode(root string) bool {
 		MCPArgs:     br.MCPArgs,
 	}
 	if err := setup.WriteOpenCodeMCP(root, ref); err != nil {
-		fmt.Printf("  ⚠️  opencode: %v\n", err)
+		humanf("  ⚠ opencode: %v\n", err)
 		return false
 	}
-	fmt.Printf("  ✅ opencode: MCP configurado en %s\n", filepath.Join(root, "opencode.json"))
+	humanf("  ✓ opencode: MCP configurado en %s\n", filepath.Join(root, "opencode.json"))
 	return true
 }
 
@@ -749,7 +767,7 @@ func setupClaude(root string) bool {
 	ref := binRefFor(root)
 	mcpPath, err := setup.ProjectConfigPath(root, ".mcp.json")
 	if err != nil {
-		fmt.Printf("  ⚠️  claude: %v\n", err)
+		humanf("  ⚠ claude: %v\n", err)
 		return false
 	}
 	if data, err := os.ReadFile(mcpPath); err == nil {
@@ -757,7 +775,7 @@ func setupClaude(root string) bool {
 		if json.Unmarshal(data, &existing) == nil {
 			if ms, ok := existing["mcpServers"].(map[string]interface{}); ok {
 				if _, has := ms["gomemory"]; has {
-					fmt.Println("  ✅ claude: .mcp.json ya configurado")
+					humanln("  ✓ claude: .mcp.json ya configurado")
 					return true
 				}
 			}
@@ -774,10 +792,10 @@ func setupClaude(root string) bool {
 	}
 	data, _ := json.MarshalIndent(mcpCfg, "", "  ")
 	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
-		fmt.Printf("  ⚠️  claude: error al escribir .mcp.json: %v\n", err)
+		humanf("  ⚠ claude: error al escribir .mcp.json: %v\n", err)
 		return false
 	}
-	fmt.Println("  ✅ claude: .mcp.json creado/actualizado")
+	humanln("  ✓ claude: .mcp.json creado/actualizado")
 
 	return true
 }
@@ -786,11 +804,11 @@ func setupCursor(root string) bool {
 	ref := binRefFor(root)
 	mcpPath, err := setup.ProjectConfigPath(root, ".cursor", "mcp.json")
 	if err != nil {
-		fmt.Printf("  ⚠️  cursor: %v\n", err)
+		humanf("  ⚠ cursor: %v\n", err)
 		return false
 	}
 	if err := os.MkdirAll(filepath.Dir(mcpPath), 0755); err != nil {
-		fmt.Printf("  ⚠️  cursor: error al crear directorio: %v\n", err)
+		humanf("  ⚠ cursor: error al crear directorio: %v\n", err)
 		return false
 	}
 
@@ -806,7 +824,7 @@ func setupCursor(root string) bool {
 	var existing map[string]interface{}
 	if data, _ := os.ReadFile(mcpPath); data != nil {
 		if err := json.Unmarshal(data, &existing); err != nil {
-			fmt.Printf("  ⚠️  cursor: configuración inválida: %v\n", err)
+			humanf("  ⚠ cursor: configuración inválida: %v\n", err)
 			return false
 		}
 	}
@@ -818,7 +836,7 @@ func setupCursor(root string) bool {
 			ms = make(map[string]interface{})
 		}
 		if _, has := ms["gomemory"]; has {
-			fmt.Println("  ✅ cursor: .cursor/mcp.json ya configurado")
+			humanln("  ✓ cursor: .cursor/mcp.json ya configurado")
 			return true
 		}
 		ms["gomemory"] = map[string]interface{}{
@@ -830,15 +848,15 @@ func setupCursor(root string) bool {
 
 	data, _ := json.MarshalIndent(existing, "", "  ")
 	if err := setup.WriteConfigFile(mcpPath, data); err != nil {
-		fmt.Printf("  ⚠️  cursor: error al escribir .cursor/mcp.json: %v\n", err)
+		humanf("  ⚠ cursor: error al escribir .cursor/mcp.json: %v\n", err)
 		return false
 	}
-	fmt.Println("  ✅ cursor: .cursor/mcp.json creado/actualizado")
+	humanln("  ✓ cursor: .cursor/mcp.json creado/actualizado")
 	return true
 }
 
 func setupCodex(root string) bool {
-	fmt.Println("  ℹ️  codex: el registro MCP es global; se reutiliza para todos los proyectos")
+	humanln("  ○ codex: el registro MCP es global; se reutiliza para todos los proyectos")
 	return setupCodexGlobal(binRefFor(root))
 }
 

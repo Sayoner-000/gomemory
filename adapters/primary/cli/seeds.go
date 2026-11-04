@@ -119,12 +119,12 @@ func refreshSpeckitConstitution(w io.Writer, root string, doc domain.PinnedDoc, 
 		return
 	}
 	if !doc.IsPreviousDefault(previo) {
-		_, _ = fmt.Fprintf(w, "ℹ️  .specify/memory/constitution.md tiene ediciones del equipo y no se modificó; "+
+		_, _ = fmt.Fprintf(w, "○ .specify/memory/constitution.md tiene ediciones del equipo y no se modificó; "+
 			"para reflejar la constitución vigente: mem constitution --sync\n")
 		return
 	}
 	if err := setup.WriteConfigFile(ruta, []byte(current)); err != nil {
-		_, _ = fmt.Fprintf(w, "⚠️  no se pudo actualizar %s: %v\n", ruta, err)
+		_, _ = fmt.Fprintf(w, "⚠ no se pudo actualizar %s: %v\n", ruta, err)
 		return
 	}
 	_, _ = fmt.Fprintln(w, "✓ .specify/memory/constitution.md actualizada a la versión por defecto de este binario")
@@ -141,7 +141,7 @@ func printSeedReport(w io.Writer, rep seedReport) {
 	}
 	for _, k := range rep.Customized {
 		a := aliasForTopic(k)
-		_, _ = fmt.Fprintf(w, "ℹ️  %s tiene ediciones del equipo y no se modificó. Hay una versión por defecto nueva; "+
+		_, _ = fmt.Fprintf(w, "○ %s tiene ediciones del equipo y no se modificó. Hay una versión por defecto nueva; "+
 			"para adoptarla: mem docs export %s -o respaldo.md && mem docs reset %s\n", a, a, a)
 	}
 	if len(rep.Created)+len(rep.Upgraded)+len(rep.Customized) == 0 {

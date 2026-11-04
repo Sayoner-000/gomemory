@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"mem/adapters/primary/console"
 	"mem/adapters/secondary/persistence"
 	"mem/domain"
 	"mem/version"
@@ -168,9 +169,9 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 		return fmt.Errorf("install claude-code plugin: %w", err)
 	}
 	if count > 0 {
-		fmt.Printf("  ✅ claude-code: plugin instalado en %s\n", pluginDir)
+		console.Printf("  ✓ claude-code: plugin instalado en %s\n", pluginDir)
 	} else {
-		fmt.Println("  ✅ claude-code: plugin ya instalado")
+		console.Println("  ✓ claude-code: plugin ya instalado")
 	}
 
 	mcpPath, err := ProjectConfigPath(root, ".mcp.json")
@@ -180,7 +181,7 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 	if err := writeMCPConfig(mcpPath, ref); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ claude-code: MCP configurado en %s\n", filepath.Join(root, ".mcp.json"))
+	console.Printf("  ✓ claude-code: MCP configurado en %s\n", filepath.Join(root, ".mcp.json"))
 
 	// Los hooks globales sirven a todos los proyectos: el proyecto solo añade
 	// los subcomandos que el global no cubre. Registrar los dos hacía que Claude
@@ -189,15 +190,15 @@ func InstallClaudeCode(root string, ref AgentRef) error {
 	if err := writeClaudeHooksSkipping(root, ref, skip); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ claude-code: hooks portables configurados en %s\n", filepath.Join(root, ".claude", "settings.json"))
+	console.Printf("  ✓ claude-code: hooks portables configurados en %s\n", filepath.Join(root, ".claude", "settings.json"))
 	if len(skip) > 0 {
-		fmt.Println("  ℹ️  claude-code: hooks globales activos; el proyecto solo añade los que el global no cubre")
+		console.Println("  ○ claude-code: hooks globales activos; el proyecto solo añade los que el global no cubre")
 	}
 
 	if err := writeClaudePermissions(root); err != nil {
 		return err
 	}
-	fmt.Printf("  ✅ claude-code: tools MCP pre-aprobadas en %s\n", filepath.Join(root, ".claude", "settings.json"))
+	console.Printf("  ✓ claude-code: tools MCP pre-aprobadas en %s\n", filepath.Join(root, ".claude", "settings.json"))
 	return nil
 }
 

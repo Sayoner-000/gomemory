@@ -63,24 +63,24 @@ func printDoctorOpenCode(st setup.OpenCodeInstallStatus) {
 	var plugin string
 	switch st.PluginShape {
 	case setup.PluginShapeDual:
-		plugin = "dual (v1+v2) ✅"
+		plugin = "dual (v1+v2) ✓"
 	case setup.PluginShapeV1Only:
 		switch {
 		case st.Compatible():
-			plugin = "solo v1 ✅ (actualízalo antes de pasar a OpenCode 2.x: " + openCodeRemedy + ")"
+			plugin = "solo v1 ✓ (actualízalo antes de pasar a OpenCode 2.x: " + openCodeRemedy + ")"
 		case st.Major == 0:
-			plugin = "solo v1 ❌ (OpenCode 2.x no lo carga) → ejecuta `" + openCodeRemedy + "`"
+			plugin = "solo v1 ✗ (OpenCode 2.x no lo carga) → ejecuta `" + openCodeRemedy + "`"
 		default:
-			plugin = "solo v1 ❌ → ejecuta `" + openCodeRemedy + "`"
+			plugin = "solo v1 ✗ → ejecuta `" + openCodeRemedy + "`"
 		}
 	default:
 		plugin = "no instalado"
 	}
 	humanf("\nOpenCode: %s · plugin gomemory: %s\n", version, plugin)
 	for _, p := range st.ForeignV1Plugins {
-		humanf("⚠️  plugin ajeno con forma v1 en OpenCode 2.x: ~/.config/opencode/plugins/%s (no es de gomemory; actualízalo en su proyecto)\n", p)
+		humanf("⚠ plugin ajeno con forma v1 en OpenCode 2.x: ~/.config/opencode/plugins/%s (no es de gomemory; actualízalo en su proyecto)\n", p)
 	}
 	if st.StaleTestArtifact {
-		humanf("🧹 artefacto de pruebas en la carpeta de plugins: gomemory.test.mjs (se retira al reinstalar: %s)\n", openCodeRemedy)
+		humanf("artefacto de pruebas en la carpeta de plugins: gomemory.test.mjs (se retira al reinstalar: %s)\n", openCodeRemedy)
 	}
 }
