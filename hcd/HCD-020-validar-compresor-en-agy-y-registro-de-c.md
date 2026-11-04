@@ -71,23 +71,23 @@ Ejecutar a mano `codegraph install --target auto --location global --yes` y `cod
       adapters/primary/cli/codegraph_mcp_test.go:237:34: undefined: codeGraphInstallArgs
       FAIL	mem/adapters/primary/cli [build failed]
       FAIL
-- 2026-11-04 00:39 · tarea 5 · verde · vigente · `go test ./adapters/primary/cli -run TestEnsureCodeGraphMCP_TargetsExplicitos -count=1` (salida 0)
+- 2026-11-04 00:39 · tarea 5 · verde · caducada · `go test ./adapters/primary/cli -run TestEnsureCodeGraphMCP_TargetsExplicitos -count=1` (salida 0)
       ok  	mem/adapters/primary/cli	0.317s
-- 2026-11-04 00:39 · tarea 6 · manual · vigente
+- 2026-11-04 00:39 · tarea 6 · manual · caducada
       Sandbox HOME temporal con binario de este árbol (gomemory 2.44.3+HCD-020), agy/codegraph 1.6.2/cbm 0.12.0 reales. 1) mem install --yes --agents agy desde 0: exit 0, 'CodeGraph MCP: activo en agy', mcp_config.json = gomemory+codegraph, ~/.gemini solo contiene config/ (sin GEMINI.md ni settings.json). 2) mem update --version v2.44.3 --yes con mcp_config sin codegraph y con clave ajena: exit 0, codegraph añadido, 'ajeno' conservado, sin GEMINI.md. 3) mem doctor: aviso 'agy sin codebase-memory-mcp → codebase-memory-mcp install --clients=antigravity (…escribe ~/.gemini/GEMINI.md)' y 'agy: conectado' en CodeGraph MCP. Antes del arreglo Q1, el mismo paso 2 creaba ~/.gemini/GEMINI.md y settings.json.
-- 2026-11-04 00:42 · tarea 7 · manual · vigente
+- 2026-11-04 00:42 · tarea 7 · manual · caducada
       Sesión real agy 1.4.12 (conversation 6f05d193-3392-4b3b-829e-f7eab6e34a28), agy --mode plan -p con --settings de sesión que solo permite mcp(gomemory/get_context) y mcp(gomemory/search_memories): status SUCCESS, sin denied_actions. La salida de search_memories llegó comprimida: '⟦mem⟧ ×24 filas · ref=ed50029a47f7' (~500 caracteres según el agente). mem pack retrieve ed50029a47f7 → exit 0, original íntegro de 30 líneas / 1810 bytes (memorias [1567], [1569], …). mem doctor: 'agy budget_trimmed' pasó de 4 a 7 (último memory orig=16834, emit=9797).
-- 2026-11-04 00:42 · tarea 8 · manual · vigente
+- 2026-11-04 00:42 · tarea 8 · manual · caducada
       1) command relativo: ~/.gemini/config/mcp_config.json registra gomemory como 'command: mem' (sin ruta absoluta); agy mcp list lo muestra 'enabled' y en la sesión real 6f05d193-3392-4b3b-829e-f7eab6e34a28 get_context y search_memories respondieron, así que agy resuelve mem por el PATH. 2) PostToolUse sin salida: agy --version = 1.4.12, la misma versión medida en docs/evidence/hcd015/agy-native.md:15-19 (PostToolUse recibe toolCall/stepIdx/error, no la salida). No se re-midió con un hook espía para no tocar ~/.gemini/config/hooks.json real (excluido del alcance); el estado 'no disponible' de mem doctor sigue respaldado por esa evidencia.
-- 2026-11-04 00:42 · tarea 1 · verde · vigente · `go test ./adapters/primary/cli -run TestCodeGraphMCP_Agy -count=1` (salida 0)
+- 2026-11-04 00:42 · tarea 1 · verde · caducada · `go test ./adapters/primary/cli -run TestCodeGraphMCP_Agy -count=1` (salida 0)
       ok  	mem/adapters/primary/cli	0.456s
-- 2026-11-04 00:42 · tarea 2 · verde · vigente · `go test ./adapters/primary/cli -run TestEnsureCodeGraphMCP_SoloFaltaAgy -count=1` (salida 0)
+- 2026-11-04 00:42 · tarea 2 · verde · caducada · `go test ./adapters/primary/cli -run TestEnsureCodeGraphMCP_SoloFaltaAgy -count=1` (salida 0)
       ok  	mem/adapters/primary/cli	0.659s
-- 2026-11-04 00:42 · tarea 3 · verde · vigente · `go test ./adapters/primary/cli -run TestDoctorCodebaseMemoryMCP_Agy -count=1` (salida 0)
+- 2026-11-04 00:42 · tarea 3 · verde · caducada · `go test ./adapters/primary/cli -run TestDoctorCodebaseMemoryMCP_Agy -count=1` (salida 0)
       ok  	mem/adapters/primary/cli	0.365s
-- 2026-11-04 00:42 · tarea 4 · verde · vigente · `go test ./adapters/primary/setup -run TestInstallAgyGlobal_ConservaMCPAjenos -count=1` (salida 0)
+- 2026-11-04 00:42 · tarea 4 · verde · caducada · `go test ./adapters/primary/setup -run TestInstallAgyGlobal_ConservaMCPAjenos -count=1` (salida 0)
       ok  	mem/adapters/primary/setup	0.198s
-- 2026-11-04 00:42 · tarea 9 · verde · vigente · `go build ./... && go vet ./... && go test ./... -count=1 && bash scripts/test-install-uninstall.sh && bash -n scripts/install.sh` (salida 0)
+- 2026-11-04 00:42 · tarea 9 · verde · caducada · `go build ./... && go vet ./... && go test ./... -count=1 && bash scripts/test-install-uninstall.sh && bash -n scripts/install.sh` (salida 0)
       ok  	mem/adapters/secondary/expandstate	0.352s
       ok  	mem/adapters/secondary/generator	1.263s
       ok  	mem/adapters/secondary/hcdfiles	0.607s
@@ -108,6 +108,43 @@ Ejecutar a mano `codegraph install --target auto --location global --yes` y `cod
       ok  	mem/tests/integration	41.199s
       ?   	mem/version	[no test files]
       OK: --uninstall solo retira binarios propios
+- 2026-11-04 02:00 · tarea 1 · verde · vigente · `go test ./adapters/primary/cli -run TestCodeGraphMCP_Agy -count=1` (salida 0)
+      ok  	mem/adapters/primary/cli	0.636s
+- 2026-11-04 02:00 · tarea 2 · verde · vigente · `go test ./adapters/primary/cli -run TestEnsureCodeGraphMCP_SoloFaltaAgy -count=1` (salida 0)
+      ok  	mem/adapters/primary/cli	0.450s
+- 2026-11-04 02:00 · tarea 3 · verde · vigente · `go test ./adapters/primary/cli -run TestDoctorCodebaseMemoryMCP_Agy -count=1` (salida 0)
+      ok  	mem/adapters/primary/cli	0.326s
+- 2026-11-04 02:00 · tarea 4 · verde · vigente · `go test ./adapters/primary/setup -run TestInstallAgyGlobal_ConservaMCPAjenos -count=1` (salida 0)
+      ok  	mem/adapters/primary/setup	0.224s
+- 2026-11-04 02:00 · tarea 5 · verde · vigente · `go test ./adapters/primary/cli -run TestEnsureCodeGraphMCP_TargetsExplicitos -count=1` (salida 0)
+      ok  	mem/adapters/primary/cli	0.322s
+- 2026-11-04 02:00 · tarea 6 · manual · vigente
+      Re-ejecutado sobre HEAD fbdaa9d con binario gomemory 2.44.4 del árbol, HOME temporal, agy/codegraph/cbm reales. mem install --yes --agents agy desde 0: exit 0, 'CodeGraph MCP: activo en agy', ~/.gemini solo con config/. mem update --version v2.44.4 --yes con mcp_config sin codegraph y con clave 'ajeno': exit 0, mcpServers = ajeno, codegraph, gomemory; sin GEMINI.md ni settings.json. mem doctor: aviso 'agy sin codebase-memory-mcp → codebase-memory-mcp install --clients=antigravity (…GEMINI.md)' y 'agy: conectado'.
+- 2026-11-04 02:01 · tarea 7 · manual · vigente
+      Re-ejecutado sobre HEAD fbdaa9d: sesión real agy 1.4.12 (conversation 4ddf061c-a2a1-44b8-9470-09b89ca75733), agy --mode plan -p con --settings de sesión que solo permite mcp(gomemory/get_context) y mcp(gomemory/search_memories): SUCCESS, sin denied_actions. search_memories llegó comprimida: '⟦mem⟧ ×24 filas · ref=7e79bf4d0193' (~580 caracteres). mem pack retrieve 7e79bf4d0193 → original íntegro de 30 líneas / 1813 bytes (memorias [1567], …).
+- 2026-11-04 02:01 · tarea 8 · manual · vigente
+      Re-ejecutado sobre HEAD fbdaa9d. 1) command relativo: ~/.gemini/config/mcp_config.json registra gomemory como 'command: mem'; en la sesión real 4ddf061c-a2a1-44b8-9470-09b89ca75733 search_memories respondió, así que agy resuelve mem por el PATH. 2) PostToolUse sin salida: agy --version = 1.4.12, la misma versión medida en docs/evidence/hcd015/agy-native.md:15-19; no se re-midió con un hook espía para no tocar ~/.gemini/config/hooks.json real (excluido del alcance).
+- 2026-11-04 02:01 · tarea 9 · verde · vigente · `go build ./... && go vet ./... && go test ./... -count=1 && bash scripts/test-install-uninstall.sh && bash -n scripts/install.sh` (salida 0)
+      ok  	mem/adapters/secondary/expandstate	0.315s
+      ok  	mem/adapters/secondary/generator	1.201s
+      ok  	mem/adapters/secondary/hcdfiles	0.729s
+      ok  	mem/adapters/secondary/launcher	0.693s
+      ok  	mem/adapters/secondary/persistence	33.175s
+      ok  	mem/adapters/secondary/release	0.417s
+      ?   	mem/adapters/secondary/requestcompression	[no test files]
+      ok  	mem/adapters/secondary/rulesfs	0.221s
+      ok  	mem/adapters/secondary/speckit	0.148s
+      ok  	mem/adapters/secondary/tokens	0.143s
+      ok  	mem/adapters/secondary/usage	0.162s
+      ?   	mem/application/ports	[no test files]
+      ok  	mem/application/usecases	14.410s
+      ?   	mem/assets	[no test files]
+      ok  	mem/domain	0.212s
+      ok  	mem/infrastructure	0.394s
+      ok  	mem/tests/contract	96.050s
+      ok  	mem/tests/integration	42.249s
+      ?   	mem/version	[no test files]
+      OK: --uninstall solo retira binarios propios
 
 ## Siguiente
-pendiente
+Cerrada con aprobación sobre la revisión f25854ec19ad.

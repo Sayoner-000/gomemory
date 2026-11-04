@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -57,6 +58,16 @@ func detectAgents(home string, lookPath func(string) (string, error)) []agentCho
 		out = append(out, c)
 	}
 	return out
+}
+
+// agentDetected dice si el agente name tiene alguna señal de instalación.
+func agentDetected(home, name string) bool {
+	for _, c := range detectAgents(home, exec.LookPath) {
+		if c.name == name {
+			return c.detected
+		}
+	}
+	return false
 }
 
 // defaultAgents son los que se configuran sin selección explícita ni guardada.

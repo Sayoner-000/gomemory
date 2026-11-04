@@ -6,8 +6,10 @@ package domain
 // instrucciones permanentes y los recordatorios de sesión no diverjan.
 const CodeRetrievalPolicy = "Prioridad de recuperación según capacidades: " +
 	"prioriza herramientas de grafo frente a lecturas manuales cuando cubran el proyecto y la consulta. " +
-	"Si el agente no admite compresión de resultados externos, como Codex en las versiones verificadas, " +
-	"prioriza recuperación comprimida en origen disponible y suficiente; usa search_code para búsquedas Go " +
+	"Si el agente no admite compresión de resultados externos, como Codex en las versiones verificadas o " +
+	"Antigravity (agy), cuyos hooks no reciben la salida de las herramientas, prioriza recuperación comprimida " +
+	"en origen disponible y suficiente antes que lecturas o grep: get_context y search_memories para memoria, " +
+	"y search_code, cuyas salidas comprime gomemory según su nivel de compresión; usa search_code para búsquedas Go " +
 	"cubiertas y get_symbol para firma, ubicación y relaciones, sin asumir que entrega cuerpos o compresión. " +
 	"Si la cobertura o la evidencia no basta, usa un proveedor externo disponible para el proyecto y, si " +
 	"tampoco basta, una lectura focalizada, indicando la limitación. En agentes con compresión externa compatible " +

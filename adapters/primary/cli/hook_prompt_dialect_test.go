@@ -139,7 +139,8 @@ func TestCodexHooks_IncluyenInyeccionPorTurno(t *testing.T) {
 // Quien no supiera pasar `--agents all` se quedaba sin su ciclo de memoria
 // entero — sin que nada fallara ni avisara.
 func TestAgentesPorDefecto_IncluyenCodex(t *testing.T) {
-	for _, esperado := range []string{"opencode", "claude", "codex"} {
+	// HCD-021: agy tenía el mismo hueco que Codex.
+	for _, esperado := range []string{"opencode", "claude", "codex", "agy"} {
 		if !strings.Contains(defaultAgentList, esperado) {
 			t.Errorf("el valor por defecto de --agents (%q) no incluye %q", defaultAgentList, esperado)
 		}

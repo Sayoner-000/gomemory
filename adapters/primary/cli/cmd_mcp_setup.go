@@ -53,14 +53,17 @@ var globalScopeAgents = map[string]bool{
 // La invariante que lo sostiene está en TestAgentesPorDefecto_IncluyenCodex:
 // todo agente del defecto debe existir en globalScopeAgents, para que este
 // valor no pueda volver a prometer lo que el flujo no cumple.
-const defaultAgentList = "opencode,claude,codex"
+//
+// agy entró por el mismo motivo (HCD-021); setupAgyGlobal no crea su
+// configuración en máquinas donde agy no está instalado.
+const defaultAgentList = "opencode,claude,codex,agy"
 
 var codexConfigMu sync.Mutex
 
 func CmdMCPSetup(deps *Deps, args []string) {
 	fs := newFlagSet("setup-mcp", flag.ContinueOnError)
 	target := fs.String("target", ".", "Directorio del proyecto donde instalar configs (solo aplica a --scope project)")
-	agents := fs.String("agents", defaultAgentList, "Agentes objetivo (separados por coma): opencode, claude, cursor, codex, all")
+	agents := fs.String("agents", defaultAgentList, "Agentes objetivo (separados por coma): opencode, claude, cursor, codex, agy, all")
 	scope := fs.String("scope", "project", "project (default, por repo) o global (una vez por máquina — claude, codex, opencode)")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -371,6 +374,11 @@ func setupAgyGlobal(ref BinRef) bool {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Printf("  ⚠️  agy: no se pudo determinar el home: %v\n", err)
+		return false
+	}
+	// agy va en el defecto de --agents: sin él instalado no se crea su config.
+	if !agentDetected(home, "agy") {
+		fmt.Println("  ℹ️  agy: no instalado (ni `agy` en el PATH ni ~/.gemini/config); se omite")
 		return false
 	}
 	changed, err := setup.InstallAgyGlobal(home, setup.AgentRef{HookCommand: ref.HookCommand, MCPCommand: ref.MCPCommand, MCPArgs: ref.MCPArgs}, time.Now())

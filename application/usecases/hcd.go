@@ -499,7 +499,9 @@ func renderEvidence(all []domain.Evidence, revision, fingerprint string) string 
 		if !e.Fresh(revision, fingerprint) {
 			vigencia = "caducada"
 		}
-		fmt.Fprintf(&b, "- %s · tarea %s · %s · %s", e.CreatedAt.UTC().Format("2006-01-02 15:04"), strings.Join(e.Tasks, ","), result, vigencia)
+		// Hora del host con su desfase (HCD-021): en UTC sin zona, un registro
+		// de las 19:42 en UTC-5 se leía como las 00:42 del día siguiente.
+		fmt.Fprintf(&b, "- %s · tarea %s · %s · %s", e.CreatedAt.Local().Format("2006-01-02 15:04 -07:00"), strings.Join(e.Tasks, ","), result, vigencia)
 		if e.Kind == domain.EvidenceCommand {
 			fmt.Fprintf(&b, " · `%s` (salida %d)", strings.ReplaceAll(e.Command, "`", "'"), e.ExitCode)
 		}
