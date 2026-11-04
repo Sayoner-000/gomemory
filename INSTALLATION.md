@@ -78,10 +78,12 @@ Con el binario `mem` en el PATH, un solo comando registra gomemory a nivel de
 usuario, disponible automáticamente en cualquier proyecto:
 
 ```bash
-mem setup-mcp --scope global --agents claude,codex,opencode
+mem setup-mcp --scope global
 ```
 
-Antigravity CLI no está incluido en ese comando. Para activarlo, ejecuta `mem setup-mcp --scope global --agents agy` o `mem install --agents agy`. gomemory escribe MCP, hooks y skills en `~/.gemini/config`, guarda antes una copia de cada archivo y reemplaza el grupo manual `gomemory-lifecycle` si lo tenías.
+Sin `--agents`, el comando registra OpenCode, Claude Code, Codex y Antigravity CLI. Antigravity solo se registra si está instalado (el binario `agy` en el PATH o la carpeta `~/.gemini/config`); si no lo está, el comando lo indica y no crea nada en `~/.gemini`. Para elegir agentes, pásalos con `--agents`, por ejemplo `--agents claude,codex,opencode`. En Antigravity, gomemory escribe MCP, hooks y skills en `~/.gemini/config`, guarda antes una copia de cada archivo y reemplaza el grupo manual `gomemory-lifecycle` si lo tenías.
+
+El resultado se presenta en tres paneles (Agentes, Integración y Habilidades) con los mismos símbolos de estado que `mem doctor`: `✓` hecho, `⚠` aviso, `✗` error y `○` informativo. Con `NO_COLOR` o con la salida redirigida, los símbolos salen sin color.
 
 - Para Claude Code, este mismo comando también escribe los hooks del modo
   plan atómico determinista en `~/.claude/settings.json` (guard + entry +

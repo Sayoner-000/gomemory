@@ -117,7 +117,8 @@ output, applies the `expand` rules before a tool runs and keeps session memory
 across context compaction.
 
 Antigravity CLI (`agy`) uses `mem hook` too. Turn it on with
-`mem install --agents agy`. It gets project context, tool guards and activity
+`mem install --agents agy`, or with `mem setup-mcp --scope global`, which
+includes it when `agy` is installed. It gets project context, tool guards and activity
 capture. Its hooks do not receive tool output and it has no compaction event,
 so gomemory does not compress its tool output automatically and does not
 restore context after compaction.
@@ -209,7 +210,7 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
 | OpenCode | `/hcd` | Same |
 
 `mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.44.html) walks through the
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.45.html) walks through the
 ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
@@ -278,7 +279,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.44.html`](docs/Guia-Tecnica_GOMEMORY-v2.44.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.44.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.44.html) | Current printable technical and SDD_HCD guides (Spanish) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.45.html`](docs/Guia-Tecnica_GOMEMORY-v2.45.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.45.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.45.html) | Current printable technical and SDD_HCD guides (Spanish) |
 
 ## Contributing
 

@@ -48,7 +48,7 @@ Luego, en tu proyecto:
 
 ```bash
 cd tu-proyecto
-mem setup-mcp --scope global --agents claude,codex,opencode
+mem setup-mcp --scope global
 mem --help
 ```
 
@@ -1020,13 +1020,13 @@ Para más detalles técnicos, ver:
 
 Dos formas de configurar agentes, según si soportan registro MCP a nivel de usuario:
 
-**Global (una vez por máquina)** — `mem setup-mcp --scope global --agents claude,codex,opencode`:
+**Global (una vez por máquina)**: `mem setup-mcp --scope global`. Sin `--agents` incluye OpenCode, Claude Code, Codex y Antigravity CLI (este último solo si está instalado):
 
 | Agente | Config MCP | Notas |
 |--------|-----------|-------|
 | **Claude Code** | `~/.claude.json` → `mcpServers.gomemory` (scope `user`) | Registrado vía `claude mcp add`, con detección de colisión de nombre |
 | **Codex** | `~/.codex/config.toml` → `[mcp_servers.gomemory]` | Tabla única, sin `cwd` por proyecto |
-| **Antigravity CLI** | `~/.gemini/config/mcp_config.json` → `mcpServers.gomemory` | Se activa con `--agents agy`. Escribe hooks en `hooks.json` y skills en `~/.gemini/config/skills`, y guarda antes una copia de cada archivo de configuración. No comprime salidas ni avisa tras compactar |
+| **Antigravity CLI** | `~/.gemini/config/mcp_config.json` → `mcpServers.gomemory` | Se incluye por defecto si `agy` está instalado; también con `--agents agy`. Escribe hooks en `hooks.json` y skills en `~/.gemini/config/skills`, y guarda antes una copia de cada archivo de configuración. No comprime salidas ni avisa tras compactar |
 | **OpenCode** | `~/.config/opencode/opencode.json` → `mcp.gomemory` | OpenCode mergea la config de usuario con la del proyecto activo (confirmado con `opencode debug config`); el plugin se instala en el mismo paso |
 
 **Por proyecto (`mem install`, o `mem setup-mcp --scope project`)** — necesario para Cursor (sin registro global conocido), opcional para Claude/Codex/OpenCode:
@@ -1623,7 +1623,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.41.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.45.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 

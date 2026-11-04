@@ -49,6 +49,23 @@ La paleta compartida vive en `assets/console-themes.json`. Define también el
 gradiente del símbolo braille y los colores de aviso/error. El instalador
 TypeScript copia estos assets al compilar; la TUI utiliza los mismos roles.
 
+## Símbolos de estado
+
+Todas las validaciones de la consola y de la TUI usan el mismo juego de símbolos. Los define `adapters/primary/console` (`stateGlyph`, `Layout.Mark` y `Glyph`) y cada uno tiene un color fijo de la paleta:
+
+| Símbolo | Estado | Color |
+| --- | --- | --- |
+| `✓` | Completado | Secundario |
+| `✗` | Error | Error |
+| `⚠` | Aviso | Aviso |
+| `○` | Pendiente o informativo | Atenuado |
+| `●` | En curso | Primario |
+| `−` | Omitido | Atenuado |
+| `▸` | Seleccionado | Primario |
+| `⚑` | Marcado | Aviso |
+
+`⚠` se escribe sin el selector de variante U+FE0F, para que ocupe una sola columna en cualquier terminal. Sin TTY, con `NO_COLOR` o con `TERM=dumb`, los símbolos salen sin color ni secuencias ANSI. La salida de terminal no usa emojis; `TestSinEmojis` lo comprueba en `cli`, `setup`, `console` y `tui`.
+
 ## Movimiento
 
 ```sh

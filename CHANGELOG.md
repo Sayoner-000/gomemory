@@ -5,6 +5,27 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.45.0] - 2026-11-04
+
+### Added
+
+- La consola tiene un solo juego de símbolos de estado: `✓` completado, `✗` error, `⚠` aviso, `○` informativo o pendiente, `●` activo, `−` omitido, `▸` seleccionado y `⚑` marcado. Los define `console` y los pinta lipgloss con los colores del tema. Sin terminal, con `NO_COLOR` o con `TERM=dumb` salen sin color ni secuencias ANSI.
+- Dos pruebas de guarda: `TestSinEmojis` falla si vuelve a aparecer un emoji en la salida de `cli`, `setup`, `console` o `tui`, y `TestCicloDeVida_SinFmtPrint` falla si un comando del ciclo de vida escribe directamente en stdout.
+
+### Changed
+
+- `mem setup-mcp`, `mem install`, `mem uninstall` y `mem update` escriben su salida a través de la consola, igual que `mem doctor`. `setup-mcp` agrupa el resultado en tres paneles (Agentes, Integración y Habilidades) y resume cada familia de habilidades en una línea con el número de archivos y sus carpetas, en lugar de listar cada archivo.
+- La salida de terminal ya no usa emojis (`✅ ❌ ⚠️ ℹ️ 🔌 📦`…). En la TUI, los errores se marcan con `✗` en vez de `✕`, y las memorias de preferencia con `⚑` en vez de `♥`.
+- Las rutas bajo el directorio personal se muestran abreviadas con `~` en la salida de `setup-mcp`.
+
+### Fixed
+
+- `mem setup-mcp --scope global` sin `--agents` registra también Antigravity CLI (`agy`) si está instalado. Si no lo está, lo indica y no crea `~/.gemini/config`.
+- La sección Evidencia de los documentos HCD muestra la hora local del equipo con su desfase (`2026-11-04 04:41 -05:00`). Antes mostraba la hora UTC sin zona, y un registro de la tarde podía aparecer con la fecha del día siguiente.
+- La política de recuperación de código nombra a Antigravity y aclara que `get_context`, `search_memories` y `search_code` llegan comprimidas desde el servidor, mientras que `get_symbol` devuelve una respuesta compacta pero sin comprimir.
+- El hook `expand` reserva tiempo suficiente en equipos lentos y en Windows.
+- Las pruebas de contrato leen los archivos compartidos con reintentos, para evitar colisiones de acceso en Windows.
+
 ## [v2.44.4] - 2026-11-03
 
 ### Fixed
