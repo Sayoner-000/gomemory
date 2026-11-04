@@ -5,6 +5,17 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.44.4] - 2026-11-03
+
+### Fixed
+
+- **ADM-06:** En Antigravity CLI, las llamadas en transcript con comillas dobles externas (`"args":{"Path":"\"...\""}`) ya no impiden la reindexación de archivos `.go` en el cierre de turno (`cleanAgyArg` en `hook_agy.go`).
+- **ADM-07:** `InspectAgyEntry` en `agy_setup.go` admite parches semánticos compatibles de la serie `1.4.x`, evitando degradar falsamente `mem doctor` a `StateOutdated` ante actualizaciones menores de `agy`.
+- **HCD CLI:** `mem hcd` admite nativamente los clientes `antigravity` y `gemini` en su CLI.
+- **CodeGraph en Antigravity:** `ensureCodeGraphMCP` detecta y conecta CodeGraph MCP en `~/.gemini/config/mcp_config.json` usando targets explícitos (`claude,codex,opencode,antigravity`) en vez de `--target auto`, evitando la creación espuria de `~/.gemini/GEMINI.md` y `settings.json`.
+- **Diagnóstico Codebase-Memory MCP:** `mem doctor` avisa si falta `codebase-memory-mcp` en el `mcp_config.json` de Antigravity cuando su ejecutable está disponible en el `PATH`.
+- **Compresión en Antigravity:** Demostrada la compresión de contexto en sesión real de Antigravity CLI 1.4.12, con generación de referencias `⟦mem⟧` y recuperación íntegra vía `mem pack retrieve`.
+
 ## [v2.44.3] - 2026-11-02
 
 ### Fixed
