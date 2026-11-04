@@ -149,9 +149,10 @@ func CmdMCPSetup(deps *Deps, args []string) {
 
 // skillSummary resume en una línea los archivos instalados de una familia de
 // habilidades: cuántos son y en qué carpetas, en vez de una línea por archivo.
-func skillSummary(label string, paths []string) {
+// Devuelve false si la familia no escribió nada.
+func skillSummary(label string, paths []string) bool {
 	if len(paths) == 0 {
-		return
+		return false
 	}
 	var dirs []string
 	seen := map[string]bool{}
@@ -169,6 +170,7 @@ func skillSummary(label string, paths []string) {
 		}
 	}
 	humanf("  ✓ %s: %d archivo(s) en %s\n", label, len(paths), strings.Join(dirs, ", "))
+	return true
 }
 
 // runGlobalScopeSetup registra gomemory una sola vez a nivel de usuario, para
@@ -283,7 +285,8 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	}
 	humanln()
 	humanln("Habilidades:")
-	skillSummary("planificación atómica", written)
+	skillsWritten := false
+	skillsWritten = skillSummary("planificación atómica", written) || skillsWritten
 
 	// Guía de revisión adversarial por consenso (spec 027, FR-044): se
 	// distribuye solo en scope global y no por proyecto, porque es un protocolo
@@ -296,7 +299,7 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	if err != nil {
 		humanf("  ⚠ revisión adversarial (scope global): %v\n", err)
 	}
-	skillSummary("revisión adversarial", skills)
+	skillsWritten = skillSummary("revisión adversarial", skills) || skillsWritten
 	written = append(written, skills...)
 
 	// Auditoría defensiva multilenguaje: mismo canal y mismo criterio de ámbito
@@ -305,7 +308,7 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	if err != nil {
 		humanf("  ⚠ auditoría defensiva (scope global): %v\n", err)
 	}
-	skillSummary("auditoría defensiva", auditoria)
+	skillsWritten = skillSummary("auditoría defensiva", auditoria) || skillsWritten
 	written = append(written, auditoria...)
 
 	// Socratica: habilidad más envoltorios finos de /socratica, /socratic-q y /socratica-hu,
@@ -319,21 +322,21 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	if err != nil {
 		humanf("  ⚠ socratica (scope global): %v\n", err)
 	}
-	skillSummary("socratica", socratica)
+	skillsWritten = skillSummary("socratica", socratica) || skillsWritten
 	written = append(written, socratica...)
 
 	hcdPaths, hcdErr := installHCDSkills()
 	if hcdErr != nil {
 		humanf("  ⚠ HCD skills: %v\n", hcdErr)
 	}
-	skillSummary("HCD", hcdPaths)
+	skillsWritten = skillSummary("HCD", hcdPaths) || skillsWritten
 	written = append(written, hcdPaths...)
 
 	expanded, err := setup.InstallExpandSkills(expandSkillBodies())
 	if err != nil {
 		humanf("  ⚠ expand skills: %v\n", err)
 	}
-	skillSummary("expand", expanded)
+	skillsWritten = skillSummary("expand", expanded) || skillsWritten
 	written = append(written, expanded...)
 
 	// Habilidades ya existentes hacia Codex y OpenCode. Cierra un hueco abierto
@@ -344,8 +347,11 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	if err != nil {
 		humanf("  ⚠ habilidades existentes (scope global): %v\n", err)
 	}
-	skillSummary("constitución y planificación", previas)
+	skillsWritten = skillSummary("constitución y planificación", previas) || skillsWritten
 	written = append(written, previas...)
+	if !skillsWritten {
+		humanln("  ✓ todas al día (sin cambios)")
+	}
 
 	humanln()
 	if generated > 0 || len(written) > 0 {
@@ -403,6 +409,9 @@ func setupAgyGlobal(ref BinRef) bool {
 	if err != nil {
 		humanf("  ⚠ agy: %v\n", err)
 		return false
+	}
+	if len(changed) == 0 {
+		humanln("  ✓ agy: ya registrado en ~/.gemini/config (sin cambios)")
 	}
 	for _, path := range changed {
 		humanf("  ✓ agy: %s\n", displayPath(path))
