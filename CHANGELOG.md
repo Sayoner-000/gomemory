@@ -5,6 +5,13 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.45.2] - 2026-11-04
+
+### Fixed
+
+- `mem install`, `mem update` y `mem seed` comparan `.specify/memory/constitution.md` con la constitución vigente del proyecto, no con la plantilla del binario. Con una constitución personalizada y ya sincronizada, avisaban en cada ejecución de que la copia de Spec Kit tenía ediciones y recomendaban `mem constitution --sync`, que no cambiaba nada.
+- Si la copia de Spec Kit es una plantilla anterior sin tocar, se sincroniza con la constitución del proyecto. Antes se reescribía con la plantilla del binario y perdía las secciones propias, como las excepciones del proyecto.
+
 ## [v2.45.1] - 2026-11-04
 
 ### Fixed
