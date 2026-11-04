@@ -9,4 +9,7 @@ import "os"
 // ejercitan el aviso lo reactivan explícitamente en su entorno aislado.
 func init() {
 	_ = os.Setenv("GOMEMORY_NO_UPDATE_CHECK", "1")
+	if os.Getenv("GOMEMORY_HOOK_BUDGET_MS") == "" {
+		_ = os.Setenv("GOMEMORY_HOOK_BUDGET_MS", "2000")
+	}
 }

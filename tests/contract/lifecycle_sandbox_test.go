@@ -80,12 +80,15 @@ func newLifecycleSandbox(t *testing.T) *lifecycleSandbox {
 	t.Helper()
 	root := t.TempDir()
 	s := &lifecycleSandbox{
-		t:        t,
-		Root:     root,
-		Home:     filepath.Join(root, "home"),
-		Data:     filepath.Join(root, "data"),
-		BinDir:   filepath.Join(root, "home", ".local", "bin"),
-		extraEnv: map[string]string{"GOMEMORY_NO_UPDATE_CHECK": "1"},
+		t:      t,
+		Root:   root,
+		Home:   filepath.Join(root, "home"),
+		Data:   filepath.Join(root, "data"),
+		BinDir: filepath.Join(root, "home", ".local", "bin"),
+		extraEnv: map[string]string{
+			"GOMEMORY_NO_UPDATE_CHECK": "1",
+			"GOMEMORY_HOOK_BUDGET_MS":  "2000",
+		},
 	}
 	if coverDir := os.Getenv("GOMEMORY_COVERAGE_DIR"); coverDir != "" {
 		s.extraEnv["GOCOVERDIR"] = coverDir

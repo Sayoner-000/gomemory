@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -48,6 +50,23 @@ type hookExpandDeps struct {
 	hcdActive func(context.Context) (bool, error)
 }
 
+// hookExpandBudget devuelve el plazo para resolver la decisión de expand.
+// En producción vale domain.HookBudget (150 ms). En Windows, donde la
+// contención de E/S y el bloqueo de archivos en NTFS añaden latencia, usa
+// 500 ms de base. Admite GOMEMORY_HOOK_BUDGET_MS para suites de prueba o
+// entornos con recursos limitados.
+func hookExpandBudget() time.Duration {
+	if v := os.Getenv("GOMEMORY_HOOK_BUDGET_MS"); v != "" {
+		if ms, err := strconv.Atoi(v); err == nil && ms > 0 {
+			return time.Duration(ms) * time.Millisecond
+		}
+	}
+	if runtime.GOOS == "windows" {
+		return 500 * time.Millisecond
+	}
+	return domain.HookBudget
+}
+
 // hookExpand implementa `mem hook expand <event> [--emit=<dialecto>]`
 // (feature 040, contracts/hook-expand.md). Regla de oro de CmdHook: nunca
 // rompe el turno; ante cualquier fallo, permite sin emitir nada.
@@ -67,7 +86,8 @@ func hookExpand(deps *Deps, args []string) {
 	if oversized {
 		stdin = stdin[:expandStdinMax]
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), domain.HookBudget)
+	budget := hookExpandBudget()
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 
 	// Las activaciones se acumulan y se registran DESPUÉS de escribir la
@@ -93,7 +113,7 @@ func hookExpand(deps *Deps, args []string) {
 	fold := deferFold(&d.hook)
 
 	emit := emitFlagValue(args)
-	out, ok := expandWithBudget(domain.HookBudget, func() hookRenderedOutput {
+	out, ok := expandWithBudget(budget, func() hookRenderedOutput {
 		return runHookExpand(ctx, d, args[0], emit, stdin)
 	})
 	if !ok {

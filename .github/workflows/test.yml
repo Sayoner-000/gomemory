@@ -37,6 +37,8 @@ jobs:
 
       - name: go test
         run: go test ./... -count=1
+        env:
+          GOMEMORY_HOOK_BUDGET_MS: "2000"
 
       - name: install.sh contra el último release (ruta documentada)
         if: always()
@@ -84,6 +86,8 @@ jobs:
 
       - name: go test
         run: go test ./... -count=1
+        env:
+          GOMEMORY_HOOK_BUDGET_MS: "2000"
 
       - name: Binario del release por descarga manual (ruta documentada)
         if: always()

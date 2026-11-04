@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -265,5 +266,34 @@ func TestRunHookExpand_NotebookAndMultiEditReachFileRules(t *testing.T) {
 		if got := strings.Contains(out.stdout, `"permissionDecision":"deny"`); got != c.deny {
 			t.Errorf("%s: deny=%v, want %v (%s)", c.name, got, c.deny, out.stdout)
 		}
+	}
+}
+
+func TestHookExpandBudget(t *testing.T) {
+	t.Setenv("GOMEMORY_HOOK_BUDGET_MS", "")
+	def := hookExpandBudget()
+	if runtime.GOOS == "windows" {
+		if def != 500*time.Millisecond {
+			t.Fatalf("presupuesto en Windows: %v", def)
+		}
+	} else {
+		if def != domain.HookBudget {
+			t.Fatalf("presupuesto por defecto: %v", def)
+		}
+	}
+
+	t.Setenv("GOMEMORY_HOOK_BUDGET_MS", "850")
+	if got := hookExpandBudget(); got != 850*time.Millisecond {
+		t.Fatalf("presupuesto con variable de entorno: %v", got)
+	}
+
+	t.Setenv("GOMEMORY_HOOK_BUDGET_MS", "invalido")
+	if got := hookExpandBudget(); got != def {
+		t.Fatalf("presupuesto con valor inválido debe caer en default: %v", got)
+	}
+
+	t.Setenv("GOMEMORY_HOOK_BUDGET_MS", "-10")
+	if got := hookExpandBudget(); got != def {
+		t.Fatalf("presupuesto negativo debe caer en default: %v", got)
 	}
 }
