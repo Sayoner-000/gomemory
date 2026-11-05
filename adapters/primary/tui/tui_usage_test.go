@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"database/sql"
 	"strings"
 	"testing"
@@ -290,6 +291,9 @@ func (f fakeMaintenanceRepo) Stats(project string) (ports.StorageStats, error) {
 }
 func (f fakeMaintenanceRepo) Purge(filter ports.PurgeFilter) (int64, error) { return 0, nil }
 func (f fakeMaintenanceRepo) Compact() (int64, int64, error)                { return 0, 0, nil }
+func (f fakeMaintenanceRepo) OptimizeStorage(ctx context.Context, project string, dryRun bool) (domain.StorageOptimizationReport, error) {
+	return domain.StorageOptimizationReport{Project: project, DryRun: dryRun}, nil
+}
 
 func TestUpdateMaintenance_ConsolidateRow_NoGroups_ShowsStatusWithoutLeavingScreen(t *testing.T) {
 	root := t.TempDir()

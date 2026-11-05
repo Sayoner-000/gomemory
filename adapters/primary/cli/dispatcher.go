@@ -113,6 +113,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdCompact(deps, args)
 	case "sanitize":
 		CmdSanitize(deps, args)
+	case "optimize":
+		CmdOptimize(deps, args)
 	case "gc":
 		CmdGC(deps, args)
 	case "consolidate":
@@ -164,7 +166,7 @@ func commandHasBanner(cmd string, args []string) bool {
 		}
 	}
 	switch cmd {
-	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "capture", "session", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "sanitize", "import", "export", "adr-sync", "hcd":
+	case "help", "-h", "--help", "doctor", "settings", "setup", "setup-mcp", "mcp-setup", "usage", "list", "log", "search", "project", "init", "migrate", "save", "capture", "session", "forget", "compare", "judge", "seed", "purge", "compact", "gc", "consolidate", "sanitize", "optimize", "import", "export", "adr-sync", "hcd":
 		return true
 	}
 	return false

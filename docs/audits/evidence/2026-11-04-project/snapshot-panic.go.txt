@@ -1,0 +1,18 @@
+package main
+import("context";"fmt";"os";"path/filepath";"crypto/sha256";"encoding/json"; cb "mem/adapters/secondary/codegraph/codebasememory"; cg "mem/adapters/secondary/codegraph/codegraphcli")
+func writeCG(d,b string){h:=sha256.Sum256([]byte("codegraph:"+b));raw,_:=json.Marshal(map[string]any{"provider":"codegraph","available":true,"root_path":d});os.WriteFile(filepath.Join(d,fmt.Sprintf("code_provider_snapshot_%x.json",h[:6])),raw,0600)}
+func attempt(name string, run func()) {defer func(){fmt.Printf("%s panic=%v\n",name,recover())}();run()}
+func main(){
+ d,_:=os.MkdirTemp("","acr-panic-");defer os.RemoveAll(d)
+ b:=filepath.Join(d,"fake");os.WriteFile(b,[]byte("#!/bin/sh\n"),0700)
+ // Empty override obtains the legacy snapshot path; explicit binary in PATH.
+ os.WriteFile(filepath.Join(d,"codebase-memory-mcp"),[]byte("#!/bin/sh\n"),0700)
+ os.Setenv("PATH",d+string(os.PathListSeparator)+os.Getenv("PATH"))
+ os.WriteFile(filepath.Join(d,"code_provider_snapshot.json"),[]byte(`{"provider":"codebase-memory-mcp","available":true}`),0600)
+ attempt("codebase",func(){_,e:=cb.New(d,d,"").Optimize(context.Background(),true,false);fmt.Println(e)})
+ // codegraph's explicit command identity determines a SHA256-derived name.
+ p:=cg.New(d,d,b)
+ // Write all potential hashed paths using exact implementation formula.
+ writeCG(d,b)
+ attempt("codegraph",func(){_,e:=p.Optimize(context.Background(),true,false);fmt.Println(e)})
+}

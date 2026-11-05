@@ -1,0 +1,33 @@
+package main
+
+import (
+ "context"
+ "database/sql"
+ "fmt"
+ "os"
+ "path/filepath"
+ "mem/adapters/secondary/persistence"
+)
+
+func exec(db *sql.DB,q string,args ...any) {if _,e:=db.Exec(q,args...);e!=nil{panic(e)}}
+func scalar(db *sql.DB,q string) int {var n int;if e:=db.QueryRow(q).Scan(&n);e!=nil{panic(e)};return n}
+func main(){
+ dir,e:=os.MkdirTemp("","acr-a-real-schema-");if e!=nil{panic(e)};defer os.RemoveAll(dir)
+ os.Setenv("GOMEMORY_DATA_HOME",filepath.Join(dir,"data"))
+ root:=filepath.Join(dir,"project");if e=os.MkdirAll(root,0700);e!=nil{panic(e)}
+ db,e:=persistence.Open(root);if e!=nil{panic(e)};defer db.Close()
+ project:=persistence.ProjectKey(root)
+ fmt.Println("schema: persistence.Open succeeded with real migrations and isolated GOMEMORY_DATA_HOME")
+ exec(db,`INSERT INTO code_nodes (id,project,file_id,file,name,kind) VALUES (1,'other',999,'missing.go','ForeignOrphan','func')`)
+ r,e:=persistence.OptimizeStorage(context.Background(),db,project,false)
+ fmt.Printf("A001 real_schema: err=%v counted=%d other_nodes_remaining=%d FTSOptimized=%t DatabaseOptimized=%t\n",e,r.OrphanCodeNodesCleaned,scalar(db,`SELECT COUNT(*) FROM code_nodes WHERE project='other'`),r.FTSOptimized,r.DatabaseOptimized)
+ if e!=nil {panic(e)}
+ exec(db,`INSERT INTO code_files(id,project,path,hash,indexed_at) VALUES(1,?,'valid.go','SYNTH-HASH','2026-11-04')`,project)
+ exec(db,`INSERT INTO code_nodes(id,project,file_id,file,name,kind) VALUES(2,?,1,'valid.go','Valid','func'),(3,?,1,'deleted.go','Deleted','func')`,project,project)
+ exec(db,`INSERT INTO code_edges(id,project,from_id,to_id,kind,src_file_id) VALUES(1,?,2,3,'calls',1)`,project)
+ r,e=persistence.OptimizeStorage(context.Background(),db,project,false)
+ fmt.Printf("A002 real_schema: err=%v counted_nodes=%d counted_edges=%d dangling_edges=%d FTSOptimized=%t DatabaseOptimized=%t\n",e,r.OrphanCodeNodesCleaned,r.OrphanCodeEdgesCleaned,scalar(db,`SELECT COUNT(*) FROM code_edges WHERE from_id NOT IN(SELECT id FROM code_nodes) OR to_id NOT IN(SELECT id FROM code_nodes)`),r.FTSOptimized,r.DatabaseOptimized)
+ if e!=nil {panic(e)}
+ r,e=persistence.OptimizeStorage(context.Background(),db,project,false)
+ fmt.Printf("A002 second_pass: err=%v counted_edges=%d dangling_edges=%d\n",e,r.OrphanCodeEdgesCleaned,scalar(db,`SELECT COUNT(*) FROM code_edges WHERE from_id NOT IN(SELECT id FROM code_nodes) OR to_id NOT IN(SELECT id FROM code_nodes)`))
+}

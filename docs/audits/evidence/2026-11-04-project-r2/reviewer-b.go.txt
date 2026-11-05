@@ -1,0 +1,44 @@
+package main
+
+import (
+ "context"
+ "crypto/sha256"
+ "database/sql"
+ "fmt"
+ "os"
+ "path/filepath"
+ p "mem/adapters/secondary/persistence"
+ cb "mem/adapters/secondary/codegraph/codebasememory"
+ cli "mem/adapters/primary/cli"
+ "mem/application/ports"
+ "mem/domain"
+)
+type project struct{ root string }
+func(x *project) FindRoot()(string,error){return x.root,nil}
+func(x *project) Key(string)string{return "synth"}
+func(x *project) EnsureDir(string)error{return nil}
+func(x *project) MemDir()string{return ""}
+func(x *project) DbPath(string)string{return ""}
+func(x *project) Init(string)error{return nil}
+func(x *project) MigrateLegacy(string,bool)(bool,error){return false,nil}
+type maint struct{called bool}
+func(m *maint) Stats(string)(ports.StorageStats,error){return ports.StorageStats{},nil}
+func(m *maint) Purge(ports.PurgeFilter)(int64,error){return 0,nil}
+func(m *maint) Compact()(int64,int64,error){return 0,0,nil}
+func(m *maint) OptimizeStorage(context.Context,string,bool)(domain.StorageOptimizationReport,error){m.called=true;return domain.StorageOptimizationReport{},nil}
+func exec(db *sql.DB,q string,args ...any){if _,e:=db.Exec(q,args...);e!=nil{panic(e)}}
+func count(db *sql.DB,q string)int{var n int;if e:=db.QueryRow(q).Scan(&n);e!=nil{panic(e)};return n}
+func main(){
+ d,e:=os.MkdirTemp("","gomemory-r2-b-");if e!=nil{panic(e)};defer os.RemoveAll(d)
+ os.Setenv("GOMEMORY_DATA_HOME",filepath.Join(d,"data"));root:=filepath.Join(d,"root");os.MkdirAll(root,0700)
+ db,e:=p.Open(root);if e!=nil{panic(e)};defer db.Close();key:=p.ProjectKey(root)
+ exec(db,`INSERT INTO code_nodes(id,project,file_id,file,name,kind) VALUES(1,?,999,'gone.go','SYNTHREMOVED','func')`,key)
+ exec(db,`INSERT INTO code_search(rowid,name,signature,package,node_id) VALUES(1,'SYNTHREMOVED','func SYNTHREMOVED()','synth',1)`)
+ r,e:=p.OptimizeStorage(context.Background(),db,key,false)
+ fmt.Printf("code_search residual: err=%v cleaned_nodes=%d live_nodes=%d orphan_fts_rows=%d fts_optimized=%t\n",e,r.OrphanCodeNodesCleaned,count(db,`SELECT COUNT(*) FROM code_nodes`),count(db,`SELECT COUNT(*) FROM code_search WHERE node_id NOT IN(SELECT id FROM code_nodes)`),r.FTSOptimized)
+ m:=&maint{};cli.CmdOptimize(&cli.Deps{ProjectRepo:&project{root},MaintenanceRepo:m},[]string{"--target=internla","--yes"});fmt.Printf("invalid target: maintenance_called=%t handler_returned=true\n",m.called)
+ memDir:=filepath.Join(d,"snapshot");os.MkdirAll(memDir,0700);bin:="/usr/bin/true";sum:=sha256.Sum256([]byte(bin));snap:=filepath.Join(memDir,fmt.Sprintf("code_provider_snapshot_%x.json",sum[:6]));os.WriteFile(snap,[]byte("synthetic invalid json"),0600);os.Chmod(memDir,0500)
+ ext,e:=cb.New(root,memDir,bin).Optimize(context.Background(),false,false);_,stat:=os.Stat(snap)
+ fmt.Printf("failed removal: err=%v reported_cleaned=%d artifact_still_exists=%t\n",e,ext.SnapshotsCleaned,stat==nil)
+ os.Chmod(memDir,0700)
+}

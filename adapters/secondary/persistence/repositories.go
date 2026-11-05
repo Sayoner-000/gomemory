@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"database/sql"
 
 	"mem/application/ports"
@@ -390,6 +391,10 @@ func (r *MaintenanceRepository) Purge(filter ports.PurgeFilter) (int64, error) {
 
 func (r *MaintenanceRepository) Compact() (int64, int64, error) {
 	return CompactDB(r.db, r.dbPath)
+}
+
+func (r *MaintenanceRepository) OptimizeStorage(ctx context.Context, project string, dryRun bool) (domain.StorageOptimizationReport, error) {
+	return OptimizeStorage(ctx, r.db, project, dryRun)
 }
 
 var _ ports.MaintenanceRepository = (*MaintenanceRepository)(nil)

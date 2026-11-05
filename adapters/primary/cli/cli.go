@@ -115,6 +115,7 @@ var helpIndex = []struct {
 		{"gc", "Retirar memorias viejas"},
 		{"consolidate", "Fundir memorias redundantes"},
 		{"sanitize", "Sanear contenido privado histórico"},
+		{"optimize", "Optimizar relaciones, grafos e índices"},
 	}},
 	{"SISTEMA", []helpEntry{
 		{"project", "Proyecto actual y su base"},
@@ -281,6 +282,11 @@ COMMANDS
                                    contenido privado (sin --apply solo previsualiza)
     --json               Informe como un objeto JSON
     --timeout <duración> Tiempo máximo de la operación (default: 60s)
+  mem optimize [flags]             Optimizar relaciones, grafo interno y verificación de índices
+    --dry-run            Simular la optimización sin aplicar cambios en disco
+    --yes, -y            Confirmar y aplicar cambios sin preguntar
+    --target T           Ámbito: all (defecto), internal o external
+    --reindex-external   Reindexar proveedores externos desactualizados
 
   Código y arquitectura
   mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)

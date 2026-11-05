@@ -63,7 +63,7 @@ const (
 
 const gcDefaultOlderThanDays = 90
 
-var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection", "Consolidar (topic_key + actividad duplicada)"}
+var maintenanceOptions = []string{"Purgar", "Compactar", "Garbage Collection", "Consolidar (topic_key + actividad duplicada)", "Optimizar (grafos, relaciones e índices)"}
 
 // backHint es el encabezado corto que usan las pantallas de detalle para
 // indicar cómo volver, reemplazando el bloque repetido en detailView y
@@ -920,6 +920,13 @@ func (m model) updateMaintenance(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.maintConfirm.Focus()
 			m.maintErr = ""
 			m.screen = screenMaintenanceConfirm
+
+		case 4: // Optimizar (grafos, relaciones e índices)
+			m.maintAction = "optimize"
+			m.maintConfirm.SetValue("")
+			m.maintConfirm.Focus()
+			m.maintErr = ""
+			m.screen = screenMaintenanceConfirm
 		}
 	}
 	return m, nil
@@ -949,6 +956,35 @@ func (m model) updateMaintenanceConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.memories, _ = m.memRepo.List(m.project, 200)
 			m.applyFilter()
 			m.stats, _ = m.maintenanceRepo.Stats(m.project)
+			m.statusTimer = 30
+			m.maintErr = ""
+			m.screen = screenMaintenance
+			return m, nil
+		}
+
+		if m.maintAction == "optimize" {
+			uc := usecases.NewOptimizeGraph(m.maintenanceRepo, m.externalProviders())
+			out, err := uc.Execute(context.Background(), usecases.OptimizeGraphInput{
+				Project: m.project,
+				DryRun:  false,
+				Target:  "all",
+			})
+			if err != nil {
+				m.statusMsg = fmt.Sprintf("Error al optimizar: %v", err)
+			} else {
+				total := out.StorageReport.TotalCleaned()
+				for _, ext := range out.ExternalReports {
+					total += int64(ext.SnapshotsCleaned)
+				}
+				if total == 0 {
+					m.statusMsg = "Almacén y grafos ya estaban optimizados (0 huérfanos)"
+				} else {
+					m.statusMsg = fmt.Sprintf("Optimización: %d elemento(s) saneado(s)", total)
+				}
+				if m.maintenanceRepo != nil {
+					m.stats, _ = m.maintenanceRepo.Stats(m.project)
+				}
+			}
 			m.statusTimer = 30
 			m.maintErr = ""
 			m.screen = screenMaintenance
@@ -2423,16 +2459,24 @@ func (m model) maintenanceConfirmView() string {
 		actionLabel = "Garbage Collection"
 	case "consolidate":
 		actionLabel = "Consolidar"
+	case "optimize":
+		actionLabel = "Optimizar grafos e índices"
 	}
 
 	b.WriteString(titleStyle.Render(actionLabel))
 	b.WriteString("\n")
-	if m.maintAction == "consolidate" {
+	switch m.maintAction {
+	case "consolidate":
 		b.WriteString(dangerStyle.Render(fmt.Sprintf(
 			"Esto fundirá %d grupo(s) en su fila más reciente y eliminará %d fila(s) redundante(s) del proyecto %q. Ningún contenido se pierde: se fusiona antes de eliminar.",
 			len(m.consolidationPreview.Groups), m.consolidationPreview.DeletedCount, m.project,
 		)))
-	} else {
+	case "optimize":
+		b.WriteString(dangerStyle.Render(fmt.Sprintf(
+			"Esto saneará relaciones huérfanas, duplicados, nodos/aristas huérfanas y optimizará los índices del proyecto %q.",
+			m.project,
+		)))
+	default:
 		b.WriteString(dangerStyle.Render(
 			fmt.Sprintf("Esto eliminará memorias del proyecto %q permanentemente.", m.project),
 		))

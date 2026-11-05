@@ -1,0 +1,30 @@
+package main
+import (
+ "context"
+ "crypto/sha256"
+ "database/sql"
+ "fmt"
+ "os"
+ "path/filepath"
+ p "mem/adapters/secondary/persistence"
+ cb "mem/adapters/secondary/codegraph/codebasememory"
+ "mem/application/usecases"
+)
+func must(db *sql.DB, q string, a ...any){ if _,e:=db.Exec(q,a...);e!=nil{panic(e)} }
+func count(db *sql.DB,q string)int{var n int;if e:=db.QueryRow(q).Scan(&n);e!=nil{panic(e)};return n}
+func main(){
+ dir,e:=os.MkdirTemp("","acr-r2-a-");if e!=nil{panic(e)};defer os.RemoveAll(dir)
+ os.Setenv("GOMEMORY_DATA_HOME",filepath.Join(dir,"data"))
+ root:=filepath.Join(dir,"project");os.MkdirAll(root,0700)
+ db,e:=p.Open(root);if e!=nil{panic(e)};defer db.Close();project:=p.ProjectKey(root)
+ must(db,`INSERT INTO code_nodes(id,project,file_id,file,name,kind) VALUES(1,?,999,'gone.go','SYNTH_ORPHAN_TERM','func')`,project)
+ must(db,`INSERT INTO code_search(rowid,name,signature,package,node_id) VALUES(1,'SYNTH_ORPHAN_TERM','func SYNTH_ORPHAN_TERM()','synth',1)`)
+ r,e:=p.OptimizeStorage(context.Background(),db,project,false)
+ fmt.Printf("code_fts: err=%v nodes_cleaned=%d orphan_nodes=%d stale_fts_rows=%d fts_optimized=%v\n",e,r.OrphanCodeNodesCleaned,count(db,`SELECT COUNT(*) FROM code_nodes`),count(db,`SELECT COUNT(*) FROM code_search WHERE node_id NOT IN(SELECT id FROM code_nodes)`),r.FTSOptimized)
+ out,e:=usecases.NewOptimizeGraph(nil,nil).Execute(context.Background(),usecases.OptimizeGraphInput{Target:"typo"})
+ fmt.Printf("invalid_target: err=%v report=%+v\n",e,out.StorageReport)
+ memDir:=filepath.Join(dir,"snapshots");os.MkdirAll(memDir,0700);bin:="/usr/bin/true";h:=sha256.Sum256([]byte(bin));snapPath:=filepath.Join(memDir,fmt.Sprintf("code_provider_snapshot_%x.json",h[:6]));os.WriteFile(snapPath,[]byte("invalid-json"),0600);os.Chmod(memDir,0500)
+ rep,e:=cb.New(root,memDir,bin).Optimize(context.Background(),false,false)
+ _,se:=os.Stat(snapPath);os.Chmod(memDir,0700)
+ fmt.Printf("failed_snapshot_remove: err=%v cleaned=%d file_remains=%v\n",e,rep.SnapshotsCleaned,se==nil)
+}

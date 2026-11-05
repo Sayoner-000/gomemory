@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,9 +36,10 @@ import (
 // implementación en vez de duplicar resolveProject/runCLI en un adaptador
 // aparte.
 var (
-	_ ports.CodeGraphProvider = (*Provider)(nil)
-	_ ports.ADRSyncProvider   = (*Provider)(nil)
-	_ ports.CodeGraphIndexer  = (*Provider)(nil)
+	_ ports.CodeGraphProvider   = (*Provider)(nil)
+	_ ports.ADRSyncProvider     = (*Provider)(nil)
+	_ ports.CodeGraphIndexer    = (*Provider)(nil)
+	_ ports.CodeGraphMaintainer = (*Provider)(nil)
 )
 
 const (
@@ -118,6 +120,9 @@ func (p *Provider) Snapshot() domain.CodeProviderSnapshot {
 	}
 	var snap domain.CodeProviderSnapshot
 	if err := json.Unmarshal(data, &snap); err != nil {
+		return empty
+	}
+	if snap.Available && snap.Architecture == nil {
 		return empty
 	}
 	return snap
@@ -525,4 +530,95 @@ func refreshDisabled() bool {
 		return false
 	}
 	return true
+}
+
+// Optimize verifica la salud del proveedor, sanea snapshots huérfanos/corruptos o locks viejos en memDir,
+// y opcionalmente ejecuta un reindexado de mantenimiento si reindex es true.
+func (p *Provider) Optimize(ctx context.Context, dryRun bool, reindex bool) (domain.ExternalProviderOptimizeReport, error) {
+	rep := domain.ExternalProviderOptimizeReport{
+		Provider:  ProviderName,
+		Available: p.binPath != "",
+	}
+
+	cleanFile := func(path string) error {
+		if dryRun {
+			rep.SnapshotsCleaned++
+			return nil
+		}
+		if err := os.Remove(path); err != nil {
+			if !os.IsNotExist(err) {
+				return fmt.Errorf("eliminar residuo %q: %w", path, err)
+			}
+			return nil
+		}
+		rep.SnapshotsCleaned++
+		return nil
+	}
+
+	files, err := os.ReadDir(p.memDir)
+	if err == nil {
+		mySnapshotPath := p.snapshotPath()
+		for _, f := range files {
+			name := f.Name()
+			if strings.HasPrefix(name, "code_provider_snapshot") && strings.HasSuffix(name, ".json") {
+				path := filepath.Join(p.memDir, name)
+				data, readErr := os.ReadFile(path)
+				var snap domain.CodeProviderSnapshot
+				unmarshalErr := json.Unmarshal(data, &snap)
+
+				if path == mySnapshotPath {
+					if readErr != nil || unmarshalErr != nil || (snap.Available && snap.Architecture == nil) {
+						if err := cleanFile(path); err != nil {
+							return rep, err
+						}
+					}
+				} else {
+					if readErr == nil && unmarshalErr == nil {
+						if snap.Provider == ProviderName {
+							if snap.Available && snap.Architecture == nil {
+								if err := cleanFile(path); err != nil {
+									return rep, err
+								}
+							}
+						}
+						// Preservar snapshots de otros proveedores reconocidos
+					}
+				}
+			}
+			if name == "codebase_refresh.lock" {
+				path := filepath.Join(p.memDir, name)
+				info, statErr := f.Info()
+				if statErr == nil && time.Since(info.ModTime()) > 5*time.Minute {
+					if err := cleanFile(path); err != nil {
+						return rep, err
+					}
+				}
+			}
+		}
+	}
+
+	if p.binPath == "" {
+		rep.StatusSummary = "no instalado"
+		return rep, nil
+	}
+
+	snap := p.Snapshot()
+	if snap.Available && snap.Architecture != nil {
+		rep.StatusSummary = fmt.Sprintf("activo (%d nodos, %d aristas)", snap.Architecture.TotalNodes, snap.Architecture.TotalEdges)
+	} else {
+		rep.StatusSummary = "disponible sin snapshot activo"
+	}
+
+	if reindex && !dryRun && p.binPath != "" {
+		nodes, edges, err := p.IndexRepository(ctx, "full")
+		if err != nil {
+			return rep, fmt.Errorf("reindexar %s: %w", ProviderName, err)
+		}
+		rep.Reindexed = true
+		rep.Nodes = nodes
+		rep.Edges = edges
+		rep.StatusSummary = fmt.Sprintf("reindexado (%d nodos, %d aristas)", nodes, edges)
+	}
+
+	return rep, nil
 }

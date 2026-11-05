@@ -1,5 +1,10 @@
 package ports
 
+import (
+	"context"
+	"mem/domain"
+)
+
 // StorageStats es un snapshot de tamaño/cantidad del almacén de memoria,
 // usado para decidir y verificar el efecto de purgar/compactar.
 type StorageStats struct {
@@ -18,7 +23,7 @@ type PurgeFilter struct {
 }
 
 // MaintenanceRepository agrupa las operaciones administrativas sobre el
-// almacén de memoria (purga, compactación, estadísticas). Se mantiene
+// almacén de memoria (purga, compactación, estadísticas, optimización). Se mantiene
 // separado de MemoryRepository porque mezcla borrado masivo y reclamo de
 // espacio en disco, operaciones que ningún consumidor de lectura/escritura
 // normal (MCP, TUI de guardado, comandos cotidianos) debería poder invocar
@@ -27,4 +32,5 @@ type MaintenanceRepository interface {
 	Stats(project string) (StorageStats, error)
 	Purge(filter PurgeFilter) (deleted int64, err error)
 	Compact() (beforeBytes int64, afterBytes int64, err error)
+	OptimizeStorage(ctx context.Context, project string, dryRun bool) (domain.StorageOptimizationReport, error)
 }

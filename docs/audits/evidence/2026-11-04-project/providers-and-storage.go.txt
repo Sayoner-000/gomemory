@@ -1,0 +1,38 @@
+package main
+
+import (
+ "context"
+ "database/sql"
+ "fmt"
+ "os"
+ "path/filepath"
+ "mem/adapters/secondary/persistence"
+ cb "mem/adapters/secondary/codegraph/codebasememory"
+)
+
+func main() {
+ db,_:=sql.Open("sqlite",":memory:"); defer db.Close()
+ schema:=`CREATE TABLE memories(id INTEGER PRIMARY KEY); CREATE TABLE memory_relations(id INTEGER PRIMARY KEY,project TEXT,memory_id_a INT,memory_id_b INT,relation TEXT,confidence REAL); CREATE TABLE code_files(id INTEGER PRIMARY KEY,project TEXT,path TEXT); CREATE TABLE code_nodes(id INTEGER PRIMARY KEY,project TEXT,file_id INT,file TEXT,kind TEXT); CREATE TABLE code_edges(id INTEGER PRIMARY KEY,project TEXT,from_id INT,to_id INT,src_file_id INT);`
+ if _,err:=db.Exec(schema);err!=nil {panic(err)}
+ db.Exec(`INSERT INTO code_nodes VALUES(1,'other',999,'missing.go','func')`)
+ r,e:=persistence.OptimizeStorage(context.Background(),db,"current",false)
+ var n int;db.QueryRow(`SELECT COUNT(*) FROM code_nodes WHERE project='other'`).Scan(&n)
+ fmt.Printf("cross_project: err=%v reported=%d other_nodes_remaining=%d\n",e,r.OrphanCodeNodesCleaned,n)
+ db.Exec(`INSERT INTO code_files VALUES(1,'current','valid.go'); INSERT INTO code_nodes VALUES(2,'current',1,'valid.go','func'),(3,'current',1,'deleted.go','func'); INSERT INTO code_edges VALUES(1,'current',2,3,1)`)
+ r,e=persistence.OptimizeStorage(context.Background(),db,"current",false)
+ db.QueryRow(`SELECT COUNT(*) FROM code_edges WHERE to_id NOT IN (SELECT id FROM code_nodes)`).Scan(&n)
+ fmt.Printf("new_orphans: err=%v reported_edges=%d dangling_edges=%d\n",e,r.OrphanCodeEdgesCleaned,n)
+ dir,_:=os.MkdirTemp("","acr-review-a-"); defer os.RemoveAll(dir)
+ bin:=filepath.Join(dir,"fake-provider")
+ marker:=filepath.Join(dir,"called")
+ os.WriteFile(bin,[]byte("#!/bin/sh\nprintf called > '"+marker+"'\nprintf '{\"nodes\":1,\"edges\":0}'\n"),0700)
+ p:=cb.New(dir,dir,bin)
+ ext,e:=p.Optimize(context.Background(),true,true)
+ _,statErr:=os.Stat(marker)
+ fmt.Printf("dry_run_reindex: err=%v reindexed=%t command_executed=%t\n",e,ext.Reindexed,statErr==nil)
+ other:=filepath.Join(dir,"code_provider_snapshot_other.json")
+ os.WriteFile(other,[]byte(`{"provider":"codegraph","available":false}`),0600)
+ ext,e=p.Optimize(context.Background(),false,false)
+ _,statErr=os.Stat(other)
+ fmt.Printf("other_provider: err=%v cleaned=%d snapshot_deleted=%t\n",e,ext.SnapshotsCleaned,os.IsNotExist(statErr))
+}
