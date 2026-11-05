@@ -5,6 +5,18 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.47.0] - 2026-11-05
+
+### Added
+
+- Aviso mínimo a subagentes (`mem hook subagent-start`): en Claude Code, OpenAI Codex, Antigravity y OpenCode, los subagentes reciben un aviso breve de solo lectura en lugar de todo el prompt de proyecto, conservando contexto y tokens.
+- Regla del core `graph-before-grep`: intercepta y bloquea comandos `grep` sobre archivos de código indexados en el grafo, guiando al agente hacia las herramientas estructurales (`codegraph_explore`, `search_graph`, `search_code`, `get_symbol`).
+- Inyección de contexto de grafo en edición: al modificar archivos de código, los hooks inyectan llamadores, dependencias y radio de impacto del símbolo, acotado por cuota de tokens y deduplicado una vez por archivo y sesión.
+
+### Fixed
+
+- Preservación de aristas entrantes en el grafo interno SQLite al reindexar incrementalmente archivos modificados, descartando aristas sin destino cuando un símbolo desaparece y evitando desconexiones entre llamadores.
+
 ## [v2.46.0] - 2026-11-04
 
 ### Added

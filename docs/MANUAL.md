@@ -250,7 +250,7 @@ Esto:
 | `PostCompact` | `compact-summary` | Persiste el resumen producido por la compactación sin cerrar la sesión. |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. En **cada** prompt persiste el texto del turno como provenance (`origin_prompt`) de lo que se guarde y, si la intercepción de Socratica está activa para el agente, añade la directiva para refinarlo (§20); la procedencia de los textos de Socratica se limpia. En OpenCode el equivalente es `chat.message` → `mem hook prompt`, y el plugin aplica la decisión de `mem hook socratica-decide`. |
-| `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para preservar su trazabilidad. |
+| `SubagentStart` | `subagent-start` | Inyecta un aviso mínimo de solo lectura para el subagente (sin transferir el volcado completo de memorias) y preserva la trazabilidad de la delegación. |
 | `SubagentStop` | `subagent-stop` | Registra la actividad del subagente y captura los ítems válidos de su sección de aprendizajes. |
 | `Stop` | `turn-end` | Al terminar cada turno, registra automáticamente (sin gastar tokens del agente) qué archivos se editaron y qué comandos corrieron, como memoria tipo `checkpoint`. Turnos de puro chat no generan nada. En OpenCode el equivalente es el evento `session.idle`. |
 | `PreToolUse` (`ExitPlanMode`) | `plan-guard` | Valida la forma del plan antes de presentarlo. |
@@ -1641,7 +1641,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.46.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.47.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 

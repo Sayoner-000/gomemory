@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.46.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.46.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.47.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.47.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -39,3 +39,25 @@ El subsistema de optimización sanea el grafo de relaciones entre memorias, las 
 - **Persistencia** (`adapters/secondary/persistence/optimize_storage.go`): Ejecuta el saneamiento en SQLite de forma transaccional garantizando aislamiento estricto por proyecto, eliminación en orden seguro (nodos -> aristas -> paquetes huérfanos), purga de filas huérfanas en el índice virtual FTS5 `code_search` antes del `optimize`, y ejecución de `PRAGMA optimize`.
 - **Proveedores externos** (`adapters/secondary/codegraph/...`): `codebasememory` y `codegraphcli` sanean snapshots huérfanos o corruptos en `~/.memory/` preservando snapshots de otros proveedores válidos, manejan ausencia de binarios en PATH de forma no bloqueante y permiten reindexado explícito con `--reindex-external`.
 - **Interfaces primarias**: Comando CLI `mem optimize` (`adapters/primary/cli/cmd_optimize.go`) con soporte para `--dry-run`, `--yes`, `--target` y `--reindex-external`, y opción 4 en el menú de mantenimiento interactivo de la TUI (`adapters/primary/tui/tui.go`).
+
+## Hooks de Subagentes, Regla Graph-Before-Grep y Contexto de Edición (HCD-026 a HCD-029)
+
+Este bloque extiende el ciclo de vida de los hooks de gomemory en los cuatro runtimes soportados (Claude Code, OpenAI Codex, Antigravity y OpenCode):
+
+- **Aviso mínimo a subagentes (HCD-026)**:
+  - CLI `mem hook subagent-start` y adaptadores dialectales (`hook_agy.go`, plugin OpenCode).
+  - Al crearse un subagente o proceso delegado, el harness inyecta únicamente un recordatorio conciso de solo lectura en vez del volcado completo de memorias del proyecto, preservando el presupuesto de tokens del contexto hijo.
+
+- **Regla del core `graph-before-grep` (HCD-027)**:
+  - Dominio (`domain/rules_graph.go`): define la detección de comandos `grep` o `git grep` dirigidos a código fuente cuando el proyecto cuenta con índice de grafo disponible.
+  - Adaptador `hook expand pre-tool`: bloquea la ejecución de búsquedas por texto plano sobre código indexado e instruye al agente a consultar el grafo (`codegraph_explore`, `search_graph`, `search_code`, `get_symbol`). No interfiere en búsquedas sobre documentación ni archivos fuera del grafo.
+
+- **Contexto de grafo en edición de código (HCD-028)**:
+  - Puertos (`application/ports/edit_context_source.go`): abstracción para consultar dependencias y llamadores del símbolo afectado.
+  - Casos de uso (`application/usecases/edit_context.go`): genera el contexto acotado por presupuesto de tokens.
+  - Persistencia (`adapters/secondary/persistence/edit_context.go`): registra la huella de archivo y sesión para inyectar la información una sola vez por archivo editado, evitando ruido reiterativo.
+  - Integración en runtimes: se ejecuta en los hooks pre-tool de edición (`edit`, `Edit`, `write_file`) en Claude, Codex, Agy y OpenCode.
+
+- **Persistencia y saneamiento incremental del grafo interno (HCD-029)**:
+  - `adapters/secondary/persistence/code_graph.go` (`ReplaceFileNodes`): al reindexar un archivo por cambios de hash, captura previamente las aristas entrantes provenientes de otros archivos.
+  - Tras sustituir los nodos del archivo, restaura las aristas entrantes asociándolas a los nuevos identificadores de nodo por identidad del símbolo. Si un símbolo fue eliminado, su arista se descarta en lugar de apuntar a un nodo incorrecto o quedar huérfana en SQLite.
