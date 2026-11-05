@@ -102,3 +102,25 @@ func TestRunReportsExitCodeAndTail(t *testing.T) {
 		t.Fatalf("Run fail = %d %q %v", code, out, err)
 	}
 }
+
+func TestWorkspace_MaxUnitNumber(t *testing.T) {
+	root := t.TempDir()
+	w := Workspace{Root: root}
+	if maxNum, err := w.MaxUnitNumber(); err != nil || maxNum != 0 {
+		t.Fatalf("sin hcd/ expected 0, nil; got %d, %v", maxNum, err)
+	}
+	write(t, root, "hcd/HCD-001-algo.md", "# 1")
+	write(t, root, "hcd/HCD-005-otro.md", "# 5")
+	write(t, root, "hcd/HCD-029-ultimo.md", "# 29")
+	write(t, root, "hcd/README.md", "# readme")
+	write(t, root, "hcd/draft.txt", "draft")
+
+	maxNum, err := w.MaxUnitNumber()
+	if err != nil {
+		t.Fatalf("MaxUnitNumber error: %v", err)
+	}
+	if maxNum != 29 {
+		t.Fatalf("expected 29, got %d", maxNum)
+	}
+}
+

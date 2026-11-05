@@ -441,3 +441,21 @@ func TestHCDNormsReapprovalGuardWhileApprovalStillValid(t *testing.T) {
 		})
 	}
 }
+
+func TestHCDStart_ContinuaDesdeDisco(t *testing.T) {
+	env := newHCDEnv(t)
+	// Simulamos un clon nuevo: SQLite está vacío pero hcd/ ya tiene archivos hasta HCD-029
+	writeIn(t, env.root, "hcd/HCD-001-algo.md", "# 1")
+	writeIn(t, env.root, "hcd/HCD-029-otro.md", "# 29")
+
+	v, err := env.uc.Start(context.Background(), usecases.HCDStartInput{
+		Kind: "fix", Lane: "fast", Title: "Prueba correlatividad", Why: "Continuar desde disco",
+	})
+	if err != nil {
+		t.Fatalf("Start error: %v", err)
+	}
+	if v.Unit.ID != "HCD-030" || v.Unit.Number != 30 {
+		t.Fatalf("expected HCD-030 and number 30; got %s (%d)", v.Unit.ID, v.Unit.Number)
+	}
+}
+

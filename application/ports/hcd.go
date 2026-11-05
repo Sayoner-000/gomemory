@@ -32,6 +32,8 @@ type HCDWorkspace interface {
 	Fingerprint(ctx context.Context) (string, error)
 	// Run ejecuta el comando y devuelve el código de salida y un extracto acotado.
 	Run(ctx context.Context, command string) (exitCode int, excerpt string, err error)
+	// MaxUnitNumber devuelve el número de unidad más alto presente en hcd/HCD-*.md (0 si ninguno).
+	MaxUnitNumber() (int, error)
 }
 
 // HCDContextRepository alimenta la sección «HCD activo» del contexto.

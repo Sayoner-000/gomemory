@@ -286,8 +286,8 @@ func ruleTexts(target RuleEvent, in RuleInput) []string {
 	return nil
 }
 
-// BuiltinRules devuelve las reglas de serie: destructive-shell y
-// graph-before-grep (HCD-027).
+// BuiltinRules devuelve las reglas de serie: destructive-shell,
+// graph-before-grep (HCD-027) y native-edit-over-scripts (HCD-001).
 func BuiltinRules() []Rule {
 	return []Rule{{
 		Name:    "destructive-shell",
@@ -304,6 +304,13 @@ func BuiltinRules() []Rule {
 		Enabled: true,
 		Origin:  RuleOriginBuiltin,
 		builtin: evalGraphBeforeGrep,
+	}, {
+		Name:    NativeEditOverScriptsRule,
+		Event:   RuleEventBash,
+		Action:  RuleBlock,
+		Enabled: true,
+		Origin:  RuleOriginBuiltin,
+		builtin: evalNativeEditOverScripts,
 	}}
 }
 

@@ -198,3 +198,39 @@ func tail(s string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// MaxUnitNumber devuelve el número más alto entre los archivos hcd/HCD-*.md del workspace.
+// Devuelve 0 si no hay directorio hcd/ o si no hay archivos que sigan el patrón.
+func (w Workspace) MaxUnitNumber() (int, error) {
+	hcdDir := filepath.Join(w.Root, "hcd")
+	entries, err := os.ReadDir(hcdDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	maxNum := 0
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, "HCD-") || !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		rest := strings.TrimPrefix(name, "HCD-")
+		idx := strings.Index(rest, "-")
+		if idx == -1 {
+			idx = strings.Index(rest, ".")
+		}
+		if idx > 0 {
+			numStr := rest[:idx]
+			var n int
+			if _, err := fmt.Sscanf(numStr, "%d", &n); err == nil && n > maxNum {
+				maxNum = n
+			}
+		}
+	}
+	return maxNum, nil
+}

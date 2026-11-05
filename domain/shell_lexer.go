@@ -13,9 +13,10 @@ import (
 // distancia es relativa porque las sustituciones de un comando van justo
 // antes que él y el resultado se anida dentro de otros sin reindexar.
 type shellCommand struct {
-	Tokens   []string
-	Stdin    []string
-	PipeBack int
+	Tokens    []string
+	Stdin     []string
+	PipeBack  int
+	Redirects []string
 	// Nested: sale de una sustitución, no es un comando de la línea.
 	Nested bool
 }
@@ -88,6 +89,7 @@ func splitShell(cmd string, depth int) []shellCommand {
 		pendingOp string
 		quoted    bool
 		herestr   []string
+		redirs    []string
 		// prevCmd es el índice en out del último comando de este nivel, el
 		// que alimenta una tubería.
 		prevCmd = -1
@@ -103,6 +105,8 @@ func splitShell(cmd string, depth int) []shellCommand {
 		case pendingOp != "":
 			if pendingOp == "<<<" {
 				herestr = append(herestr, word)
+			} else if pendingOp == ">" || pendingOp == ">>" || pendingOp == ">|" {
+				redirs = append(redirs, word)
 			}
 			pendingOp = ""
 		case redirect:
@@ -112,6 +116,10 @@ func splitShell(cmd string, depth int) []shellCommand {
 				pendingOp = op
 			case op == "<<<":
 				herestr = append(herestr, target)
+			case op == ">" || op == ">>" || op == ">|":
+				if target != "" {
+					redirs = append(redirs, target)
+				}
 			}
 		default:
 			current = append(current, word)
@@ -133,11 +141,11 @@ func splitShell(cmd string, depth int) []shellCommand {
 			if pipeIn && prevCmd >= 0 {
 				back = idx - prevCmd
 			}
-			out = append(out, shellCommand{Tokens: current, Stdin: herestr, PipeBack: back})
+			out = append(out, shellCommand{Tokens: current, Stdin: herestr, PipeBack: back, Redirects: redirs})
 			prevCmd = idx
 			current = nil
 		}
-		herestr, pendingOp = nil, ""
+		herestr, redirs, pendingOp = nil, nil, ""
 		pipeIn = pipeNext
 	}
 	runes := []rune(cmd)

@@ -109,7 +109,14 @@ func (h *HCD) Start(ctx context.Context, in HCDStartInput) (HCDView, error) {
 		return HCDView{}, fmt.Errorf("%w: la unidad necesita título y motivo del carril", domain.ErrValidation)
 	}
 	now := h.clock.Now()
+	diskMax := 0
+	if h.ws != nil {
+		diskMax, _ = h.ws.MaxUnitNumber()
+	}
 	unit, err := h.store.CreateActive(ctx, func(n int) domain.Unit {
+		if diskMax >= n {
+			n = diskMax + 1
+		}
 		id := fmt.Sprintf("HCD-%03d", n)
 		slug := domain.Slugify(title)
 		return domain.Unit{ID: id, Number: n, Title: title, Slug: slug, Kind: kind, Lane: lane, Why: why, State: domain.UnitActive, DocPath: "hcd/" + id + "-" + slug + ".md", CreatedAt: now, UpdatedAt: now}

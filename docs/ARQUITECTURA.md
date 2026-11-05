@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.47.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.47.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.48.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.48.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -61,3 +61,16 @@ Este bloque extiende el ciclo de vida de los hooks de gomemory en los cuatro run
 - **Persistencia y saneamiento incremental del grafo interno (HCD-029)**:
   - `adapters/secondary/persistence/code_graph.go` (`ReplaceFileNodes`): al reindexar un archivo por cambios de hash, captura previamente las aristas entrantes provenientes de otros archivos.
   - Tras sustituir los nodos del archivo, restaura las aristas entrantes asociándolas a los nuevos identificadores de nodo por identidad del símbolo. Si un símbolo fue eliminado, su arista se descarta en lugar de apuntar a un nodo incorrecto o quedar huérfana en SQLite.
+
+## Regla de Serie Native-Edit y Correlatividad de Unidades HCD (HCD-030 y HCD-031)
+
+Este bloque incorpora salvaguardas de edición de código y coherencia en la numeración del ciclo de vida HCD:
+
+- **Regla del core `native-edit-over-scripts` (HCD-030)**:
+  - Dominio (`domain/rules_edit.go`): define la detección de scripts inline (`python`, `python3`, `node`, `bun`, `deno`, `ruby`, `perl`), herramientas de reemplazo in-place (`sed -i`, `awk`) y redirecciones de terminal (`cat >`, `echo >`, `printf >`, `tee`) dirigidos a sobreescribir archivos de código en las extensiones del mercado (`.ts`, `.tsx`, `.js`, `.jsx`, `.vue`, `.svelte`, `.astro`, `.go`, `.py`, `.rs`, `.java`, `.kt`, `.cs`, `.cpp`, `.php`, `.rb`, `.swift`, `.sh`, `.dart`, `.sql`, etc.).
+  - Adaptador `hook expand pre-tool`: bloquea el comando en los cuatro runtimes e instruye al agente a usar las herramientas de edición nativas (`edit_file`/`Edit`) para preservar diffs limpios y activar la inyección de contexto de grafo (`HCD-028`).
+
+- **Correlatividad y numeración de unidades desde disco (HCD-031)**:
+  - Puertos (`application/ports/hcd.go`): método `MaxUnitNumber()` en `HCDWorkspace`.
+  - Adaptadores (`adapters/secondary/hcdfiles/workspace.go`): escanea `hcd/HCD-*.md` para extraer el prefijo numérico más alto en disco.
+  - Casos de uso (`application/usecases/hcd.go`): `HCD.Start` calcula `MAX(sqlite_max, disk_max) + 1`, garantizando que en clones frescos de repositorios con base de datos SQLite recién inicializada se continúe la numeración correlativa sin reiniciar en `HCD-001` ni colisionar con unidades históricas.

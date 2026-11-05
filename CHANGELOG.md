@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.48.0] - 2026-11-05
+
+### Added
+
+- Regla de serie `native-edit-over-scripts` en el motor de `expand` (HCD-030): intercepta en `PreToolUse:Bash` comandos que usen scripts inline (`python`, `python3`, `node`, `bun`, `deno`, `ruby`, `perl`), reemplazos in-place (`sed -i`, `awk`) y comodines de shell (`cat >`, `echo >`, `printf >`, `tee`) sobre extensiones de código de desarrollo estándar (`.ts`, `.tsx`, `.js`, `.jsx`, `.vue`, `.svelte`, `.astro`, `.go`, `.py`, `.rs`, `.java`, `.kt`, `.cs`, `.cpp`, `.php`, `.rb`, `.swift`, `.sh`, `.dart`, `.sql`, etc.), guiando pedagógicamente al agente a usar herramientas nativas de edición (`edit_file`/`Edit`) para diffs auditables y activación de contexto de grafo (HCD-028).
+
+### Fixed
+
+- Numeración correlativa HCD al iniciar unidades (HCD-031): `HCD.Start` ahora calcula `MAX(sqlite_max, disk_max) + 1` considerando los archivos `hcd/HCD-*.md` existentes en el workspace, evitando colisiones de prefijo en clones frescos o entornos con base de datos SQLite recién inicializada.
+
 ## [v2.47.0] - 2026-11-05
 
 ### Added

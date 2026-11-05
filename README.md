@@ -210,7 +210,7 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
 | OpenCode | `/hcd` | Same |
 
 `mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.47.html) walks through the
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.48.html) walks through the
 ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
@@ -281,7 +281,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.47.html`](docs/Guia-Tecnica_GOMEMORY-v2.47.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.47.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.47.html) | Current printable technical and SDD_HCD guides (Spanish) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.48.html`](docs/Guia-Tecnica_GOMEMORY-v2.48.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.48.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.48.html) | Current printable technical and SDD_HCD guides (Spanish) |
 
 ## Contributing
 
