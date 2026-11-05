@@ -210,7 +210,7 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
 | OpenCode | `/hcd` | Same |
 
 `mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.45.html) walks through the
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.46.html) walks through the
 ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
@@ -227,6 +227,7 @@ ceremony step by step. See
 | `mem settings` | View or change project settings |
 | `mem doctor` | Check agent integration and installed binaries |
 | `mem update` | Update the binary (SHA-256 verified) |
+| `mem optimize` | Optimize graph relations, SQLite indexes and code providers |
 | `mem export` / `mem import` | Back up or move memory |
 | `mem uninstall` | Remove gomemory from a project, or everywhere with `--all` |
 
@@ -279,7 +280,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.45.html`](docs/Guia-Tecnica_GOMEMORY-v2.45.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.45.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.45.html) | Current printable technical and SDD_HCD guides (Spanish) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.46.html`](docs/Guia-Tecnica_GOMEMORY-v2.46.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.46.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.46.html) | Current printable technical and SDD_HCD guides (Spanish) |
 
 ## Contributing
 

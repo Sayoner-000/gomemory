@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.45.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.45.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.46.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.46.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -28,3 +28,14 @@ HCD conduce una unidad de trabajo por su ceremonia: `define → clarify → appr
 - **Hook**: en Claude Code, `mem hook expand pre-tool` avisa una vez por sesión, sin bloquear, al editar código sin unidad activa. Solo consulta la tabla de unidades, para caber en el plazo del hook.
 
 La única fuente de contenido es el documento `hcd/HCD-NNN-<slug>.md`, que viaja en el PR. SQLite guarda solo el control: qué unidad está activa, qué se observó y qué aprobó la persona.
+
+## Optimización de Grafos y Relaciones (HCD-025)
+
+El subsistema de optimización sanea el grafo de relaciones entre memorias, las estructuras del grafo de código interno en SQLite y los residuos de snapshots de proveedores externos:
+
+- **Dominio** (`domain/optimize.go`): Modelos de reporte `StorageOptimizationReport` (relaciones huérfanas, duplicadas consolidadas, nodos/aristas/paquetes de código saneados y optimizaciones PRAGMA/FTS), `ExternalProviderOptimizeReport` y `OptimizeReport` general.
+- **Puertos**: `MaintenanceRepository.OptimizeStorage` en `application/ports/maintenance_repository.go` y `CodeGraphMaintainer` en `application/ports/code_graph_maintainer.go`.
+- **Caso de uso** (`application/usecases/optimize_graph.go`): `OptimizeGraph` valida el ámbito (`all`, `internal`, `external`), previene ejecuciones con flags contradictorios y orquesta de forma desacoplada la optimización del repositorio de mantenimiento y de los proveedores de código registrados.
+- **Persistencia** (`adapters/secondary/persistence/optimize_storage.go`): Ejecuta el saneamiento en SQLite de forma transaccional garantizando aislamiento estricto por proyecto, eliminación en orden seguro (nodos -> aristas -> paquetes huérfanos), purga de filas huérfanas en el índice virtual FTS5 `code_search` antes del `optimize`, y ejecución de `PRAGMA optimize`.
+- **Proveedores externos** (`adapters/secondary/codegraph/...`): `codebasememory` y `codegraphcli` sanean snapshots huérfanos o corruptos en `~/.memory/` preservando snapshots de otros proveedores válidos, manejan ausencia de binarios en PATH de forma no bloqueante y permiten reindexado explícito con `--reindex-external`.
+- **Interfaces primarias**: Comando CLI `mem optimize` (`adapters/primary/cli/cmd_optimize.go`) con soporte para `--dry-run`, `--yes`, `--target` y `--reindex-external`, y opción 4 en el menú de mantenimiento interactivo de la TUI (`adapters/primary/tui/tui.go`).

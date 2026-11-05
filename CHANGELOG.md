@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.46.0] - 2026-11-04
+
+### Added
+
+- Comando `mem optimize` con soporte para flags `--dry-run`, `--yes`, `--target` (`all`, `internal`, `external`) y `--reindex-external`.
+- Saneamiento transaccional en SQLite de relaciones huérfanas entre memorias, consolidación de duplicados y purga en orden seguro de nodos, aristas y paquetes huérfanos del grafo interno con aislamiento estricto por proyecto.
+- Purga de filas huérfanas en el índice virtual FTS5 `code_search` antes de la optimización y ejecución de `PRAGMA optimize`.
+- Mantenimiento y saneamiento de residuos de snapshots para proveedores externos de grafo de código (`codebase-memory-mcp` y `codegraph`), preservando snapshots válidos de otros proveedores y tolerando la ausencia del binario en PATH.
+- Opción interactiva "Optimizar (grafos, relaciones e índices)" en el menú de mantenimiento de la TUI (tecla `m` → opción 4), con pantalla de confirmación y reporte de elementos saneados en la barra de estado.
+
 ## [v2.45.2] - 2026-11-04
 
 ### Fixed

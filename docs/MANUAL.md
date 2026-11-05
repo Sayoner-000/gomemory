@@ -678,9 +678,9 @@ export` saca **un** documento en texto plano para editarlo a mano.
 ## 8. Mantenimiento de Memoria
 
 Cuando el almacén global de memoria crece demasiado, gomemory ofrece
-cuatro acciones de mantenimiento — disponibles por CLI y, salvo desinstalar,
+cinco acciones de mantenimiento — disponibles por CLI y, salvo desinstalar,
 también desde la TUI (tecla `m`). Ninguna se expone vía MCP: son operaciones
-destructivas que exigen confirmación humana explícita.
+administrativas que exigen confirmación humana explícita.
 
 ### Purgar memorias
 
@@ -771,6 +771,23 @@ mem sanitize --apply --timeout 5m
 
 Límites: el saneamiento no alcanza exportaciones manuales, copias del sistema ni
 medios externos, y no promete borrado físico en SSD. Cada informe lo recuerda.
+
+### Optimizar grafos, relaciones e índices (`mem optimize`)
+
+Sanea relaciones huérfanas entre memorias, consolida duplicados, elimina nodos/aristas huérfanos del grafo interno en SQLite, limpia filas huérfanas en el índice FTS5 `code_search` antes de `optimize`, y sanea residuos de snapshots de proveedores externos:
+
+```bash
+mem optimize                      # Pide confirmación y ejecuta ámbito completo (all)
+mem optimize --dry-run            # Simula y reporta métricas sin aplicar cambios en disco
+mem optimize --yes                # Aplica cambios directamente sin preguntar
+mem optimize --target internal    # Solo almacén SQLite e índices internos
+mem optimize --target external    # Solo proveedores externos (snapshots y locks)
+mem optimize --reindex-external   # Reindexa proveedores externos desactualizados
+```
+
+- **Ámbito por defecto**: `all` (almacén interno y proveedores externos). Válidos: `all`, `internal`, `external`.
+- **Aislamiento por proyecto**: el saneamiento de nodos y aristas de código solo afecta al proyecto actual en SQLite.
+- **TUI interactiva**: También accesible desde la TUI (tecla `m` → Opción 4: *Optimizar (grafos, relaciones e índices)*).
 
 ### Desinstalación completa
 
@@ -1002,6 +1019,7 @@ mem socratica pending           # Flujos pendientes por agente
 # Mantenimiento de memoria
 mem purge --older-than-days 90  # Purgar memorias viejas del proyecto actual
 mem compact                     # Recuperar espacio en disco
+mem optimize                    # Saneamiento de grafos, relaciones e índices FTS5/SQLite
 mem gc                          # Garbage collection a demanda (90 días default)
 mem uninstall --yes             # Desinstala este proyecto (--all: todo el sistema)
 
@@ -1623,7 +1641,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.45.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.46.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 
