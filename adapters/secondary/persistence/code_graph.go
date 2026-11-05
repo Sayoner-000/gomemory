@@ -62,6 +62,14 @@ func ReplaceFileNodes(db *sql.DB, project, path, hash string, nodes []domain.Cod
 	if err != nil {
 		return nil, err
 	}
+	// Las aristas que llegan desde otros archivos se borran con los nodos
+	// viejos, pero esos archivos no se reindexan (incremental por hash): sin
+	// guardarlas aquí, el grafo perdía los llamadores de todo archivo
+	// reindexado (HCD-029).
+	incoming, err := incomingEdgesFromOtherFiles(tx, fileID)
+	if err != nil {
+		return nil, err
+	}
 	if len(oldIDs) > 0 {
 		if err := deleteNodesByIDs(tx, oldIDs); err != nil {
 			return nil, err
@@ -82,11 +90,75 @@ func ReplaceFileNodes(db *sql.DB, project, path, hash string, nodes []domain.Cod
 		n.ID = id
 		inserted = append(inserted, n)
 	}
+	if err := restoreIncomingEdges(tx, project, incoming, inserted); err != nil {
+		return nil, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("replace file nodes: %w", err)
 	}
 	return inserted, nil
+}
+
+// nodeIdentity identifica un símbolo entre reindexados de su archivo: los IDs
+// cambian, la identidad no.
+type nodeIdentity struct {
+	kind, name, receiver string
+}
+
+// incomingEdge es una arista hacia un nodo del archivo que se reindexa, cuyo
+// origen está en otro archivo.
+type incomingEdge struct {
+	fromID, srcFileID int64
+	kind              string
+	confidence        float64
+	target            nodeIdentity
+}
+
+func incomingEdgesFromOtherFiles(tx *sql.Tx, fileID int64) ([]incomingEdge, error) {
+	rows, err := tx.Query(
+		`SELECT e.from_id, e.src_file_id, e.kind, e.confidence, n.kind, n.name, COALESCE(n.receiver, '')
+		 FROM code_edges e JOIN code_nodes n ON n.id = e.to_id
+		 WHERE n.file_id = ? AND e.src_file_id IS NOT NULL AND e.src_file_id != ?`, fileID, fileID)
+	if err != nil {
+		return nil, fmt.Errorf("aristas entrantes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []incomingEdge
+	for rows.Next() {
+		var e incomingEdge
+		if err := rows.Scan(&e.fromID, &e.srcFileID, &e.kind, &e.confidence, &e.target.kind, &e.target.name, &e.target.receiver); err != nil {
+			return nil, fmt.Errorf("scan arista entrante: %w", err)
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// restoreIncomingEdges reapunta cada arista guardada al nodo nuevo con la
+// misma identidad. Si el símbolo ya no existe, la arista se descarta: no se
+// cede a otro símbolo ni queda colgante.
+func restoreIncomingEdges(tx *sql.Tx, project string, incoming []incomingEdge, inserted []domain.CodeNode) error {
+	if len(incoming) == 0 {
+		return nil
+	}
+	byIdentity := make(map[nodeIdentity]int64, len(inserted))
+	for _, n := range inserted {
+		byIdentity[nodeIdentity{string(n.Kind), n.Name, n.Receiver}] = n.ID
+	}
+	for _, e := range incoming {
+		to, ok := byIdentity[e.target]
+		if !ok {
+			continue
+		}
+		if _, err := tx.Exec(
+			`INSERT OR IGNORE INTO code_edges (project, from_id, to_id, kind, confidence, src_file_id)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			project, e.fromID, to, e.kind, e.confidence, e.srcFileID); err != nil {
+			return fmt.Errorf("restaurar arista entrante: %w", err)
+		}
+	}
+	return nil
 }
 
 func insertNode(tx *sql.Tx, fileID int64, n domain.CodeNode) (int64, error) {
