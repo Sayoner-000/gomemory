@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,6 +50,9 @@ type hookExpandDeps struct {
 	// hcdActive informa si hay una unidad HCD activa (aviso pre-edición,
 	// feature 045 FR-025). nil = HCD no conectado: no se avisa.
 	hcdActive func(context.Context) (bool, error)
+	// editContext reúne lo que el proyecto sabe de la ruta editada
+	// (HCD-028). nil = no conectado: no se inyecta contexto de edición.
+	editContext func(context.Context, string) domain.EditContextInput
 }
 
 // hookExpandBudget devuelve el plazo para resolver la decisión de expand.
@@ -108,6 +113,7 @@ func hookExpand(deps *Deps, args []string) {
 	if deps.HCD != nil {
 		d.hcdActive = deps.HCD.HasActive
 	}
+	d.editContext = editContextSource(deps, root)
 	// El plegado de instincts es mantenimiento: dentro del plazo solo se
 	// anota la petición y se ejecuta tras escribir la decisión (H-01).
 	fold := deferFold(&d.hook)
@@ -252,7 +258,8 @@ func (r *expandRecords) flush(record func(agent, kind, detail string), budget ti
 func expandEvaluators(deps *Deps, root string) usecases.ExpandHookDeps {
 	var h usecases.ExpandHookDeps
 	if deps.RuleSource != nil {
-		h.Rules = usecases.ExpandRules{Source: deps.RuleSource, Root: root}
+		h.Rules = usecases.ExpandRules{Source: deps.RuleSource, Root: root,
+			IndexedExtensions: func() []string { return graphIndexedExtensions(root, ownIndexFiles(deps)) }}
 	}
 	if deps.AgentConfig != nil {
 		h.Shield = usecases.ShieldScanner{Reader: deps.AgentConfig, State: deps.ShieldState}
@@ -442,6 +449,12 @@ func runHookExpand(ctx context.Context, d hookExpandDeps, event, emit string, st
 			out.Fired = append(out.Fired, "expand.suggest:"+skill)
 		}
 	}
+	if out.Decision != domain.DecisionBlock && slices.Contains(work, domain.SupertoolAction{Kind: domain.ActionEditContext}) {
+		if text, key := editContextFor(ctx, d, sig); text != "" && expandEpisodeClaim(d.root, sid, key) {
+			out.EditContext = text
+			out.Fired = append(out.Fired, "expand.context:edit")
+		}
+	}
 	if out.Decision != domain.DecisionBlock && hcdEditWithoutUnit(ctx, d, sig) && expandEpisodeClaim(d.root, sid, "hcd:no-unit") {
 		out.Context = append(out.Context, domain.HCDNoUnitWarning)
 		out.Fired = append(out.Fired, "expand.hcd:no-unit")
@@ -451,6 +464,76 @@ func runHookExpand(ctx context.Context, d hookExpandDeps, event, emit string, st
 		record(kind, detail)
 	}
 	return renderExpandOutput(dialect, ev, out)
+}
+
+// editContextSource conecta el caso de uso EditContext con el Deps completo.
+// La ruta ligera del hook no abre la base: se abre de forma perezosa con
+// ExpandFull, dentro del plazo que vigila editContextFor (HCD-028).
+func editContextSource(deps *Deps, root string) func(context.Context, string) domain.EditContextInput {
+	return func(ctx context.Context, path string) domain.EditContextInput {
+		full := deps
+		if full.EditContext == nil && full.ExpandFull != nil {
+			f, err := full.ExpandFull()
+			if err != nil || f == nil {
+				return domain.EditContextInput{}
+			}
+			full = f
+		}
+		if full.EditContext == nil {
+			return domain.EditContextInput{}
+		}
+		uc := usecases.EditContext{Source: full.EditContext, Root: root, Project: full.Project}
+		if len(full.CodeProviders) > 0 {
+			providers := full.CodeProviders
+			uc.Impact = func(p string) (domain.CodeImpactAnnotation, bool) {
+				for _, pr := range providers {
+					if a, ok := pr.ImpactFor(p); ok {
+						return a, true
+					}
+				}
+				return domain.CodeImpactAnnotation{}, false
+			}
+		}
+		return uc.Build(ctx, path)
+	}
+}
+
+// editContextFor compone el contexto de la ruta editada y su clave de
+// episodio (HCD-028). La fuente corre aparte y se abandona si vence el plazo:
+// una consulta lenta nunca retiene la edición (C-04). La clave cambia con las
+// memorias del archivo, así que una memoria nueva vuelve a inyectarlo (C-05).
+func editContextFor(ctx context.Context, d hookExpandDeps, sig domain.ExpandSignals) (text, key string) {
+	if d.editContext == nil {
+		return "", ""
+	}
+	path := sig.FilePath
+	if path == "" {
+		// Codex manda la ruta dentro del parche de apply_patch.
+		if paths, _ := domain.ParseApplyPatch(sig.Command); len(paths) > 0 {
+			path = paths[0]
+		}
+	}
+	if path == "" {
+		return "", ""
+	}
+	done := make(chan domain.EditContextInput, 1)
+	go func() { done <- d.editContext(ctx, path) }()
+	var in domain.EditContextInput
+	select {
+	case in = <-done:
+	case <-ctx.Done():
+		return "", ""
+	}
+	text = domain.RenderEditContext(in)
+	if text == "" {
+		return "", ""
+	}
+	h := sha256.New()
+	h.Write([]byte(in.Path))
+	for _, m := range in.Memories {
+		h.Write([]byte("|" + strconv.FormatInt(m.ID, 10)))
+	}
+	return text, "edit:" + hex.EncodeToString(h.Sum(nil))[:16]
 }
 
 // hcdEditWithoutUnit: edición de código sin unidad HCD activa. Ante un error

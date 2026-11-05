@@ -93,6 +93,10 @@ type RuleInput struct {
 	Content     string
 	Prompt      string
 	LastMessage string
+	// IndexedExtensions son las extensiones (".go") que cubre un grafo de
+	// código del proyecto. Las calcula el adaptador; vacío = sin grafo, y
+	// graph-before-grep no actúa (HCD-027).
+	IndexedExtensions []string
 }
 
 // RuleVerdict es el resultado de evaluar las reglas para un evento.
@@ -282,7 +286,8 @@ func ruleTexts(target RuleEvent, in RuleInput) []string {
 	return nil
 }
 
-// BuiltinRules devuelve las reglas de serie. Hoy solo destructive-shell.
+// BuiltinRules devuelve las reglas de serie: destructive-shell y
+// graph-before-grep (HCD-027).
 func BuiltinRules() []Rule {
 	return []Rule{{
 		Name:    "destructive-shell",
@@ -292,6 +297,13 @@ func BuiltinRules() []Rule {
 		Origin:  RuleOriginBuiltin,
 		Message: "",
 		builtin: evalDestructiveShell,
+	}, {
+		Name:    GraphBeforeGrepRule,
+		Event:   RuleEventBash,
+		Action:  RuleBlock,
+		Enabled: true,
+		Origin:  RuleOriginBuiltin,
+		builtin: evalGraphBeforeGrep,
 	}}
 }
 

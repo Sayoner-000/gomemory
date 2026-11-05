@@ -41,3 +41,17 @@ func TestExpandRules_RespectsContext(t *testing.T) {
 		t.Fatal("con ctx cancelado debe devolver error")
 	}
 }
+
+// HCD-027: ExpandRules pasa al dominio las extensiones que cubre el grafo.
+func TestExpandRules_GraphCoverage(t *testing.T) {
+	sig := domain.ExpandSignals{Command: `grep -rn Foo --include=*.go .`}
+	con := ExpandRules{Source: staticRules(domain.BuiltinRules()), IndexedExtensions: func() []string { return []string{".go"} }}
+	res, err := con.Evaluate(context.Background(), domain.RuleTargetBash, sig)
+	if err != nil || res.Decision != domain.DecisionBlock || res.Rule != domain.GraphBeforeGrepRule {
+		t.Fatalf("con grafo debe bloquear graph-before-grep: %+v %v", res, err)
+	}
+	sin := ExpandRules{Source: staticRules(domain.BuiltinRules())}
+	if res, _ := sin.Evaluate(context.Background(), domain.RuleTargetBash, sig); res.Decision != domain.DecisionAllow {
+		t.Fatalf("sin grafo debe permitir: %+v", res)
+	}
+}

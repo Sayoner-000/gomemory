@@ -31,7 +31,10 @@ func TestRouteSupertoolsTruthTable(t *testing.T) {
 			[]SupertoolAction{act(ActionRulesEval, RuleTargetBash), act(ActionSuggest, SkillVerifyLoop)}},
 		{"3", ExpandSignals{Event: ExpandPreTool, Tool: ToolShell, Command: "gh pr create"}, ExpandSwitches{},
 			[]SupertoolAction{act(ActionRulesEval, RuleTargetBash), act(ActionSuggest, SkillVerifyLoop)}},
+		// HCD-028: editar un archivo pide además su contexto, tras las reglas.
 		{"4", ExpandSignals{Event: ExpandPreTool, Tool: ToolFile}, ExpandSwitches{},
+			[]SupertoolAction{act(ActionRulesEval, RuleTargetFile), act(ActionEditContext, "")}},
+		{"4b", ExpandSignals{Event: ExpandPreTool, Tool: ToolFile}, off(SupertoolContext),
 			[]SupertoolAction{act(ActionRulesEval, RuleTargetFile)}},
 		{"5", ExpandSignals{Event: ExpandPreTool, Tool: ToolDelegate}, ExpandSwitches{},
 			[]SupertoolAction{act(ActionSuggest, SkillIterativeRetrieval)}},
@@ -65,7 +68,7 @@ func TestRouteSupertoolsTruthTable(t *testing.T) {
 			[]SupertoolAction{act(ActionInstinctsFold, "")}},
 		// Umbral fuera de rango → default 50.
 		{"extra-umbral", ExpandSignals{Event: ExpandPreTool, Tool: ToolFile, ToolCount: 49, CompactThreshold: 3}, ExpandSwitches{},
-			[]SupertoolAction{act(ActionRulesEval, RuleTargetFile)}},
+			[]SupertoolAction{act(ActionRulesEval, RuleTargetFile), act(ActionEditContext, "")}},
 	}
 	for _, c := range cases {
 		got := RouteSupertools(c.sig, c.sw)

@@ -15,10 +15,13 @@ const (
 	SupertoolShield    SupertoolName = "shield"
 	SupertoolFlow      SupertoolName = "flow"
 	SupertoolInstincts SupertoolName = "instincts"
+	// SupertoolContext inyecta, al editar un archivo, lo que el proyecto ya
+	// sabe de él (HCD-028).
+	SupertoolContext SupertoolName = "context"
 )
 
 // Supertools es el registro cerrado, en el orden en que se presentan.
-var Supertools = []SupertoolName{SupertoolRules, SupertoolShield, SupertoolFlow, SupertoolInstincts}
+var Supertools = []SupertoolName{SupertoolRules, SupertoolShield, SupertoolFlow, SupertoolInstincts, SupertoolContext}
 
 // ParseSupertoolName valida un nombre de supertool (FR-011).
 func ParseSupertoolName(s string) (SupertoolName, bool) {
@@ -135,6 +138,9 @@ const (
 	ActionInstinctsFold    ActionKind = "instincts.fold"
 	ActionCounterReset     ActionKind = "counter.reset"
 	ActionEpisodeReset     ActionKind = "episode.reset"
+	// ActionEditContext pide el contexto de la ruta que se va a editar
+	// (HCD-028). Lo resuelve el adaptador: necesita la base y el grafo.
+	ActionEditContext ActionKind = "edit.context"
 )
 
 // Objetivos de rules.eval.
@@ -161,7 +167,7 @@ func RouteSupertools(sig ExpandSignals, sw ExpandSwitches) []SupertoolAction {
 	if sw.Disabled {
 		return nil
 	}
-	var rules, shield, suggest, observe, fold, resets []SupertoolAction
+	var rules, editCtx, shield, suggest, observe, fold, resets []SupertoolAction
 	evalRules := func(target string) {
 		if sw.on(SupertoolRules) {
 			rules = append(rules, SupertoolAction{Kind: ActionRulesEval, Target: target})
@@ -207,6 +213,9 @@ func RouteSupertools(sig ExpandSignals, sw ExpandSwitches) []SupertoolAction {
 			}
 		case ToolFile:
 			evalRules(RuleTargetFile)
+			if sw.on(SupertoolContext) {
+				editCtx = append(editCtx, SupertoolAction{Kind: ActionEditContext})
+			}
 		case ToolDelegate:
 			suggestSkill(SkillIterativeRetrieval)
 		}
@@ -225,7 +234,7 @@ func RouteSupertools(sig ExpandSignals, sw ExpandSwitches) []SupertoolAction {
 	}
 
 	var out []SupertoolAction
-	for _, group := range [][]SupertoolAction{rules, shield, suggest, observe, fold, resets} {
+	for _, group := range [][]SupertoolAction{rules, editCtx, shield, suggest, observe, fold, resets} {
 		out = append(out, group...)
 	}
 	return out
@@ -386,6 +395,10 @@ type ExpandOutcome struct {
 	// TimedOut indica que el plazo venció antes de terminar.
 	Errors   []string
 	TimedOut bool
+	// EditContext es el contexto de la ruta editada (HCD-028), ya compuesto
+	// por RenderEditContext con su propio tope: no comparte el de Context,
+	// que es para avisos breves.
+	EditContext string
 }
 
 // suggestionTexts es el texto fijo de cada sugerencia

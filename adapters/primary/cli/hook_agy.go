@@ -7,8 +7,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"mem/adapters/secondary/persistence"
 )
 
 // agyHookBudget deja margen dentro del timeout que declara cada hook de agy.
@@ -75,9 +79,107 @@ func agyHookCall(payload map[string]any, args ...string) agyCall {
 	return agyCall{args: append(args, "--emit="+string(dialectAgy)), stdin: stdin}
 }
 
+// agySubagentWindow es cuánto vale el marcador que deja invoke_subagent: el
+// SessionStart del hijo llega en el mismo segundo en el sondeo real.
+const agySubagentWindow = 2 * time.Minute
+
+// agySubagentSessionsMax acota el registro de conversaciones hijas.
+const agySubagentSessionsMax = 64
+
+func agySubagentPendingPath(dir string) string {
+	return filepath.Join(dir, persistence.MemDir, ".agy-subagent-pending")
+}
+
+func agySubagentSessionsPath(dir string) string {
+	return filepath.Join(dir, persistence.MemDir, ".agy-subagent-sessions")
+}
+
+func readLines(path string) []string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, l := range strings.Split(string(data), "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func writeLines(path string, lines []string) {
+	if len(lines) == 0 {
+		_ = os.Remove(path)
+		return
+	}
+	_ = os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600)
+}
+
+// classifyAgySubagent dice si el evento pertenece a un subagente (HCD-026).
+// agy no marca al hijo: su SessionStart llega con conversación nueva y prompt
+// vacío, sin campo de padre (sondeo real, agy 1.5.0). Por eso cada
+// PreToolUse(invoke_subagent) del raíz deja un marcador que consume un único
+// SessionStart con prompt vacío dentro de la ventana; la conversación hija
+// queda anotada para sus PreInvocation y Stop. Sin marcador, la sesión es raíz:
+// ante la duda se conserva el comportamiento anterior.
+func classifyAgySubagent(event string, raw []byte, now time.Time) bool {
+	var ev agyEvent
+	if json.Unmarshal(raw, &ev) != nil || len(ev.WorkspacePaths) == 0 || ev.ConversationID == "" {
+		return false
+	}
+	dir := ev.WorkspacePaths[0]
+	if _, err := os.Stat(filepath.Join(dir, persistence.MemDir)); err != nil {
+		return false
+	}
+	switch event {
+	case "PreToolUse":
+		if ev.ToolCall.Name == "invoke_subagent" {
+			pending := append(readLines(agySubagentPendingPath(dir)), strconv.FormatInt(now.UnixNano(), 10))
+			writeLines(agySubagentPendingPath(dir), pending)
+		}
+		return false
+	case "SessionStart":
+		if strings.TrimSpace(ev.LastUserInput) != "" {
+			return false
+		}
+		var vigentes []string
+		for _, l := range readLines(agySubagentPendingPath(dir)) {
+			if ns, err := strconv.ParseInt(l, 10, 64); err == nil && now.Sub(time.Unix(0, ns)) <= agySubagentWindow {
+				vigentes = append(vigentes, l)
+			}
+		}
+		if len(vigentes) == 0 {
+			writeLines(agySubagentPendingPath(dir), nil)
+			return false
+		}
+		writeLines(agySubagentPendingPath(dir), vigentes[1:])
+		sessions := append(readLines(agySubagentSessionsPath(dir)), ev.ConversationID)
+		if len(sessions) > agySubagentSessionsMax {
+			sessions = sessions[len(sessions)-agySubagentSessionsMax:]
+		}
+		writeLines(agySubagentSessionsPath(dir), sessions)
+		return true
+	default:
+		for _, id := range readLines(agySubagentSessionsPath(dir)) {
+			if id == ev.ConversationID {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 // planAgyHook traduce un evento de agy a las llamadas neutrales de `mem hook`.
 // Un evento ilegible o desconocido no produce ninguna llamada.
 func planAgyHook(event string, raw []byte) agyPlan {
+	return planAgyHookFor(event, raw, false)
+}
+
+// planAgyHookFor es planAgyHook sabiendo si el evento es de un subagente: este
+// recibe solo el aviso mínimo, sin session-start (que vaciaba el registro de
+// entregas del raíz) ni el bootstrap del primer prompt.
+func planAgyHookFor(event string, raw []byte, subagent bool) agyPlan {
 	var ev agyEvent
 	if json.Unmarshal(raw, &ev) != nil {
 		return agyPlan{}
@@ -87,6 +189,15 @@ func planAgyHook(event string, raw []byte) agyPlan {
 		plan.dir = ev.WorkspacePaths[0]
 	}
 	session := map[string]any{"session_id": ev.ConversationID}
+	if subagent {
+		switch event {
+		case "SessionStart":
+			plan.calls = []agyCall{agyHookCall(session, "subagent-start", "agy")}
+			return plan
+		case "PreInvocation":
+			return plan
+		}
+	}
 	switch event {
 	case "SessionStart":
 		plan.calls = []agyCall{agyHookCall(session, "session-start"), agyHookCall(session, "expand", "session-start")}
@@ -203,13 +314,25 @@ func agyDefaultResponse(event string) []byte {
 // agyHookResponse ejecuta el plan y traduce el resultado. Regla de oro de los
 // hooks: ante cualquier fallo, responde sin bloquear al agente.
 func agyHookResponse(event string, raw []byte, run agyRunner) (response []byte) {
+	return agyHookResponseFor(event, raw, false, run)
+}
+
+func agyHookResponseFor(event string, raw []byte, subagent bool, run agyRunner) (response []byte) {
+	return agyHookResponseWith(event, raw, subagent, run, agyPendingStore{})
+}
+
+// agyHookResponseWith es agyHookResponseFor con la cola de contexto
+// pendiente. agy no admite texto en PreToolUse: lo que expand aporta ahí (el
+// contexto de edición de HCD-028, un aviso) se guarda por conversación y se
+// entrega en su siguiente PreInvocation, como hace el plugin de OpenCode.
+func agyHookResponseWith(event string, raw []byte, subagent bool, run agyRunner, pending agyPendingStore) (response []byte) {
 	response = agyDefaultResponse(event)
 	defer func() {
 		if recover() != nil {
 			response = agyDefaultResponse(event)
 		}
 	}()
-	plan := planAgyHook(event, raw)
+	plan := planAgyHookFor(event, raw, subagent)
 	var texts []string
 	for _, call := range plan.calls {
 		out, err := run(plan.dir, call)
@@ -220,7 +343,67 @@ func agyHookResponse(event string, raw []byte, run agyRunner) (response []byte) 
 			texts = append(texts, text)
 		}
 	}
+	var ev agyEvent
+	_ = json.Unmarshal(raw, &ev)
+	switch event {
+	case "PreToolUse":
+		for _, text := range texts {
+			if !strings.HasPrefix(text, "BLOCK: ") {
+				pending.push(plan.dir, ev.ConversationID, text)
+			}
+		}
+	case "PreInvocation":
+		texts = append(pending.pop(plan.dir, ev.ConversationID), texts...)
+	}
 	return renderAgyResponse(event, texts)
+}
+
+// agyPendingStore guarda en .memory/ el texto pendiente de cada conversación
+// de agy. Best-effort: sin directorio o sin conversación no guarda nada.
+type agyPendingStore struct{}
+
+const agyPendingSep = "\n\x1e\n"
+
+func (agyPendingStore) path(dir, conv string) string {
+	if dir == "" || conv == "" {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(dir, persistence.MemDir)); err != nil {
+		return ""
+	}
+	return filepath.Join(dir, persistence.MemDir, ".agy-pending-"+expandSessionKey(conv))
+}
+
+func (s agyPendingStore) push(dir, conv, text string) {
+	p := s.path(dir, conv)
+	if p == "" {
+		return
+	}
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	_, _ = f.WriteString(text + agyPendingSep)
+	_ = f.Close()
+}
+
+func (s agyPendingStore) pop(dir, conv string) []string {
+	p := s.path(dir, conv)
+	if p == "" {
+		return nil
+	}
+	data, err := os.ReadFile(p)
+	_ = os.Remove(p)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, t := range strings.Split(string(data), agyPendingSep) {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // agyPlainText quita el sobre JSON que el primer prompt emite en cualquier
@@ -289,7 +472,8 @@ func hookAgy(args []string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), agyHookBudget)
 	defer cancel()
-	_, _ = os.Stdout.Write(agyHookResponse(event, raw, func(dir string, call agyCall) (string, error) {
+	subagent := classifyAgySubagent(event, raw, time.Now())
+	_, _ = os.Stdout.Write(agyHookResponseFor(event, raw, subagent, func(dir string, call agyCall) (string, error) {
 		return runAgyCall(ctx, binary, dir, call)
 	}))
 }

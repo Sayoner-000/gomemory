@@ -61,6 +61,8 @@ type Container struct {
 	ChannelActivity ports.ChannelActivityLog
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
+	// EditContext da el contexto de la ruta editada (HCD-028).
+	EditContext     ports.EditContextSource
 	CodeProviders   []ports.CodeGraphProvider
 	ADRSyncProvider ports.ADRSyncProvider
 	ADRSyncRepo     ports.ADRSyncRepository
@@ -314,6 +316,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		ChannelActivity:              persistence.NewChannelActivityRepository(db, project),
 		MaintenanceRepo:              persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 		CodeGraphRepo:                codeGraphRepo,
+		EditContext:                  persistence.NewEditContextRepository(db),
 		CodeProviders:                codeProviders,
 		ADRSyncRepo:                  adrSyncRepo,
 		Compressor:                   engine,
@@ -448,6 +451,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		ChannelActivity:              c.ChannelActivity,
 		MaintenanceRepo:              c.MaintenanceRepo,
 		CodeGraphRepo:                c.CodeGraphRepo,
+		EditContext:                  c.EditContext,
 		CodeProviders:                c.CodeProviders,
 		TUIProvider:                  c.tuiProvider(),
 		TUIProviders:                 c.tuiProviders(),

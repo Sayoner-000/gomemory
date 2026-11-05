@@ -25,7 +25,11 @@ import (
 // huérfano (sesión que no volvió a disparar ningún hook).
 const expandMarkerTTL = 7 * 24 * time.Hour
 
-var expandEpisodeKeyRe = regexp.MustCompile(`^suggest:[a-z-]+$`)
+// expandEpisodeKeyRe son las claves válidas del episodio. Una línea que no
+// encaja se toma por marcador corrupto y silencia todo el episodio, así que
+// cada clave que se escribe debe estar aquí: hcd:no-unit (feature 045) no lo
+// estaba y apagaba las sugerencias de la sesión tras el primer aviso (HCD-028).
+var expandEpisodeKeyRe = regexp.MustCompile(`^(suggest:[a-z-]+|hcd:[a-z-]+|edit:[0-9a-f]{16})$`)
 
 // expandSessionKey separa el estado por sesión: sesiones simultáneas en el
 // mismo proyecto no comparten episodio ni contador.

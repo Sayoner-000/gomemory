@@ -39,6 +39,8 @@ type Deps struct {
 	ChannelActivity ports.ChannelActivityLog
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
+	// EditContext da el contexto de la ruta editada (HCD-028). Puede ser nil.
+	EditContext ports.EditContextSource
 	// CodeProviders son los proveedores EXTERNOS de grafo (opcionales). Los
 	// hooks los usan para refrescar el snapshot por turno sin bloquear
 	// (MaybeRefresh es fire-and-forget). Vacío si están deshabilitados.

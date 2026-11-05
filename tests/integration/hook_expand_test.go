@@ -379,3 +379,52 @@ func TestHookExpandRules_OffRulesKeepsFlow(t *testing.T) {
 		t.Fatalf("off rules: %q %d", out, code)
 	}
 }
+
+// HCD-027: el binario real bloquea una búsqueda de código cuando el proyecto
+// tiene grafo (.codegraph/) y deja pasar la búsqueda en documentación.
+func TestGraphBeforeGrep_BinarioReal(t *testing.T) {
+	bin := buildMemBinary(t)
+	dir := expandProject(t)
+	if err := os.Mkdir(filepath.Join(dir, ".codegraph"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	payload := func(cmd string) string {
+		return `{"hook_event_name":"PreToolUse","tool_name":"Bash","session_id":"g","tool_input":{"command":"` + cmd + `"}}`
+	}
+	out, _, code := expandRun(t, bin, dir, payload("grep -rn Foo --include=*.go ."), "pre-tool", "--emit=claude")
+	if code != 0 || !strings.Contains(out, `"permissionDecision":"deny"`) || !strings.Contains(out, "graph-before-grep") {
+		t.Fatalf("grep de código con grafo debe bloquearse: %q %d", out, code)
+	}
+	if out, _, _ := expandRun(t, bin, dir, payload("grep foo README.md"), "pre-tool", "--emit=claude"); strings.Contains(out, "deny") {
+		t.Fatalf("grep en documentación debe permitirse: %q", out)
+	}
+}
+
+// HCD-028: el binario real inyecta el contexto de un archivo con memoria
+// anclada en su primera edición y lo omite en la segunda.
+func TestEditContext_BinarioReal(t *testing.T) {
+	bin := buildMemBinary(t)
+	dir := expandProject(t)
+	save := exec.Command(bin, "save", "-t", "regla de dominio anclada", "-y", "decision", "-f", "domain/rules.go", "las reglas deciden sobre tokens")
+	save.Dir = dir
+	if out, err := save.CombinedOutput(); err != nil {
+		t.Fatalf("mem save: %v %s", err, out)
+	}
+	payload := `{"hook_event_name":"PreToolUse","tool_name":"Edit","session_id":"e","tool_input":{"file_path":"` +
+		filepath.ToSlash(filepath.Join(dir, "domain", "rules.go")) + `","new_string":"x"}}`
+	// El primer evento abre la base de forma perezosa: se reintenta si el
+	// runner agotó el plazo de 150 ms antes de que llegara el contexto.
+	var first string
+	for range 3 {
+		first, _, _ = expandRun(t, bin, dir, payload, "pre-tool", "--emit=claude")
+		if strings.Contains(first, "Contexto de domain/rules.go") {
+			break
+		}
+	}
+	if !strings.Contains(first, "regla de dominio anclada") || !strings.Contains(first, "§3") {
+		t.Fatalf("la primera edición debe traer la memoria anclada y la sección de la Constitución: %q", first)
+	}
+	if second, _, _ := expandRun(t, bin, dir, payload, "pre-tool", "--emit=claude"); strings.Contains(second, "Contexto de") {
+		t.Fatalf("la segunda edición no repite el contexto: %q", second)
+	}
+}

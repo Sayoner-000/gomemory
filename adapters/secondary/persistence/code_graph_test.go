@@ -195,3 +195,69 @@ func TestNeighborsBFS(t *testing.T) {
 		t.Errorf("esperaba solo [B] como caller directo de C, got %+v", nodesIn)
 	}
 }
+
+// HCD-029: reindexar un archivo no debe perder las aristas que llegan desde
+// archivos que no se reindexan.
+func TestReplaceFileNodes_ConservaAristasEntrantes(t *testing.T) {
+	db := openTestDB(t)
+	a, err := ReplaceFileNodes(db, "proj", "a.go", "h1", []domain.CodeNode{{Kind: domain.NodeFunction, Name: "A"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := ReplaceFileNodes(db, "proj", "b.go", "h1", []domain.CodeNode{{Kind: domain.NodeFunction, Name: "B"}, {Kind: domain.NodeMethod, Name: "M", Receiver: "T"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := InsertCodeEdges(db, "proj", "a.go", []domain.CodeEdge{
+		{FromID: a[0].ID, ToID: b[0].ID, Kind: domain.EdgeCalls, Confidence: 0.9},
+		{FromID: a[0].ID, ToID: b[1].ID, Kind: domain.EdgeCalls, Confidence: 0.7},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Solo b.go cambia; a.go no se reindexa.
+	b2, err := ReplaceFileNodes(db, "proj", "b.go", "h2", []domain.CodeNode{{Kind: domain.NodeMethod, Name: "M", Receiver: "T"}, {Kind: domain.NodeFunction, Name: "B"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range b2 {
+		callers, edges, err := Neighbors(db, "proj", target.ID, domain.EdgeCalls, "in", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(callers) != 1 || callers[0].Name != "A" {
+			t.Fatalf("%s debe conservar a A como llamador tras reindexar b.go: %+v", target.Name, callers)
+		}
+		want := 0.9
+		if target.Name == "M" {
+			want = 0.7
+		}
+		if len(edges) != 1 || edges[0].Confidence != want {
+			t.Fatalf("%s: la arista conserva su confianza: %+v", target.Name, edges)
+		}
+	}
+}
+
+func TestReplaceFileNodes_DescartaAristasSinDestino(t *testing.T) {
+	db := openTestDB(t)
+	a, _ := ReplaceFileNodes(db, "proj", "a.go", "h1", []domain.CodeNode{{Kind: domain.NodeFunction, Name: "A"}})
+	b, _ := ReplaceFileNodes(db, "proj", "b.go", "h1", []domain.CodeNode{{Kind: domain.NodeFunction, Name: "B"}})
+	if err := InsertCodeEdges(db, "proj", "a.go", []domain.CodeEdge{{FromID: a[0].ID, ToID: b[0].ID, Kind: domain.EdgeCalls, Confidence: 0.9}}); err != nil {
+		t.Fatal(err)
+	}
+	// B se renombra a C: la arista A→B no debe reapuntarse a C ni quedar colgante.
+	c, err := ReplaceFileNodes(db, "proj", "b.go", "h2", []domain.CodeNode{{Kind: domain.NodeFunction, Name: "C"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if callers, _, _ := Neighbors(db, "proj", c[0].ID, domain.EdgeCalls, "in", 1); len(callers) != 0 {
+		t.Fatalf("un símbolo nuevo no hereda llamadores ajenos: %+v", callers)
+	}
+	var dangling int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM code_edges e LEFT JOIN code_nodes n ON n.id = e.to_id WHERE n.id IS NULL`).Scan(&dangling); err != nil {
+		t.Fatal(err)
+	}
+	if dangling != 0 {
+		t.Fatalf("no deben quedar aristas hacia nodos borrados: %d", dangling)
+	}
+}

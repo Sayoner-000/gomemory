@@ -838,3 +838,38 @@ test('v2 expand: execute.before allows when mem fails or the session is foreign'
   await foreign.toolHooks['execute.before']({ tool: 'shell', sessionID: 'sB', id: 't1', input: { command: 'rm -rf /' } });
   assert.equal(foreign.callsTo('hook expand').length, 0);
 });
+
+// HCD-026: una sesión hija (subagente, con parentID) recibía en cada turno el
+// protocolo completo, `mem context` entero, Octopus y el nudge. Solo debe
+// recibir el aviso mínimo de `mem hook subagent-start opencode`.
+test('child session (parentID) gets only the minimal subagent notice', async () => {
+  const calls = [];
+  const shell = (_s, _bin, args) => {
+    const proc = {
+      cwd: () => proc, quiet: () => proc,
+      stdin: { getWriter: () => ({ write: async () => {}, close: async () => {} }) },
+      text: async () => {
+        calls.push(args.join(' '));
+        if (args.join(' ') === 'hook subagent-start opencode') return 'AVISO-SUBAGENTE';
+        if (args[0] === 'context') return 'CONTEXTO-COMPLETO';
+        return '';
+      },
+    };
+    return proc;
+  };
+  const sessions = { root: {}, child: { parentID: 'root' } };
+  const hooks = await GomemoryPlugin({ $: shell, directory: '/tmp', client: { session: {
+    messages: async () => ({ data: [] }),
+    get: async ({ path }) => ({ data: { id: path.id, ...sessions[path.id] } }),
+  } } });
+  const transform = async id => { const out = { system: [] }; await hooks['experimental.chat.system.transform']({ sessionID: id }, out); return out.system.join('\n'); };
+
+  const child = await transform('child');
+  assert.ok(child.includes('AVISO-SUBAGENTE'), child);
+  assert.ok(!child.includes('CONTEXTO-COMPLETO'), 'la sesión hija no debe recibir mem context');
+  assert.ok(!child.includes('Memoria persistente'), 'la sesión hija no debe recibir el protocolo');
+
+  const root = await transform('root');
+  assert.ok(root.includes('CONTEXTO-COMPLETO'), 'el agente raíz conserva su contexto');
+  assert.ok(!root.includes('AVISO-SUBAGENTE'));
+});

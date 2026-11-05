@@ -204,7 +204,10 @@ func TestExpandRulesListAndCheck(t *testing.T) {
 		Rules  []map[string]any `json:"rules"`
 		Errors []map[string]any `json:"errors"`
 	}
-	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Rules) != 2 || len(listed.Errors) != 1 {
+	// Dos reglas de serie (destructive-shell y graph-before-grep, HCD-027) y
+	// la propia env.md.
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Rules) != 3 || len(listed.Errors) != 1 ||
+		listed.Rules[1]["name"] != domain.GraphBeforeGrepRule {
 		t.Fatalf("rules --json: %d %s", code, out)
 	}
 

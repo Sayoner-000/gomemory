@@ -338,6 +338,8 @@ func TestHookOctopusEncendido_InyectaLaPoliticaAlAgenteRaizYSubagente(t *testing
 		t.Fatalf("activar Octopus: %v", err)
 	}
 
+	// Solo el agente raíz delega. El subagente recibe el aviso mínimo de solo
+	// lectura (HCD-026): inyectarle la política le costaba tokens sin efecto.
 	for _, event := range []string{"user-prompt-submit", "subagent-start"} {
 		out := runHook(t, bin, target, event)
 		var payload map[string]any
@@ -347,8 +349,8 @@ func TestHookOctopusEncendido_InyectaLaPoliticaAlAgenteRaizYSubagente(t *testing
 		hso, _ := payload["hookSpecificOutput"].(map[string]any)
 		ctx, _ := hso["additionalContext"].(string)
 		for _, want := range []string{"OCTOPUS AAR — REGLA OBLIGATORIA DE DELEGACIÓN", "mcp__gomemory__octopus_route_task", "DELEGATE es la única autorización"} {
-			if !strings.Contains(ctx, want) {
-				t.Errorf("%s debe inyectar %q: %q", event, want, ctx)
+			if got := strings.Contains(ctx, want); got != (event == "user-prompt-submit") {
+				t.Errorf("%s: contiene %q = %v; solo el agente raíz debe recibirlo: %q", event, want, got, ctx)
 			}
 		}
 	}

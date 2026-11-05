@@ -135,6 +135,8 @@ func TestOpenCodeV2_RamaV1ConservaGanchos(t *testing.T) {
 // decidirlo a conciencia y actualizar la referencia.
 // HCD-014 Q3 A: referencia actualizada únicamente para propagar session_id al
 // hook de compresión y conceder recuperación automática a la sesión propietaria.
+// HCD-026: referencia actualizada para que la sesión hija (parentID) reciba
+// solo el aviso mínimo de subagente y no reinicie la sesión del raíz.
 func TestOpenCodeV2_FabricaV1IdenticaALaReferencia(t *testing.T) {
 	ref, err := os.ReadFile("../../specs/032-opencode-v2-plugin-compat/baseline/gomemory.v1.ts")
 	if err != nil {

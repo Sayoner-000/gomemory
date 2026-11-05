@@ -266,6 +266,12 @@ func renderExpandOutput(d hookDialect, event domain.ExpandEvent, out domain.Expa
 	}
 
 	texto := expandContextText(out.Context)
+	if out.EditContext != "" {
+		if texto != "" {
+			texto += "\n"
+		}
+		texto += out.EditContext
+	}
 	switch d {
 	case dialectClaude, dialectJSON:
 		if texto == "" {

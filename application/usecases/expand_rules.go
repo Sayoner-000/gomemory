@@ -13,6 +13,10 @@ import (
 type ExpandRules struct {
 	Source ports.RuleSourcePort
 	Root   string
+	// IndexedExtensions devuelve las extensiones que cubre un grafo de código
+	// del proyecto (HCD-027). nil o vacío: sin grafo, graph-before-grep no
+	// actúa. Se consulta solo en el evento bash.
+	IndexedExtensions func() []string
 }
 
 func (e ExpandRules) Evaluate(ctx context.Context, target string, sig domain.ExpandSignals) (RuleResult, error) {
@@ -21,6 +25,9 @@ func (e ExpandRules) Evaluate(ctx context.Context, target string, sig domain.Exp
 		return RuleResult{}, err
 	}
 	in := domain.RuleInput{Command: sig.Command, Content: sig.Content, Prompt: sig.Prompt, LastMessage: sig.LastMessage}
+	if target == domain.RuleTargetBash && e.IndexedExtensions != nil {
+		in.IndexedExtensions = e.IndexedExtensions()
+	}
 	if target == domain.RuleTargetFile {
 		if sig.FilePath != "" {
 			in.FilePaths = append(in.FilePaths, sig.FilePath)

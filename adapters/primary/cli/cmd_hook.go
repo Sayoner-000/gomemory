@@ -79,7 +79,7 @@ func CmdHook(deps *Deps, args []string) {
 	case "turn-end":
 		hookTurnEnd(deps, args[1:])
 	case "subagent-start":
-		hookSubagentStart(deps)
+		hookSubagentStart(deps, args[1:])
 	case "subagent-stop":
 		hookSubagentStop(deps, args[1:])
 	case "plan-approved":
@@ -804,18 +804,30 @@ func hookTurnEnd(deps *Deps, args []string) {
 // contenido que el primer prompt de la sesión principal, sin marker: cada
 // invocación de un subagente es una sesión corta de un solo uso, no hace falta
 // deduplicar entre turnos como si se repite en hookUserPromptSubmit.
-func hookSubagentStart(deps *Deps) {
+//
+// `mem hook subagent-start <runtime>` (agy, opencode) emite el aviso en texto
+// plano para runtimes sin evento SubagentStart propio (HCD-026).
+func hookSubagentStart(deps *Deps, args []string) {
+	runtime := firstOr(args, 0, "")
+	if strings.HasPrefix(runtime, "--") {
+		runtime = ""
+	}
 	root, err := deps.ProjectRepo.FindRoot()
 	if err != nil {
-		fmt.Print("{}")
+		if runtime == "" {
+			fmt.Print("{}")
+		}
 		return
 	}
 	settings := deps.SettingsRepo.Read(root)
-	bootstrap := buildMemoryToolBootstrap(!settings.CodeGraphDisabled, settings.OctopusEnabled)
+	if runtime != "" && runtime != "claude" {
+		fmt.Print(subagentNoticeFor(runtime, !settings.CodeGraphDisabled))
+		return
+	}
 	out := map[string]any{
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "SubagentStart",
-			"additionalContext": bootstrap + "\n\n" + memoryProtocolReminder + "\n\n" + subagentContextNotice,
+			"additionalContext": subagentNotice(!settings.CodeGraphDisabled),
 		},
 	}
 	data, _ := json.Marshal(out)
@@ -1708,13 +1720,48 @@ func hookOctopusDelegationPolicy(deps *Deps, args []string) {
 	fmt.Print(octopusDelegationPolicy(deps.SettingsRepo.Read(root).OctopusEnabled, firstOr(args, 0, "")))
 }
 
-// subagentContextNotice avisa al subagente de que comparte la sesión de
-// gomemory con el agente principal pero no su contexto: lo que el registro de
-// la sesión da por entregado no está en su ventana, así que debe pedirlo
-// completo (C-002 de acr_961a1676).
-const subagentContextNotice = `Eres un subagente: no tienes el contexto que recibió el agente principal. ` +
-	`Si llamas a get_context o a get_plan_context, pásales full=true; si no, recibirás ` +
-	`marcadores ⟦ya entregado⟧ en lugar de memorias que nunca viste.`
+// subagentReadOnlyTools son las tools de gomemory que un subagente precarga:
+// solo lectura de memoria y del grafo propio (HCD-026, Q1). Escribir memoria,
+// gestionar la sesión, revisar o delegar le corresponde al agente principal.
+var subagentReadOnlyTools = []string{
+	domain.ToolSearchMemories,
+	domain.ToolGetMemory,
+	domain.ToolSearchCode,
+	domain.ToolGetSymbol,
+	domain.ToolListDependencies,
+}
+
+// subagentNotice es el aviso mínimo que recibe un subagente (HCD-026). Antes
+// recibía el bootstrap completo del agente principal (~5.900 caracteres, ~40
+// tools, protocolo de guardado y end_session), que cada revisor de ACR pagaba
+// en cada ronda. Conserva el motivo original del hook: que el subagente sepa
+// que existe el grafo de código y no recurra a grep/glob.
+func subagentNotice(includeCodeGraphProvider bool) string {
+	return subagentNoticeFor("", includeCodeGraphProvider)
+}
+
+// subagentNoticeFor adapta el aviso al runtime. Claude Code (runtime vacío o
+// "claude") carga tools diferidas con ToolSearch; agy y OpenCode no tienen
+// ToolSearch y reciben los nombres planos agrupados por servidor.
+func subagentNoticeFor(runtime string, includeCodeGraphProvider bool) string {
+	const cierre = "Para localizar o leer código usa el grafo antes que grep, find o lecturas a ciegas. " +
+		"No guardes memorias ni abras o cierres la sesión: eso le corresponde al agente principal."
+	if runtime != "" && runtime != "claude" {
+		tools := "gomemory (" + strings.Join(subagentReadOnlyTools, ", ") + ")"
+		if includeCodeGraphProvider {
+			tools += " y codebase-memory-mcp (" + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, ", ") + ")"
+		}
+		return "Eres un subagente. Para explorar código o consultar decisiones previas usa solo " +
+			"estas tools de lectura: " + tools + ".\n" + cierre
+	}
+	names := domain.MCPPrefixed("mcp__gomemory__", subagentReadOnlyTools)
+	if includeCodeGraphProvider {
+		names = append(names, domain.MCPPrefixed(domain.CodebaseMemoryMCPPrefix, domain.CodebaseMemoryMCPDiscoveryTools)...)
+	}
+	return `Eres un subagente. Para explorar código o consultar decisiones previas usa ` +
+		`estas tools de solo lectura (cárgalas con ToolSearch solo si las necesitas):
+select:` + strings.Join(names, ",") + "\n" + cierre
+}
 
 var memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
 	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +

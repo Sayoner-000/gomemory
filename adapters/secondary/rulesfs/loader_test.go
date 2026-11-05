@@ -40,7 +40,8 @@ func projectRules(rules []domain.Rule) []domain.Rule {
 
 func TestLoadWithoutDirReturnsOnlyBuiltin(t *testing.T) {
 	rules, errs := New().Load(context.Background(), t.TempDir())
-	if len(errs) != 0 || len(rules) != 1 || rules[0].Name != "destructive-shell" {
+	// Solo las reglas de serie (destructive-shell y graph-before-grep, HCD-027).
+	if len(errs) != 0 || len(rules) != len(domain.BuiltinRules()) || rules[0].Name != "destructive-shell" || len(projectRules(rules)) != 0 {
 		t.Fatalf("sin directorio: %+v %+v", rules, errs)
 	}
 }
@@ -140,7 +141,7 @@ func TestLoadRespectsCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	rules, _ := New().Load(ctx, root)
-	if len(projectRules(rules)) != 0 || len(rules) != 1 {
+	if len(projectRules(rules)) != 0 || len(rules) != len(domain.BuiltinRules()) {
 		t.Fatalf("con ctx cancelado solo la regla de serie: %+v", rules)
 	}
 }

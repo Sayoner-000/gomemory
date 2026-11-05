@@ -29,6 +29,28 @@ const BIN = "{{BIN_PATH}}";
 export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   const root = directory;
 
+  // HCD-026: una sesión hija (subagente) se reconoce por parentID, que trae el
+  // evento session.created o, si no se vio, client.session.get. Recibía en
+  // cada turno el protocolo completo, `mem context` entero, Octopus y el nudge,
+  // y su session.created reiniciaba la sesión del agente raíz. Un fallo de
+  // consulta no se recuerda y la sesión se trata como raíz, como antes.
+  const childSessions = new Map<string, boolean>();
+  const isChildSession = async (sessionID?: string): Promise<boolean> => {
+    if (!sessionID) return false;
+    const known = childSessions.get(sessionID);
+    if (known !== undefined) return known;
+    const get = (client as any)?.session?.get;
+    if (typeof get !== "function") return false;
+    try {
+      const res = await get.call((client as any).session, { path: { id: sessionID } });
+      const child = Boolean(res?.data?.parentID);
+      childSessions.set(sessionID, child);
+      return child;
+    } catch {
+      return false;
+    }
+  };
+
   // Ejecuta `mem <args>` en la raíz del proyecto. Devuelve null si el comando
   // falló: "" puede ser una respuesta legítima y vacía —lo es la del nudge
   // cuando no toca recordar—, así que solo null distingue el fallo.
@@ -215,6 +237,10 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         // gomemory reinicia el estado por turno solo cuando empieza una nueva
         // (feature 035, FR-017) y un aviso pendiente nunca cruza de una a otra.
         const conversationID = (event as any).properties?.info?.id ?? "";
+        if (conversationID && (event as any).properties?.info?.parentID) {
+          childSessions.set(conversationID, true);
+          return;
+        }
         await mem(["session", "start", `--conversation=${conversationID}`]);
         queueExpand(conversationID, await expand("session-start", { source: "startup", session_id: conversationID }));
       }
@@ -225,6 +251,7 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
         checkpointAgain.delete(sessionID);
         pendingRecovery.delete(sessionID);
         pendingExpand.delete(sessionID);
+        childSessions.delete(sessionID);
       }
       if (event.type === "session.idle") {
         await handleTurnEnd(event.properties.sessionID);
@@ -347,6 +374,11 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       // session.compacted — ver el comentario en pendingRecovery). Va antes
       // que el resto: es lo más urgente si acaba de compactarse.
       const sessionID = _input.sessionID;
+      if (await isChildSession(sessionID)) {
+        const notice = await run(["hook", "subagent-start", "opencode"]);
+        if (notice) output.system.push(notice);
+        return;
+      }
       if (sessionID) {
         const recovery = pendingRecovery.get(sessionID);
         if (recovery) {
@@ -836,6 +868,10 @@ const clientShim = (ctx: any, signal: () => AbortSignal) => ({
     messages: async ({ path }: { path: { id: string } }) => ({
       data: normalizeMessagesV2(await ctx.session.context({ sessionID: path.id }, { signal: signal() })),
     }),
+    // HCD-026: la fábrica v1 reconoce al subagente por parentID.
+    ...(typeof ctx.session?.get === "function"
+      ? { get: async ({ path }: { path: { id: string } }) => ({ data: await ctx.session.get({ sessionID: path.id }, { signal: signal() }) }) }
+      : {}),
   },
 });
 
