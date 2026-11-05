@@ -458,4 +458,3 @@ func TestHCDStart_ContinuaDesdeDisco(t *testing.T) {
 		t.Fatalf("expected HCD-030 and number 30; got %s (%d)", v.Unit.ID, v.Unit.Number)
 	}
 }
-

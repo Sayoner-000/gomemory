@@ -123,4 +123,3 @@ func TestWorkspace_MaxUnitNumber(t *testing.T) {
 		t.Fatalf("expected 29, got %d", maxNum)
 	}
 }
-
