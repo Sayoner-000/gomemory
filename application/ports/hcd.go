@@ -34,6 +34,9 @@ type HCDWorkspace interface {
 	Run(ctx context.Context, command string) (exitCode int, excerpt string, err error)
 	// MaxUnitNumber devuelve el número de unidad más alto presente en hcd/HCD-*.md (0 si ninguno).
 	MaxUnitNumber() (int, error)
+	// PathExists informa si la ruta relativa existe dentro de la raíz del
+	// proyecto; una ruta absoluta o que sale de la raíz no existe (HCD-034).
+	PathExists(rel string) bool
 }
 
 // HCDContextRepository alimenta la sección «HCD activo» del contexto.

@@ -31,6 +31,9 @@ type HCDState struct {
 	// vacías si el motor no las conoce.
 	ConstitutionRev string
 	PlaybookRev     string
+	// MissingPaths son las rutas de CitedPaths que no existen en el
+	// repositorio; las rellena el caso de uso (HCD-034).
+	MissingPaths []string
 }
 
 func (s HCDState) DefinitionRevision() string { return DefinitionRevision(s.Doc) }
@@ -279,7 +282,28 @@ func (s HCDState) Analyze() []HCDFinding {
 			add(SeverityMedium, "EVIDENCE-MANUAL", strings.Join(e.Tasks, ","), "evidencia manual: es una observación declarada, no ejecutada")
 		}
 	}
+	s.analyzeLenses(add)
 	return out
+}
+
+// analyzeLenses aplica las lentes deterministas (HCD-034). Son avisos: nunca
+// bloquean el cierre.
+func (s HCDState) analyzeLenses(add func(sev Severity, code, ref, msg string)) {
+	for _, t := range s.Doc.Tasks {
+		if !TaskNamesFile(t) {
+			add(SeverityMedium, "TASK-NO-FILE", t.ID, "la tarea "+t.ID+" no nombra el archivo o directorio que toca")
+		}
+	}
+	if IsCheapestFiller(s.Doc.Sections[SectionCheapest]) {
+		add(SeverityMedium, "CHEAPEST-FILLER", SectionCheapest, "la «"+SectionCheapest+"» es una negación sin motivo: di qué alternativa se descartó y por qué")
+	}
+	// Antes de verify, una ruta ausente puede ser un archivo que la unidad aún
+	// va a crear (Q1).
+	if stage := s.Stage(); stage == StageVerify || stage == StageClose {
+		for _, p := range s.MissingPaths {
+			add(SeverityMedium, "PATH-MISSING", p, "la ruta citada "+p+" no existe en el repositorio")
+		}
+	}
 }
 
 func (s HCDState) analyzeTraceability(add func(sev Severity, code, ref, msg string)) {

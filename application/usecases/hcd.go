@@ -143,6 +143,11 @@ func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
 	}
 	s := domain.HCDState{Unit: unit}
 	s.Doc, s.Pending = domain.ParseUnitDoc(data, unit.Kind, unit.Lane)
+	for _, p := range domain.CitedPaths(s.Doc) {
+		if !h.ws.PathExists(p) {
+			s.MissingPaths = append(s.MissingPaths, p)
+		}
+	}
 	if s.Fingerprint, err = h.ws.Fingerprint(ctx); err != nil {
 		return HCDView{}, err
 	}

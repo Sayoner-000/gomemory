@@ -199,6 +199,17 @@ func tail(s string) string {
 	return strings.Join(lines, "\n")
 }
 
+// PathExists informa si rel existe bajo la raíz. No sigue la ruta fuera de la
+// raíz: una ruta absoluta, vacía o con «..» que escapa responde false.
+func (w Workspace) PathExists(rel string) bool {
+	clean := path.Clean(filepath.ToSlash(rel))
+	if rel == "" || path.IsAbs(clean) || filepath.IsAbs(rel) || clean == ".." || strings.HasPrefix(clean, "../") {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(w.Root, filepath.FromSlash(clean)))
+	return err == nil
+}
+
 // MaxUnitNumber devuelve el número más alto entre los archivos hcd/HCD-*.md del workspace.
 // Devuelve 0 si no hay directorio hcd/ o si no hay archivos que sigan el patrón.
 func (w Workspace) MaxUnitNumber() (int, error) {

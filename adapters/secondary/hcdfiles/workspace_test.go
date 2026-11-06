@@ -123,3 +123,25 @@ func TestWorkspace_MaxUnitNumber(t *testing.T) {
 		t.Fatalf("expected 29, got %d", maxNum)
 	}
 }
+
+// HCD-034: PathExists responde solo dentro de la raíz del proyecto.
+func TestWorkspacePathExists(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "repo")
+	write(t, root, "domain/a.go", "package domain\n")
+	write(t, parent, "fuera.go", "package fuera\n")
+	w := Workspace{Root: root}
+	for rel, want := range map[string]bool{
+		"domain/a.go":  true,
+		"domain":       true,
+		"domain/b.go":  false,
+		"../fuera.go":  false,
+		"/etc/hosts":   false,
+		"":             false,
+		"domain/../..": false,
+	} {
+		if got := w.PathExists(rel); got != want {
+			t.Errorf("PathExists(%q) = %v, want %v", rel, got, want)
+		}
+	}
+}
