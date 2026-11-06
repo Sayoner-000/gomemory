@@ -36,7 +36,7 @@ Endurecer solo los dos tests (esperar o reintentar en la prueba) sale más barat
 ## Checklist
 - [x] 1. La reproducción ya no falla → re-ejecutar la reproducción
 - [x] 2. removeBinaryFile borra con atomicfs.Remove y todo el proyecto compila y pasa en Windows y Unix → go vet ./... && GOOS=windows go vet ./adapters/... && go test ./adapters/primary/cli/... ./adapters/secondary/atomicfs/... -count=1
-- [ ] 3. El job Windows del CI real pasa sin relanzar → manual: job «Windows (Go y binario del release)» en verde en 3 runs del PR, sin gh run rerun
+- [x] 3. El job Windows del CI real pasa sin relanzar → manual: job «Windows (Go y binario del release)» en verde en 3 runs del PR, sin gh run rerun
 
 ## Evidencia
 <!-- La escribe `mem hcd verify`. Lo escrito a mano aquí no cuenta. -->
@@ -51,15 +51,26 @@ Endurecer solo los dos tests (esperar o reintentar en la prueba) sale más barat
       FAIL
 - 2026-11-06 04:53 -05:00 · tarea 1 · verde · caducada · `go test ./adapters/secondary/atomicfs -run TestRemove_ -count=1` (salida 0)
       ok  	mem/adapters/secondary/atomicfs	0.496s
-- 2026-11-06 04:53 -05:00 · tarea 2 · verde · vigente · `go vet ./... && GOOS=windows go vet ./adapters/... && go test ./adapters/primary/cli/... ./adapters/secondary/atomicfs/... -count=1` (salida 0)
+- 2026-11-06 04:53 -05:00 · tarea 2 · verde · caducada · `go vet ./... && GOOS=windows go vet ./adapters/... && go test ./adapters/primary/cli/... ./adapters/secondary/atomicfs/... -count=1` (salida 0)
       ok  	mem/adapters/primary/cli	19.217s
       ok  	mem/adapters/primary/cli/clikit	0.228s
       ok  	mem/adapters/primary/cli/hcd	1.920s
       ok  	mem/adapters/primary/cli/review	1.385s
       ok  	mem/adapters/primary/cli/socratica	1.609s
       ok  	mem/adapters/secondary/atomicfs	0.221s
-- 2026-11-06 04:54 -05:00 · tarea 1 · verde · vigente · `go test ./adapters/secondary/atomicfs -run TestRemove_ -count=1` (salida 0)
+- 2026-11-06 04:54 -05:00 · tarea 1 · verde · caducada · `go test ./adapters/secondary/atomicfs -run TestRemove_ -count=1` (salida 0)
       ok  	mem/adapters/secondary/atomicfs	0.172s
+- 2026-11-06 05:33 -05:00 · tarea 3 · manual · vigente
+      PR #9, commit a0b5623: job Windows en verde en 3 ejecuciones: run 42198690484 intento 1 (push), run 42198712234 intento 2 y run 42198690484 intento 2, relanzados completos (sin --failed) con aprobación de la persona, porque test.yml no tiene workflow_dispatch. El intento 1 del run 42198712234 falló en Windows por TestHookToolOutput (presupuesto de 150 ms del hook tool-output, memoria 1862), ajeno a HCD-039: los tests de retirada de mem.exe pasaron en las 4 ejecuciones. Linux y OpenCode en verde en todas.
+- 2026-11-06 05:33 -05:00 · tarea 1 · verde · vigente · `go test ./adapters/secondary/atomicfs -run TestRemove_ -count=1` (salida 0)
+      ok  	mem/adapters/secondary/atomicfs	0.770s
+- 2026-11-06 05:33 -05:00 · tarea 2 · verde · vigente · `go vet ./... && GOOS=windows go vet ./adapters/... && go test ./adapters/primary/cli/... ./adapters/secondary/atomicfs/... -count=1` (salida 0)
+      ok  	mem/adapters/primary/cli	19.110s
+      ok  	mem/adapters/primary/cli/clikit	0.223s
+      ok  	mem/adapters/primary/cli/hcd	1.911s
+      ok  	mem/adapters/primary/cli/review	1.387s
+      ok  	mem/adapters/primary/cli/socratica	1.553s
+      ok  	mem/adapters/secondary/atomicfs	0.212s
 
 ## Siguiente
-pendiente
+Cerrada con aprobación sobre la revisión 17033682cdeb.
