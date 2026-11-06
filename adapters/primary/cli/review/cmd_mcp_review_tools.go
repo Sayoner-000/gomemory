@@ -62,12 +62,26 @@ type reviewUnmatchedInput struct {
 	Severity string `json:"severity,omitempty"`
 }
 
+// reviewStartDescription y reviewSubmitDescription son lo que el orquestador
+// lee al usar las herramientas: ahí se enseña la revisión de seguimiento
+// (HCD-032/HCD-033), porque sin ello nadie pasaría since_review_id.
+const reviewStartDescription = "Congela un target y abre una revisión adversarial sin ejecutar modelos. " +
+	"scope es opcional: si se proporciona, debe ser un arreglo JSON de rutas relativas, " +
+	"por ejemplo [\".\"]; nunca una ruta suelta. Para revisar de nuevo el mismo trabajo tras " +
+	"correcciones, pasa since_review_id con la revisión anterior terminada: la respuesta trae " +
+	"delta (los archivos que cambiaron, lo único que deben examinar los revisores), inherited " +
+	"(hallazgos ya asentados que no se vuelven a adjudicar) e instructions para los revisores."
+
+const reviewSubmitDescription = "Registra el resultado final estructurado de un revisor para el target congelado. " +
+	"status debe ser exactamente success (la revisión terminó, incluso sin hallazgos) o failure " +
+	"(no pudo completarse); no acepta submitted, complete ni findings. En una revisión de " +
+	"seguimiento, un hallazgo que repite uno de inherited lleva settled_ref con su consensus_id: " +
+	"el motor lo da por asentado si su archivo no cambió y lo reabre si cambió."
+
 func RegisterTools(server *mcp.Server, deps *clikit.Deps, project string) {
 	clikit.AddTool(server, &mcp.Tool{
-		Name: "review_start",
-		Description: "Congela un target y abre una revisión adversarial sin ejecutar modelos. " +
-			"scope es opcional: si se proporciona, debe ser un arreglo JSON de rutas relativas, " +
-			"por ejemplo [\".\"]; nunca una ruta suelta.",
+		Name:        "review_start",
+		Description: reviewStartDescription,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		TargetType        string              `json:"target_type"`
 		Revision          string              `json:"revision"`
@@ -110,10 +124,8 @@ func RegisterTools(server *mcp.Server, deps *clikit.Deps, project string) {
 	})
 
 	clikit.AddTool(server, &mcp.Tool{
-		Name: "review_submit",
-		Description: "Registra el resultado final estructurado de un revisor para el target congelado. " +
-			"status debe ser exactamente success (la revisión terminó, incluso sin hallazgos) o failure " +
-			"(no pudo completarse); no acepta submitted, complete ni findings.",
+		Name:        "review_submit",
+		Description: reviewSubmitDescription,
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		ReviewID     string               `json:"review_id" jsonschema:"Identificador de la revisión abierta"`
 		Reviewer     string               `json:"reviewer" jsonschema:"Revisor que entrega el resultado: A|B"`

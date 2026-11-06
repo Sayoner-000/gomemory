@@ -1243,6 +1243,42 @@ The Fix Actor owns:
 No single role should silently assume all three responsibilities when role
 separation is available.
 
+## Follow-up Review (Cumulative)
+
+When a previous review of the same work already reached a terminal state and
+the target has changed since (for example, after corrections), start a
+follow-up review linked to it instead of reviewing everything again.
+
+A follow-up review:
+
+- inherits what the previous review settled: CONFIRMED findings resolved in
+  its last round, and SUSPECT and INFO findings already classified;
+- never inherits an unresolved CONFIRMED finding or a CONTRADICTION: those stay
+  open and are reviewed again;
+- limits the reviewers to the delta: the files that changed between the
+  previous target and the new one;
+- does not re-adjudicate an inherited finding whose files did not change;
+- reopens an inherited finding, linked to it, when one of its files changed.
+
+The orchestrator:
+
+1. Links the new review to the previous terminal review.
+2. Gives each reviewer the delta and the inherited list, without the other
+   reviewer's results.
+3. Builds consensus only for findings that are not settled.
+
+The terminal guarantees do not change: a missing or failed reviewer still
+yields INCOMPLETE, and a confirmed CRITICAL or HIGH finding left unresolved
+still prevents APPROVED.
+
+If the runtime keeps a review ledger that supports linked reviews, use it
+rather than pasting the lists by hand. A typical contract: the operation that
+starts a review accepts the previous review identifier (`since_review_id`) and
+returns the `delta`, the `inherited` findings with their `consensus_id`, and
+`instructions` for the reviewers. A reviewer who reports an inherited finding
+again cites it with `settled_ref` (its `consensus_id`); the ledger, not the
+reviewer, decides whether it stays settled.
+
 
 # 43. Recommended Invocation Examples
 
@@ -1297,6 +1333,14 @@ instructions:
 
     {applicable rules and contracts}
 
+    FOLLOW-UP (only when this review is linked to a previous one)
+
+    Delta (review only these files): {delta}
+    Inherited findings (already settled; do not report them again):
+    {inherited: consensus_id, claim, files}
+    If an inherited finding reappears, report it with
+    "settled_ref": {consensus_id}.
+
     CONTRACT
 
     - Review independently.
@@ -1320,7 +1364,8 @@ instructions:
           "claim": "",
           "evidence_class": "",
           "evidence": [],
-          "confidence": "high|medium|low"
+          "confidence": "high|medium|low",
+          "settled_ref": 0
         }
       ],
       "inspected": []

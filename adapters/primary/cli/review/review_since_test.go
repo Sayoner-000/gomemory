@@ -60,3 +60,13 @@ func TestReviewSince_Enlace(t *testing.T) {
 		t.Fatalf("una revisión sin enlace no añade nada: %+v", e)
 	}
 }
+
+// HCD-033: el orquestador lee las descripciones de las herramientas al usarlas.
+func TestReviewSince_Descripciones(t *testing.T) {
+	if !strings.Contains(reviewStartDescription, "since_review_id") || !strings.Contains(reviewStartDescription, "inherited") {
+		t.Errorf("review_start debe explicar la revisión de seguimiento: %q", reviewStartDescription)
+	}
+	if !strings.Contains(reviewSubmitDescription, "settled_ref") {
+		t.Errorf("review_submit debe explicar settled_ref: %q", reviewSubmitDescription)
+	}
+}
