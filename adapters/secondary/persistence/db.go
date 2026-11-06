@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 // esperaOcupadaMs es el busy_timeout de cada conexión.
 const esperaOcupadaMs = 5000
@@ -645,6 +645,11 @@ func migrateSchema(ex schemaExecer) error {
 		return err
 	}
 	if err := addColumnIfMissing(ex, "sessions", "last_prompt", "TEXT"); err != nil {
+		return err
+	}
+	// HCD-036 (schema 10): cada conversación de agente tiene su sesión. Nullable:
+	// una sesión anterior no tiene conversación y se lee como antes.
+	if err := addColumnIfMissing(ex, "sessions", "conversation_id", "TEXT"); err != nil {
 		return err
 	}
 	// Feature 035: las salidas sin ganancia se cuentan aparte; no son una

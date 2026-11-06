@@ -88,7 +88,7 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	// no expone el prompt (clientes MCP sin hooks) — degradación limpia.
 	origin := domain.RedactSecrets(domain.RedactPrivate(m.OriginPrompt))
 	if strings.TrimSpace(origin) == "" {
-		origin = activeSessionLastPrompt(db, m.Project)
+		origin = activeSessionLastPrompt(db, m.Project, m.SessionID)
 	}
 
 	// --- Transacción: INSERT/UPDATE + FTS index como unidad atómica ---
@@ -494,17 +494,23 @@ func formSynapse(db *sql.DB, project, sessionID string, newID int64, memType dom
 	anchorMu.Unlock()
 }
 
-// activeSessionLastPrompt devuelve el último prompt registrado en la sesión
-// activa del proyecto (o "" si no hay sesión activa o prompt). Best-effort: ante
-// cualquier error devuelve "" para no bloquear el guardado.
-func activeSessionLastPrompt(db *sql.DB, project string) string {
+// activeSessionLastPrompt devuelve el último prompt registrado en la sesión de
+// la memoria o, si no trae sesión, en la sesión activa del proyecto (o "" si no
+// hay). Con sesión nunca toma el prompt de otro agente (HCD-036). Best-effort:
+// ante cualquier error devuelve "" para no bloquear el guardado.
+func activeSessionLastPrompt(db *sql.DB, project, sessionID string) string {
 	var p sql.NullString
-	err := db.QueryRow(
-		`SELECT last_prompt FROM sessions
-		 WHERE project = ? AND ended_at IS NULL
-		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
-		project,
-	).Scan(&p)
+	var err error
+	if sessionID != "" {
+		err = db.QueryRow(`SELECT last_prompt FROM sessions WHERE project = ? AND id = ?`, project, sessionID).Scan(&p)
+	} else {
+		err = db.QueryRow(
+			`SELECT last_prompt FROM sessions
+			 WHERE project = ? AND ended_at IS NULL AND conversation_id IS NULL
+			 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+			project,
+		).Scan(&p)
+	}
 	if err != nil || !p.Valid {
 		return ""
 	}

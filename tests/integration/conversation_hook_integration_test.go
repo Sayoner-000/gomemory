@@ -21,9 +21,9 @@ func TestConversation_AvisoPendienteNoCruzaDeConversacion(t *testing.T) {
 
 	runHookWithStdin(t, bin, target, "session-start", `{"session_id":"A"}`)
 	runHookWithStdinArgs(t, bin, target, []string{"hook", "user-prompt-submit", "--emit=json"}, `{"prompt":"uno"}`)
-	_ = os.WriteFile(filepath.Join(target, ".memory", ".footprint"), []byte("60000"), 0o644)
+	_ = os.WriteFile(estadoDeConversacion(target, "A", ".footprint"), []byte("60000"), 0o644)
 	runHookWithStdinArgs(t, bin, target, []string{"hook", "turn-end", "--emit=json"}, `{}`)
-	if _, err := os.Stat(filepath.Join(target, ".memory", ".pending-agent-notice")); err != nil {
+	if _, err := os.Stat(estadoDeConversacion(target, "A", ".pending-agent-notice")); err != nil {
 		t.Fatalf("precondición: la conversación A debía dejar el aviso pendiente: %v", err)
 	}
 
@@ -40,7 +40,7 @@ func TestConversation_AvisoDeLaMismaConversacionLlegaEnElPrimerPrompt(t *testing
 	target := setUpAgentNoticeProject(t, true)
 
 	runHookWithStdin(t, bin, target, "session-start", `{"session_id":"A"}`)
-	_ = os.WriteFile(filepath.Join(target, ".memory", ".footprint"), []byte("60000"), 0o644)
+	_ = os.WriteFile(estadoDeConversacion(target, "A", ".footprint"), []byte("60000"), 0o644)
 	runHookWithStdinArgs(t, bin, target, []string{"hook", "turn-end", "--emit=json"}, `{}`)
 	// Reanudación: mismo session_id. El primer prompt tras el arranque es el
 	// que debe entregar el aviso, y una sola vez.
@@ -61,16 +61,21 @@ func TestConversation_ReanudacionNoReiniciaElEstado(t *testing.T) {
 		t.Fatal(err)
 	}
 	runHookWithStdin(t, bin, target, "session-start", `{"session_id":"A"}`)
-	huella := filepath.Join(target, ".memory", ".footprint")
+	huella := estadoDeConversacion(target, "A", ".footprint")
 	_ = os.WriteFile(huella, []byte("123"), 0o644)
 
 	runHookWithStdin(t, bin, target, "session-start", `{"session_id":"A"}`)
 	if _, err := os.Stat(huella); err != nil {
 		t.Error("una reanudación (mismo session_id) no reinicia la huella")
 	}
+	// HCD-036 (C-02): una conversación nueva empieza con su propio estado y no
+	// borra el de la otra, que puede seguir trabajando en paralelo.
 	runHookWithStdin(t, bin, target, "session-start", `{"session_id":"B"}`)
-	if _, err := os.Stat(huella); !os.IsNotExist(err) {
-		t.Error("una conversación nueva reinicia la huella")
+	if _, err := os.Stat(huella); err != nil {
+		t.Error("la conversación B no debe borrar la huella de A")
+	}
+	if _, err := os.Stat(estadoDeConversacion(target, "B", ".footprint")); !os.IsNotExist(err) {
+		t.Error("la conversación B empieza con su huella vacía")
 	}
 }
 

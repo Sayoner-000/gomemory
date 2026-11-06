@@ -81,22 +81,57 @@ var _ ports.MemoryFullLister = (*MemoryRepository)(nil)
 
 type SessionRepository struct {
 	db *sql.DB
+	// conv dice a qué conversación de agente pertenece el proceso (HCD-036).
+	// nil = comportamiento anterior: una sesión abierta por proyecto.
+	conv ports.ConversationResolver
 }
 
 func NewSessionRepository(db *sql.DB) ports.SessionRepository {
 	return &SessionRepository{db: db}
 }
 
+// WithConversation acota la sesión a la conversación de agente del proceso.
+func (r *SessionRepository) WithConversation(conv ports.ConversationResolver) *SessionRepository {
+	r.conv = conv
+	return r
+}
+
+func (r *SessionRepository) conversation() string {
+	if r.conv == nil {
+		return ""
+	}
+	return r.conv.Current()
+}
+
 func (r *SessionRepository) Start(project string) (*domain.Session, error) {
-	return StartSession(r.db, project)
+	return StartConversationSession(r.db, project, r.conversation())
 }
 
 func (r *SessionRepository) End(id, summary string) error {
 	return EndSession(r.db, id, summary)
 }
 
+// OpenSessionIDs lista las sesiones abiertas del proyecto, de cualquier
+// conversación: la rotación por inactividad las revisa todas (HCD-036).
+func (r *SessionRepository) OpenSessionIDs(project string) ([]string, error) {
+	rows, err := r.db.Query(`SELECT id FROM sessions WHERE project = ? AND ended_at IS NULL`, project)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (r *SessionRepository) Active(project string) (*domain.Session, error) {
-	return ActiveSession(r.db, project)
+	return ActiveConversationSession(r.db, project, r.conversation())
 }
 
 func (r *SessionRepository) Recent(project string, limit int) ([]domain.Session, error) {
@@ -104,7 +139,7 @@ func (r *SessionRepository) Recent(project string, limit int) ([]domain.Session,
 }
 
 func (r *SessionRepository) SetLastPrompt(project, prompt string) error {
-	return SetSessionLastPrompt(r.db, project, prompt)
+	return SetConversationLastPrompt(r.db, project, r.conversation(), prompt)
 }
 
 // LastActivity implementa ports.SessionActivityReader (feature 035).

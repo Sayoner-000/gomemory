@@ -41,7 +41,7 @@ func SetSessionLastPrompt(db *sql.DB, project, prompt string) error {
 	prompt = domain.TruncateUTF8(prompt, maxOriginPromptLen)
 	_, err := db.Exec(
 		`UPDATE sessions SET last_prompt = ?
-		 WHERE id = (SELECT id FROM sessions WHERE project = ? AND ended_at IS NULL
+		 WHERE id = (SELECT id FROM sessions WHERE project = ? AND ended_at IS NULL AND conversation_id IS NULL
 		             ORDER BY created_at DESC, rowid DESC LIMIT 1)`,
 		prompt, project,
 	)
@@ -93,14 +93,66 @@ func EndSession(db *sql.DB, id, summary string) error {
 	return nil
 }
 
+// StartConversationSession abre la sesión de una conversación de agente
+// (HCD-036). Sin conversación es StartSession.
+func StartConversationSession(db *sql.DB, project, conversationID string) (*domain.Session, error) {
+	if conversationID == "" {
+		return StartSession(db, project)
+	}
+	s, err := StartSession(db, project)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec(`UPDATE sessions SET conversation_id = ? WHERE id = ?`, conversationID, s.ID); err != nil {
+		return nil, fmt.Errorf("start session: %w", err)
+	}
+	return s, nil
+}
+
+// ActiveConversationSession es la sesión abierta de una conversación de agente
+// (HCD-036): nunca la de otro agente del mismo proyecto. Sin conversación es
+// ActiveSession, la última abierta del proyecto, como antes.
+func ActiveConversationSession(db *sql.DB, project, conversationID string) (*domain.Session, error) {
+	if conversationID == "" {
+		return ActiveSession(db, project)
+	}
+	return scanActiveSession(db.QueryRow(
+		`SELECT id, project, COALESCE(summary,''), created_at, ended_at FROM sessions
+		 WHERE project = ? AND ended_at IS NULL AND conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		project, conversationID))
+}
+
+// SetConversationLastPrompt guarda el prompt en la sesión de la conversación.
+func SetConversationLastPrompt(db *sql.DB, project, conversationID, prompt string) error {
+	if conversationID == "" {
+		return SetSessionLastPrompt(db, project, prompt)
+	}
+	prompt = domain.TruncateUTF8(domain.ProtectText(prompt), maxOriginPromptLen)
+	if _, err := db.Exec(
+		`UPDATE sessions SET last_prompt = ?
+		 WHERE id = (SELECT id FROM sessions WHERE project = ? AND ended_at IS NULL AND conversation_id = ?
+		             ORDER BY created_at DESC, rowid DESC LIMIT 1)`,
+		prompt, project, conversationID,
+	); err != nil {
+		return fmt.Errorf("set session last prompt: %w", err)
+	}
+	return nil
+}
+
+// ActiveSession es la última sesión abierta del proyecto SIN conversación: la
+// que comparten los procesos que no identifican a su agente. Nunca devuelve la
+// sesión de un agente identificado (HCD-036).
 func ActiveSession(db *sql.DB, project string) (*domain.Session, error) {
+	return scanActiveSession(db.QueryRow(
+		`SELECT id, project, COALESCE(summary,''), created_at, ended_at FROM sessions
+		 WHERE project = ? AND ended_at IS NULL AND conversation_id IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		project))
+}
+
+func scanActiveSession(row *sql.Row) (*domain.Session, error) {
 	var s domain.Session
 	var endedAt sql.NullString
-	err := db.QueryRow(
-		`SELECT id, project, COALESCE(summary,''), created_at, ended_at FROM sessions
-		 WHERE project = ? AND ended_at IS NULL ORDER BY created_at DESC, rowid DESC LIMIT 1`,
-		project,
-	).Scan(&s.ID, &s.Project, &s.Summary, &s.CreatedAt, &endedAt)
+	err := row.Scan(&s.ID, &s.Project, &s.Summary, &s.CreatedAt, &endedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

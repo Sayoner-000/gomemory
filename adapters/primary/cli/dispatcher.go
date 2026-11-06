@@ -12,6 +12,10 @@ import (
 )
 
 func Run(cmd string, args []string, deps *Deps) {
+	// El estado por turno de .memory/ es de la conversación del proceso (HCD-036).
+	if deps != nil {
+		stateConversation = deps.Conversation
+	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		switch cmd {
 		case "session", "pack", "review", "docs", "forget", "get", "gc", "compact", "purge", "sanitize", "octopus", "socratica", "hcd", "expand", "adr-sync", "project", "seed", "uninstall", "mcp", "hook", "update-check", "version":

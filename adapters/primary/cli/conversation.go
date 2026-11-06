@@ -2,6 +2,7 @@ package cli
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"os"
@@ -20,7 +21,33 @@ import (
 // conversación de Codex llegaba al segundo prompt de la siguiente.
 
 func conversationPath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".conversation")
+	return perConversationPath(root, ".conversation")
+}
+
+// stateConversation es la conversación de agente del proceso (HCD-036). La fija
+// Run con deps.Conversation; nil = estado por proyecto, como antes.
+var stateConversation ports.ConversationResolver
+
+// perConversationPath ubica un archivo de estado por turno. Con conversación va
+// en .memory/conversations/<hash del id>/, para que el arranque o el cierre de
+// otro agente no lo borre (C-02); sin ella, en .memory/ como siempre.
+func perConversationPath(root, name string) string {
+	return perConversationPathIn(root, persistence.MemDir, name)
+}
+
+// perConversationPathIn es perConversationPath con el directorio de memoria
+// del repositorio de proyecto (las marcas que ya lo usaban lo conservan).
+func perConversationPathIn(root, memDir, name string) string {
+	dir := filepath.Join(root, memDir)
+	if stateConversation != nil {
+		if id := stateConversation.Current(); id != "" {
+			sum := sha256.Sum256([]byte(id))
+			dir = filepath.Join(dir, "conversations", hex.EncodeToString(sum[:8]))
+			// Los escritores dan por hecho que el directorio existe.
+			_ = os.MkdirAll(dir, 0o700)
+		}
+	}
+	return filepath.Join(dir, name)
 }
 
 // endConversation deja el próximo arranque sin id libre para crear una
@@ -144,16 +171,15 @@ func rotateStaleSession(deps *Deps, root string) bool {
 		return false
 	}
 	project := deps.ProjectRepo.Key(root)
+	// Las sesiones abiertas sin actividad no son de nadie: se cierran aunque
+	// sean de otra conversación o anteriores a ellas (HCD-036). Sin esto, una
+	// sesión sin conversación quedaba abierta para siempre.
+	closeStaleSessions(deps, project, reader)
 	active, err := deps.SessionRepo.Active(project)
 	if err != nil || active == nil {
 		return false
 	}
-	ts, ok, err := reader.LastActivity(active.ID)
-	if err != nil || !ok {
-		return false
-	}
-	idle, ok := ageSeconds(ts)
-	if !ok || !domain.ShouldRotate(idle) {
+	if !sessionIsStale(reader, active.ID) {
 		return false
 	}
 	if deps.SessionRepo.End(active.ID, staleSessionSummary) != nil {
@@ -162,4 +188,37 @@ func rotateStaleSession(deps *Deps, root string) bool {
 	backupSessionSnapshot(deps, project)
 	_, _ = deps.SessionRepo.Start(project)
 	return true
+}
+
+func sessionIsStale(reader ports.SessionActivityReader, id string) bool {
+	ts, ok, err := reader.LastActivity(id)
+	if err != nil || !ok {
+		return false
+	}
+	idle, ok := ageSeconds(ts)
+	return ok && domain.ShouldRotate(idle)
+}
+
+// closeStaleSessions cierra las sesiones abiertas del proyecto que llevan
+// demasiado tiempo inactivas, de cualquier conversación. Best-effort.
+func closeStaleSessions(deps *Deps, project string, reader ports.SessionActivityReader) {
+	lister, ok := deps.SessionRepo.(interface {
+		OpenSessionIDs(project string) ([]string, error)
+	})
+	if !ok {
+		return
+	}
+	ids, err := lister.OpenSessionIDs(project)
+	if err != nil {
+		return
+	}
+	closed := false
+	for _, id := range ids {
+		if sessionIsStale(reader, id) && deps.SessionRepo.End(id, staleSessionSummary) == nil {
+			closed = true
+		}
+	}
+	if closed {
+		backupSessionSnapshot(deps, project)
+	}
 }

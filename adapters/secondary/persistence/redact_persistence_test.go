@@ -88,7 +88,7 @@ func TestSetLastPrompt_RedactsKnownSecretPatterns(t *testing.T) {
 		t.Fatalf("set last prompt: %v", err)
 	}
 
-	stored := activeSessionLastPrompt(db, "proj")
+	stored := activeSessionLastPrompt(db, "proj", "")
 	if strings.Contains(stored, "xoxb-FAKE-TEST-TOKEN-NOT-REAL") {
 		t.Fatalf("secreto no redactado en last_prompt: %q", stored)
 	}

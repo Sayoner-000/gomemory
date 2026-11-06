@@ -1,6 +1,9 @@
 package domain
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 
 // Conversation es una interacción continua de una persona con un agente, desde
 // que abre hasta que cierra; sobrevive a las compactaciones (feature 035,
@@ -31,6 +34,19 @@ func IsNewConversation(stored *Conversation, incomingID string) bool {
 // reloj nunca rota.
 func ShouldRotate(idleSecs int64) bool {
 	return idleSecs > StaleSessionSecs
+}
+
+// ResolveConversationID decide a qué conversación de agente pertenece un proceso
+// (HCD-036, Q1): el id que trae el hook manda; sin él, el que el host enlazó a
+// su proceso; y solo sin ninguno, el id local del propio proceso. Nunca se toma
+// «la última conversación del proyecto», que puede ser la de otro agente.
+func ResolveConversationID(hookID, boundID, localID string) string {
+	for _, id := range []string{hookID, boundID, localID} {
+		if id = strings.TrimSpace(id); id != "" {
+			return id
+		}
+	}
+	return ""
 }
 
 // NewLocalConversationID arma el id de una conversación que el host no

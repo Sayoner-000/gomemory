@@ -9,6 +9,7 @@ import (
 	"mem/adapters/primary/cli/socratica"
 	"mem/application/ports"
 	"strings"
+	"time"
 
 	"mem/application/usecases"
 	"mem/domain"
@@ -38,11 +39,10 @@ func CmdMCP(deps *Deps, args []string) {
 	if _, ok := readConversation(root); !ok {
 		beginConversation(deps, root, "")
 	}
-	if active, _ := deps.SessionRepo.Active(project); active == nil {
-		if sess, err := deps.SessionRepo.Start(project); err == nil {
-			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
-		}
-	}
+	// La sesión, en segundo plano (HCD-036): el MCP arranca a la vez que el hook
+	// SessionStart de su host, y abrirla antes de que el hook publique el enlace
+	// dejaba una sesión huérfana además de la del agente.
+	go autoStartMCPSession(deps, project)
 
 	// Siembra oportunista (feature 021): desde v1.9 el MCP puede registrarse en
 	// ámbito global y muchos proyectos nunca ejecutan `mem install`. Este es el
@@ -63,6 +63,29 @@ func CmdMCP(deps *Deps, args []string) {
 	log.Printf("MCP server iniciado para proyecto '%s'", project)
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatalf("Server error: %v", err)
+	}
+}
+
+// mcpBindingWait es cuánto espera el MCP a que el hook SessionStart de su host
+// publique el enlace antes de abrir una sesión local (cliente sin hooks).
+const mcpBindingWait = 5 * time.Second
+
+// autoStartMCPSession abre la sesión del MCP si nadie lo hizo: primero espera
+// el enlace con su host; con él, la sesión ya la abrió el hook.
+func autoStartMCPSession(deps *Deps, project string) {
+	if deps.HostBinding != nil {
+		for deadline := time.Now().Add(mcpBindingWait); time.Now().Before(deadline); time.Sleep(250 * time.Millisecond) {
+			if _, ok := deps.HostBinding.Lookup(); ok {
+				// La caché del resolver guarda un fallo 250 ms: se deja vencer.
+				time.Sleep(300 * time.Millisecond)
+				break
+			}
+		}
+	}
+	if active, _ := deps.SessionRepo.Active(project); active == nil {
+		if sess, err := deps.SessionRepo.Start(project); err == nil {
+			log.Printf("Sesión auto-iniciada (id=%s) para proyecto '%s'", sess.ID[:8], project)
+		}
 	}
 }
 

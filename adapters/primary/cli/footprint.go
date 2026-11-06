@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"mem/adapters/secondary/atomicfs"
-	"mem/adapters/secondary/persistence"
 	"mem/domain"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,7 +22,7 @@ import (
 // y el hook de fin de turno (que lo lee) son procesos distintos.
 
 func footprintPath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".footprint")
+	return perConversationPath(root, ".footprint")
 }
 
 // footprintRead devuelve el acumulado de la sesión (0 si no hay archivo o es
@@ -91,7 +90,7 @@ const compactNudgeMessage = `RECORDATORIO DE MEMORIA: la memoria persistente ya 
 const compactNudgeCooldownSecs = 1800 // tras recordar, callar 30 min antes de repetir
 
 func compactNudgeStatePath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".last-compact-nudge")
+	return perConversationPath(root, ".last-compact-nudge")
 }
 
 // computeCompactNudge decide si el hook de fin de turno debe sugerir compactar:
@@ -123,7 +122,7 @@ func computeCompactNudge(root string, threshold int) (string, bool) {
 // turno (json, text): se consume una sola vez, en el siguiente
 // user-prompt-submit o `mem hook agent-notice`.
 func pendingAgentNoticePath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".pending-agent-notice")
+	return perConversationPath(root, ".pending-agent-notice")
 }
 
 // writePendingAgentNotice deja el aviso pendiente para el turno siguiente.

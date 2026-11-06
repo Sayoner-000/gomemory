@@ -1,4 +1,4 @@
-user_version=9
+user_version=10
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_automatic_original_grants_ref|automatic_original_grants|CREATE INDEX idx_automatic_original_grants_ref ON automatic_original_grants(ref)
@@ -400,7 +400,7 @@ table|sessions|sessions|CREATE TABLE sessions (
 		summary TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
 		ended_at TEXT
-	, last_prompt TEXT)
+	, last_prompt TEXT, conversation_id TEXT)
 table|socratica_flows|socratica_flows|CREATE TABLE socratica_flows (
   id TEXT PRIMARY KEY,
   schema_version INTEGER NOT NULL DEFAULT 1,
@@ -759,6 +759,7 @@ col|sessions|2|summary|TEXT|1|''|0
 col|sessions|3|created_at|TEXT|1|datetime('now', '-5 hours')|0
 col|sessions|4|ended_at|TEXT|0||0
 col|sessions|5|last_prompt|TEXT|0||0
+col|sessions|6|conversation_id|TEXT|0||0
 col|socratica_flows|0|id|TEXT|0||1
 col|socratica_flows|1|schema_version|INTEGER|1|1|0
 col|socratica_flows|2|project|TEXT|1||0

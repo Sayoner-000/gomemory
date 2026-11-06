@@ -3,6 +3,8 @@ package persistence
 import (
 	"database/sql"
 	"fmt"
+
+	"mem/application/ports"
 )
 
 // El registro de entregas responde a una pregunta concreta: qué material ya
@@ -61,17 +63,35 @@ func LastContextDelivery(db *sql.DB, sessionID, kind string) (string, bool) {
 type DeliveryLogRepository struct {
 	db      *sql.DB
 	project string
+	// conv acota el registro a la sesión de la conversación de agente
+	// (HCD-036). nil = la última sesión abierta del proyecto, como antes.
+	conv ports.ConversationResolver
 }
 
 func NewDeliveryLogRepository(db *sql.DB, project string) *DeliveryLogRepository {
 	return &DeliveryLogRepository{db: db, project: project}
 }
 
-// sessionID devuelve la sesión activa, o cadena vacía si no hay ninguna. Sin
-// sesión no hay ámbito al que acotar la supresión, y las operaciones quedan
-// inertes: el documento se entrega completo.
+// WithConversation acota el registro a la conversación de agente del proceso.
+func (r *DeliveryLogRepository) WithConversation(conv ports.ConversationResolver) *DeliveryLogRepository {
+	r.conv = conv
+	return r
+}
+
+// sessionID devuelve la sesión activa de la conversación, o cadena vacía si no
+// hay ninguna. Sin sesión no hay ámbito al que acotar la supresión, y las
+// operaciones quedan inertes: el documento se entrega completo.
 func (r *DeliveryLogRepository) sessionID() string {
-	s, err := ActiveSession(r.db, r.project)
+	return conversationSessionID(r.db, r.project, r.conv)
+}
+
+// conversationSessionID es la sesión abierta de la conversación del proceso.
+func conversationSessionID(db *sql.DB, project string, conv ports.ConversationResolver) string {
+	id := ""
+	if conv != nil {
+		id = conv.Current()
+	}
+	s, err := ActiveConversationSession(db, project, id)
 	if err != nil || s == nil {
 		return ""
 	}

@@ -44,6 +44,11 @@ type Deps struct {
 	// RevisionDiff calcula con git el delta de una revisión enlazada (HCD-032).
 	// Puede ser nil: la revisión usa entonces el scope declarado.
 	RevisionDiff ports.RevisionDiff
+	// Conversation dice a qué conversación de agente pertenece el proceso y
+	// HostBinding la enlaza con su host (HCD-036). Pueden ser nil: sin ellos se
+	// conserva una sesión por proyecto, como antes.
+	Conversation ports.ConversationResolver
+	HostBinding  ports.HostBinding
 	// RevisionFiles lee el alcance en una revisión para medir el ahorro de una
 	// revisión enlazada (HCD-035). Puede ser nil: el ahorro sale no medible.
 	RevisionFiles ports.RevisionFiles

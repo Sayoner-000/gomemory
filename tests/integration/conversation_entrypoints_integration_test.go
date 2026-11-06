@@ -1,20 +1,44 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"mem/adapters/secondary/persistence"
 )
 
+// estadoDeConversacion es la ruta de un archivo de estado por turno de una
+// conversación (HCD-036): .memory/conversations/<sha256(id)[:8] en hex>/name.
+func estadoDeConversacion(target, id, name string) string {
+	sum := sha256.Sum256([]byte(id))
+	return filepath.Join(target, ".memory", "conversations", hex.EncodeToString(sum[:8]), name)
+}
+
+// readConversationFile lee la conversación registrada más reciente: la de
+// .memory/ (sin conversación) o la de cualquier conversación (HCD-036).
 func readConversationFile(t *testing.T, target string) (map[string]any, bool) {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(target, ".memory", ".conversation"))
-	if err != nil {
+	candidatos, _ := filepath.Glob(filepath.Join(target, ".memory", "conversations", "*", ".conversation"))
+	candidatos = append(candidatos, filepath.Join(target, ".memory", ".conversation"))
+	var raw []byte
+	var masReciente time.Time
+	for _, p := range candidatos {
+		info, err := os.Stat(p)
+		if err != nil || (raw != nil && !info.ModTime().After(masReciente)) {
+			continue
+		}
+		if data, err := os.ReadFile(p); err == nil {
+			raw, masReciente = data, info.ModTime()
+		}
+	}
+	if raw == nil {
 		return nil, false
 	}
 	var c map[string]any
@@ -31,7 +55,10 @@ func TestConversation_SessionStartConIdDeOpenCode(t *testing.T) {
 	if err := persistence.EnsureDir(target); err != nil {
 		t.Fatal(err)
 	}
-	huella := filepath.Join(target, ".memory", ".footprint")
+	// Estado por turno que la conversación nueva no debe heredar (HCD-036: vive
+	// en el directorio de la conversación).
+	huella := estadoDeConversacion(target, "ses_opencode_1", ".footprint")
+	_ = os.MkdirAll(filepath.Dir(huella), 0o700)
 	_ = os.WriteFile(huella, []byte("999"), 0o644)
 
 	runMem(t, bin, target, "session", "start", "--conversation=ses_opencode_1")

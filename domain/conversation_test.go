@@ -55,3 +55,19 @@ func TestNewLocalConversationID_Formato(t *testing.T) {
 		t.Errorf("formato inesperado: %q", id)
 	}
 }
+
+// HCD-036 Q1: la conversación de un proceso sale del id que trae el hook; si no
+// lo trae, del enlace con su proceso host; y solo si no hay ninguno, de un id
+// local propio. Nunca de la conversación de otro agente.
+func TestConversationIdentity(t *testing.T) {
+	for _, c := range []struct{ hook, bound, local, want string }{
+		{"claude-A", "claude-B", "local-1", "claude-A"},
+		{"", "claude-B", "local-1", "claude-B"},
+		{"  ", " ", "local-1", "local-1"},
+		{"", "", "", ""},
+	} {
+		if got := ResolveConversationID(c.hook, c.bound, c.local); got != c.want {
+			t.Errorf("ResolveConversationID(%q, %q, %q) = %q, want %q", c.hook, c.bound, c.local, got, c.want)
+		}
+	}
+}

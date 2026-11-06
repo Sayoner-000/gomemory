@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"mem/adapters/secondary/persistence"
 )
 
 // Umbrales del recordatorio de guardado (nudge). Alineados con el
@@ -50,7 +48,7 @@ func computePlanModeReminder(atomicPlanDisabled bool) (string, bool) {
 // nudgeStatePath es el marcador de debounce: guarda el epoch del último
 // recordatorio emitido para no repetirlo dentro del período de enfriamiento.
 func nudgeStatePath(deps *Deps, root string) string {
-	return filepath.Join(root, deps.ProjectRepo.MemDir(), ".last-nudge")
+	return perConversationPathIn(root, deps.ProjectRepo.MemDir(), ".last-nudge")
 }
 
 // computeSaveNudge es la ÚNICA fuente de la decisión "¿toca recordar que
@@ -126,7 +124,7 @@ func ageSeconds(ts string) (int64, bool) {
 // entrada a plan en esta conversación (feature 035, FR-008). Se borra al
 // compactar y al empezar una conversación nueva.
 func planReminderMarkerPath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".plan-reminder-emitted")
+	return perConversationPath(root, ".plan-reminder-emitted")
 }
 
 // claimPlanReminder decide, para Claude Code, si este turno lleva el
@@ -146,7 +144,7 @@ func claimPlanReminder(root string, payload map[string]any) bool {
 // octopusEmittedPath guarda la última activación de Octopus que se le comunicó
 // al agente por el canal acumulativo (user-prompt-submit).
 func octopusEmittedPath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".octopus-emitted")
+	return perConversationPath(root, ".octopus-emitted")
 }
 
 func recordOctopusEmitted(root string, enabled bool) {

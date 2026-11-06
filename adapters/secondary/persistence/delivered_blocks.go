@@ -17,18 +17,22 @@ type DeliveredBlocksRepository struct {
 	db      *sql.DB
 	project string
 	clock   ports.ClockPort
+	// conv acota los bloques a la sesión de la conversación (HCD-036).
+	conv ports.ConversationResolver
 }
 
 func NewDeliveredBlocksRepository(db *sql.DB, project string, clock ports.ClockPort) *DeliveredBlocksRepository {
 	return &DeliveredBlocksRepository{db: db, project: project, clock: clock}
 }
 
+// WithConversation acota los bloques a la conversación de agente del proceso.
+func (r *DeliveredBlocksRepository) WithConversation(conv ports.ConversationResolver) *DeliveredBlocksRepository {
+	r.conv = conv
+	return r
+}
+
 func (r *DeliveredBlocksRepository) sessionID() string {
-	s, err := ActiveSession(r.db, r.project)
-	if err != nil || s == nil {
-		return ""
-	}
-	return s.ID
+	return conversationSessionID(r.db, r.project, r.conv)
 }
 
 func (r *DeliveredBlocksRepository) Seen(ctx context.Context, hashes []string) (map[string]bool, error) {

@@ -23,6 +23,7 @@ import (
 	"mem/adapters/secondary/expandstate"
 	"mem/adapters/secondary/generator"
 	"mem/adapters/secondary/hcdfiles"
+	"mem/adapters/secondary/hostbind"
 	"mem/adapters/secondary/launcher"
 	"mem/adapters/secondary/persistence"
 	"mem/adapters/secondary/rulesfs"
@@ -67,7 +68,11 @@ type Container struct {
 	// RevisionDiff da el delta git de una revisión enlazada (HCD-032).
 	RevisionDiff ports.RevisionDiff
 	// RevisionFiles lee el alcance en una revisión para medir el ahorro (HCD-035).
-	RevisionFiles   ports.RevisionFiles
+	RevisionFiles ports.RevisionFiles
+	// Conversation y HostBinding: la conversación de agente del proceso y su
+	// enlace con el host (HCD-036).
+	Conversation    ports.ConversationResolver
+	HostBinding     ports.HostBinding
 	CodeProviders   []ports.CodeGraphProvider
 	ADRSyncProvider ports.ADRSyncProvider
 	ADRSyncRepo     ports.ADRSyncRepository
@@ -128,7 +133,10 @@ func NewContainer(root, channel string) (*Container, error) {
 	project := persistence.ProjectKey(root)
 
 	memRepo := persistence.NewMemoryRepository(db)
-	sessRepo := persistence.NewSessionRepository(db)
+	// Cada conversación de agente tiene su sesión, sus entregas y su estado por
+	// turno (HCD-036): el proceso la resuelve por hook, enlace del host o canal.
+	conversation, hostBinding := conversationFor(channel, project)
+	var sessRepo ports.SessionRepository = persistence.NewSessionRepository(db).(*persistence.SessionRepository).WithConversation(conversation)
 	relRepo := persistence.NewRelationRepository(db)
 	reviewRepo := persistence.NewReviewRepository(db)
 	consensusRepo := persistence.NewConsensusRepository(db)
@@ -317,7 +325,9 @@ func NewContainer(root, channel string) (*Container, error) {
 		AgentConfig:                  agentconfig.New(agentHome(), root),
 		ProjectRepo:                  persistence.NewProjectRepository(),
 		ContextBuilder:               contextBuilder,
-		DeliveryLog:                  persistence.NewDeliveryLogRepository(db, project),
+		DeliveryLog:                  persistence.NewDeliveryLogRepository(db, project).WithConversation(conversation),
+		Conversation:                 conversation,
+		HostBinding:                  hostBinding,
 		ChannelActivity:              persistence.NewChannelActivityRepository(db, project),
 		MaintenanceRepo:              persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 		CodeGraphRepo:                codeGraphRepo,
@@ -329,7 +339,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		Compressor:                   engine,
 		OriginalStore:                originalStore,
 		AutomaticOriginalGrants:      persistence.NewAutomaticOriginalGrantsRepository(db),
-		DeliveredBlocks:              persistence.NewDeliveredBlocksRepository(db, project, clock.SystemClock{}),
+		DeliveredBlocks:              persistence.NewDeliveredBlocksRepository(db, project, clock.SystemClock{}).WithConversation(conversation),
 		CompressionStats:             compressionStats,
 		CompressionTuning:            compressionTuning,
 		CompressionAdaptiveThreshold: float64(settings.CompressionAdaptiveThresholdPct) / 100,
@@ -388,6 +398,26 @@ func underTempDir(root, tmp string) bool {
 	}
 	rel, err := filepath.Rel(resolve(tmp), resolve(root))
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// conversationFor arma la resolución de la conversación del proceso (HCD-036).
+// Sin id del hook ni enlace del host, la CLI y la TUI usan el de su terminal;
+// el MCP y los hooks, ninguno: comparten la sesión del proyecto sin
+// conversación, como antes, y nunca toman la de un agente identificado.
+// Los enlaces viven en el directorio del proyecto: un host solo atiende una
+// conversación por proyecto y no la filtra a otros.
+func conversationFor(channel, project string) (ports.ConversationResolver, ports.HostBinding) {
+	var binding ports.HostBinding
+	if dir, err := persistence.GlobalProjectDir(project); err == nil {
+		binding = hostbind.New(filepath.Join(dir, "hostbind"))
+	}
+	var local func() string
+	switch channel {
+	case "cli", "tui":
+		id := hostbind.TerminalID()
+		local = func() string { return id }
+	}
+	return hostbind.NewResolver(binding, local), binding
 }
 
 // openInstinctGlobal abre instincts.db en el directorio de datos del usuario.
@@ -461,6 +491,8 @@ func (c *Container) ToDeps() *cli.Deps {
 		EditContext:                  c.EditContext,
 		RevisionDiff:                 c.RevisionDiff,
 		RevisionFiles:                c.RevisionFiles,
+		Conversation:                 c.Conversation,
+		HostBinding:                  c.HostBinding,
 		CodeProviders:                c.CodeProviders,
 		TUIProvider:                  c.tuiProvider(),
 		TUIProviders:                 c.tuiProviders(),

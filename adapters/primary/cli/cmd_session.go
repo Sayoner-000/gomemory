@@ -41,8 +41,12 @@ func cmdSessionStart(deps *Deps, args []string) {
 
 	// OpenCode llama a `mem session start --conversation=<id>` en
 	// session.created: es su inicio de conversación (feature 035, FR-017), haya
-	// o no una sesión de memoria activa.
-	beginConversation(deps, root, conversationFlag(args))
+	// o no una sesión de memoria activa. Como SessionStart, enlaza la
+	// conversación con su host para que su MCP y sus hooks la encuentren
+	// (HCD-036, Q1).
+	convID := conversationFlag(args)
+	adoptHookConversation(deps, map[string]any{"session_id": convID}, true)
+	beginConversation(deps, root, convID)
 
 	active, _ := deps.SessionRepo.Active(project)
 	if active != nil {

@@ -45,6 +45,9 @@ func CmdHook(deps *Deps, args []string) {
 		// Sin evento: no romper nada.
 		os.Exit(0)
 	}
+	// Cada payload que lea el handler fija la conversación del proceso
+	// (HCD-036): ver readHookStdin.
+	hookDeps = deps
 
 	if reentryGuardedEvents[args[0]] {
 		dropDuplicateHook(deps, args[0], args[1:])
@@ -114,7 +117,7 @@ func CmdHook(deps *Deps, args []string) {
 // en cada nuevo arranque de sesión para que el recordatorio vuelva a
 // inyectarse una vez por sesión, no una sola vez en toda la vida del proyecto.
 func sessionMarkerPath(deps *Deps, root string) string {
-	return filepath.Join(root, deps.ProjectRepo.MemDir(), ".session-tools-injected")
+	return perConversationPathIn(root, deps.ProjectRepo.MemDir(), ".session-tools-injected")
 }
 
 // planEnteredMarkerPath marca si el documento completo de plan-entered
@@ -123,7 +126,7 @@ func sessionMarkerPath(deps *Deps, root string) string {
 // mismos puntos que sessionMarkerPath — sesión nueva o tras compactar — para
 // que "una vez por sesión" sea consistente con el bootstrap de ToolSearch.
 func planEnteredMarkerPath(deps *Deps, root string) string {
-	return filepath.Join(root, deps.ProjectRepo.MemDir(), ".plan-entered-emitted")
+	return perConversationPathIn(root, deps.ProjectRepo.MemDir(), ".plan-entered-emitted")
 }
 
 // hookSessionStart inicia (si no existe) la sesión activa e inyecta el
@@ -141,6 +144,9 @@ func hookSessionStart(deps *Deps, args []string) {
 	// que va a post-compact.
 	payload := readHookStdin()
 	convID, _ := payload["session_id"].(string)
+	// El host abre, reanuda o limpia una conversación: se enlaza con ella para
+	// que su MCP y su CLI la encuentren (HCD-036, Q1).
+	adoptHookConversation(deps, payload, true)
 	if convID == "" {
 		// SessionStart es un borde explícito del host. Sin id no podemos
 		// compararlo con el anterior; abrir uno local evita heredar avisos y
@@ -308,6 +314,8 @@ func hookSessionEnd(deps *Deps) {
 		os.Exit(0)
 	}
 	project := deps.ProjectRepo.Key(root)
+	// El payload va primero: trae la conversación que se cierra (HCD-036).
+	payload := readHookStdin()
 
 	// Best-effort defensivo: cubre compactación/cierre sin un session-start
 	// intermedio, para que el próximo primer prompt vuelva a inyectar el
@@ -315,21 +323,42 @@ func hookSessionEnd(deps *Deps) {
 	_ = os.Remove(sessionMarkerPath(deps, root))
 	endConversation(root)
 
+	if endOwnSession(deps, project, payload) {
+		backupSessionSnapshot(deps, project)
+	}
+	os.Exit(0)
+}
+
+// endOwnSession cierra la sesión de la conversación del payload, nunca la de
+// otro agente del proyecto (HCD-036, C-04). Devuelve si cerró alguna.
+func endOwnSession(deps *Deps, project string, payload map[string]any) bool {
+	adoptHookConversation(deps, payload, false)
 	active, err := deps.SessionRepo.Active(project)
 	if err != nil || active == nil {
-		os.Exit(0) // Sin sesión activa: nada que cerrar.
+		return false // Sin sesión activa: nada que cerrar.
 	}
+	summary, _ := payload["summary"].(string)
+	return deps.SessionRepo.End(active.ID, summary) == nil
+}
 
-	summary := ""
-	if payload := readHookStdin(); payload != nil {
-		if s, ok := payload["summary"].(string); ok {
-			summary = s
-		}
+// hookDeps son las dependencias del hook en curso; readHookStdin las usa para
+// adoptar la conversación del payload en cuanto se lee.
+var hookDeps *Deps
+
+// adoptHookConversation fija la conversación del proceso con el session_id del
+// payload (HCD-036). publish la enlaza además con su host: solo SessionStart,
+// que es cuando el host abre, reanuda o limpia una conversación.
+func adoptHookConversation(deps *Deps, payload map[string]any, publish bool) {
+	id, _ := payload["session_id"].(string)
+	if deps == nil || strings.TrimSpace(id) == "" {
+		return
 	}
-
-	_ = deps.SessionRepo.End(active.ID, summary)
-	backupSessionSnapshot(deps, project)
-	os.Exit(0)
+	if deps.Conversation != nil {
+		deps.Conversation.Adopt(id)
+	}
+	if publish && deps.HostBinding != nil {
+		_ = deps.HostBinding.Publish(id)
+	}
 }
 
 // backupSessionSnapshot genera, en modo best-effort, un snapshot automático de
@@ -370,6 +399,9 @@ func hookPreCompact(deps *Deps) {
 // sesión para que el siguiente user-prompt-submit re-materialice las tools MCP
 // diferidas (que la compactación descarta) vía el bootstrap de ToolSearch.
 func hookPostCompact(deps *Deps) {
+	// El payload trae la conversación compactada: se adopta antes de tocar su
+	// sesión y sus entregas (HCD-036).
+	_ = readHookStdin()
 	if root, err := deps.ProjectRepo.FindRoot(); err == nil {
 		_ = os.Remove(sessionMarkerPath(deps, root))
 		_ = os.Remove(planEnteredMarkerPath(deps, root))
@@ -1257,6 +1289,7 @@ func readHookStdin() map[string]any {
 	if json.Unmarshal(data, &payload) != nil {
 		return nil
 	}
+	adoptHookConversation(hookDeps, payload, false)
 	return payload
 }
 

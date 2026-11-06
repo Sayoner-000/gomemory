@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"mem/adapters/primary/setup"
-	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
@@ -293,7 +291,7 @@ func hookToolOutput(deps *Deps, args []string) {
 }
 
 func markersNotePath(root string) string {
-	return filepath.Join(root, persistence.MemDir, ".markers-note-emitted")
+	return perConversationPath(root, ".markers-note-emitted")
 }
 
 // retrieveHintOnce devuelve la nota de cómo recuperar lo omitido solo la
