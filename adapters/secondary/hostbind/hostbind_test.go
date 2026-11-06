@@ -48,14 +48,38 @@ func store(t *testing.T, dir string, procs map[int]proc, self int) *Store {
 	return s
 }
 
-// psInfo contra el sistema real: el padre que da ps es el de Go.
-func TestHostBinding_PsReal(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("sin ps en Windows: cada proceso usa su conversación local")
-	}
+// HCD-038 — psInfo contra el sistema real, en todas las plataformas: el padre
+// es el de Go y hay hora de arranque y nombre. En Windows devolvía un error y
+// los hooks sin session_id perdían su conversación.
+func TestPsInfo_ProcesoActual(t *testing.T) {
 	ppid, start, comm, err := psInfo(os.Getpid())
 	if err != nil || ppid != os.Getppid() || start == "" || comm == "" {
-		t.Fatalf("psInfo(self) = %d %q %q %v; padre real %d", ppid, start, comm, err, os.Getppid())
+		t.Fatalf("psInfo(self) en %s = %d %q %q %v; padre real %d", runtime.GOOS, ppid, start, comm, err, os.Getppid())
+	}
+	again, start2, _, err := psInfo(os.Getpid())
+	if err != nil || again != ppid || start2 != start {
+		t.Fatalf("la hora de arranque identifica al proceso y debe ser estable: %q vs %q (%v)", start, start2, err)
+	}
+}
+
+// HCD-038 — en Windows el host lanza los hooks a través de cmd, PowerShell o
+// pwsh, y el nombre llega con ruta «\» y extensión .exe: también son shells.
+func TestHost_SaltaShellsDeWindows(t *testing.T) {
+	procs := map[int]proc{
+		4:   {0, "t0", "System"},
+		100: {4, "t1", `C:\Users\u\AppData\Local\claude\claude.exe`},
+		200: {100, "t2", `C:\Windows\System32\cmd.exe`},
+		300: {200, "t3", `mem.exe`},
+		210: {100, "t4", `C:\Program Files\PowerShell\7\pwsh.exe`},
+		320: {210, "t5", `mem.exe`},
+		220: {100, "t6", `WindowsPowerShell\v1.0\PowerShell.EXE`},
+		330: {220, "t7", `mem.exe`},
+	}
+	for _, hook := range []int{300, 320, 330} {
+		host, _, ok := store(t, t.TempDir(), procs, hook).host()
+		if !ok || host != 100 {
+			t.Errorf("el hook %d debía enlazar con el host 100 saltando su shell: %d %v", hook, host, ok)
+		}
 	}
 }
 

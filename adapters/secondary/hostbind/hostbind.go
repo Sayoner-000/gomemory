@@ -16,9 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -30,8 +28,21 @@ import (
 const maxDepth = 12
 
 // shells son los intermediarios que un host puede usar para lanzar un hook o
-// un comando; el host es el primer ancestro que no es uno de ellos.
-var shells = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "ksh": true}
+// un comando; el host es el primer ancestro que no es uno de ellos. En Windows
+// el host lanza los hooks con cmd, PowerShell o pwsh (HCD-038).
+var shells = map[string]bool{
+	"sh": true, "bash": true, "zsh": true, "dash": true, "fish": true, "ksh": true,
+	"cmd": true, "powershell": true, "pwsh": true,
+}
+
+// isShell reconoce un shell por el nombre del proceso, venga como «-zsh»,
+// «/bin/zsh» o «C:\Windows\System32\cmd.exe»: filepath.Base no parte las rutas
+// de Windows fuera de Windows, así que la ruta se corta a mano.
+func isShell(comm string) bool {
+	name := comm[strings.LastIndexAny(comm, `/\`)+1:]
+	name = strings.TrimPrefix(strings.ToLower(name), "-")
+	return shells[strings.TrimSuffix(name, ".exe")]
+}
 
 type binding struct {
 	PID            int    `json:"pid"`
@@ -119,7 +130,7 @@ func (s *Store) host() (int, string, bool) {
 		if ierr != nil {
 			return 0, "", false
 		}
-		if !shells[strings.TrimPrefix(filepath.Base(comm), "-")] {
+		if !isShell(comm) {
 			return ppid, start, true
 		}
 		ppid = next
@@ -157,26 +168,4 @@ func (s *Store) prune(keep int) {
 			_ = os.Remove(s.path(pid))
 		}
 	}
-}
-
-// psInfo lee el padre, la hora de arranque y el nombre de un proceso con ps.
-// En Windows no hay enlace: cada proceso usa su conversación local.
-func psInfo(pid int) (int, string, string, error) {
-	if runtime.GOOS == "windows" {
-		return 0, "", "", errors.New("hostbind: no disponible en Windows")
-	}
-	out, err := exec.Command("ps", "-o", "ppid=,lstart=,comm=", "-p", strconv.Itoa(pid)).Output()
-	if err != nil {
-		return 0, "", "", err
-	}
-	// «PPID  Día Mes DD HH:MM:SS AAAA  comando»: lstart ocupa cinco campos.
-	f := strings.Fields(string(out))
-	if len(f) < 7 {
-		return 0, "", "", errors.New("hostbind: salida de ps inesperada")
-	}
-	ppid, err := strconv.Atoi(f[0])
-	if err != nil {
-		return 0, "", "", err
-	}
-	return ppid, strings.Join(f[1:6], " "), strings.Join(f[6:], " "), nil
 }
