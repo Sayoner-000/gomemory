@@ -72,6 +72,27 @@ func TestFitHookOutput_CortaPorParrafosNoAMitadDePalabra(t *testing.T) {
 	}
 }
 
+// HCD-037, Q1 — una sección de memorias es un único párrafo: sus entradas van
+// separadas por un solo salto de línea. Cuando no cabe, se corta en la última
+// entrada completa en vez de descartarla entera (antes se perdía la mitad del
+// tope en este caso).
+func TestFitHookOutput_CortaPorEntradas(t *testing.T) {
+	memory := "## Reglas\n\nregla fija\n\n## Decisiones Técnicas\n\n" +
+		"- **A**: uno\n  → `a.go`\n- **B**: dos\n- **C**: " + strings.Repeat("x", 300) + "\n- **D**: cuatro\n"
+	got, trims := FitHookOutput([]HookSection{
+		{Name: "memory", Priority: HookPriorityMemory, Text: memory, Trimmable: true},
+	}, 200)
+	if !strings.Contains(got, "- **A**: uno\n  → `a.go`\n- **B**: dos") {
+		t.Errorf("las entradas que caben deben salir completas: %q", got)
+	}
+	if strings.Contains(got, "**C**") || strings.Contains(got, "**D**") {
+		t.Errorf("ninguna entrada puede salir a medias ni saltarse otra: %q", got)
+	}
+	if !strings.HasSuffix(got, HookTrimNotice) || len(trims) != 1 {
+		t.Errorf("el recorte debe seguir avisándose: %q %+v", got, trims)
+	}
+}
+
 func TestFitHookOutput_MideEnRunas(t *testing.T) {
 	memory := strings.Repeat("ñandú áéíóú ", 400)
 	got, _ := FitHookOutput([]HookSection{

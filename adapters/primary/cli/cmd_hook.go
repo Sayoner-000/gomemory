@@ -195,12 +195,11 @@ func hookSessionStart(deps *Deps, args []string) {
 	}
 
 	// El contexto se ajusta al tope del canal (FR-004): por encima, Claude Code
-	// solo le mostraba al modelo una vista previa de 2 KB. entregaContextoDeArranque
-	// ya no lo anota como entregado cuando no cabe (C-002 de acr_961a1676).
+	// solo le mostraba al modelo una vista previa de 2 KB. Cuando no cabe,
+	// entregaContextoDeArranque solo anota lo que este recorte deja pasar
+	// (C-002 de acr_961a1676, HCD-037).
 	dialect := sessionStartDialect(args, os.Getenv)
-	ctx, _ := fitHookSections(deps, agentOfDialect(dialect), []domain.HookSection{
-		{Name: "memory", Priority: domain.HookPriorityMemory, Text: entregaContextoDeArranque(deps), Trimmable: true},
-	})
+	ctx, _ := fitHookSections(deps, agentOfDialect(dialect), arranqueSections(entregaContextoDeArranque(deps)))
 	if out := renderSessionStart(dialect, ctx, avisos); out != "" {
 		fmt.Print(out)
 	}
@@ -268,6 +267,13 @@ func writeUpdateNotice(root string, n domain.UpdateNotice) error {
 	return os.WriteFile(updateNoticePath(root), data, 0o600)
 }
 
+// arranqueSections son las secciones que emite el arranque. Las comparten
+// hookSessionStart, que las ajusta al tope, y entregaContextoDeArranque, que
+// reproduce ese mismo ajuste para saber qué llegó entero (HCD-037).
+func arranqueSections(memory string) []domain.HookSection {
+	return []domain.HookSection{{Name: "memory", Priority: domain.HookPriorityMemory, Text: memory, Trimmable: true}}
+}
+
 // entregaContextoDeArranque construye el contexto de la sesión y deja constancia
 // de la entrega. Devuelve "" cuando no hay nada que emitir.
 //
@@ -287,12 +293,15 @@ func entregaContextoDeArranque(deps *Deps) string {
 	}
 	resetDeliveries(deps)
 	out := compressDeliveredContext(deps, ctx)
-	// Una salida mayor que la que el host inyecta entera llega truncada: el
-	// agente solo ve una vista previa. Darla por entregada haría que get_context
-	// y get_plan_context le devolvieran marcadores de lo que nunca leyó, así que
-	// solo se anota lo que cabe (C-002 de acr_961a1676). El tope se mide en
-	// caracteres, no en bytes (C-001 de acr_6793454b).
+	// Una salida mayor que el tope del canal se recorta. Darla entera por
+	// entregada haría que get_context y get_plan_context devolvieran marcadores
+	// de lo que el agente nunca leyó (C-002 de acr_961a1676), así que solo se
+	// anotan las entradas que el recorte deja pasar completas, y el canal no se
+	// registra (HCD-037). El tope se mide en caracteres, no en bytes (C-001 de
+	// acr_6793454b).
 	if utf8.RuneCountInString(out) > domain.HookInlineContextMaxChars {
+		visible, _ := domain.FitHookOutput(arranqueSections(out), domain.HookInlineContextMaxChars)
+		markVisibleDelivered(deps, ctx, visible)
 		return out
 	}
 	if deps.DeliveryLog != nil {

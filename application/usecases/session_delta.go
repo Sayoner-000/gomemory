@@ -56,41 +56,7 @@ func (d SessionDelta) ApplyContext(ctx context.Context, doc string) string {
 		return doc
 	}
 	lines := strings.SplitAfter(doc, "\n")
-	// units: índices [inicio, fin) de cada entrada dentro de una sección elegible.
-	type unit struct{ start, end int }
-	var units []unit
-	inSection := false
-	for i := 0; i < len(lines); i++ {
-		l := lines[i]
-		if strings.HasPrefix(l, baselineHeading) && !d.KeepBaseline {
-			if end := lineWithPrefix(lines, i+1, baselineEnd); end != -1 {
-				units = append(units, unit{i + 1, end})
-				inSection = false
-				i = end
-				continue
-			}
-		}
-		if strings.HasPrefix(l, "## ") || strings.HasPrefix(l, "<!-- mem:volatile") || strings.HasPrefix(l, "# ") {
-			inSection = false
-			for _, h := range deltaSections {
-				if strings.HasPrefix(l, h) {
-					inSection = true
-					break
-				}
-			}
-			continue
-		}
-		if !inSection || !strings.HasPrefix(l, "- ") || strings.HasPrefix(l, "- (+") {
-			continue
-		}
-		j := i + 1
-		for j < len(lines) && !strings.HasPrefix(lines[j], "- ") && !strings.HasPrefix(lines[j], "## ") &&
-			!strings.HasPrefix(lines[j], "<!-- mem:volatile") && strings.TrimSpace(lines[j]) != "" {
-			j++
-		}
-		units = append(units, unit{i, j})
-		i = j - 1
-	}
+	units := d.contextUnits(lines)
 	if len(units) == 0 {
 		return doc
 	}
@@ -143,6 +109,104 @@ func (d SessionDelta) ApplyContext(ctx context.Context, doc string) string {
 	}
 	_ = d.Blocks.Mark(ctx, fresh)
 	return out.String()
+}
+
+// deltaUnit son los índices [inicio, fin) de una entrada dentro de una sección
+// elegible del documento partido en líneas.
+type deltaUnit struct{ start, end int }
+
+// contextUnits localiza las unidades de un documento de contexto: cada entrada
+// de las secciones de deltaSections y, salvo con KeepBaseline, el baseline.
+func (d SessionDelta) contextUnits(lines []string) []deltaUnit {
+	var units []deltaUnit
+	inSection := false
+	for i := 0; i < len(lines); i++ {
+		l := lines[i]
+		if strings.HasPrefix(l, baselineHeading) && !d.KeepBaseline {
+			if end := lineWithPrefix(lines, i+1, baselineEnd); end != -1 {
+				units = append(units, deltaUnit{i + 1, end})
+				inSection = false
+				i = end
+				continue
+			}
+		}
+		if strings.HasPrefix(l, "## ") || strings.HasPrefix(l, "<!-- mem:volatile") || strings.HasPrefix(l, "# ") {
+			inSection = false
+			for _, h := range deltaSections {
+				if strings.HasPrefix(l, h) {
+					inSection = true
+					break
+				}
+			}
+			continue
+		}
+		if !inSection || !strings.HasPrefix(l, "- ") || strings.HasPrefix(l, "- (+") {
+			continue
+		}
+		j := i + 1
+		for j < len(lines) && !strings.HasPrefix(lines[j], "- ") && !strings.HasPrefix(lines[j], "## ") &&
+			!strings.HasPrefix(lines[j], "<!-- mem:volatile") && strings.TrimSpace(lines[j]) != "" {
+			j++
+		}
+		units = append(units, deltaUnit{i, j})
+		i = j - 1
+	}
+	return units
+}
+
+// MarkVisible anota como entregadas solo las unidades de doc que aparecen
+// completas en visible, el texto que de verdad llegó al agente (HCD-037). Lo
+// usa el arranque cuando el canal recorta la salida: lo que quedó fuera, o
+// llegó cortado a medias, no se anota y la siguiente entrega lo envía entero.
+//
+// visible es la salida ya comprimida y doc el documento crudo: ambos se comparan
+// con los espacios normalizados igual que el compresor estructural (colapsa
+// espacios repetidos y recorta los extremos de línea). Una unidad a la que el
+// motor omitió contenido no aparece completa y no se anota. El hash sigue
+// siendo el de la unidad cruda, que es la que verá el delta después.
+func (d SessionDelta) MarkVisible(ctx context.Context, doc, visible string) {
+	if d.Blocks == nil || doc == "" || visible == "" {
+		return
+	}
+	lines := strings.SplitAfter(doc, "\n")
+	shown := normalizeSpaces(visible)
+	var vistos []string
+	for _, u := range d.contextUnits(lines) {
+		text := strings.TrimRight(strings.Join(lines[u.start:u.end], ""), "\n")
+		if text != "" && containsWholeLines(shown, normalizeSpaces(text)) {
+			vistos = append(vistos, unitHash(text))
+		}
+	}
+	_ = d.Blocks.Mark(ctx, vistos)
+}
+
+var repeatedSpaces = regexp.MustCompile(`[ \t]{2,}`)
+
+// normalizeSpaces colapsa los espacios repetidos y recorta los extremos de cada
+// línea, como hace la compresión estructural con el texto que se entrega.
+func normalizeSpaces(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimSpace(repeatedSpaces.ReplaceAllString(l, " "))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// containsWholeLines dice si text aparece en s empezando en un inicio de línea
+// y terminando en un fin de línea: así una entrada no cuenta como vista porque
+// otra más larga la contenga, ni porque el recorte la cortara a media línea.
+func containsWholeLines(s, text string) bool {
+	for from := 0; ; {
+		i := strings.Index(s[from:], text)
+		if i < 0 {
+			return false
+		}
+		start, end := from+i, from+i+len(text)
+		if (start == 0 || s[start-1] == '\n') && (end == len(s) || s[end] == '\n') {
+			return true
+		}
+		from = start + 1
+	}
 }
 
 func lineWithPrefix(lines []string, from int, prefix string) int {
