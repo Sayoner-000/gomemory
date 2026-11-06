@@ -78,6 +78,11 @@ func ReplaceFileNodes(db *sql.DB, project, path, hash string, nodes []domain.Cod
 	if _, err := tx.Exec(`DELETE FROM code_edges WHERE src_file_id = ?`, fileID); err != nil {
 		return nil, fmt.Errorf("delete stale edges: %w", err)
 	}
+	// Las pendientes apuntan a nodos del archivo que se acaban de borrar: el
+	// indexador vuelve a guardar las que sigan sin resolver (HCD-041).
+	if _, err := tx.Exec(`DELETE FROM code_pending_calls WHERE src_file_id = ?`, fileID); err != nil {
+		return nil, fmt.Errorf("delete stale pending calls: %w", err)
+	}
 
 	inserted := make([]domain.CodeNode, 0, len(nodes))
 	for _, n := range nodes {
@@ -250,6 +255,9 @@ func DeleteCodeFile(db *sql.DB, project, path string) error {
 	}
 	if _, err := tx.Exec(`DELETE FROM code_edges WHERE src_file_id = ?`, fileID); err != nil {
 		return fmt.Errorf("delete stale edges: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM code_pending_calls WHERE src_file_id = ?`, fileID); err != nil {
+		return fmt.Errorf("delete stale pending calls: %w", err)
 	}
 	if _, err := tx.Exec(`DELETE FROM code_files WHERE id = ?`, fileID); err != nil {
 		return fmt.Errorf("delete code_files: %w", err)

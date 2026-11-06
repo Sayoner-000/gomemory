@@ -63,6 +63,22 @@ type CodeEdge struct {
 	Confidence float64      `json:"confidence"`
 }
 
+// PendingCall es una llamada que el indexador no pudo resolver porque el
+// símbolo destino aún no existía. Se guarda para resolverla cuando aparezca
+// el símbolo en otro archivo, sin reindexar el que llama (HCD-041).
+type PendingCall struct {
+	ID       int64
+	SrcPath  string // archivo que contiene la llamada
+	CallerID int64  // nodo función/método que llama
+	// CallerPkg es el paquete del que llama: desempata las llamadas directas.
+	CallerPkg string
+	// Name es el identificador llamado (Bar()) o el selector (pkg.Bar()).
+	Name string
+	// SelAlias e ImportPath solo se rellenan en llamadas con selector.
+	SelAlias   string
+	ImportPath string
+}
+
 // PackageStat resume cuántos símbolos indexó un paquete, usado en el resumen
 // de get_context y en graph_status.
 type PackageStat struct {

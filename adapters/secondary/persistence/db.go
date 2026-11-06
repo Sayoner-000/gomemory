@@ -190,7 +190,8 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 10
+// 11: code_pending_calls (HCD-041).
+const schemaVersion = 11
 
 // esperaOcupadaMs es el busy_timeout de cada conexión.
 const esperaOcupadaMs = 5000
@@ -413,6 +414,18 @@ func migrateSchema(ex schemaExecer) error {
 	CREATE INDEX IF NOT EXISTS idx_code_edges_from ON code_edges(from_id);
 	CREATE INDEX IF NOT EXISTS idx_code_edges_to ON code_edges(to_id);
 	CREATE INDEX IF NOT EXISTS idx_code_edges_src_file ON code_edges(src_file_id);
+	CREATE TABLE IF NOT EXISTS code_pending_calls (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		src_file_id INTEGER NOT NULL,
+		caller_id INTEGER NOT NULL,
+		caller_pkg TEXT NOT NULL DEFAULT '',
+		name TEXT NOT NULL,
+		sel_alias TEXT NOT NULL DEFAULT '',
+		import_path TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX IF NOT EXISTS idx_code_pending_calls_name ON code_pending_calls(project, name);
+	CREATE INDEX IF NOT EXISTS idx_code_pending_calls_src_file ON code_pending_calls(src_file_id);
 	CREATE TABLE IF NOT EXISTS adr_sync_records (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		project TEXT NOT NULL,
