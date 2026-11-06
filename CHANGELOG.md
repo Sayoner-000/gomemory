@@ -5,6 +5,24 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.49.0] - 2026-11-05
+
+### Added
+
+- Revisión ACR de seguimiento (HCD-032). `review_start` acepta `since_review_id`; en la CLI es `mem review --commit <sha> --since <review-id>`. La revisión nueva hereda lo que la anterior dejó asentado y solo revisa los archivos que cambiaron entre los dos commits. Un hallazgo heredado no se vuelve a adjudicar si su archivo sigue igual; si cambió, se reabre. Los revisores lo citan con `settled_ref`. Esquema 9, aditivo.
+- Ahorro estimado de una revisión de seguimiento (HCD-035). Con delta de git, `review_start` devuelve el bloque `savings` y la CLI imprime una línea «ahorro estimado». Mide lo que el revisor deja de leer, no los tokens que gasta el modelo. En la historia de gomemory sale entre un 93 % y un 99 % menos de entrada.
+- Tres avisos nuevos en `mem hcd analyze` (HCD-034), todos MEDIUM y sin bloquear el cierre: `TASK-NO-FILE` cuando una tarea no dice qué archivo toca, `PATH-MISSING` cuando una ruta citada no existe (solo desde `verify`) y `CHEAPEST-FILLER` cuando la «Alternativa más barata» es un «ninguna» sin motivo.
+
+### Changed
+
+- La skill `adversarial-consensus-review` explica cómo encadenar una revisión con la anterior: `since_review_id` al iniciar y `settled_ref` para lo heredado (HCD-033). Las dos copias conservan sus finales de línea CRLF.
+
+### Fixed
+
+- Dos agentes en el mismo proyecto ya no se quitan la sesión (HCD-036). Compartían la sesión de gomemory, el registro de entregas y el estado por turno, así que cada vez que uno arrancaba o cerraba, el otro recibía de nuevo el contexto (unos 4.300 tokens) y el bootstrap (unos 1.500). Ahora cada conversación tiene lo suyo: su sesión (`sessions.conversation_id`, esquema 10, aditivo) y su estado en `.memory/conversations/<id>/`. Un proceso sabe a qué conversación pertenece por el `session_id` del hook, por el enlace que SessionStart publica para su proceso host o por su terminal. Si no tiene ninguno de los tres, usa la sesión de proyecto sin conversación, que nunca es la de un agente.
+- Las sesiones abandonadas se cierran solas tras 4 horas sin actividad, sean de quien sean. El MCP ya no deja una sesión huérfana cuando arranca a la vez que el hook SessionStart.
+- Las unidades locales HCD-030 y HCD-031 pasan a ser HCD-032 y HCD-033 para no chocar con las del remoto.
+
 ## [v2.48.0] - 2026-11-05
 
 ### Added

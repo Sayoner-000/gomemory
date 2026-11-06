@@ -114,7 +114,9 @@ retrieve memory. Claude Code, Codex and OpenCode also run `mem hook` at points
 of their lifecycle: gomemory injects context when a session starts, captures
 checkpoints on its own (without spending agent tokens), compresses large tool
 output, applies the `expand` rules before a tool runs and keeps session memory
-across context compaction.
+across context compaction. Two agents working in the same project each get
+their own session, so one starting or stopping doesn't make the other receive
+its context again.
 
 Antigravity CLI (`agy`) uses `mem hook` too. Turn it on with
 `mem install --agents agy`, or with `mem setup-mcp --scope global`, which
@@ -156,7 +158,9 @@ On top of memory, gomemory ships tools for the work agents do with it:
 - `mem plan-context` gives the agent the project's history and an atomic
   task-decomposition method before it plans.
 - `mem review` runs an adversarial review with two independent reviewers. A
-  defect counts only when both confirm it.
+  defect counts only when both confirm it. A follow-up review
+  (`--since <review-id>`) keeps what the last one settled and only looks at
+  the files that changed, and it tells you roughly how many tokens that saved.
 - A built-in Go symbol graph answers code-structure questions. External graph
   providers are optional: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
   and [CodeGraph](https://github.com/colbymchenry/codegraph).
@@ -210,7 +214,7 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
 | OpenCode | `/hcd` | Same |
 
 `mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.48.html) walks through the
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.49.html) walks through the
 ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
@@ -281,7 +285,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.48.html`](docs/Guia-Tecnica_GOMEMORY-v2.48.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.48.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.48.html) | Current printable technical and SDD_HCD guides (Spanish) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.49.html`](docs/Guia-Tecnica_GOMEMORY-v2.49.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.49.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.49.html) | Current printable technical and SDD_HCD guides (Spanish) |
 
 ## Contributing
 

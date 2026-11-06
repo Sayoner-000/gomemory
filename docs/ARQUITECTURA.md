@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.48.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.48.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.49.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.49.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -74,3 +74,43 @@ Este bloque incorpora salvaguardas de edición de código y coherencia en la num
   - Puertos (`application/ports/hcd.go`): método `MaxUnitNumber()` en `HCDWorkspace`.
   - Adaptadores (`adapters/secondary/hcdfiles/workspace.go`): escanea `hcd/HCD-*.md` para extraer el prefijo numérico más alto en disco.
   - Casos de uso (`application/usecases/hcd.go`): `HCD.Start` calcula `MAX(sqlite_max, disk_max) + 1`, garantizando que en clones frescos de repositorios con base de datos SQLite recién inicializada se continúe la numeración correlativa sin reiniciar en `HCD-001` ni colisionar con unidades históricas.
+
+## Revisión de seguimiento, avisos de analyze y una sesión por agente (HCD-032 a HCD-036)
+
+**Revisión ACR de seguimiento (HCD-032 y HCD-035).** `StartReviewSince`
+(`application/usecases/start_review.go`) enlaza una revisión con otra anterior
+ya terminada. El dominio decide qué se hereda (`domain/review_inheritance.go`)
+y `adapters/secondary/gitdiff` calcula con git el delta entre los dos commits.
+Para estimar el ahorro, el port `RevisionFiles` lee el alcance tal como estaba
+en el commit con un solo `git cat-file --batch`, y
+`usecases.ReviewSinceSavings` lo cuenta con el `TokenCounter` de siempre. El
+cálculo en sí es una función pura (`domain/review_savings.go`).
+
+**Avisos de `analyze` (HCD-034).** `domain/hcd_lens.go` detecta tareas sin
+archivo, rutas citadas y alternativas de relleno sin tocar el disco. Saber si
+una ruta existe es trabajo del port `HCDWorkspace.PathExists`, que no sale de
+la raíz del proyecto; el caso de uso pasa al dominio la lista de las que faltan.
+
+**Una sesión por conversación de agente (HCD-036).** Antes había una única
+sesión activa por proyecto, y dos agentes trabajando a la vez se la quitaban.
+Ahora:
+
+- `sessions.conversation_id` (esquema 10, aditivo) ata cada sesión a su
+  conversación. `SessionRepository`, `DeliveryLogRepository` y
+  `DeliveredBlocksRepository` reciben un `ports.ConversationResolver` con
+  `WithConversation`, así que los llamadores de `Active(project)` no cambian.
+- `adapters/secondary/hostbind` sigue el patrón hostbind de engram. Un hook
+  publica «pid del proceso host → conversación» en
+  `projects/<clave>/hostbind/<pid>.json`, guardando también la hora de arranque
+  del proceso para que un PID reutilizado no herede nada. El MCP y la CLI lo
+  encuentran recorriendo sus procesos ancestros.
+- `hostbind.Resolver` decide en este orden: el `session_id` del hook, el
+  enlace del host y, en la CLI, el terminal. Sin ninguno, el proceso usa la
+  sesión de proyecto con `conversation_id IS NULL`, que nunca es la de un
+  agente identificado.
+- El estado por turno de `.memory/` se guarda en
+  `.memory/conversations/<hash del id>/` (`perConversationPath` en
+  `adapters/primary/cli/conversation.go`).
+- El MCP abre su sesión en segundo plano y espera unos segundos a que aparezca
+  el enlace. Si la abriera de inmediato, chocaría con el SessionStart de su
+  propio host y quedaría una sesión huérfana.

@@ -245,14 +245,24 @@ Esto:
 
 | Evento | Subcomando | Función |
 |--------|-----------|---------|
-| `SessionStart` (`startup\|resume\|clear`) | `session-start` | Abre sesión si no hay activa **e inyecta el contexto de sesiones previas**. El agente arranca recordando el proyecto. |
+| `SessionStart` (`startup\|resume\|clear`) | `session-start` | Abre la sesión de esta conversación si no la tiene **e inyecta el contexto de sesiones previas**. También anota qué conversación atiende el proceso del agente, para que su MCP y su CLI usen la misma sesión. El agente arranca recordando el proyecto. |
 | `SessionStart` (`compact`) | `post-compact` | Después de compactar, reinyecta recuperación + memoria de sesión + contexto indexado y reactiva las tools MCP diferidas. |
 | `PostCompact` | `compact-summary` | Persiste el resumen producido por la compactación sin cerrar la sesión. |
-| `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. |
+| `SessionEnd` | `session-end` | Cierra la sesión de esta conversación como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. Nunca cierra la de otro agente que trabaje en el mismo proyecto. |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. En **cada** prompt persiste el texto del turno como provenance (`origin_prompt`) de lo que se guarde y, si la intercepción de Socratica está activa para el agente, añade la directiva para refinarlo (§20); la procedencia de los textos de Socratica se limpia. En OpenCode el equivalente es `chat.message` → `mem hook prompt`, y el plugin aplica la decisión de `mem hook socratica-decide`. |
 | `SubagentStart` | `subagent-start` | Inyecta un aviso mínimo de solo lectura para el subagente (sin transferir el volcado completo de memorias) y preserva la trazabilidad de la delegación. |
 | `SubagentStop` | `subagent-stop` | Registra la actividad del subagente y captura los ítems válidos de su sección de aprendizajes. |
 | `Stop` | `turn-end` | Al terminar cada turno, registra automáticamente (sin gastar tokens del agente) qué archivos se editaron y qué comandos corrieron, como memoria tipo `checkpoint`. Turnos de puro chat no generan nada. En OpenCode el equivalente es el evento `session.idle`. |
+
+**Varios agentes en el mismo proyecto (v2.49.0).** Cada conversación tiene su
+propia sesión, su registro de lo ya entregado y su estado por turno en
+`.memory/conversations/<id>/`. Antes compartían todo eso: cuando un agente
+arrancaba o cerraba, al otro le volvían a llegar el contexto y el bootstrap.
+Un proceso sabe a qué conversación pertenece por el `session_id` de su hook,
+por el enlace que SessionStart deja para el proceso del agente o, en la CLI,
+por su terminal. Sin ninguno de los tres (un cliente MCP sin hooks, por
+ejemplo) usa la sesión de proyecto sin conversación, como hasta ahora. Las
+sesiones que llevan más de 4 horas sin actividad se cierran solas.
 | `PreToolUse` (`ExitPlanMode`) | `plan-guard` | Valida la forma del plan antes de presentarlo. |
 | `PostToolUse` (`ExitPlanMode`) | `plan-approved` | Al **aprobar un plan**, guarda el plan como memoria `decision` de forma determinista, sin depender de que el modelo lo recuerde. Cubre el hueco de `turn-end` (un turno de plan mode no toca archivos ni corre comandos). Cada aprobación (incluidos planes revisados) se acumula. En OpenCode el plugin lo activa al detectar un turno en modo `plan`. |
 | `PostToolUse` (`EnterPlanMode`) | `plan-entered` | Inyecta el método de descomposición y el historial antes de redactar el plan. |
@@ -1330,6 +1340,28 @@ grave confirmado termina `ESCALATED` en una sola llamada, en vez de quedarse
 esperando una corrección que su alcance prohíbe. Sin esta distinción, una revisión de
 solo validación se quedaba bloqueada para siempre.
 
+### Revisión de seguimiento (`--since`)
+
+Después de corregir, lo normal es volver a revisar. Sin enlace, cada revisión
+empieza de cero: los revisores releen todo el alcance y vuelven a encontrar lo
+que ya estaba cerrado. Con `--since` la revisión nueva parte de la anterior:
+
+```bash
+mem review --commit HEAD --since acr_7c2afcf0-...
+```
+
+La revisión anterior tiene que estar terminada. La nueva hereda lo que dejó
+asentado y calcula con git qué archivos cambiaron entre los dos commits. Ese
+delta es lo único que los revisores tienen que leer. Si un revisor vuelve a
+encontrar un hallazgo heredado, lo cita con `settled_ref`: si su archivo no
+cambió, el motor no lo vuelve a adjudicar; si cambió, lo reabre.
+
+La salida incluye una línea «ahorro estimado» (en MCP, el bloque `savings`):
+los tokens del alcance completo frente a los del delta, menos lo que ocupa la
+lista de heredados. Es una estimación de lo que el revisor deja de leer, no
+del consumo real del modelo. Si el objetivo no es un commit, no hay delta de
+git y la línea dice «no medible» con el motivo.
+
 ### Política del proyecto
 
 ```jsonc
@@ -1641,7 +1673,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.48.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.49.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 
@@ -1722,6 +1754,15 @@ mem hcd close --quote "apruebo"
 | `not_found` | 3 | Unidad inexistente o ninguna activa |
 | `not_allowed`, `invalid_quote`, `validation` | 5 | El paso no permite la acción, la cita no vale o falta un dato |
 | `internal` | 1 | Error del motor |
+
+`analyze` también revisa la calidad del documento sin gastar tokens (v2.49.0).
+Son avisos `MEDIUM` y ninguno impide cerrar:
+
+| Aviso | Cuándo aparece |
+|---|---|
+| `TASK-NO-FILE` | Una tarea no dice qué archivo o directorio toca. |
+| `PATH-MISSING` | Una ruta citada entre comillas invertidas no existe. Solo desde `verify`: antes, puede ser un archivo que la unidad todavía va a crear. |
+| `CHEAPEST-FILLER` | La «Alternativa más barata» es un «ninguna» o «n/a» sin motivo. |
 
 ## Temas de la terminal (v2.29.0)
 
