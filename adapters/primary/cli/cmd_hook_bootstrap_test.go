@@ -193,3 +193,27 @@ func TestOctopusDelegationPolicy_V2ExplicaLaToolSubagent(t *testing.T) {
 		}
 	}
 }
+
+// HCD-040: el primer prompt de cada sesión cabe en un tope. Con v2.49.1 medía
+// 4.864 caracteres sin Octopus y 5.978 con él; todas las reglas siguen, cortas.
+func TestPrimerPrompt_CabeEnElTope(t *testing.T) {
+	for _, c := range []struct {
+		octopus bool
+		max     int
+	}{{false, 3000}, {true, 4000}} {
+		texto := buildMemoryToolBootstrap(true, c.octopus) + "\n\n" + memoryProtocolReminder
+		if n := len([]rune(texto)); n > c.max {
+			t.Errorf("octopus=%v: el primer prompt mide %d caracteres; quiero como mucho %d", c.octopus, n, c.max)
+		}
+	}
+	for _, want := range []string{"save_memory", "end_session", "JUEZ IMPARCIAL", "judge_memories", "PRIVACIDAD", "<private>", "MEMORY.md"} {
+		if !strings.Contains(memoryProtocolReminder, want) {
+			t.Errorf("el recordatorio debe conservar %q", want)
+		}
+	}
+	// «No confundir sistemas» ya no repite la lista de tools: la carga el
+	// ToolSearch del bootstrap y la describen sus esquemas.
+	if strings.Contains(memoryProtocolReminder, "review_promote_memory") {
+		t.Error("el recordatorio no debe repetir la lista de tools de gomemory")
+	}
+}

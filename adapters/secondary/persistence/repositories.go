@@ -478,5 +478,17 @@ func (r *CodeGraphRepository) Status(project string) (domain.GraphStatus, error)
 	return CodeGraphStatus(r.db, project)
 }
 
+func (r *CodeGraphRepository) ReplacePendingCalls(project, srcPath string, calls []domain.PendingCall) error {
+	return ReplacePendingCalls(r.db, project, srcPath, calls)
+}
+
+func (r *CodeGraphRepository) PendingCallsByNames(project string, names []string) ([]domain.PendingCall, error) {
+	return PendingCallsByNames(r.db, project, names)
+}
+
+func (r *CodeGraphRepository) ResolvePendingCalls(project, srcPath string, edges []domain.CodeEdge, pendingIDs []int64) error {
+	return ResolvePendingCalls(r.db, project, srcPath, edges, pendingIDs)
+}
+
 var _ ports.CodeGraphRepository = (*CodeGraphRepository)(nil)
 var _ ports.IndexedFilesQuerier = (*CodeGraphRepository)(nil)

@@ -151,7 +151,14 @@ func (ix *Indexer) indexFilesInternal(relPaths []string) (IndexReport, error) {
 	// persistidos, así que se puede resolver llamadas/imports cruzados entre
 	// archivos consultando el grafo ya escrito.
 	for _, r := range results {
-		edges := ix.resolveEdges(r.path, r.nodes, r.parsed)
+		edges, pending := ix.resolveEdges(r.path, r.nodes, r.parsed)
+		// ReplaceFile ya borró las pendientes del archivo: solo se guardan
+		// las que siguen sin resolver (HCD-041).
+		if len(pending) > 0 {
+			if err := ix.Repo.ReplacePendingCalls(ix.Project, r.path, pending); err != nil {
+				return report, err
+			}
+		}
 		if len(edges) == 0 {
 			continue
 		}
@@ -161,15 +168,90 @@ func (ix *Indexer) indexFilesInternal(relPaths []string) (IndexReport, error) {
 		report.Edges += len(edges)
 	}
 
+	// Tercera pasada: las llamadas que otros archivos no pudieron resolver
+	// hacia los símbolos que acaban de aparecer. Esos archivos no cambiaron y
+	// no se reindexan (HCD-041).
+	var names []string
+	for _, r := range results {
+		for _, n := range filterCallable(append([]domain.CodeNode(nil), r.nodes...)) {
+			names = append(names, n.Name)
+		}
+	}
+	resolved, err := ix.resolvePendingCalls(names)
+	if err != nil {
+		return report, err
+	}
+	report.Edges += resolved
+
 	return report, nil
 }
 
-func (ix *Indexer) resolveEdges(path string, nodes []domain.CodeNode, pf parsedFile) []domain.CodeEdge {
+// resolvePendingCalls resuelve, con las mismas reglas que la segunda pasada,
+// las pendientes hacia names y devuelve cuántas aristas añadió.
+func (ix *Indexer) resolvePendingCalls(names []string) (int, error) {
+	pending, err := ix.Repo.PendingCallsByNames(ix.Project, names)
+	if err != nil || len(pending) == 0 {
+		return 0, err
+	}
+	type batch struct {
+		edges []domain.CodeEdge
+		ids   []int64
+	}
+	bySrc := map[string]*batch{}
+	var order []string
+	for _, p := range pending {
+		var edge domain.CodeEdge
+		var ok bool
+		if p.SelAlias == "" {
+			edge, ok = ix.resolveIdentCall(p.CallerID, p.Name, p.CallerPkg)
+		} else {
+			edge, ok = ix.resolveSelectorCall(p.CallerID, p.ImportPath, p.SelAlias, p.Name)
+		}
+		if !ok {
+			continue
+		}
+		b := bySrc[p.SrcPath]
+		if b == nil {
+			b = &batch{}
+			bySrc[p.SrcPath] = b
+			order = append(order, p.SrcPath)
+		}
+		b.edges = append(b.edges, edge)
+		b.ids = append(b.ids, p.ID)
+	}
+	added := 0
+	for _, src := range order {
+		b := bySrc[src]
+		if err := ix.Repo.ResolvePendingCalls(ix.Project, src, b.edges, b.ids); err != nil {
+			return added, err
+		}
+		added += len(b.edges)
+	}
+	return added, nil
+}
+
+// goBuiltins son las funciones y tipos predeclarados de Go: una llamada a
+// ellos nunca se resolverá hacia un símbolo del proyecto, así que no se
+// guarda como pendiente.
+var goBuiltins = map[string]bool{
+	"append": true, "cap": true, "clear": true, "close": true, "complex": true, "copy": true,
+	"delete": true, "imag": true, "len": true, "make": true, "max": true, "min": true,
+	"new": true, "panic": true, "print": true, "println": true, "real": true, "recover": true,
+	"any": true, "bool": true, "byte": true, "complex64": true, "complex128": true, "error": true,
+	"float32": true, "float64": true, "int": true, "int8": true, "int16": true, "int32": true,
+	"int64": true, "rune": true, "string": true, "uint": true, "uint8": true, "uint16": true,
+	"uint32": true, "uint64": true, "uintptr": true,
+}
+
+// resolveEdges devuelve las aristas del archivo y las llamadas que aún no
+// pudieron resolverse, para reintentarlas cuando aparezca su símbolo.
+func (ix *Indexer) resolveEdges(path string, nodes []domain.CodeNode, pf parsedFile) ([]domain.CodeEdge, []domain.PendingCall) {
 	if len(nodes) == 0 {
-		return nil
+		return nil, nil
 	}
 	fileNode := nodes[0] // parseGoFile siempre emite el nodo de archivo primero
 	var edges []domain.CodeEdge
+	var pending []domain.PendingCall
 
 	for _, n := range nodes[1:] {
 		edges = append(edges, domain.CodeEdge{FromID: fileNode.ID, ToID: n.ID, Kind: domain.EdgeDefines, Confidence: 1.0})
@@ -193,17 +275,27 @@ func (ix *Indexer) resolveEdges(path string, nodes []domain.CodeNode, pf parsedF
 		if call.Ident != "" {
 			if edge, ok := ix.resolveIdentCall(callerID, call.Ident, callerPkg); ok {
 				edges = append(edges, edge)
+			} else if !goBuiltins[call.Ident] {
+				pending = append(pending, domain.PendingCall{CallerID: callerID, CallerPkg: callerPkg, Name: call.Ident})
 			}
 			continue
 		}
 		if call.SelName != "" {
-			if edge, ok := ix.resolveSelectorCall(callerID, pf, call); ok {
+			// Solo un alias de import es un paquete: x.Metodo() sobre una
+			// variable no se resuelve ni queda pendiente.
+			importPath, isPkg := pf.Imports[call.SelPkgAlias]
+			if !isPkg {
+				continue
+			}
+			if edge, ok := ix.resolveSelectorCall(callerID, importPath, call.SelPkgAlias, call.SelName); ok {
 				edges = append(edges, edge)
+			} else {
+				pending = append(pending, domain.PendingCall{CallerID: callerID, CallerPkg: callerPkg, Name: call.SelName, SelAlias: call.SelPkgAlias, ImportPath: importPath})
 			}
 		}
 	}
 
-	return edges
+	return edges, pending
 }
 
 func (ix *Indexer) resolveIdentCall(callerID int64, ident, callerPkg string) (domain.CodeEdge, bool) {
@@ -226,18 +318,14 @@ func (ix *Indexer) resolveIdentCall(callerID int64, ident, callerPkg string) (do
 	return domain.CodeEdge{FromID: callerID, ToID: candidates[0].ID, Kind: domain.EdgeCalls, Confidence: 0.4}, true
 }
 
-func (ix *Indexer) resolveSelectorCall(callerID int64, pf parsedFile, call parsedCall) (domain.CodeEdge, bool) {
-	importPath, ok := pf.Imports[call.SelPkgAlias]
-	if !ok {
-		return domain.CodeEdge{}, false
-	}
-	candidates, err := ix.Repo.NodesByName(ix.Project, call.SelName)
+func (ix *Indexer) resolveSelectorCall(callerID int64, importPath, alias, name string) (domain.CodeEdge, bool) {
+	candidates, err := ix.Repo.NodesByName(ix.Project, name)
 	if err != nil {
 		return domain.CodeEdge{}, false
 	}
 	candidates = filterCallable(candidates)
 	for _, c := range candidates {
-		if c.Package == importPath || packageBaseName(c.Package) == call.SelPkgAlias {
+		if c.Package == importPath || packageBaseName(c.Package) == alias {
 			return domain.CodeEdge{FromID: callerID, ToID: c.ID, Kind: domain.EdgeCalls, Confidence: 0.7}, true
 		}
 	}

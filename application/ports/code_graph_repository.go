@@ -48,4 +48,17 @@ type CodeGraphRepository interface {
 	// Status resume el tamaño del grafo (conteos + paquetes top) para
 	// graph_status y el resumen en get_context.
 	Status(project string) (domain.GraphStatus, error)
+
+	// ReplacePendingCalls reemplaza las llamadas sin resolver de un archivo
+	// (HCD-041). Las de un archivo reindexado o borrado se van con él.
+	ReplacePendingCalls(project, srcPath string, calls []domain.PendingCall) error
+
+	// PendingCallsByNames devuelve las llamadas sin resolver hacia esos
+	// nombres, de cualquier archivo del proyecto.
+	PendingCallsByNames(project string, names []string) ([]domain.PendingCall, error)
+
+	// ResolvePendingCalls añade las aristas resueltas desde el archivo de las
+	// pendientes, sin tocar sus demás aristas, y borra esas pendientes, en una
+	// sola transacción.
+	ResolvePendingCalls(project, srcPath string, edges []domain.CodeEdge, pendingIDs []int64) error
 }

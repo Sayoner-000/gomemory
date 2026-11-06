@@ -15,6 +15,7 @@ import (
 
 	"mem/adapters/primary/console"
 	"mem/adapters/primary/setup"
+	"mem/adapters/secondary/atomicfs"
 	"mem/adapters/secondary/persistence"
 	"mem/application/ports"
 	"mem/application/usecases"
@@ -418,7 +419,9 @@ func removeBinaryFile(path, self string) error {
 		cmd.Dir = os.TempDir()
 		return cmd.Start()
 	}
-	return os.Remove(path)
+	// Una copia recién ejecutada (identifyVersion) sigue bloqueada un instante
+	// en Windows: el borrado reintenta ese fallo transitorio (HCD-039).
+	return atomicfs.Remove(path)
 }
 
 func sameFilePath(a, b string) bool {

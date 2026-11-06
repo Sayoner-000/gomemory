@@ -1805,29 +1805,24 @@ func subagentNoticeFor(runtime string, includeCodeGraphProvider bool) string {
 select:` + strings.Join(names, ",") + "\n" + cierre
 }
 
-var memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda proactivamente con save_memory ` +
-	`inmediatamente después de: una decisión técnica, un bug corregido (con causa raíz), ` +
-	`un patrón o convención establecida, o un hallazgo no obvio. No esperes a que el ` +
-	`usuario lo pida. La actividad rutinaria (qué archivos se editaron, qué comandos ` +
-	`corrieron) ya se registra sola como checkpoint automático — no hace falta duplicarla ` +
-	`a mano. Antes de cerrar, llama a end_session(summary).
+// memoryProtocolReminder se repite en el primer prompt y al final de
+// get_context y get_plan_context: cada regla va en su forma más corta (HCD-040).
+// La versión completa vive en las instrucciones MCP (buildIntegrationBlock).
+var memoryProtocolReminder = `Memoria persistente activa (gomemory). Guarda con save_memory, sin esperar a que te lo ` +
+	`pidan, tras una decisión técnica, un bug corregido (con causa raíz), un patrón o un hallazgo no obvio; ` +
+	`la actividad rutinaria ya se registra sola. Antes de cerrar, llama a end_session(summary).
 
-JUEZ IMPARCIAL: si dos memorias se contradicen (aparecen en "Conflictos sin resolver" del ` +
-	`contexto, o las notas al buscar), no asumas que la más reciente tiene razón. Relee el ` +
-	`código/archivo fuente actual para verificar cuál refleja los hechos reales y registra el ` +
-	`veredicto con judge_memories(id_a, id_b, verdict, confidence, reasoning), explicando en ` +
-	`reasoning qué verificaste.
+JUEZ IMPARCIAL: si dos memorias se contradicen, no asumas que gana la más reciente: verifícalo en el ` +
+	`código actual y registra el veredicto con judge_memories, explicando qué verificaste.
 
-PRIVACIDAD: si vas a guardar algo que incluye un secreto, token o credencial, envuelve esa ` +
-	`parte en <private>...</private> — nunca se persiste.
+PRIVACIDAD: envuelve secretos, tokens o credenciales en <private>...</private>; nunca se persisten.
 
-IMPORTANTE — no confundir sistemas: este proyecto usa EXCLUSIVAMENTE las tools MCP de ` +
-	`gomemory para memoria persistente (` + strings.Join(domain.MCPAllTools(), ", ") + `). El ` +
-	`sistema de memoria nativo del harness (archivo MEMORY.md bajo ~/.claude/projects/.../memory/) ` +
-	`NO aplica aquí — ignóralo por completo en este proyecto y no lo consultes ni escribas en él.
+IMPORTANTE — no confundir sistemas: la memoria persistente de este proyecto son las tools MCP de ` +
+	`gomemory. El sistema nativo del harness (MEMORY.md bajo ~/.claude/projects/.../memory/) no aplica: ` +
+	`no lo consultes ni escribas en él.
 
-GRAFO DE CÓDIGO EXTERNO: ` + domain.CodeRetrievalPolicy + ` Para entregar un plan usa el ` +
-	`árbol de tareas atómicas. Lo que descubras con el grafo alimenta las hojas del árbol.`
+GRAFO DE CÓDIGO EXTERNO: ` + domain.CodeRetrievalPolicyShort + ` Para entregar un plan usa el árbol de ` +
+	`tareas atómicas; lo que descubras con el grafo alimenta sus hojas.`
 
 // firstOr devuelve el argumento en la posición dada, o un valor por defecto.
 func firstOr(args []string, i int, def string) string {

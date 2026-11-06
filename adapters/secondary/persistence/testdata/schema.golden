@@ -1,4 +1,4 @@
-user_version=10
+user_version=11
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_automatic_original_grants_ref|automatic_original_grants|CREATE INDEX idx_automatic_original_grants_ref ON automatic_original_grants(ref)
@@ -8,6 +8,8 @@ index|idx_code_edges_to|code_edges|CREATE INDEX idx_code_edges_to ON code_edges(
 index|idx_code_files_project|code_files|CREATE INDEX idx_code_files_project ON code_files(project)
 index|idx_code_nodes_file|code_nodes|CREATE INDEX idx_code_nodes_file ON code_nodes(file_id)
 index|idx_code_nodes_project_name|code_nodes|CREATE INDEX idx_code_nodes_project_name ON code_nodes(project, name)
+index|idx_code_pending_calls_name|code_pending_calls|CREATE INDEX idx_code_pending_calls_name ON code_pending_calls(project, name)
+index|idx_code_pending_calls_src_file|code_pending_calls|CREATE INDEX idx_code_pending_calls_src_file ON code_pending_calls(src_file_id)
 index|idx_compression_originals_access|compression_originals|CREATE INDEX idx_compression_originals_access ON compression_originals(last_access_at)
 index|idx_compression_originals_expires|compression_originals|CREATE INDEX idx_compression_originals_expires ON compression_originals(expires_at)
 index|idx_consensus_review|consensus_findings|CREATE INDEX idx_consensus_review ON consensus_findings(review_id)
@@ -126,6 +128,16 @@ table|code_nodes|code_nodes|CREATE TABLE code_nodes (
 		end_line INTEGER NOT NULL DEFAULT 0,
 		exported INTEGER NOT NULL DEFAULT 0,
 		UNIQUE(project, kind, name, file_id)
+	)
+table|code_pending_calls|code_pending_calls|CREATE TABLE code_pending_calls (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		project TEXT NOT NULL,
+		src_file_id INTEGER NOT NULL,
+		caller_id INTEGER NOT NULL,
+		caller_pkg TEXT NOT NULL DEFAULT '',
+		name TEXT NOT NULL,
+		sel_alias TEXT NOT NULL DEFAULT '',
+		import_path TEXT NOT NULL DEFAULT ''
 	)
 table|code_search|code_search|CREATE VIRTUAL TABLE code_search USING fts5(
 		name, signature, package, node_id UNINDEXED
@@ -504,6 +516,14 @@ col|code_nodes|8|signature|TEXT|1|''|0
 col|code_nodes|9|start_line|INTEGER|1|0|0
 col|code_nodes|10|end_line|INTEGER|1|0|0
 col|code_nodes|11|exported|INTEGER|1|0|0
+col|code_pending_calls|0|id|INTEGER|0||1
+col|code_pending_calls|1|project|TEXT|1||0
+col|code_pending_calls|2|src_file_id|INTEGER|1||0
+col|code_pending_calls|3|caller_id|INTEGER|1||0
+col|code_pending_calls|4|caller_pkg|TEXT|1|''|0
+col|code_pending_calls|5|name|TEXT|1||0
+col|code_pending_calls|6|sel_alias|TEXT|1|''|0
+col|code_pending_calls|7|import_path|TEXT|1|''|0
 col|code_search|0|name||0||0
 col|code_search|1|signature||0||0
 col|code_search|2|package||0||0

@@ -35,18 +35,7 @@ func transient(err error) bool {
 }
 
 func replace(tmp, dst string) error {
-	deadline := time.Now().Add(replaceTimeout)
-	wait := time.Millisecond
-	for {
-		err := renameReplace(tmp, dst)
-		if err == nil || !transient(err) || time.Now().After(deadline) {
-			return err
-		}
-		time.Sleep(wait)
-		if wait < 64*time.Millisecond {
-			wait *= 2
-		}
-	}
+	return retry(func() error { return renameReplace(tmp, dst) }, transient, replaceTimeout)
 }
 
 // renameReplace sustituye dst con semántica POSIX: reemplaza aunque haya

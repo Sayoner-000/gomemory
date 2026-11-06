@@ -11,3 +11,6 @@ func replace(tmp, dst string) error {
 func readFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
+
+// transient: fuera de Windows ningún fallo de archivo en uso es pasajero.
+func transient(error) bool { return false }
