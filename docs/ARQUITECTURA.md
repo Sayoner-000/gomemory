@@ -139,3 +139,35 @@ ejecutable con `CreateToolhelp32Snapshot` y la hora de arranque con
 PID reutilizado y el proceso queda huérfano. `isShell` reconoce los shells
 intermedios de Windows (`cmd`, `powershell`, `pwsh`) con su ruta `\` y su
 extensión `.exe`.
+
+## Borrado con reintento, primer prompt corto y llamadas pendientes (HCD-039 a HCD-041)
+
+**`atomicfs.Remove` (HCD-039).** `retireLocalCopy` ejecuta la copia local con
+`version` para saber si es de gomemory y la borra justo después con
+`removeBinaryFile`. En Windows el ejecutable recién usado puede seguir
+bloqueado un instante, y `os.Remove` fallaba con «being used by another
+process». `atomicfs.Remove` reintenta los errores 5, 32 y 33 durante 2
+segundos como máximo. Usa `retry`, el mismo bucle que ya tenía el reemplazo
+de archivos en Windows, que ahora vive en `remove.go`. Fuera de Windows
+ningún error cuenta como transitorio y `Remove` es `os.Remove`.
+
+**Recordatorio corto (HCD-040).** `memoryProtocolReminder`
+(`adapters/primary/cli/cmd_hook.go`) cierra el primer prompt, `get_context` y
+`get_plan_context`. Cada regla va en una o dos frases y el grafo externo usa
+`domain.CodeRetrievalPolicyShort`. `buildIntegrationBlock`, las instrucciones
+MCP, conserva `domain.CodeRetrievalPolicy`, la larga. Las dos constantes viven
+en `domain/code_retrieval_policy.go`: si cambia la prioridad, cambian las dos.
+`TestPrimerPrompt_CabeEnElTope` fija el tope en 3.000 caracteres sin Octopus
+y 4.000 con él.
+
+**Llamadas pendientes (HCD-041).** `indexFilesInternal`
+(`application/usecases/index_project.go`) tiene ahora tres pasadas. La
+primera guarda los nodos de cada archivo. La segunda resuelve sus aristas, y
+`resolveEdges` devuelve también las llamadas que no encontraron destino, que
+se guardan en `code_pending_calls`. La tercera busca las pendientes hacia los
+nombres que acaban de aparecer, las resuelve con `resolveIdentCall` y
+`resolveSelectorCall` y las inserta con `ResolvePendingCalls`. Esa función
+añade aristas con el `src_file_id` del archivo que llama sin borrar las demás,
+a diferencia de `InsertEdges`. `ReplaceFileNodes` y `DeleteCodeFile` borran
+las pendientes del archivo junto con sus nodos. Con esto se cierra el límite
+que había dejado HCD-029.

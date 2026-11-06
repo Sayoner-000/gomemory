@@ -117,7 +117,8 @@ output, applies the `expand` rules before a tool runs and keeps session memory
 across context compaction. Two agents working in the same project each get
 their own session, on Linux, macOS and Windows, so one starting or stopping
 doesn't make the other receive its context again. Whatever the agent already
-got at startup isn't sent again when it asks for the full context.
+got at startup isn't sent again when it asks for the full context. The first
+prompt of a session costs about 3,000 characters (about 4,200 with Octopus on).
 
 Antigravity CLI (`agy`) uses `mem hook` too. Turn it on with
 `mem install --agents agy`, or with `mem setup-mcp --scope global`, which
@@ -162,8 +163,9 @@ On top of memory, gomemory ships tools for the work agents do with it:
   defect counts only when both confirm it. A follow-up review
   (`--since <review-id>`) keeps what the last one settled and only looks at
   the files that changed, and it tells you roughly how many tokens that saved.
-- A built-in Go symbol graph answers code-structure questions. External graph
-  providers are optional: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
+- A built-in Go symbol graph answers code-structure questions. It reindexes
+  only what changed, and a call to a function you write later still shows up
+  once the function exists. External graph providers are optional: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
   and [CodeGraph](https://github.com/colbymchenry/codegraph).
 - `mem install` and `mem update` keep a set of skills and guardrails current:
   `defensive-qa-audit`, `socratica` (prompt refinement, and `/socratica-hu`

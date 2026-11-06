@@ -88,7 +88,10 @@ proyecto, y una copia `./mem` que dejaran versiones anteriores se retira sola
 (al instalar o al abrir una sesión del agente), con un aviso de una línea. Así
 todos los proyectos usan la misma versión y `mem update` los actualiza todos de
 una vez; ejecutado desde una copia local, `mem update` actualiza el global. Solo
-si no hay `mem` en el `PATH` el proyecto conserva su propia copia.
+si no hay `mem` en el `PATH` el proyecto conserva su propia copia. Para
+reconocer la copia, gomemory la ejecuta con `version`. En Windows el ejecutable
+puede quedar bloqueado un instante después, así que desde la v2.49.2 el borrado
+lo reintenta durante 2 segundos antes de dar el aviso «no se pudo retirar».
 
 **Aviso de versión nueva.** Como mucho una vez cada 24 horas, al iniciar una
 sesión del agente gomemory consulta en segundo plano la última release (nunca
@@ -874,6 +877,15 @@ orden de `code_graph_providers`, salvo que se pase `--skip-graph`. Si uno no est
 instalado o falla, informa el resultado y continúa con el siguiente; el exit
 code permanece `0` (el indexado nativo, que sí
 importa para el resto de gomemory, ya tuvo éxito).
+
+El indexado es incremental: solo vuelve a leer los archivos cuyo contenido
+cambió. Desde la v2.49.2, una llamada a una función que todavía no existe queda
+guardada como pendiente (tabla `code_pending_calls`). Cuando la función aparece
+en otro archivo, la llamada se resuelve en ese mismo indexado, aunque el archivo
+que llama no haya cambiado. Antes había que esperar a que ese archivo cambiara
+o ejecutar `mem index --force`. Las bases creadas con versiones anteriores no
+tienen esas pendientes, así que después de actualizar conviene ejecutar
+`mem index --force` una vez en cada proyecto.
 
 En la TUI, Configuración muestra por separado el estado de cada proveedor
 externo configurado. La acción "Reindexar grafos externos" procesa todos los

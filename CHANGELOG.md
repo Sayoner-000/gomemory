@@ -5,6 +5,17 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.49.2] - 2026-11-06
+
+### Changed
+
+- El primer prompt de cada sesión es más corto (HCD-040). El recordatorio del protocolo mantiene todas sus reglas, pero cada una en una o dos frases: el guardado, el juez y la privacidad; «no confundir sistemas» ya no repite los nombres de las tools, que el ToolSearch del principio ya carga. La política de recuperación de código usa una versión corta, `domain.CodeRetrievalPolicyShort`. Las instrucciones MCP conservan la larga. Medido con el binario: sin Octopus el primer prompt baja de 4.864 a 3.044 caracteres (−37 %) y con Octopus, de 5.978 a 4.158 (−30 %). El mismo recordatorio cierra `get_context` y `get_plan_context`, así que allí también se ahorran unos 1.800 caracteres por llamada.
+
+### Fixed
+
+- En Windows, la copia local de `mem.exe` se retira a la primera (HCD-039). Para reconocer la copia, gomemory la ejecuta con `version` y la borra justo después. Windows a veces mantiene bloqueado un instante el ejecutable recién usado, y el borrado fallaba con «being used by another process». `mem install` y el arranque de sesión avisaban entonces «no se pudo retirar», y el job de Windows del CI fallaba de vez en cuando. Ahora `atomicfs.Remove` reintenta ese fallo durante 2 segundos como máximo, con la misma espera que ya usaba el reemplazo de archivos.
+- El grafo de código propio resuelve las llamadas hacia funciones que se crean después (HCD-041). Si `a.go` llamaba a `F` y `F` aparecía más tarde en `b.go`, el reindexado incremental no volvía a mirar `a.go` porque no había cambiado, y `get_symbol` no mostraba ese llamador hasta un `mem index -force`. Ahora las llamadas sin resolver se guardan en la tabla `code_pending_calls` y se resuelven en cuanto aparece la función. El esquema pasa a la versión 11. Las bases anteriores no tienen guardadas las llamadas pendientes antiguas: ejecuta `mem index -force` una vez en cada proyecto después de actualizar.
+
 ## [v2.49.1] - 2026-11-05
 
 ### Changed

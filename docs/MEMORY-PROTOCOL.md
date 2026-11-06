@@ -86,8 +86,12 @@ El sistema no depende de la fuerza de voluntad del modelo: el hook lo empuja.
 
 - `mem hook user-prompt-submit` — en el **primer prompt** de la sesión fuerza la
   carga de las tools MCP (que en Claude Code llegan diferidas) con un
-  `systemMessage` que incluye un `ToolSearch select:` con los nombres reales de
-  gomemory, e inyecta el recordatorio del protocolo como `additionalContext`. En
+  `ToolSearch select:` con los nombres reales de gomemory, seguido del
+  recordatorio del protocolo; los dos van en `additionalContext`, porque
+  `systemMessage` solo lo ve la persona. Desde la v2.49.2 el recordatorio es la
+  versión corta de cada regla (guardado, juez, privacidad, «no confundir
+  sistemas» y grafo) y el primer prompt mide unos 3.000 caracteres, o 4.200
+  con Octopus. La versión completa sigue en las instrucciones MCP. En
   los prompts **siguientes** ya no es mudo: si el agente lleva más de 15 minutos
   sin un guardado real (y la sesión tiene más de 5 minutos), inyecta un
   recordatorio de guardado con enfriamiento de 15 minutos (marcador

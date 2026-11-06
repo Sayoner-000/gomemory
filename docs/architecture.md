@@ -189,7 +189,7 @@ adapters/secondary/persistence/
 │   ├── DbPath()           ← path completo al mem.db EN EL STORE GLOBAL (no en el repo)
 │   ├── Open()             ← EnsureDir() + abre DB + migraciones automáticas (WAL mode, busy timeout 5s)
 │   ├── Init()             ← alias de Open() (init perezoso: ya no requiere un paso previo)
-│   └── migrate()          ← CREATE TABLE IF NOT EXISTS (memories, sessions, memory_relations, code_files, code_nodes, code_edges) + columnas aditivas idempotentes (memories.origin_prompt, sessions.last_prompt) vía ALTER
+│   └── migrate()          ← CREATE TABLE IF NOT EXISTS (memories, sessions, memory_relations, code_files, code_nodes, code_edges, code_pending_calls) + columnas aditivas idempotentes (memories.origin_prompt, sessions.last_prompt) vía ALTER
 │
 ├── globalstore.go
 │   ├── FindProjectRoot()  ← git root subiendo desde el cwd; sin .git, usa el cwd absoluto
@@ -642,7 +642,7 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 | `SessionStart` (matcher `compact`) | `post-compact` | Después de compactar, reinyecta los pasos de recuperación, la memoria de la sesión y el índice del proyecto; también permite que el siguiente prompt vuelva a materializar las tools MCP diferidas |
 | `PostCompact` | `compact-summary` | Persiste el resumen entregado por Claude Code mediante `save_session_summary`, sin cerrar la sesión activa |
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta un `summary` opcional por stdin). Evita sesiones colgadas aunque el modelo no llame `end_session` |
-| `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt fuerza la carga de las tools MCP diferidas con un `systemMessage` (`ToolSearch select:` + nombres reales) e inyecta el recordatorio del protocolo como `additionalContext`; en los prompts siguientes recuerda guardar si el agente lleva >15 min sin un guardado real (con debounce de 15 min). El marcador `.session-tools-injected` distingue el primer prompt. Además, en **cada** prompt persiste el texto del turno en la sesión activa (`SetLastPrompt`) para adjuntarlo como provenance a lo que se guarde |
+| `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt fuerza la carga de las tools MCP diferidas (`ToolSearch select:` + nombres reales) e inyecta el recordatorio corto del protocolo, ambos como `additionalContext` (unos 3.000 caracteres, 4.200 con Octopus, desde la v2.49.2); en los prompts siguientes recuerda guardar si el agente lleva >15 min sin un guardado real (con debounce de 15 min). El marcador `.session-tools-injected` distingue el primer prompt. Además, en **cada** prompt persiste el texto del turno en la sesión activa (`SetLastPrompt`) para adjuntarlo como provenance a lo que se guarde |
 | _(interno, transversal)_ | `prompt` | Persiste el prompt del usuario (recibido por stdin `{"prompt": …}`) en la sesión activa. Lo invoca el plugin de OpenCode desde su evento `chat.message` (equivalente a `UserPromptSubmit`); en Claude Code la captura va inline dentro de `user-prompt-submit`. `InsertMemory` adjunta ese prompt como `origin_prompt` a toda memoria guardada en el turno |
 | `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para conservar su trazabilidad |
 | `SubagentStop` | `subagent-stop` | Registra el checkpoint del subagente y extrae de forma determinista los ítems válidos de `Aprendizajes clave` o `Key Learnings` |
@@ -1125,6 +1125,26 @@ turno) en Claude Code, Codex y OpenCode.
 | `to_id` | INTEGER | FK → code_nodes(id) |
 | `kind` | TEXT | `defines`, `imports`, `calls` |
 | `confidence` | REAL | Precision de la resolucion (0.0-1.0) |
+| `src_file_id` | INTEGER | Archivo que originó la arista: se borra al reindexarlo |
+
+### `code_pending_calls`
+
+Llamadas que el indexador no pudo resolver porque la función aún no existía
+(desde el esquema 11, HCD-041). Cuando la función aparece en otro archivo, el
+indexado resuelve la llamada, crea la arista y borra la fila, sin reindexar el
+archivo que llama. Las filas de un archivo se borran con sus nodos. No se
+guardan las llamadas a builtins (`len`, `append`…) ni a métodos sobre variables.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremental |
+| `project` | TEXT | Nombre del proyecto |
+| `src_file_id` | INTEGER | Archivo que contiene la llamada |
+| `caller_id` | INTEGER | FK → code_nodes(id), la función que llama |
+| `caller_pkg` | TEXT | Paquete del que llama, para desempatar llamadas directas |
+| `name` | TEXT | Nombre llamado (`F()` o el selector de `pkg.F()`) |
+| `sel_alias` | TEXT | Alias del paquete en `pkg.F()`; vacío en una llamada directa |
+| `import_path` | TEXT | Ruta de import de ese alias |
 
 ### `sessions`
 

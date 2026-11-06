@@ -78,6 +78,8 @@ Cada cambio del catálogo exige aumentar `schemaVersion` y regenerar `adapters/s
 
 Desde el esquema 7, abrir una base existente intenta una sola vez `VACUUM` y checkpoint para retirar texto antiguo de páginas libres. Se decide porque la tabla `memories` ya existía, no por `user_version` ni por tener filas, así que una base vaciada también se limpia. Si falla, la apertura continúa y lo repara el siguiente `mem purge`, `mem gc` o `mem compact`.
 
+El esquema 11 (v2.49.2) añade `code_pending_calls`, las llamadas del grafo de código que aún no tienen destino. La tabla se crea vacía al abrir una base anterior, así que las llamadas pendientes de antes no están: un `mem index --force` por proyecto las recupera.
+
 ## Borrado de memorias
 
 `mem forget`, `mem purge`, `mem gc`, la consolidación y la TUI usan `borrarConGarantia`. En una sola transacción retira las memorias, sus relaciones, sus filas de `memory_search` y sus copias exactas en `compression_originals`. Después intenta el checkpoint, con una espera máxima de 200 ms; `mem purge` y `mem gc` ejecutan además `VACUUM`.
