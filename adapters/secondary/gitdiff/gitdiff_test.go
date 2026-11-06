@@ -68,3 +68,33 @@ func TestChangedFiles(t *testing.T) {
 		t.Error("fuera de un repositorio git debe dar error")
 	}
 }
+
+// HCD-035: el contenido de texto del alcance en una revisión, para medir el
+// ahorro. Los binarios no cuentan y lo que está fuera del alcance tampoco.
+func TestTextFilesAt(t *testing.T) {
+	dir := t.TempDir()
+	git(t, dir, "init", "-q")
+	write(t, dir, "domain/rules.go", "package domain\n")
+	write(t, dir, "domain/logo.png", "\x89PNG\x00\x01")
+	write(t, dir, "docs/a.md", "doc\n")
+	git(t, dir, "add", ".")
+	git(t, dir, "commit", "-q", "-m", "uno")
+	rev := git(t, dir, "rev-parse", "HEAD")
+	write(t, dir, "domain/rules.go", "package domain\n// sin commit\n")
+
+	d := New(dir)
+	got, err := d.TextFilesAt(rev, []string{"domain"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got["domain/rules.go"] != "package domain\n" {
+		t.Fatalf("solo el texto del alcance, tal como está en la revisión: %q", got)
+	}
+	all, err := d.TextFilesAt(rev, []string{"."})
+	if err != nil || len(all) != 2 {
+		t.Fatalf("alcance «.»: %v %v", all, err)
+	}
+	if _, err := d.TextFilesAt("worktree", []string{"."}); err == nil {
+		t.Error("una revisión que no es commit debe dar error")
+	}
+}

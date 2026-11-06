@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"mem/adapters/primary/cli/clikit"
 	"mem/domain"
 )
 
@@ -58,6 +59,32 @@ func TestReviewSince_Enlace(t *testing.T) {
 	}
 	if e := enlaceDeRevision(&domain.Review{}, nil); len(e) != 0 {
 		t.Fatalf("una revisión sin enlace no añade nada: %+v", e)
+	}
+}
+
+// HCD-035: review_start informa del ahorro medido; lo que el revisor recibe de
+// más es exactamente la lista de heredados y las instrucciones.
+type archivosFijos map[string]string
+
+func (a archivosFijos) TextFilesAt(string, []string) (map[string]string, error) { return a, nil }
+
+type contadorRunas struct{}
+
+func (contadorRunas) Count(s string) int { return len([]rune(s)) }
+
+func TestReviewSince_Savings(t *testing.T) {
+	review := &domain.Review{SinceReviewID: "acr_prev", DeltaSource: domain.DeltaSourceGit, DeltaScope: []string{"b.go"},
+		Target: domain.Target{Revision: "abc"}}
+	enlace := enlaceDeRevision(review, nil)
+	deps := &clikit.Deps{RevisionFiles: archivosFijos{"a.go": strings.Repeat("a", 5000), "b.go": "bb"}, TokenCounter: contadorRunas{}}
+	s := ahorroDeRevision(deps, review, enlace)
+	extra := len([]rune(cargaHeredada(enlace)))
+	if extra == 0 || s["measurable"] != true || s["scope_tokens"] != 5002 || s["delta_tokens"] != 2 ||
+		s["inherited_tokens"] != extra || s["avoided_tokens"] != 5000-extra {
+		t.Fatalf("savings = %+v (extra %d)", s, extra)
+	}
+	if s := ahorroDeRevision(deps, &domain.Review{SinceReviewID: "p", DeltaSource: domain.DeltaSourceScope}, enlace); s["measurable"] != false || s["reason"] == "" {
+		t.Fatalf("sin delta de git: %+v", s)
 	}
 }
 

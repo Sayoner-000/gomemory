@@ -1,9 +1,12 @@
 package review
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"mem/adapters/primary/cli/clikit"
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -54,6 +57,31 @@ func findingsDesdeEntrada(in []reviewFindingInput) []domain.Finding {
 			Evidence: f.Evidence, Confidence: f.Confidence, SettledRef: f.SettledRef,
 		})
 	}
+	return out
+}
+
+// cargaHeredada es lo que el revisor de una revisión enlazada recibe de más:
+// la lista de heredados y las instrucciones, tal como viajan en la respuesta.
+func cargaHeredada(enlace map[string]any) string {
+	data, err := json.Marshal(map[string]any{"inherited": enlace["inherited"], "instructions": enlace["instructions"]})
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// ahorroDeRevision mide el ahorro de una revisión enlazada para review_start
+// (HCD-035). Es un proxy de entrada, no el consumo real de un modelo.
+func ahorroDeRevision(deps *clikit.Deps, review *domain.Review, enlace map[string]any) map[string]any {
+	s := usecases.ReviewSinceSavings(deps.RevisionFiles, deps.TokenCounter, review, cargaHeredada(enlace))
+	out := map[string]any{"measurable": s.Measurable}
+	if !s.Measurable {
+		out["reason"] = s.Reason
+		return out
+	}
+	out["scope_files"], out["delta_files"] = s.ScopeFiles, s.DeltaFiles
+	out["scope_tokens"], out["delta_tokens"] = s.ScopeTokens, s.DeltaTokens
+	out["inherited_tokens"], out["avoided_tokens"] = s.InheritedTokens, s.AvoidedTokens
 	return out
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,10 @@ import (
 // segunda hereda lo asentado, no re-adjudica lo que no cambió y reabre lo que
 // cambió.
 func TestReviewAcumulativa(t *testing.T) {
+	// Almacén aislado: sin esto la prueba escribía en el store real del usuario,
+	// y el binario de HCD-035 necesita leer la misma base.
+	data := t.TempDir()
+	t.Setenv("GOMEMORY_DATA_HOME", data)
 	dir := t.TempDir()
 	gitc := func(args ...string) string {
 		t.Helper()
@@ -38,7 +43,9 @@ func TestReviewAcumulativa(t *testing.T) {
 		}
 	}
 	gitc("init", "-q")
-	write("domain/rules.go", "package domain\n")
+	// rules.go pesa más que la lista de heredados: así el ahorro de HCD-035 es
+	// positivo cuando solo cambia x.go.
+	write("domain/rules.go", "package domain\n"+strings.Repeat("// regla del dominio\n", 400))
 	write("adapters/x.go", "package adapters\n")
 	gitc("add", ".")
 	gitc("commit", "-q", "-m", "uno")
@@ -139,5 +146,25 @@ func TestReviewAcumulativa(t *testing.T) {
 	}
 	if c, _ := ledger.ListAllConsensusFindings(project, r2.ID); len(c) != 1 {
 		t.Fatalf("la revisión 2 adjudica un solo hallazgo, no dos: %+v", c)
+	}
+
+	// HCD-035: el binario real informa del ahorro de una revisión enlazada.
+	cmd := exec.Command(buildMemBinary(t), "review", "--commit", commit2, "--since", r1.ID)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "HOME="+t.TempDir(), "GOMEMORY_DATA_HOME="+data, "GOMEMORY_NO_CODE_REFRESH=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("mem review --commit --since: %v\n%s", err, out)
+	}
+	var avoided, scope int
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "ahorro estimado: ") {
+			if _, err := fmt.Sscanf(line, "ahorro estimado: %d tokens (alcance %d", &avoided, &scope); err != nil {
+				t.Fatalf("línea de ahorro ilegible %q: %v", line, err)
+			}
+		}
+	}
+	if scope == 0 || avoided <= 0 || avoided >= scope {
+		t.Fatalf("ahorro medido: evitados %d de %d\n%s", avoided, scope, out)
 	}
 }

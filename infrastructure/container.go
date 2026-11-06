@@ -65,7 +65,9 @@ type Container struct {
 	// EditContext da el contexto de la ruta editada (HCD-028).
 	EditContext ports.EditContextSource
 	// RevisionDiff da el delta git de una revisión enlazada (HCD-032).
-	RevisionDiff    ports.RevisionDiff
+	RevisionDiff ports.RevisionDiff
+	// RevisionFiles lee el alcance en una revisión para medir el ahorro (HCD-035).
+	RevisionFiles   ports.RevisionFiles
 	CodeProviders   []ports.CodeGraphProvider
 	ADRSyncProvider ports.ADRSyncProvider
 	ADRSyncRepo     ports.ADRSyncRepository
@@ -321,6 +323,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		CodeGraphRepo:                codeGraphRepo,
 		EditContext:                  persistence.NewEditContextRepository(db),
 		RevisionDiff:                 gitdiff.New(root),
+		RevisionFiles:                gitdiff.New(root),
 		CodeProviders:                codeProviders,
 		ADRSyncRepo:                  adrSyncRepo,
 		Compressor:                   engine,
@@ -457,6 +460,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		CodeGraphRepo:                c.CodeGraphRepo,
 		EditContext:                  c.EditContext,
 		RevisionDiff:                 c.RevisionDiff,
+		RevisionFiles:                c.RevisionFiles,
 		CodeProviders:                c.CodeProviders,
 		TUIProvider:                  c.tuiProvider(),
 		TUIProviders:                 c.tuiProviders(),

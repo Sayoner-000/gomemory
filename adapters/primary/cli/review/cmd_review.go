@@ -112,6 +112,13 @@ func Cmd(deps *clikit.Deps, args []string) {
 		fmt.Printf("since: %s\n", review.SinceReviewID)
 		fmt.Printf("delta (%s): %d archivos\n", review.DeltaSource, len(review.DeltaScope))
 		fmt.Printf("heredados: %d\n", len(review.Inherited))
+		s := ahorroDeRevision(deps, review, enlaceDeRevision(review, review.Inherited))
+		if s["measurable"] == true {
+			fmt.Printf("ahorro estimado: %d tokens (alcance %d en %d archivos, delta %d en %d, heredados +%d)\n",
+				s["avoided_tokens"], s["scope_tokens"], s["scope_files"], s["delta_tokens"], s["delta_files"], s["inherited_tokens"])
+		} else {
+			fmt.Printf("ahorro estimado: no medible (%s)\n", s["reason"])
+		}
 	}
 }
 

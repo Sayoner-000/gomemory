@@ -117,8 +117,12 @@ func RegisterTools(server *mcp.Server, deps *clikit.Deps, project string) {
 			"max_fix_rounds":      review.MaxFixRounds,
 			"auto_fix_severities": review.AutoFixSeverities,
 		}
-		for k, v := range enlaceDeRevision(review, review.Inherited) {
+		enlace := enlaceDeRevision(review, review.Inherited)
+		for k, v := range enlace {
 			respuesta[k] = v
+		}
+		if len(enlace) > 0 {
+			respuesta["savings"] = ahorroDeRevision(deps, review, enlace)
 		}
 		return clikit.ToolResult(respuesta)
 	})

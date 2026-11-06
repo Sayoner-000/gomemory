@@ -44,6 +44,9 @@ type Deps struct {
 	// RevisionDiff calcula con git el delta de una revisión enlazada (HCD-032).
 	// Puede ser nil: la revisión usa entonces el scope declarado.
 	RevisionDiff ports.RevisionDiff
+	// RevisionFiles lee el alcance en una revisión para medir el ahorro de una
+	// revisión enlazada (HCD-035). Puede ser nil: el ahorro sale no medible.
+	RevisionFiles ports.RevisionFiles
 	// CodeProviders son los proveedores EXTERNOS de grafo (opcionales). Los
 	// hooks los usan para refrescar el snapshot por turno sin bloquear
 	// (MaybeRefresh es fire-and-forget). Vacío si están deshabilitados.
