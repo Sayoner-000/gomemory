@@ -19,29 +19,22 @@ import (
 func Cmd(deps *clikit.Deps, args []string) {
 	if len(args) == 0 {
 		clikit.Fail("uso: mem review --diff [rango] | --commit <sha> | --file <ruta> | --pending\n" +
-			"     opciones: --read-only\n" +
+			"     opciones: --read-only, --since <review-id>\n" +
 			"     mem review status [<review-id>] | history [--limit N] | show <review-id>")
 	}
-	// --read-only puede venir en cualquier posición: es un modificador del alcance
-	// de la revisión, no un modo de target.
-	soloLectura := false
-	filtrados := make([]string, 0, len(args))
-	for _, arg := range args {
-		if arg == "--read-only" {
-			soloLectura = true
-			continue
-		}
-		filtrados = append(filtrados, arg)
+	// --read-only y --since pueden venir en cualquier posición: modifican la
+	// revisión, no son un modo de target.
+	args, soloLectura, since, err := extraerModificadores(args)
+	if err != nil {
+		clikit.Fail("%v", err)
 	}
-	args = filtrados
 	if len(args) == 0 {
-		clikit.Fail("--read-only modifica una revisión: indica también el target")
+		clikit.Fail("--read-only y --since modifican una revisión: indica también el target")
 	}
 
 	var targetType domain.TargetType
 	var revision, digest string
 	var scope []string
-	var err error
 	switch args[0] {
 	case "--diff":
 		var diffRange string
@@ -77,7 +70,7 @@ func Cmd(deps *clikit.Deps, args []string) {
 	default:
 		clikit.Fail("subcomando de review desconocido: %s\n"+
 			"uso: mem review --diff [rango] | --commit <sha> | --file <ruta> | --pending\n"+
-			"     opciones: --read-only\n"+
+			"     opciones: --read-only, --since <review-id>\n"+
 			"     mem review status [<review-id>] | history [--limit N] | show <review-id>", args[0])
 	}
 	if err != nil {
@@ -85,13 +78,13 @@ func Cmd(deps *clikit.Deps, args []string) {
 	}
 	entrada := usecases.StartReviewInput{
 		Project: deps.Project, TargetType: targetType, Revision: revision, Digest: digest, Scope: scope,
-		Policy: reviewPolicyDelProyecto(deps),
+		Policy: reviewPolicyDelProyecto(deps), SinceReviewID: since,
 	}
 	if soloLectura {
 		no := false
 		entrada.FixAuthorized = &no
 	}
-	review, err := usecases.StartReview(deps.ReviewRepo, entrada)
+	review, err := usecases.StartReviewSince(deps.ReviewRepo, deps.ConsensusRepo, deps.RevisionDiff, entrada)
 	if err != nil {
 		clikit.Fail("iniciar revisión: %v", err)
 	}
@@ -115,6 +108,11 @@ func Cmd(deps *clikit.Deps, args []string) {
 		severidades = append(severidades, string(severidad))
 	}
 	fmt.Printf("auto_fix_severities: %s\n", strings.Join(severidades, ", "))
+	if review.SinceReviewID != "" {
+		fmt.Printf("since: %s\n", review.SinceReviewID)
+		fmt.Printf("delta (%s): %d archivos\n", review.DeltaSource, len(review.DeltaScope))
+		fmt.Printf("heredados: %d\n", len(review.Inherited))
+	}
 }
 
 func resolveCommitTarget(root, ref string) (string, string, error) {

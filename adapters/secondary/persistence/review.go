@@ -35,26 +35,94 @@ func (r *ReviewRepository) CreateReview(review *domain.Review) error {
 	if err != nil {
 		return fmt.Errorf("encode auto-fix severities: %w", err)
 	}
+	deltaScope, err := json.Marshal(protectTextList(review.DeltaScope))
+	if err != nil {
+		return fmt.Errorf("encode delta scope: %w", err)
+	}
 	_, err = r.db.Exec(`
 		INSERT INTO reviews (
 			project, review_id, target_type, target_revision, target_digest, target_scope,
 			max_fix_rounds, auto_fix_severities, independence_level, independence_reason,
 			round, status, verdict, created_at, updated_at,
 			current_target_digest, fix_authorized,
-			reviewer_a_provider, reviewer_a_model, reviewer_b_provider, reviewer_b_model
+			reviewer_a_provider, reviewer_a_model, reviewer_b_provider, reviewer_b_model,
+			since_review_id, delta_scope, delta_source
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), `+Now+`), COALESCE(NULLIF(?, ''), `+Now+`),
-			?, ?, ?, ?, ?, ?)`,
+			?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''))`,
 		review.Project, review.ID, string(review.Target.Type), review.Target.Revision, review.Target.Digest(), string(scope),
 		review.MaxFixRounds, string(severities), string(review.IndependenceLevel), review.IndependenceReason,
 		review.Round, string(review.Status), nullableVerdict(review.Verdict), formatReviewTime(review.CreatedAt),
 		formatReviewTime(review.UpdatedAt),
 		review.ActiveTargetDigest(), boolToInt(review.FixAuthorized),
 		review.ReviewerA.Provider, review.ReviewerA.Model, review.ReviewerB.Provider, review.ReviewerB.Model,
+		review.SinceReviewID, nullableJSONList(deltaScope, len(review.DeltaScope)), string(review.DeltaSource),
 	)
 	if err != nil {
 		return fmt.Errorf("create review: %w", err)
 	}
+	return r.writeInherited(review)
+}
+
+// nullableJSONList guarda NULL para una lista vacía: una revisión sin enlace
+// se lee igual que las anteriores a HCD-032.
+func nullableJSONList(encoded []byte, n int) any {
+	if n == 0 {
+		return nil
+	}
+	return string(encoded)
+}
+
+// writeInherited guarda los hallazgos heredados de una revisión enlazada
+// (HCD-032). El texto se protege al escribir, como el resto del ledger.
+func (r *ReviewRepository) writeInherited(review *domain.Review) error {
+	if len(review.Inherited) == 0 {
+		return nil
+	}
+	var internalID int64
+	if err := r.db.QueryRow(`SELECT id FROM reviews WHERE project = ? AND review_id = ?`,
+		review.Project, review.ID).Scan(&internalID); err != nil {
+		return fmt.Errorf("revisión recién creada: %w", err)
+	}
+	for _, s := range review.Inherited {
+		files, err := json.Marshal(protectTextList(s.Files))
+		if err != nil {
+			return fmt.Errorf("encode inherited files: %w", err)
+		}
+		if _, err := r.db.Exec(`
+			INSERT OR REPLACE INTO review_inherited (review_id, consensus_id, from_review_id, status, severity, claim, files)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			internalID, s.ConsensusID, s.FromReviewID, string(s.Status), string(s.Severity), redactarTexto(s.Claim), string(files)); err != nil {
+			return fmt.Errorf("guardar hallazgo heredado: %w", err)
+		}
+	}
 	return nil
+}
+
+// InheritedFindings implementa ports.ReviewRepository (HCD-032).
+func (r *ReviewRepository) InheritedFindings(project, reviewID string) ([]domain.SettledFinding, error) {
+	rows, err := r.db.Query(`
+		SELECT ri.consensus_id, ri.from_review_id, ri.status, ri.severity, ri.claim, ri.files
+		FROM review_inherited ri JOIN reviews rv ON rv.id = ri.review_id
+		WHERE rv.project = ? AND rv.review_id = ? ORDER BY ri.consensus_id`, project, reviewID)
+	if err != nil {
+		return nil, fmt.Errorf("hallazgos heredados: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []domain.SettledFinding
+	for rows.Next() {
+		var s domain.SettledFinding
+		var status, severity, files string
+		if err := rows.Scan(&s.ConsensusID, &s.FromReviewID, &status, &severity, &s.Claim, &files); err != nil {
+			return nil, err
+		}
+		s.Status, s.Severity = domain.ConsensusStatus(status), domain.Severity(severity)
+		s.Claim = redactarTexto(s.Claim)
+		if err := json.Unmarshal([]byte(files), &s.Files); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
 
 func (r *ReviewRepository) GetReview(project, reviewID string) (*domain.Review, error) {
@@ -136,7 +204,7 @@ func reviewerResultsMark(q querier, internalID int64, round int) (string, error)
 	rows, err := q.Query(`
 		SELECT rr.id, rr.reviewer, rr.provider, rr.model, rr.status,
 		       f.id, f.local_id, f.location, f.severity, f.category, f.claim,
-		       f.evidence_class, f.evidence, f.confidence
+		       f.evidence_class, f.evidence, f.confidence, f.settled_ref, f.settled
 		FROM reviewer_results rr
 		LEFT JOIN findings f ON f.reviewer_result_id = rr.id
 		WHERE rr.review_id = ? AND rr.round = ?
@@ -152,10 +220,13 @@ func reviewerResultsMark(q querier, internalID int64, round int) (string, error)
 		var findingID sql.NullInt64
 		var localID, location, severity, category, claim sql.NullString
 		var evidenceClass, evidence, confidence sql.NullString
+		// settled cambia el veredicto (HCD-032): forma parte de la marca para que
+		// una finalización derivada antes de asentar un hallazgo se rechace.
+		var settledRef, settled sql.NullInt64
 		if err := rows.Scan(
 			&resultID, &reviewer, &provider, &model, &status,
 			&findingID, &localID, &location, &severity, &category, &claim,
-			&evidenceClass, &evidence, &confidence,
+			&evidenceClass, &evidence, &confidence, &settledRef, &settled,
 		); err != nil {
 			return "", err
 		}
@@ -164,6 +235,7 @@ func reviewerResultsMark(q querier, internalID int64, round int) (string, error)
 			findingID.Valid, findingID.Int64,
 			localID.String, location.String, severity.String, category.String,
 			claim.String, evidenceClass.String, evidence.String, confidence.String,
+			settledRef.Int64, settled.Int64,
 		})
 		if err != nil {
 			return "", err
@@ -488,7 +560,8 @@ func resultadoCoincideConElPersistido(
 	rows, err := q.Query(`
 		SELECT rr.provider, rr.model, rr.status,
 		       f.local_id, f.location, f.severity, f.category, f.claim,
-		       f.evidence_class, f.evidence, f.confidence
+		       f.evidence_class, f.evidence, f.confidence,
+		       COALESCE(f.settled_ref, 0), COALESCE(f.settled, 0)
 		FROM reviewer_results rr
 		LEFT JOIN findings f ON f.reviewer_result_id = rr.id
 		WHERE rr.review_id = ? AND rr.reviewer = ? AND rr.round = ?
@@ -501,6 +574,7 @@ func resultadoCoincideConElPersistido(
 	type hallazgoGuardado struct {
 		localID, location, severity, category, claim string
 		evidenceClass, evidence, confidence          string
+		settledRef, settled                          int64
 	}
 	var provider, model, status string
 	guardados := make(map[string]hallazgoGuardado)
@@ -508,10 +582,11 @@ func resultadoCoincideConElPersistido(
 	for rows.Next() {
 		var localID, location, severity, category, claim sql.NullString
 		var evidenceClass, evidence, confidence sql.NullString
+		var settledRef, settled int64
 		if err := rows.Scan(
 			&provider, &model, &status,
 			&localID, &location, &severity, &category, &claim,
-			&evidenceClass, &evidence, &confidence,
+			&evidenceClass, &evidence, &confidence, &settledRef, &settled,
 		); err != nil {
 			return false, err
 		}
@@ -523,6 +598,7 @@ func resultadoCoincideConElPersistido(
 			localID: localID.String, location: location.String, severity: severity.String,
 			category: category.String, claim: claim.String, evidenceClass: evidenceClass.String,
 			evidence: evidence.String, confidence: confidence.String,
+			settledRef: settledRef, settled: settled,
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -555,7 +631,10 @@ func resultadoCoincideConElPersistido(
 			guardado.claim != redactarTexto(entrante.Claim) ||
 			guardado.evidenceClass != string(entrante.EvidenceClass) ||
 			guardado.evidence != string(evidence) ||
-			guardado.confidence != entrante.Confidence {
+			guardado.confidence != entrante.Confidence ||
+			// HCD-032: cambiar la cita de un heredado no es un reenvío idéntico.
+			guardado.settledRef != entrante.SettledRef ||
+			guardado.settled != int64(boolToInt(entrante.Settled)) {
 			return false, nil
 		}
 	}
@@ -590,14 +669,16 @@ func persistReviewerResult(
 			return fmt.Errorf("encode finding evidence: %w", err)
 		}
 		err = writer.QueryRowContext(ctx, `
-			INSERT INTO findings (reviewer_result_id, local_id, location, severity, category, claim, evidence_class, evidence, confidence)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO findings (reviewer_result_id, local_id, location, severity, category, claim, evidence_class, evidence, confidence, settled_ref, settled)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(reviewer_result_id, local_id) DO UPDATE SET
 				location = excluded.location, severity = excluded.severity, category = excluded.category,
 				claim = excluded.claim, evidence_class = excluded.evidence_class,
-				evidence = excluded.evidence, confidence = excluded.confidence
+				evidence = excluded.evidence, confidence = excluded.confidence,
+				settled_ref = excluded.settled_ref, settled = excluded.settled
 			RETURNING id`, resultID, finding.LocalID, finding.Location, string(finding.Severity), finding.Category,
-			redactarTexto(finding.Claim), string(finding.EvidenceClass), string(evidence), finding.Confidence).Scan(&finding.ID)
+			redactarTexto(finding.Claim), string(finding.EvidenceClass), string(evidence), finding.Confidence,
+			finding.SettledRef, boolToInt(finding.Settled)).Scan(&finding.ID)
 		if err != nil {
 			return fmt.Errorf("upsert finding %s: %w", finding.LocalID, err)
 		}
@@ -638,7 +719,7 @@ func (r *ReviewRepository) ListReviewerResults(project, reviewID string, round i
 func (r *ReviewRepository) GetFinding(project, reviewID string, findingID int64) (*domain.Finding, error) {
 	row := r.db.QueryRow(`
 		SELECT f.id, f.reviewer_result_id, f.local_id, f.location, f.severity, f.category,
-		       f.claim, f.evidence_class, f.evidence, f.confidence
+		       f.claim, f.evidence_class, f.evidence, f.confidence, COALESCE(f.settled_ref, 0), COALESCE(f.settled, 0)
 		FROM findings f
 		JOIN reviewer_results rr ON rr.id = f.reviewer_result_id
 		JOIN reviews rv ON rv.id = rr.review_id
@@ -653,7 +734,7 @@ func (r *ReviewRepository) GetFinding(project, reviewID string, findingID int64)
 func (r *ReviewRepository) ListFindings(project, reviewID string, round int) ([]domain.Finding, error) {
 	rows, err := r.db.Query(`
 		SELECT f.id, f.reviewer_result_id, f.local_id, f.location, f.severity, f.category,
-		       f.claim, f.evidence_class, f.evidence, f.confidence
+		       f.claim, f.evidence_class, f.evidence, f.confidence, COALESCE(f.settled_ref, 0), COALESCE(f.settled, 0)
 		FROM findings f
 		JOIN reviewer_results rr ON rr.id = f.reviewer_result_id
 		JOIN reviews rv ON rv.id = rr.review_id
@@ -964,7 +1045,8 @@ type scanner interface {
 const reviewColumns = `target_type, target_revision, target_digest, target_scope, max_fix_rounds,
 	       auto_fix_severities, independence_level, independence_reason, round, status,
 	       verdict, created_at, updated_at, current_target_digest, fix_authorized,
-	       reviewer_a_provider, reviewer_a_model, reviewer_b_provider, reviewer_b_model`
+	       reviewer_a_provider, reviewer_a_model, reviewer_b_provider, reviewer_b_model,
+	       since_review_id, delta_scope, delta_source`
 
 // reviewRow son los valores crudos de una fila de reviews. Las columnas de la
 // funcionalidad 028 se leen como nullable: una base anterior las tiene a NULL y debe
@@ -981,6 +1063,7 @@ type reviewRow struct {
 	fixAuthorized                           sql.NullInt64
 	reviewerAProvider, reviewerAModel       sql.NullString
 	reviewerBProvider, reviewerBModel       sql.NullString
+	sinceReviewID, deltaScope, deltaSource  sql.NullString
 }
 
 func (raw *reviewRow) dest() []any {
@@ -989,6 +1072,7 @@ func (raw *reviewRow) dest() []any {
 		&raw.severitiesJSON, &raw.independence, &raw.reason, &raw.round, &raw.status,
 		&raw.verdict, &raw.createdAt, &raw.updatedAt, &raw.currentDigest, &raw.fixAuthorized,
 		&raw.reviewerAProvider, &raw.reviewerAModel, &raw.reviewerBProvider, &raw.reviewerBModel,
+		&raw.sinceReviewID, &raw.deltaScope, &raw.deltaSource,
 	}
 }
 
@@ -1028,6 +1112,14 @@ func (raw *reviewRow) toDomain(project, reviewID string) (*domain.Review, error)
 	if review.CurrentTargetDigest == "" {
 		review.CurrentTargetDigest = target.Digest()
 	}
+	review.SinceReviewID = raw.sinceReviewID.String
+	review.DeltaSource = domain.DeltaSource(raw.deltaSource.String)
+	if raw.deltaScope.Valid && raw.deltaScope.String != "" {
+		if err := json.Unmarshal([]byte(raw.deltaScope.String), &review.DeltaScope); err != nil {
+			return nil, err
+		}
+		review.DeltaScope = protectTextList(review.DeltaScope)
+	}
 	return review, nil
 }
 
@@ -1053,10 +1145,12 @@ func boolToInt(b bool) int {
 func scanFinding(row scanner) (*domain.Finding, error) {
 	var finding domain.Finding
 	var severity, evidenceClass, evidence string
+	var settled int
 	if err := row.Scan(&finding.ID, &finding.ReviewerResultID, &finding.LocalID, &finding.Location, &severity,
-		&finding.Category, &finding.Claim, &evidenceClass, &evidence, &finding.Confidence); err != nil {
+		&finding.Category, &finding.Claim, &evidenceClass, &evidence, &finding.Confidence, &finding.SettledRef, &settled); err != nil {
 		return nil, err
 	}
+	finding.Settled = settled != 0
 	finding.Severity = domain.Severity(severity)
 	finding.EvidenceClass = domain.EvidenceClass(evidenceClass)
 	if err := json.Unmarshal([]byte(evidence), &finding.Evidence); err != nil {
@@ -1069,7 +1163,8 @@ func scanFinding(row scanner) (*domain.Finding, error) {
 
 func (r *ReviewRepository) findingsForResult(resultID int64) ([]domain.Finding, error) {
 	rows, err := r.db.Query(`
-		SELECT id, reviewer_result_id, local_id, location, severity, category, claim, evidence_class, evidence, confidence
+		SELECT id, reviewer_result_id, local_id, location, severity, category, claim, evidence_class, evidence, confidence,
+		       COALESCE(settled_ref, 0), COALESCE(settled, 0)
 		FROM findings WHERE reviewer_result_id = ? ORDER BY id`, resultID)
 	if err != nil {
 		return nil, err

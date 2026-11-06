@@ -480,6 +480,14 @@ func (r *memoryReviewRepository) CountPromotedMemories(project, reviewID string)
 	return 0, 0, nil
 }
 
+// InheritedFindings devuelve lo heredado al crear la revisión (HCD-032).
+func (r *memoryReviewRepository) InheritedFindings(project, reviewID string) ([]domain.SettledFinding, error) {
+	if review := r.reviews[reviewKey(project, reviewID)]; review != nil {
+		return append([]domain.SettledFinding(nil), review.Inherited...), nil
+	}
+	return nil, nil
+}
+
 // resultadoCoincideConElPersistido espeja la comparación de contenido del adaptador
 // real. El doble no redacta, así que compara los valores tal cual los guarda.
 func (r *memoryReviewRepository) resultadoCoincideConElPersistido(
@@ -504,6 +512,7 @@ func (r *memoryReviewRepository) resultadoCoincideConElPersistido(
 				previo.Category != entrante.Category || previo.Claim != entrante.Claim ||
 				previo.EvidenceClass != entrante.EvidenceClass ||
 				previo.Confidence != entrante.Confidence ||
+				previo.SettledRef != entrante.SettledRef || previo.Settled != entrante.Settled ||
 				!slices.Equal(previo.Evidence, entrante.Evidence) {
 				return false
 			}

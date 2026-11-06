@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"mem/adapters/secondary/gitdiff"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,9 @@ type Container struct {
 	MaintenanceRepo ports.MaintenanceRepository
 	CodeGraphRepo   ports.CodeGraphRepository
 	// EditContext da el contexto de la ruta editada (HCD-028).
-	EditContext     ports.EditContextSource
+	EditContext ports.EditContextSource
+	// RevisionDiff da el delta git de una revisión enlazada (HCD-032).
+	RevisionDiff    ports.RevisionDiff
 	CodeProviders   []ports.CodeGraphProvider
 	ADRSyncProvider ports.ADRSyncProvider
 	ADRSyncRepo     ports.ADRSyncRepository
@@ -317,6 +320,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		MaintenanceRepo:              persistence.NewMaintenanceRepository(db, persistence.DbPath(root)),
 		CodeGraphRepo:                codeGraphRepo,
 		EditContext:                  persistence.NewEditContextRepository(db),
+		RevisionDiff:                 gitdiff.New(root),
 		CodeProviders:                codeProviders,
 		ADRSyncRepo:                  adrSyncRepo,
 		Compressor:                   engine,
@@ -452,6 +456,7 @@ func (c *Container) ToDeps() *cli.Deps {
 		MaintenanceRepo:              c.MaintenanceRepo,
 		CodeGraphRepo:                c.CodeGraphRepo,
 		EditContext:                  c.EditContext,
+		RevisionDiff:                 c.RevisionDiff,
 		CodeProviders:                c.CodeProviders,
 		TUIProvider:                  c.tuiProvider(),
 		TUIProviders:                 c.tuiProviders(),

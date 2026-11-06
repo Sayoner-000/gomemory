@@ -95,6 +95,11 @@ func BuildConsensusWithOutcome(
 	sources := make([]domain.ConsensusSource, 0)
 	for _, result := range results {
 		for _, finding := range result.Findings {
+			// Un asentado vigente ya se adjudicó en la revisión de la que se hereda
+			// (HCD-032): no entra en la clasificación ni se puede reclasificar.
+			if finding.Settled {
+				continue
+			}
 			sources = append(sources, domain.ConsensusSource{
 				FindingID: finding.ID, Reviewer: result.Reviewer, Severity: finding.Severity,
 				Claim: finding.Claim, Confirmable: finding.Confirmable(),

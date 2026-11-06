@@ -128,6 +128,12 @@ func hayFuentesSinClasificar(results []ReviewerResult, consensus []ConsensusFind
 	}
 	for _, result := range results {
 		for _, finding := range result.Findings {
+			// Un hallazgo con asentamiento vigente ya se adjudicó en la revisión de
+			// la que se hereda (HCD-032): no se vuelve a clasificar. Uno reabierto
+			// (Settled=false) sí, como cualquier otro.
+			if finding.Settled {
+				continue
+			}
 			if !clasificados[finding.ID] {
 				return true
 			}

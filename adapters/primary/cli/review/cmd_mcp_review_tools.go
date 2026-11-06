@@ -25,6 +25,7 @@ type reviewFindingInput struct {
 	EvidenceClass string   `json:"evidence_class"`
 	Evidence      []string `json:"evidence"`
 	Confidence    string   `json:"confidence"`
+	SettledRef    int64    `json:"settled_ref,omitempty" jsonschema:"Opcional (HCD-032): consensus_id del hallazgo heredado que este reporte repite"`
 }
 
 type reviewMatchInput struct {
@@ -77,29 +78,35 @@ func RegisterTools(server *mcp.Server, deps *clikit.Deps, project string) {
 		MaxFixRounds      int                 `json:"max_fix_rounds,omitempty"`
 		AutoFixSeverities []string            `json:"auto_fix_severities,omitempty"`
 		FixAuthorized     *bool               `json:"fix_authorized,omitempty"`
+		SinceReviewID     string              `json:"since_review_id,omitempty" jsonschema:"Opcional (HCD-032): revisión anterior terminada de la que heredar lo asentado; los revisores examinan solo el delta"`
 	}) (*mcp.CallToolResult, any, error) {
 		severities := make([]domain.Severity, 0, len(in.AutoFixSeverities))
 		for _, severity := range in.AutoFixSeverities {
 			severities = append(severities, domain.Severity(severity))
 		}
-		review, err := usecases.StartReview(deps.ReviewRepo, usecases.StartReviewInput{
+		review, err := usecases.StartReviewSince(deps.ReviewRepo, deps.ConsensusRepo, deps.RevisionDiff, usecases.StartReviewInput{
 			Project: project, TargetType: domain.TargetType(in.TargetType), Revision: in.Revision,
 			Digest: in.Digest, Scope: in.Scope, MaxFixRounds: in.MaxFixRounds, AutoFixSeverities: severities,
 			Policy:        reviewPolicyDelProyecto(deps),
 			FixAuthorized: in.FixAuthorized,
 			ReviewerA:     usecases.ReviewerIdentity{Provider: in.ReviewerA.Provider, Model: in.ReviewerA.Model},
 			ReviewerB:     usecases.ReviewerIdentity{Provider: in.ReviewerB.Provider, Model: in.ReviewerB.Model},
+			SinceReviewID: in.SinceReviewID,
 		})
 		if err != nil {
 			return nil, nil, err
 		}
-		return clikit.ToolResult(map[string]any{
+		respuesta := map[string]any{
 			"review_id": review.ID, "target_digest": review.Target.Digest(),
 			"independence":        map[string]any{"level": review.IndependenceLevel, "reason": review.IndependenceReason},
 			"fix_authorized":      review.FixAuthorized,
 			"max_fix_rounds":      review.MaxFixRounds,
 			"auto_fix_severities": review.AutoFixSeverities,
-		})
+		}
+		for k, v := range enlaceDeRevision(review, review.Inherited) {
+			respuesta[k] = v
+		}
+		return clikit.ToolResult(respuesta)
 	})
 
 	clikit.AddTool(server, &mcp.Tool{
@@ -116,14 +123,7 @@ func RegisterTools(server *mcp.Server, deps *clikit.Deps, project string) {
 		Model        string               `json:"model,omitempty" jsonschema:"Modelo que ejecutó la revisión"`
 		Findings     []reviewFindingInput `json:"findings,omitempty" jsonschema:"Hallazgos estructurados; omite o envía [] si no hay hallazgos"`
 	}) (*mcp.CallToolResult, any, error) {
-		findings := make([]domain.Finding, 0, len(in.Findings))
-		for _, finding := range in.Findings {
-			findings = append(findings, domain.Finding{
-				LocalID: finding.LocalID, Location: finding.Location, Severity: domain.Severity(finding.Severity),
-				Category: finding.Category, Claim: finding.Claim, EvidenceClass: domain.EvidenceClass(finding.EvidenceClass),
-				Evidence: finding.Evidence, Confidence: finding.Confidence,
-			})
-		}
+		findings := findingsDesdeEntrada(in.Findings)
 		out, err := usecases.SubmitReviewerResult(deps.ReviewRepo, usecases.SubmitReviewerResultInput{
 			Project: project, ReviewID: in.ReviewID, TargetDigest: in.TargetDigest,
 			Result: domain.ReviewerResult{Reviewer: domain.Reviewer(in.Reviewer), Provider: in.Provider,
@@ -445,7 +445,19 @@ func construirEstadoDeRevision(
 		revisores = append(revisores, entrada)
 	}
 
-	return clikit.ToolResult(map[string]any{
+	inherited, err := deps.ReviewRepo.InheritedFindings(project, review.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	asentados := 0
+	for _, result := range results {
+		for _, f := range result.Findings {
+			if f.Settled {
+				asentados++
+			}
+		}
+	}
+	respuesta := map[string]any{
 		"review_id":      review.ID,
 		"status":         review.Status,
 		"round":          review.Round,
@@ -465,5 +477,12 @@ func construirEstadoDeRevision(
 		},
 		"findings":   detalle,
 		"fix_rounds": rondas,
-	})
+	}
+	if enlace := enlaceDeRevision(review, inherited); len(enlace) > 0 {
+		for k, v := range enlace {
+			respuesta[k] = v
+		}
+		respuesta["settled_findings"] = asentados
+	}
+	return clikit.ToolResult(respuesta)
 }

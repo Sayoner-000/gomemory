@@ -58,6 +58,13 @@ type Finding struct {
 	EvidenceClass    EvidenceClass
 	Evidence         []string
 	Confidence       string
+	// SettledRef cita un hallazgo heredado de la revisión anterior (HCD-032):
+	// el ConsensusID del SettledFinding. 0 = no cita ninguno.
+	SettledRef int64
+	// Settled indica que el asentamiento citado sigue valiendo (su archivo no
+	// cambió): el hallazgo no se vuelve a adjudicar. Lo decide el motor al
+	// recibir el resultado, nunca el revisor.
+	Settled bool
 }
 
 func (f Finding) Confirmable() bool {

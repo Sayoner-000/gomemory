@@ -190,7 +190,7 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 // esperaOcupadaMs es el busy_timeout de cada conexión.
 const esperaOcupadaMs = 5000
@@ -686,6 +686,32 @@ func migrateSchema(ex schemaExecer) error {
 	// en vez de aprobarse con el veredicto de una corrección pasada.
 	if err := addColumnIfMissing(ex, "consensus_findings", "rejudgment_round", "INTEGER"); err != nil {
 		return err
+	}
+
+	// Revisión acumulativa (HCD-032, schema 9): enlace con la revisión anterior,
+	// delta y herencia. Aditivo: una revisión anterior se lee sin enlace.
+	for _, col := range [][3]string{
+		{"reviews", "since_review_id", "TEXT"},
+		{"reviews", "delta_scope", "TEXT"},
+		{"reviews", "delta_source", "TEXT"},
+		{"findings", "settled_ref", "INTEGER"},
+		{"findings", "settled", "INTEGER"},
+	} {
+		if err := addColumnIfMissing(ex, col[0], col[1], col[2]); err != nil {
+			return err
+		}
+	}
+	if _, err := ex.Exec(`CREATE TABLE IF NOT EXISTS review_inherited (
+		review_id INTEGER NOT NULL,
+		consensus_id INTEGER NOT NULL,
+		from_review_id TEXT NOT NULL,
+		status TEXT NOT NULL,
+		severity TEXT NOT NULL,
+		claim TEXT NOT NULL,
+		files TEXT NOT NULL DEFAULT '[]',
+		PRIMARY KEY (review_id, consensus_id)
+	)`); err != nil {
+		return fmt.Errorf("migrate review_inherited: %w", err)
 	}
 
 	// topic_key (feature 008): agrupa memorias por tópico para el upsert de dedup.

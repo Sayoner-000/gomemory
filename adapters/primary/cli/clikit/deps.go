@@ -41,6 +41,9 @@ type Deps struct {
 	CodeGraphRepo   ports.CodeGraphRepository
 	// EditContext da el contexto de la ruta editada (HCD-028). Puede ser nil.
 	EditContext ports.EditContextSource
+	// RevisionDiff calcula con git el delta de una revisión enlazada (HCD-032).
+	// Puede ser nil: la revisión usa entonces el scope declarado.
+	RevisionDiff ports.RevisionDiff
 	// CodeProviders son los proveedores EXTERNOS de grafo (opcionales). Los
 	// hooks los usan para refrescar el snapshot por turno sin bloquear
 	// (MaybeRefresh es fire-and-forget). Vacío si están deshabilitados.

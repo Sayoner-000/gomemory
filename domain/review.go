@@ -170,7 +170,27 @@ type Review struct {
 	Verdict            Verdict
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	// SinceReviewID es la revisión anterior de la que esta hereda (HCD-032, Q1).
+	// Vacío = revisión independiente, como antes de HCD-032.
+	SinceReviewID string
+	// DeltaScope son los archivos que cambiaron desde la revisión anterior: el
+	// alcance que examinan los revisores. DeltaSource dice de dónde salió (Q3).
+	DeltaScope  []string
+	DeltaSource DeltaSource
+	// Inherited son los hallazgos heredados. Se escriben al crear la revisión y
+	// se leen aparte (ReviewRepository.InheritedFindings).
+	Inherited []SettledFinding
 }
+
+// DeltaSource indica de dónde sale el alcance de una revisión enlazada.
+type DeltaSource string
+
+const (
+	// DeltaSourceGit: archivos cambiados entre los commits de ambas revisiones.
+	DeltaSourceGit DeltaSource = "git"
+	// DeltaSourceScope: sin git o sin commit, el scope que pasó el llamador.
+	DeltaSourceScope DeltaSource = "scope"
+)
 
 // ActiveTargetDigest devuelve el digest contra el que hay que validar ahora mismo.
 // Una revisión anterior a esta funcionalidad no tiene CurrentTargetDigest: se

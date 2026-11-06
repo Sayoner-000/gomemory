@@ -84,4 +84,8 @@ type ReviewRepository interface {
 	// métricas, derivándolas del ledger en vez de acumular contadores por el
 	// camino, que es lo que las dejaría desincronizadas (FR-024).
 	CountPromotedMemories(project, reviewID string) (promovidas, deduplicadas int, err error)
+
+	// InheritedFindings devuelve los hallazgos que la revisión heredó de la
+	// anterior (HCD-032). Vacío para una revisión sin enlace.
+	InheritedFindings(project, reviewID string) ([]domain.SettledFinding, error)
 }

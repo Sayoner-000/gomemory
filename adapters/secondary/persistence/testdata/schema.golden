@@ -1,4 +1,4 @@
-user_version=8
+user_version=9
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_automatic_original_grants_ref|automatic_original_grants|CREATE INDEX idx_automatic_original_grants_ref ON automatic_original_grants(ref)
@@ -56,6 +56,7 @@ index|sqlite_autoindex_hook_guard_events_1|hook_guard_events|
 index|sqlite_autoindex_instinct_folded_1|instinct_folded|
 index|sqlite_autoindex_instinct_stats_1|instinct_stats|
 index|sqlite_autoindex_rejudgments_1|rejudgments|
+index|sqlite_autoindex_review_inherited_1|review_inherited|
 index|sqlite_autoindex_reviewer_results_1|reviewer_results|
 index|sqlite_autoindex_reviews_1|reviews|
 index|sqlite_autoindex_sessions_1|sessions|
@@ -211,7 +212,7 @@ table|findings|findings|CREATE TABLE findings (
 		claim TEXT NOT NULL,
 		evidence_class TEXT NOT NULL,
 		evidence TEXT NOT NULL DEFAULT '[]',
-		confidence TEXT NOT NULL DEFAULT '',
+		confidence TEXT NOT NULL DEFAULT '', settled_ref INTEGER, settled INTEGER,
 		FOREIGN KEY (reviewer_result_id) REFERENCES reviewer_results(id),
 		UNIQUE(reviewer_result_id, local_id)
 	)
@@ -352,6 +353,16 @@ table|rejudgments|rejudgments|CREATE TABLE rejudgments (
 		FOREIGN KEY (consensus_finding_id) REFERENCES consensus_findings(id),
 		UNIQUE(review_id, round, consensus_finding_id, reviewer)
 	)
+table|review_inherited|review_inherited|CREATE TABLE review_inherited (
+		review_id INTEGER NOT NULL,
+		consensus_id INTEGER NOT NULL,
+		from_review_id TEXT NOT NULL,
+		status TEXT NOT NULL,
+		severity TEXT NOT NULL,
+		claim TEXT NOT NULL,
+		files TEXT NOT NULL DEFAULT '[]',
+		PRIMARY KEY (review_id, consensus_id)
+	)
 table|reviewer_results|reviewer_results|CREATE TABLE reviewer_results (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		review_id INTEGER NOT NULL,
@@ -380,7 +391,7 @@ table|reviews|reviews|CREATE TABLE reviews (
 		status TEXT NOT NULL DEFAULT 'frozen',
 		verdict TEXT,
 		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
-		updated_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')), current_target_digest TEXT, fix_authorized INTEGER, reviewer_a_provider TEXT, reviewer_a_model TEXT, reviewer_b_provider TEXT, reviewer_b_model TEXT,
+		updated_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')), current_target_digest TEXT, fix_authorized INTEGER, reviewer_a_provider TEXT, reviewer_a_model TEXT, reviewer_b_provider TEXT, reviewer_b_model TEXT, since_review_id TEXT, delta_scope TEXT, delta_source TEXT,
 		UNIQUE(project, review_id)
 	)
 table|sessions|sessions|CREATE TABLE sessions (
@@ -570,6 +581,8 @@ col|findings|6|claim|TEXT|1||0
 col|findings|7|evidence_class|TEXT|1||0
 col|findings|8|evidence|TEXT|1|'[]'|0
 col|findings|9|confidence|TEXT|1|''|0
+col|findings|10|settled_ref|INTEGER|0||0
+col|findings|11|settled|INTEGER|0||0
 col|fix_rounds|0|id|INTEGER|0||1
 col|fix_rounds|1|review_id|INTEGER|1||0
 col|fix_rounds|2|round|INTEGER|1||0
@@ -700,6 +713,13 @@ col|rejudgments|4|reviewer|TEXT|1||0
 col|rejudgments|5|state|TEXT|1||0
 col|rejudgments|6|evidence|TEXT|1|'[]'|0
 col|rejudgments|7|created_at|TEXT|1|datetime('now', '-5 hours')|0
+col|review_inherited|0|review_id|INTEGER|1||1
+col|review_inherited|1|consensus_id|INTEGER|1||2
+col|review_inherited|2|from_review_id|TEXT|1||0
+col|review_inherited|3|status|TEXT|1||0
+col|review_inherited|4|severity|TEXT|1||0
+col|review_inherited|5|claim|TEXT|1||0
+col|review_inherited|6|files|TEXT|1|'[]'|0
 col|reviewer_results|0|id|INTEGER|0||1
 col|reviewer_results|1|review_id|INTEGER|1||0
 col|reviewer_results|2|reviewer|TEXT|1||0
@@ -730,6 +750,9 @@ col|reviews|18|reviewer_a_provider|TEXT|0||0
 col|reviews|19|reviewer_a_model|TEXT|0||0
 col|reviews|20|reviewer_b_provider|TEXT|0||0
 col|reviews|21|reviewer_b_model|TEXT|0||0
+col|reviews|22|since_review_id|TEXT|0||0
+col|reviews|23|delta_scope|TEXT|0||0
+col|reviews|24|delta_source|TEXT|0||0
 col|sessions|0|id|TEXT|0||1
 col|sessions|1|project|TEXT|1||0
 col|sessions|2|summary|TEXT|1|''|0

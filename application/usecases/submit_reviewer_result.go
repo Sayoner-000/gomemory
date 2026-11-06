@@ -76,6 +76,9 @@ func SubmitReviewerResult(repo ports.ReviewRepository, input SubmitReviewerResul
 			return SubmitReviewerResultOutput{}, err
 		}
 	}
+	if err := resolverAsentados(repo, review, input.Result.Findings); err != nil {
+		return SubmitReviewerResultOutput{}, err
+	}
 	existing, err := repo.ListReviewerResults(input.Project, input.ReviewID, review.Round)
 	if err != nil {
 		return SubmitReviewerResultOutput{}, err
@@ -192,6 +195,39 @@ func validarHallazgoEstructurado(finding domain.Finding) error {
 	}
 	return fmt.Errorf("el hallazgo %s omite el campo obligatorio evidence",
 		identificarHallazgo(finding))
+}
+
+// resolverAsentados decide, para cada hallazgo que cita un heredado con
+// settled_ref, si el asentamiento sigue valiendo (HCD-032): lo decide el motor
+// con el delta guardado, nunca el revisor. Una referencia que no es un heredado
+// de esta revisión se rechaza: aceptarla dejaría fuera del consenso un hallazgo
+// cualquiera solo por citar un número.
+func resolverAsentados(repo ports.ReviewRepository, review *domain.Review, findings []domain.Finding) error {
+	var heredados map[int64]domain.SettledFinding
+	for i := range findings {
+		f := &findings[i]
+		f.Settled = false
+		if f.SettledRef == 0 {
+			continue
+		}
+		if heredados == nil {
+			list, err := repo.InheritedFindings(review.Project, review.ID)
+			if err != nil {
+				return err
+			}
+			heredados = make(map[int64]domain.SettledFinding, len(list))
+			for _, s := range list {
+				heredados[s.ConsensusID] = s
+			}
+		}
+		s, ok := heredados[f.SettledRef]
+		if !ok {
+			return fmt.Errorf("el hallazgo %s cita settled_ref %d, que no es un hallazgo heredado de esta revisión",
+				identificarHallazgo(*f), f.SettledRef)
+		}
+		f.Settled = domain.SettledStillValid(s, review.DeltaScope)
+	}
+	return nil
 }
 
 func identificarHallazgo(finding domain.Finding) string {
