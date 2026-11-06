@@ -87,3 +87,37 @@ func TestHCDActiveContextDeltaDeduplicates(t *testing.T) {
 		t.Fatalf("changed HCD context omitted: %s", third)
 	}
 }
+
+// HCD-037 — un arranque recortado solo da por entregadas las entradas que el
+// agente vio completas: la que el recorte corta a medias (aquí D pierde su
+// línea de continuación) y las que quedan fuera viajan enteras después.
+func TestSessionDelta_MarkVisible(t *testing.T) {
+	ctx := context.Background()
+	d := SessionDelta{Blocks: &memBlocks{seen: map[string]bool{}}}
+	visible := docDelta[:strings.Index(docDelta, "  → `x.go`")]
+	d.MarkVisible(ctx, docDelta, visible)
+
+	got := d.ApplyContext(ctx, docDelta)
+	if !strings.Contains(got, "3 entradas ya entregadas") {
+		t.Errorf("A, B y C se vieron completas y deben sustituirse:\n%s", got)
+	}
+	if !strings.Contains(got, "- **D**: cuatro\n  → `x.go`") {
+		t.Errorf("D llegó cortada: no puede darse por entregada:\n%s", got)
+	}
+
+	// Con compresión max, lo emitido tiene los espacios colapsados: la entrada
+	// con continuación sangrada llegó completa aunque no sea literal.
+	sangrado := "## Decisiones Técnicas\n\n- **E**: cinco\n   sigue   aquí\n"
+	comprimido := "## Decisiones Técnicas\n\n- **E**: cinco\n sigue aquí"
+	conSangria := SessionDelta{Blocks: &memBlocks{seen: map[string]bool{}}}
+	conSangria.MarkVisible(ctx, sangrado, comprimido)
+	if got := conSangria.ApplyContext(ctx, sangrado); !strings.Contains(got, "- **E** ⟦ya entregado⟧") {
+		t.Errorf("la compresión de espacios no impide reconocer lo entregado:\n%s", got)
+	}
+
+	vacio := SessionDelta{Blocks: &memBlocks{seen: map[string]bool{}}}
+	vacio.MarkVisible(ctx, docDelta, "")
+	if got := vacio.ApplyContext(ctx, docDelta); got != docDelta {
+		t.Errorf("sin texto visible no se anota nada:\n%s", got)
+	}
+}

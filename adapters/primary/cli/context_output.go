@@ -139,3 +139,14 @@ func markContextDelivered(deps *Deps, doc string) {
 	usecases.SessionDelta{Blocks: deps.DeliveredBlocks}.MarkDelivered(ctx, doc)
 	cancel()
 }
+
+// markVisibleDelivered anota solo las entradas de doc que llegaron completas en
+// visible, la parte que el canal dejó pasar de una salida recortada (HCD-037).
+func markVisibleDelivered(deps *Deps, doc, visible string) {
+	if !deltaActivo(deps) {
+		return
+	}
+	ctx, cancel := deltaCtx()
+	usecases.SessionDelta{Blocks: deps.DeliveredBlocks}.MarkVisible(ctx, doc, visible)
+	cancel()
+}

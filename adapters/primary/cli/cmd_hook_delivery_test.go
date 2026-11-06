@@ -147,6 +147,37 @@ func TestEntregaContextoDeArranque_SalidaTruncadaNoSeDaPorEntregada(t *testing.T
 	}
 }
 
+// historialConColaLarga cabe hasta B; C, al final, desborda el tope del canal.
+func historialConColaLarga() string {
+	return "# Memoria del Proyecto\n\n## Decisiones Técnicas\n\n- **A**: uno\n- **B**: dos\n\n## Bugfixes\n\n- **C**: tres " +
+		strings.Repeat("x", domain.HookInlineContextMaxChars) + "\n"
+}
+
+// HCD-037 — cuando el canal recorta el arranque, las entradas que llegaron
+// completas sí se dan por entregadas; la que el recorte dejó fuera no, y el
+// canal sigue sin registrar el documento entero (get_plan_context no puede
+// suprimirlo).
+func TestEntregaContextoDeArranque_SalidaTruncadaAnotaSoloLoVisible(t *testing.T) {
+	historial := historialConColaLarga()
+	registro := &registroDeEntregasFalso{}
+	deps := &Deps{ContextBuilder: contextBuilderFalso{salida: historial}, DeliveryLog: registro,
+		DeliveredBlocks: &bloquesFalsos{}, CompressionLevel: ports.CompressionMax}
+
+	if got := entregaContextoDeArranque(deps); got != historial {
+		t.Fatalf("el hook debe seguir emitiendo el contexto")
+	}
+	if _, ok := registro.Last(ports.DeliveryContext); ok {
+		t.Error("una salida truncada no debe anotarse en el registro por canal")
+	}
+	got := deliverContextDoc(deps, historial)
+	if !strings.Contains(got, "2 entradas ya entregadas") {
+		t.Errorf("A y B llegaron completas y deben sustituirse:\n%.300s", got)
+	}
+	if !strings.Contains(got, "- **C**: tres xxx") {
+		t.Errorf("C quedó fuera del recorte y debe entregarse entera:\n%.300s", got)
+	}
+}
+
 // C-002 (acr_961a1676) — lo ya entregado se sustituye por marcadores con una
 // vía real de recuperación, y full=true la cumple: entrega todo.
 func TestDeliverContextDocFull_RecuperaLoYaEntregado(t *testing.T) {

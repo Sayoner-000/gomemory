@@ -106,9 +106,12 @@ func FitHookOutput(sections []HookSection, maxRunes int) (string, []HookTrim) {
 }
 
 // cutAtParagraph devuelve el prefijo más largo de s, de como mucho maxRunes
-// runas, que termina en un límite de párrafo; si ningún párrafo cabe entero,
-// el límite de línea. Nunca parte una palabra ni un carácter multibyte: si no
-// cabe ni una línea, devuelve "".
+// runas, que termina en un límite de párrafo o justo antes de una entrada de
+// lista («- »); si no hay ninguno, el límite de línea. Una sección de memorias
+// es un único párrafo con sus entradas separadas por un salto simple: sin el
+// corte por entradas se descartaba entera aunque cupieran varias (HCD-037).
+// Nunca parte una palabra, una entrada ni un carácter multibyte: si no cabe ni
+// una línea, devuelve "".
 func cutAtParagraph(s string, maxRunes int) string {
 	if maxRunes <= 0 {
 		return ""
@@ -117,8 +120,12 @@ func cutAtParagraph(s string, maxRunes int) string {
 	if utf8.RuneCountInString(s) > maxRunes {
 		prefix = string([]rune(s)[:maxRunes])
 	}
-	if i := strings.LastIndex(prefix, "\n\n"); i > 0 {
-		return strings.TrimRight(prefix[:i], "\n")
+	paragraph := strings.LastIndex(prefix, "\n\n")
+	if entry := strings.LastIndex(prefix, "\n- "); entry > paragraph {
+		return strings.TrimRight(prefix[:entry], "\n")
+	}
+	if paragraph > 0 {
+		return strings.TrimRight(prefix[:paragraph], "\n")
 	}
 	if i := strings.LastIndex(prefix, "\n"); i > 0 {
 		return prefix[:i]
