@@ -262,7 +262,9 @@ Un proceso sabe a qué conversación pertenece por el `session_id` de su hook,
 por el enlace que SessionStart deja para el proceso del agente o, en la CLI,
 por su terminal. Sin ninguno de los tres (un cliente MCP sin hooks, por
 ejemplo) usa la sesión de proyecto sin conversación, como hasta ahora. Las
-sesiones que llevan más de 4 horas sin actividad se cierran solas.
+sesiones que llevan más de 4 horas sin actividad se cierran solas. Desde la
+v2.49.1 este enlace también funciona en Windows, a través de `cmd`, PowerShell
+o `pwsh`.
 | `PreToolUse` (`ExitPlanMode`) | `plan-guard` | Valida la forma del plan antes de presentarlo. |
 | `PostToolUse` (`ExitPlanMode`) | `plan-approved` | Al **aprobar un plan**, guarda el plan como memoria `decision` de forma determinista, sin depender de que el modelo lo recuerde. Cubre el hueco de `turn-end` (un turno de plan mode no toca archivos ni corre comandos). Cada aprobación (incluidos planes revisados) se acumula. En OpenCode el plugin lo activa al detectar un turno en modo `plan`. |
 | `PostToolUse` (`EnterPlanMode`) | `plan-entered` | Inyecta el método de descomposición y el historial antes de redactar el plan. |
@@ -282,6 +284,12 @@ sesiones que llevan más de 4 horas sin actividad se cierran solas.
   recortado: llama get_context() para el resto». `plan-entered` limita su
   documento a 9500 caracteres por defecto; ese presupuesto es configurable con
   `--budget`.
+- **Recorte por entradas (v2.49.1).** Si una sección de memorias no cabe, se
+  corta después de la última entrada completa. Antes se perdía la sección
+  entera. Las entradas que llegan completas al arrancar quedan anotadas como
+  entregadas, y el `get_context` siguiente las sustituye por `⟦ya entregado⟧`.
+  Lo que el recorte dejó fuera llega entero. Si te falta algo, pídelo con
+  `get_context(full=true)`.
 - **Un registro por subcomando.** Los hooks globales (`~/.claude/settings.json`)
   sirven a todos los proyectos. `mem install` registra en el proyecto solo los
   subcomandos que el global no cubre (por ejemplo `tool-output`), y

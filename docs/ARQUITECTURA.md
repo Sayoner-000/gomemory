@@ -114,3 +114,28 @@ Ahora:
 - El MCP abre su sesión en segundo plano y espera unos segundos a que aparezca
   el enlace. Si la abriera de inmediato, chocaría con el SessionStart de su
   propio host y quedaría una sesión huérfana.
+
+## Arranque recortado y enlace del host en Windows (HCD-037 y HCD-038)
+
+**Lo que el arranque entrega de verdad (HCD-037).** `domain.FitHookOutput`
+ajusta las salidas de los hooks al tope del canal. `cutAtParagraph` también
+corta justo antes de una entrada de lista (`- `). Antes solo cortaba entre
+párrafos, y una sección de memorias, que es un único párrafo, se perdía entera.
+Cuando el arranque se recorta, `entregaContextoDeArranque`
+(`adapters/primary/cli/cmd_hook.go`) repite el mismo ajuste con
+`arranqueSections`, la función que también usa `hookSessionStart`, y pasa lo
+emitido a `SessionDelta.MarkVisible`. Este anota en `delivered_blocks` solo las
+unidades del documento crudo que aparecen completas en lo emitido. Antes de
+comparar normaliza los espacios igual que la compresión estructural, porque en
+nivel max la sangría se colapsa. El hash del canal `context` no se registra:
+`get_plan_context` lo usaría para suprimir un documento que el agente no
+recibió entero.
+
+**`psInfo` por plataforma (HCD-038).** El recorrido de ancestros de
+`hostbind` necesita el padre, la hora de arranque y el nombre de cada proceso.
+`ps_unix.go` los saca de `ps`, y `ps_windows.go` de `syscall`: el padre y el
+ejecutable con `CreateToolhelp32Snapshot` y la hora de arranque con
+`GetProcessTimes`. Si el padre se creó después que el hijo, se trata como un
+PID reutilizado y el proceso queda huérfano. `isShell` reconoce los shells
+intermedios de Windows (`cmd`, `powershell`, `pwsh`) con su ruta `\` y su
+extensión `.exe`.

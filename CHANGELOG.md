@@ -5,6 +5,16 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.49.1] - 2026-11-05
+
+### Changed
+
+- El contexto de arranque usa todo su tope y no se envía dos veces (HCD-037). Si una sección de memorias no cabía entera, el recorte de los hooks la quitaba completa, porque solo cortaba entre párrafos. Ahora corta después de la última entrada que cabe. Las entradas que llegan completas quedan anotadas como entregadas, y `get_context` las sustituye por una línea `⟦ya entregado⟧`. Lo que el recorte dejó fuera llega entero, y `get_plan_context` sigue enviando el documento completo. En este proyecto el arranque pasa de 5.552 a 9.932 caracteres (35 entradas más) y el `get_context` siguiente baja de 17.835 a 11.774. Sumando las dos cosas, cada sesión gasta un 7 % menos.
+
+### Fixed
+
+- En Windows, los hooks vuelven a encontrar la conversación de su agente (HCD-038). Para enlazar un hook sin `session_id` con su agente, la v2.49.0 consultaba `ps`, que en Windows no existe. Los hooks `turn-end` y `user-prompt-submit` caían entonces en una conversación vacía, así que perdían el estado por turno y repetían contexto ya entregado. Ahora gomemory lee el proceso padre y su hora de arranque con la API de Windows, y reconoce `cmd`, PowerShell y `pwsh` como shells intermedios. El job de Windows del CI vuelve a verde.
+
 ## [v2.49.0] - 2026-11-05
 
 ### Added

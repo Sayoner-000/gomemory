@@ -33,7 +33,7 @@ La implementación nativa es pequeña (un archivo por plataforma, sin dependenci
 
 
 ## Checklist
-- [ ] 1. La reproducción ya no falla → re-ejecutar la reproducción: `id=$(gh run list --workflow test --commit $(git rev-parse HEAD) --limit 1 --json databaseId -q '.[0].databaseId') && test -n "$id" && test "$(gh run view "$id" --json jobs -q '.jobs[]|select(.name|startswith("Windows")).conclusion')" = success`
+- [x] 1. La reproducción ya no falla → re-ejecutar la reproducción: `id=$(gh run list --workflow test --commit $(git rev-parse HEAD) --limit 1 --json databaseId -q '.[0].databaseId') && test -n "$id" && test "$(gh run view "$id" --json jobs -q '.jobs[]|select(.name|startswith("Windows")).conclusion')" = success`
 - [x] 2. Reconocer los shells de Windows (`cmd`, `powershell`, `pwsh`, con ruta `\` y `.exe`) al buscar el host → `go test ./adapters/secondary/hostbind -run TestHost_SaltaShellsDeWindows`
 - [x] 3. Separar `psInfo` por plataforma y añadir la implementación de Windows con `syscall` → `GOOS=windows GOARCH=amd64 go vet ./adapters/secondary/hostbind/ && go test ./adapters/secondary/hostbind -run TestPsInfo_ProcesoActual`
 - [x] 4. Ejecutar la suite completa local sin regresiones, sin caché como el CI → `go test ./... -count=1`
@@ -115,11 +115,11 @@ La implementación nativa es pequeña (un archivo por plataforma, sin dependenci
       ok  	mem/tests/contract	103.545s
       ok  	mem/tests/integration	55.634s
       ?   	mem/version	[no test files]
-- 2026-11-05 21:59 -05:00 · tarea 2 · verde · vigente · `go test ./adapters/secondary/hostbind -run TestHost_SaltaShellsDeWindows` (salida 0)
+- 2026-11-05 21:59 -05:00 · tarea 2 · verde · caducada · `go test ./adapters/secondary/hostbind -run TestHost_SaltaShellsDeWindows` (salida 0)
       ok  	mem/adapters/secondary/hostbind	(cached)
-- 2026-11-05 21:59 -05:00 · tarea 3 · verde · vigente · `GOOS=windows GOARCH=amd64 go vet ./adapters/secondary/hostbind/ && go test ./adapters/secondary/hostbind -run TestPsInfo_ProcesoActual` (salida 0)
+- 2026-11-05 21:59 -05:00 · tarea 3 · verde · caducada · `GOOS=windows GOARCH=amd64 go vet ./adapters/secondary/hostbind/ && go test ./adapters/secondary/hostbind -run TestPsInfo_ProcesoActual` (salida 0)
       ok  	mem/adapters/secondary/hostbind	(cached)
-- 2026-11-05 21:59 -05:00 · tarea 4 · verde · vigente · `go test ./... -count=1` (salida 0)
+- 2026-11-05 21:59 -05:00 · tarea 4 · verde · caducada · `go test ./... -count=1` (salida 0)
       ok  	mem/adapters/secondary/generator	1.397s
       ok  	mem/adapters/secondary/gitdiff	0.669s
       ok  	mem/adapters/secondary/hcdfiles	0.691s
@@ -140,6 +140,33 @@ La implementación nativa es pequeña (un archivo por plataforma, sin dependenci
       ok  	mem/tests/contract	100.672s
       ok  	mem/tests/integration	51.058s
       ?   	mem/version	[no test files]
+- 2026-11-05 22:10 -05:00 · tarea 1 · falló · caducada · `id=$(gh run list --workflow test --commit $(git rev-parse HEAD) --limit 1 --json databaseId -q '.[0].databaseId') && test -n "$id" && test "$(gh run view "$id" --json jobs -q '.jobs[]|select(.name|startswith("Windows")).conclusion')" = success` (salida 1)
+- 2026-11-05 22:24 -05:00 · tarea 1 · verde · vigente · `id=$(gh run list --workflow test --commit $(git rev-parse HEAD) --limit 1 --json databaseId -q '.[0].databaseId') && test -n "$id" && test "$(gh run view "$id" --json jobs -q '.jobs[]|select(.name|startswith("Windows")).conclusion')" = success` (salida 0)
+- 2026-11-05 22:24 -05:00 · tarea 2 · verde · vigente · `go test ./adapters/secondary/hostbind -run TestHost_SaltaShellsDeWindows` (salida 0)
+      ok  	mem/adapters/secondary/hostbind	(cached)
+- 2026-11-05 22:24 -05:00 · tarea 3 · verde · vigente · `GOOS=windows GOARCH=amd64 go vet ./adapters/secondary/hostbind/ && go test ./adapters/secondary/hostbind -run TestPsInfo_ProcesoActual` (salida 0)
+      ok  	mem/adapters/secondary/hostbind	(cached)
+- 2026-11-05 22:24 -05:00 · tarea 4 · verde · vigente · `go test ./... -count=1` (salida 0)
+      ok  	mem/adapters/secondary/generator	1.190s
+      ok  	mem/adapters/secondary/gitdiff	0.709s
+      ok  	mem/adapters/secondary/hcdfiles	0.620s
+      ok  	mem/adapters/secondary/hostbind	0.136s
+      ok  	mem/adapters/secondary/launcher	0.587s
+      ok  	mem/adapters/secondary/persistence	32.475s
+      ok  	mem/adapters/secondary/release	0.387s
+      ?   	mem/adapters/secondary/requestcompression	[no test files]
+      ok  	mem/adapters/secondary/rulesfs	0.215s
+      ok  	mem/adapters/secondary/speckit	0.136s
+      ok  	mem/adapters/secondary/tokens	0.125s
+      ok  	mem/adapters/secondary/usage	0.127s
+      ?   	mem/application/ports	[no test files]
+      ok  	mem/application/usecases	12.510s
+      ?   	mem/assets	[no test files]
+      ok  	mem/domain	0.255s
+      ok  	mem/infrastructure	0.499s
+      ok  	mem/tests/contract	100.150s
+      ok  	mem/tests/integration	50.310s
+      ?   	mem/version	[no test files]
 
 ## Siguiente
-Tareas atómicas con su comprobación (`/hcd-tasks`).
+Cerrada con aprobación sobre la revisión 56119c31815b.

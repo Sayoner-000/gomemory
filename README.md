@@ -115,8 +115,9 @@ of their lifecycle: gomemory injects context when a session starts, captures
 checkpoints on its own (without spending agent tokens), compresses large tool
 output, applies the `expand` rules before a tool runs and keeps session memory
 across context compaction. Two agents working in the same project each get
-their own session, so one starting or stopping doesn't make the other receive
-its context again.
+their own session, on Linux, macOS and Windows, so one starting or stopping
+doesn't make the other receive its context again. Whatever the agent already
+got at startup isn't sent again when it asks for the full context.
 
 Antigravity CLI (`agy`) uses `mem hook` too. Turn it on with
 `mem install --agents agy`, or with `mem setup-mcp --scope global`, which
