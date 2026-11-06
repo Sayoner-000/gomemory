@@ -16,3 +16,12 @@ const CodeRetrievalPolicy = "Prioridad de recuperación según capacidades: " +
 	"conserva su ruta compatible, sin asumir que todas las herramientas o lecturas exactas se comprimen. " +
 	"Si la capacidad es desconocida, no prometas compresión automática. No infieras ahorro de una herramienta " +
 	"por su nombre; pack_build recupera memoria/Spec Kit y pack_compress no elimina el coste del texto ya recibido."
+
+// CodeRetrievalPolicyShort es CodeRetrievalPolicy en tres frases, con la misma
+// prioridad. La usan los recordatorios de sesión, que se repiten en el primer
+// prompt y al final de get_context y get_plan_context; las instrucciones MCP
+// conservan la larga (HCD-040, Q2). Si cambia la prioridad, cambian las dos.
+const CodeRetrievalPolicyShort = "Prioriza el grafo de código frente a lecturas manuales cuando cubra la consulta. " +
+	"Sin compresión de resultados externos (Codex, agy), usa antes get_context, search_memories, search_code y " +
+	"get_symbol, y después un proveedor externo o una lectura focalizada, indicando la limitación. " +
+	"No prometas compresión ni infieras ahorro por el nombre de una herramienta."
