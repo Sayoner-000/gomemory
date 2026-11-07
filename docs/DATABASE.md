@@ -80,6 +80,8 @@ Desde el esquema 7, abrir una base existente intenta una sola vez `VACUUM` y che
 
 El esquema 11 (v2.49.2) añade `code_pending_calls`, las llamadas del grafo de código que aún no tienen destino. La tabla se crea vacía al abrir una base anterior, así que las llamadas pendientes de antes no están: un `mem index --force` por proyecto las recupera.
 
+El esquema 12 (v2.50.0) añade `memory_files`, que enlaza una memoria con los archivos que cita. Una ficha del historial HCD o de una auditoría cita varios archivos, y `memories.filepath` solo admite uno. El contexto de edición busca aquí las fichas del archivo que se va a tocar. Al abrir una base anterior la tabla nace vacía; `mem hcd index --apply` la llena con las unidades y auditorías que ya existían.
+
 ## Borrado de memorias
 
 `mem forget`, `mem purge`, `mem gc`, la consolidación y la TUI usan `borrarConGarantia`. En una sola transacción retira las memorias, sus relaciones, sus filas de `memory_search` y sus copias exactas en `compression_originals`. Después intenta el checkpoint, con una espera máxima de 200 ms; `mem purge` y `mem gc` ejecutan además `VACUUM`.

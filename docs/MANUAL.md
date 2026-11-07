@@ -253,7 +253,7 @@ Esto:
 | `PostCompact` | `compact-summary` | Persiste el resumen producido por la compactación sin cerrar la sesión. |
 | `SessionEnd` | `session-end` | Cierra la sesión de esta conversación como **red de seguridad** (acepta `summary` por stdin), aunque el modelo no llame `end_session`. Nunca cierra la de otro agente que trabaje en el mismo proyecto. |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt activa las tools MCP de memoria e inyecta el recordatorio del protocolo; luego es pasivo. En **cada** prompt persiste el texto del turno como provenance (`origin_prompt`) de lo que se guarde y, si la intercepción de Socratica está activa para el agente, añade la directiva para refinarlo (§20); la procedencia de los textos de Socratica se limpia. En OpenCode el equivalente es `chat.message` → `mem hook prompt`, y el plugin aplica la decisión de `mem hook socratica-decide`. |
-| `SubagentStart` | `subagent-start` | Inyecta un aviso mínimo de solo lectura para el subagente (sin transferir el volcado completo de memorias) y preserva la trazabilidad de la delegación. |
+| `SubagentStart` | `subagent-start` | Inyecta un aviso mínimo de solo lectura para el subagente (sin transferir el volcado completo de memorias) y preserva la trazabilidad de la delegación. Con `agent_type` `splash` no emite nada: ese revisor arranca sin memoria (HCD-047). |
 | `SubagentStop` | `subagent-stop` | Registra la actividad del subagente y captura los ítems válidos de su sección de aprendizajes. |
 | `Stop` | `turn-end` | Al terminar cada turno, registra automáticamente (sin gastar tokens del agente) qué archivos se editaron y qué comandos corrieron, como memoria tipo `checkpoint`. Turnos de puro chat no generan nada. En OpenCode el equivalente es el evento `session.idle`. |
 
@@ -261,13 +261,28 @@ Esto:
 propia sesión, su registro de lo ya entregado y su estado por turno en
 `.memory/conversations/<id>/`. Antes compartían todo eso: cuando un agente
 arrancaba o cerraba, al otro le volvían a llegar el contexto y el bootstrap.
-Un proceso sabe a qué conversación pertenece por el `session_id` de su hook,
-por el enlace que SessionStart deja para el proceso del agente o, en la CLI,
-por su terminal. Sin ninguno de los tres (un cliente MCP sin hooks, por
-ejemplo) usa la sesión de proyecto sin conversación, como hasta ahora. Las
-sesiones que llevan más de 4 horas sin actividad se cierran solas. Desde la
-v2.49.1 este enlace también funciona en Windows, a través de `cmd`, PowerShell
-o `pwsh`.
+Un proceso sabe a qué conversación pertenece por el `session_id` de su hook o
+por el enlace que SessionStart deja para el proceso del agente. Sin ninguno de
+los dos (un cliente MCP sin hooks, o `mem` lanzado a mano en tu terminal) usa la
+sesión de proyecto sin conversación, la misma para todos. Las sesiones que
+llevan más de 4 horas sin actividad se cierran solas. Desde la v2.49.1 este
+enlace también funciona en Windows, a través de `cmd`, PowerShell o `pwsh`.
+
+**La CLI y la sesión del agente (v2.50.0).** Entre la v2.49.0 y la v2.49.2,
+`mem` usaba el TTY como identidad cuando lo ejecutabas en una terminal
+(`terminal-ttys017`). Así abría una sesión que el MCP y los hooks no veían, y
+mientras estuvo abierta el agente recibía el historial completo en cada
+`get_plan_context`. Ahora el TTY no cuenta. Si quieres que una terminal tenga
+su propia sesión, fíjala tú:
+
+```bash
+export GOMEMORY_TERMINAL=pane-1   # la conversación de esta terminal será terminal-pane-1
+```
+
+La variable solo afecta a la CLI y a la TUI; el MCP y los hooks la ignoran. Si
+te quedó abierta una sesión `terminal-…` de una versión anterior, se cierra sola
+tras 4 horas sin actividad. Para cerrarla antes, usa el mismo nombre que tenía:
+`GOMEMORY_TERMINAL=ttys017 mem session end -s "cierre"`.
 | `PreToolUse` (`ExitPlanMode`) | `plan-guard` | Valida la forma del plan antes de presentarlo. |
 | `PostToolUse` (`ExitPlanMode`) | `plan-approved` | Al **aprobar un plan**, guarda el plan como memoria `decision` de forma determinista, sin depender de que el modelo lo recuerde. Cubre el hueco de `turn-end` (un turno de plan mode no toca archivos ni corre comandos). Cada aprobación (incluidos planes revisados) se acumula. En OpenCode el plugin lo activa al detectar un turno en modo `plan`. |
 | `PostToolUse` (`EnterPlanMode`) | `plan-entered` | Inyecta el método de descomposición y el historial antes de redactar el plan. |
@@ -1122,7 +1137,7 @@ la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
 
 Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
 en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
-31 tools base y cuatro adicionales cuando Octopus AAR está activado (35).
+32 tools base y cuatro adicionales cuando Octopus AAR está activado (36).
 
 > Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
 > con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado
@@ -1693,7 +1708,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.49.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.50.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 

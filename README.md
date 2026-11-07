@@ -116,7 +116,9 @@ checkpoints on its own (without spending agent tokens), compresses large tool
 output, applies the `expand` rules before a tool runs and keeps session memory
 across context compaction. Two agents working in the same project each get
 their own session, on Linux, macOS and Windows, so one starting or stopping
-doesn't make the other receive its context again. Whatever the agent already
+doesn't make the other receive its context again. Running `mem` yourself in a
+terminal uses the same session as the agent; set `GOMEMORY_TERMINAL=<name>` if
+you want that terminal to have its own. Whatever the agent already
 got at startup isn't sent again when it asks for the full context. The first
 prompt of a session costs about 3,000 characters (about 4,200 with Octopus on).
 
@@ -206,18 +208,27 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
   `CRITICAL` finding.
 - **Editing without a unit.** In Claude Code, editing code with no active unit
   shows a one-time warning per session. It never blocks.
+- **Decision history.** Each unit, and each report in `docs/audits/`, keeps one
+  record in memory that the engine updates as the unit moves. When the agent is
+  about to edit a file, the records that cite it show up first. Query them with
+  `mem hcd history [text] [--file <path>]` or the `hcd_history` MCP tool;
+  `mem hcd index --apply` builds them for units that predate v2.50.0.
+- **A reviewer with no memory.** The `splash` subagent starts without
+  gomemory's context, tools or instructions, so it reviews the work without
+  knowing the reasoning behind it. `mem setup` installs it for Claude Code and
+  OpenCode; agy and Codex launch it by name.
 - **What it doesn't guarantee.** It checks structure and evidence, not that the
   code is correct. Approvals record your literal reply with its origin and
   revision: auditable, but it relies on the agent passing your words faithfully.
 
 | Agent | Invocation | Status |
 |---|---|---|
-| Claude Code | `/hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending |
-| Codex | `$hcd` | Same. Its `workspace-write` sandbox must be allowed to write `~/.local/share/gomemory`: add it to `[sandbox_workspace_write] writable_roots` in `~/.codex/config.toml`, or start with `codex --add-dir ~/.local/share/gomemory` |
-| OpenCode | `/hcd` | Same |
+| Claude Code | `/hcd` | Verified in agent runs: HCD-048 went through the full ceremony and HCD-049 through the fast track |
+| Codex | `$hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending. Its `workspace-write` sandbox must be allowed to write `~/.local/share/gomemory`: add it to `[sandbox_workspace_write] writable_roots` in `~/.codex/config.toml`, or start with `codex --add-dir ~/.local/share/gomemory` |
+| OpenCode | `/hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending |
 
 `mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.49.html) walks through the
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.50.html) walks through the
 ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
@@ -251,7 +262,7 @@ The source of truth is [`domain/mcp_tools.go`](domain/mcp_tools.go).
 
 | Group | Tools |
 | :--- | :--- |
-| Memory | `save_memory` `search_memories` `list_memories` `get_memory` `get_context` `get_plan_context` `start_session` `end_session` `save_session_summary` `forget_memory` `judge_memories` |
+| Memory | `save_memory` `search_memories` `list_memories` `get_memory` `get_context` `get_plan_context` `start_session` `end_session` `save_session_summary` `forget_memory` `judge_memories` `hcd_history` |
 | Code graph | `index_project` `graph_status` `search_code` `get_symbol` `list_dependencies` |
 | Context packs | `pack_build` `pack_show` `pack_stats` `pack_compress` `pack_retrieve` `pack_savings` |
 | Consensus review | `review_start` `review_submit` `review_consensus` `review_status` `review_fix_record` `review_rejudge` `review_finalize` `review_promote_memory` |
@@ -288,7 +299,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.49.html`](docs/Guia-Tecnica_GOMEMORY-v2.49.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.49.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.49.html) | Current printable technical and SDD_HCD guides (Spanish) |
+| [`docs/Guia-Tecnica_GOMEMORY-v2.50.html`](docs/Guia-Tecnica_GOMEMORY-v2.50.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.50.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.50.html) | Current printable technical and SDD_HCD guides (Spanish) |
 
 ## Contributing
 

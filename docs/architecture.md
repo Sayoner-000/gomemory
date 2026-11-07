@@ -63,7 +63,7 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `session` | `adapters/primary/cli/cmd_session.go` | Gestiona sesiones de trabajo (start/end/list) |
 | `install` | `adapters/primary/cli/cmd_install.go` | Instala el binario y la integración por proyecto; inicializa reglas y constitución en memoria y retira artefactos antiguos |
 | `wrap` | `adapters/primary/cli/cmd_wrap.go` | Ejecuta comando y pregunta si guardar al terminar |
-| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 31 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
+| `mcp` | `adapters/primary/cli/cmd_mcp.go` | Servidor MCP sobre stdio con 32 tools base, 4 tools opcionales de Octopus AAR y 2 recursos. Acepta `--root <dir>` |
 | `setup` | `adapters/primary/cli/cmd_setup.go` | Instala el plugin + hooks de un agente (`opencode`, `claude-code`) |
 | `setup-mcp` / `mcp-setup` | `adapters/primary/cli/cmd_mcp_setup.go` | Configura MCP para opencode, Claude, Cursor y/o Codex |
 | `hook` | `adapters/primary/cli/cmd_hook.go` | Entrypoint portable del ciclo de sesión, compactación, turnos, subagentes y modo plan |
@@ -474,7 +474,7 @@ Wrapper interactivo que envuelve cualquier comando:
 
 Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
 
-**Herramientas de memoria (11):**
+**Herramientas de memoria (12):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -489,6 +489,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `save_session_summary` | summary | Actualiza el resumen compactado sin cerrar la sesión activa |
 | `get_context` | — | Contexto markdown completo del proyecto |
 | `get_plan_context` | — | Método de descomposición atómica + contexto, para modo plan |
+| `hcd_history` | text?, file? | Historial de decisiones: fichas de unidades HCD y de auditorías en orden cronológico, filtradas por texto o por archivo citado (HCD-046). Solo lectura |
 
 > Los nombres viven en `domain/mcp_tools.go` (fuente única). El bootstrap de
 > ToolSearch, las listas de auto-aprobación y el bloque de protocolo derivan de
@@ -519,7 +520,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 El servidor registra además ocho tools de revisión adversarial y la tool única
 de Socratica (`socratica_flow`, ver la sección Socratica). Cuando
 `octopus_enabled` está activo, agrega cuatro tools de enrutamiento y telemetría
-local. La superficie es de 31 tools base o 35 con Octopus AAR; las listas se
+local. La superficie es de 32 tools base o 36 con Octopus AAR; las listas se
 derivan de `domain/mcp_tools.go`.
 
 **Recursos:**
@@ -644,7 +645,7 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 | `SessionEnd` | `session-end` | Cierra la sesión activa como **red de seguridad** (acepta un `summary` opcional por stdin). Evita sesiones colgadas aunque el modelo no llame `end_session` |
 | `UserPromptSubmit` | `user-prompt-submit` | En el **primer** prompt fuerza la carga de las tools MCP diferidas (`ToolSearch select:` + nombres reales) e inyecta el recordatorio corto del protocolo, ambos como `additionalContext` (unos 3.000 caracteres, 4.200 con Octopus, desde la v2.49.2); en los prompts siguientes recuerda guardar si el agente lleva >15 min sin un guardado real (con debounce de 15 min). El marcador `.session-tools-injected` distingue el primer prompt. Además, en **cada** prompt persiste el texto del turno en la sesión activa (`SetLastPrompt`) para adjuntarlo como provenance a lo que se guarde |
 | _(interno, transversal)_ | `prompt` | Persiste el prompt del usuario (recibido por stdin `{"prompt": …}`) en la sesión activa. Lo invoca el plugin de OpenCode desde su evento `chat.message` (equivalente a `UserPromptSubmit`); en Claude Code la captura va inline dentro de `user-prompt-submit`. `InsertMemory` adjunta ese prompt como `origin_prompt` a toda memoria guardada en el turno |
-| `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para conservar su trazabilidad |
+| `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para conservar su trazabilidad. Con `agent_type` `splash` no inyecta contexto (HCD-047) |
 | `SubagentStop` | `subagent-stop` | Registra el checkpoint del subagente y extrae de forma determinista los ítems válidos de `Aprendizajes clave` o `Key Learnings` |
 | `PreToolUse` (matcher `ExitPlanMode`) | `plan-guard` | Valida la estructura del plan antes de presentarlo |
 | `PostToolUse` (matcher `ExitPlanMode`) | `plan-approved` | Cuando el usuario **aprueba un plan**, guarda el plan como memoria `decision` de forma determinista (sin gastar tokens ni depender de que el modelo llame `save_memory`). Cubre un hueco: un turno de plan mode es puro chat (sin ediciones ni comandos), así que `turn-end` lo descarta por vacío y las decisiones del plan se perdían. `PostToolUse` solo dispara si el usuario aprobó (un plan rechazado no ejecuta la tool). Transversal: acepta el plan en `tool_input.plan` (Claude Code) o en `plan` de nivel superior (OpenCode/otros); el plugin de OpenCode lo invoca al detectar un turno con `info.mode==="plan"`. Append-only: cada aprobación (incluidos planes revisados) genera una nueva `decision`, así la evolución no se pierde |
@@ -775,7 +776,7 @@ mem pack compress < texto.txt       # comprime un texto suelto, sin retrieval ni
 
 Salida: Markdown con los items del paquete y un bloque de estadísticas (tokens antes/después, % de reducción, cuántos items quedaron en cada categoría). `--json` emite el `ContextPack` completo, el mismo formato que `pack show`/`pack stats` esperan como entrada.
 
-**Tools MCP (6, incluidas en las 31 tools base):**
+**Tools MCP (6, incluidas en las 32 tools base):**
 
 | Tool | Input | Descripción |
 |---|---|---|

@@ -5,6 +5,22 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.50.0] - 2026-11-07
+
+### Added
+
+- Historial de decisiones en la memoria (HCD-046). Cada unidad HCD tiene una ficha propia (`topic_key` `hcd/HCD-NNN`) que el motor actualiza en cada paso, en lugar de dejar una memoria suelta por paso. Cada informe de `docs/audits/` tiene la suya (`audit/<archivo>`) con el veredicto, los hallazgos y su estado. Las fichas se enlazan con los archivos que citan en la tabla nueva `memory_files` (esquema 12), así que aparecen en el contexto cuando el agente va a editar uno de esos archivos. `mem hcd index` muestra qué haría y `mem hcd index --apply` lo escribe; se puede repetir sin duplicar nada. Para consultar: `mem hcd history [texto] [--file <ruta>]`, o la tool MCP `hcd_history` desde el agente.
+- Subagente `splash`, un revisor que empieza sin memoria (HCD-047). No recibe el aviso de arranque, ni las tools, ni las instrucciones de gomemory, así que revisa el trabajo sin conocer el razonamiento que lo produjo. Funciona en Claude Code y OpenCode (como agente de solo lectura, instalado por `mem setup`), en agy (`invoke_subagent` con `TypeName: "splash"`) y en Codex (`spawn_agent` con `fork_turns: "none"`; si falta, el hook avisa). `mem uninstall` lo retira.
+- `GOMEMORY_TERMINAL` da a la CLI y a la TUI una sesión propia (HCD-048). Con `GOMEMORY_TERMINAL=pane-1`, la conversación es `terminal-pane-1`. El MCP y los hooks ignoran la variable.
+
+### Fixed
+
+- La CLI vuelve a compartir la sesión del proyecto con el agente (HCD-048). Desde la v2.49.0, `mem` ejecutado en una terminal tomaba el TTY como identidad (`terminal-ttys017`) y abría una sesión que el MCP y los hooks no veían. Mientras esa sesión estaba abierta, `get_plan_context` reenviaba el historial completo en cada turno y la compactación no restablecía lo ya entregado. El CI no lo detectaba porque corre sin TTY. Ahora el TTY no cuenta: sin `GOMEMORY_TERMINAL`, la CLI usa la misma sesión que el agente. Las sesiones `terminal-…` que queden abiertas se cierran solas tras 4 horas sin actividad.
+- La evidencia de `mem hcd verify` aplica la privacidad a la salida completa antes de recortarla (HCD-043). Antes, si un bloque `<private>` empezaba fuera del extracto, su contenido podía quedar en la evidencia.
+- `filepath` y `topic_key` entran en el contrato de privacidad (HCD-044), como ya lo estaban el título y el contenido. Guardar o importar una memoria con texto `<private>` en esos campos da un error de validación. Las filas antiguas se protegen al leerlas, y `mem sanitize` deja `filepath` protegido y `topic_key` vacío. La exportación también los protege, aunque el repositorio no lo haya hecho antes (ADM-10).
+- El plazo de `mem hcd verify` también termina los procesos que lanza la comprobación (HCD-045). La comprobación corre en su propio grupo de procesos y, al vencer el plazo, se termina el grupo entero; antes, un hijo podía seguir vivo y bloquear la salida. Además, un PID 0 ya no lleva a matar el grupo de gomemory (ADM-08). En Windows, que `taskkill` no encuentre el proceso porque ya terminó deja de contar como fallo, y cualquier otro error sí se informa (ADM-09).
+- Las pruebas unitarias de `mem update` y de la consulta de releases ya no abren un puerto local (HCD-049). En sandboxes sin permiso de `bind`, `httptest` entraba en pánico y tumbaba el paquete entero. `TestPsInfo_ProcesoActual` se salta donde `ps` no está permitido (ADM-11).
+
 ## [v2.49.2] - 2026-11-06
 
 ### Changed

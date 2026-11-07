@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.49.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.49.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.50.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.50.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -105,9 +105,13 @@ Ahora:
   del proceso para que un PID reutilizado no herede nada. El MCP y la CLI lo
   encuentran recorriendo sus procesos ancestros.
 - `hostbind.Resolver` decide en este orden: el `session_id` del hook, el
-  enlace del host y, en la CLI, el terminal. Sin ninguno, el proceso usa la
-  sesión de proyecto con `conversation_id IS NULL`, que nunca es la de un
-  agente identificado.
+  enlace del host y, solo en la CLI y la TUI, `GOMEMORY_TERMINAL`
+  (`hostbind.TerminalID`, id `terminal-<valor>`). Sin ninguno, el proceso usa
+  la sesión de proyecto con `conversation_id IS NULL`, que nunca es la de un
+  agente identificado. Hasta la v2.49.2 la CLI se identificaba por su TTY; eso
+  la separaba del MCP y de los hooks, que no tienen terminal y no veían su
+  sesión (HCD-048). `conversationFor` en `infrastructure/container.go` es el
+  único sitio que asigna el id local.
 - El estado por turno de `.memory/` se guarda en
   `.memory/conversations/<hash del id>/` (`perConversationPath` en
   `adapters/primary/cli/conversation.go`).
