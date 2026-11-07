@@ -5,6 +5,17 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.51.2] - 2026-11-07
+
+### Added
+
+- Documentación explícita del subagente `splash` en el flujo HCD dentro de `docs/MANUAL.md` (índice y paso 4 de la ceremonia, `/hcd-approve`).
+- Integración del rol de `splash` (modelo Elephant-Goldfish) en las tres guías HTML: `Guia-Rapida-HCD_GOMEMORY-v2.51.html` (paso approve), `Guia-SDD_HCD_GOMEMORY-v2.51.html` (capítulo 16, auditoría de 4 defectos y función de Blockers) y `Guia-Tecnica_GOMEMORY-v2.51.html` (capítulo 10, tarjetas de arquitectura EGM y gates de aprobación).
+
+### Changed
+
+- Depuración de patrones sintéticos y humanización de la narrativa documental en `docs/README.md`, `docs/ARQUITECTURA.md`, `docs/architecture.md` y `docs/AGENT-INTEGRATION.md`, eliminando adornos innecesarios y uniformando el estilo técnico.
+
 ## [v2.51.1] - 2026-11-07
 
 ### Added
