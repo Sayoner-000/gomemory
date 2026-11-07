@@ -13,14 +13,14 @@ import (
 // el núcleo ligero: un documento, evidencia y aprobaciones. El paso nunca se
 // guarda: se deriva de domain.HCDState en cada consulta.
 type HCD struct {
-	store     ports.HCDStore
-	ws        ports.HCDWorkspace
-	clock     ports.ClockPort
-	newID     func() string
-	template  string
-	decisions HCDDecisionSink
-	project   string
-	norms     hcdNorms
+	store    ports.HCDStore
+	ws       ports.HCDWorkspace
+	clock    ports.ClockPort
+	newID    func() string
+	template string
+	history  ports.DecisionHistory
+	project  string
+	norms    hcdNorms
 }
 
 // hcdNorms resuelve la Constitución y el Playbook vigentes del proyecto: el
@@ -56,19 +56,14 @@ func (n hcdNorms) revisions() (constitution, playbook string, err error) {
 	return constitution, playbook, err
 }
 
-// HCDDecisionSink es la parte de MemoryRepository que HCD necesita: las
-// decisiones se guardan como memorias, sin tabla propia (FR-022).
-type HCDDecisionSink interface {
-	Insert(m *domain.Memory) (int64, error)
-}
-
 func NewHCD(store ports.HCDStore, ws ports.HCDWorkspace, clock ports.ClockPort, newID func() string, template string) *HCD {
 	return &HCD{store: store, ws: ws, clock: clock, newID: newID, template: template}
 }
 
-// ConfigureDecisions activa el reflejo de decisiones en la memoria del proyecto.
-func (h *HCD) ConfigureDecisions(sink HCDDecisionSink, project string) {
-	h.decisions, h.project = sink, project
+// ConfigureDecisions activa el reflejo de decisiones en la memoria del
+// proyecto: una ficha por unidad, actualizada en cada paso (HCD-046).
+func (h *HCD) ConfigureDecisions(history ports.DecisionHistory, project string) {
+	h.history, h.project = history, project
 }
 
 type HCDStartInput struct {
@@ -126,8 +121,7 @@ func (h *HCD) Start(ctx context.Context, in HCDStartInput) (HCDView, error) {
 	if err != nil {
 		return HCDView{}, err
 	}
-	h.recordDecision(unit, "carril "+string(lane), "Carril `"+string(lane)+"` para «"+title+"» ("+string(kind)+"). Motivo: "+why)
-	return h.Show(ctx, unit.ID)
+	return h.recorded(h.Show(ctx, unit.ID))
 }
 
 // Show es una consulta: no escribe estado, documento ni evidencia. Sin id usa
@@ -218,10 +212,10 @@ func (h *HCD) Clarify(ctx context.Context, in HCDClarifyInput) (HCDView, string,
 	if err = h.ws.WriteDoc(view.Unit.DocPath, data); err != nil {
 		return view, "", err
 	}
-	if answer != "" {
-		h.recordDecision(view.Unit, "aclaración "+qid, "Respuesta a "+qid+": "+answer)
-	}
 	next, err := h.Show(ctx, view.Unit.ID)
+	if answer != "" {
+		next, err = h.recorded(next, err)
+	}
 	return next, qid, err
 }
 
@@ -254,8 +248,7 @@ func (h *HCD) Approve(ctx context.Context, in HCDApproveInput) (HCDView, error) 
 	if err = h.approve(ctx, view, domain.ApprovalApprove, view.DefinitionRevision, in.Quote, in.Client); err != nil {
 		return view, err
 	}
-	h.recordDecision(view.Unit, "definición aprobada", "Definición aprobada sobre la revisión "+view.DefinitionRevision+" (Constitución "+view.State.ConstitutionRev+", Playbook "+view.State.PlaybookRev+").")
-	return h.Show(ctx, view.Unit.ID)
+	return h.recorded(h.Show(ctx, view.Unit.ID))
 }
 
 type HCDVerifyInput struct {
@@ -353,7 +346,7 @@ func (h *HCD) Close(ctx context.Context, in HCDCloseInput) (HCDView, error) {
 		return view, err
 	}
 	view.Unit.State = domain.UnitClosed
-	return h.finish(ctx, view, "cerrada", "Cerrada con aprobación sobre la revisión "+view.WorkRevision+".")
+	return h.finish(ctx, view, "Cerrada con aprobación sobre la revisión "+view.WorkRevision+".")
 }
 
 func (h *HCD) Cancel(ctx context.Context, in HCDCloseInput) (HCDView, error) {
@@ -368,7 +361,7 @@ func (h *HCD) Cancel(ctx context.Context, in HCDCloseInput) (HCDView, error) {
 		return view, err
 	}
 	view.Unit.State = domain.UnitCancelled
-	return h.finish(ctx, view, "cancelada", "Cancelada: "+domain.ProtectHCDField(in.Quote))
+	return h.finish(ctx, view, "Cancelada: "+domain.ProtectHCDField(in.Quote))
 }
 
 // Promote pasa una unidad de la Vía rápida a la ceremonia completa sin
@@ -398,8 +391,7 @@ func (h *HCD) Promote(ctx context.Context, id string) (HCDView, error) {
 	if err = h.store.Save(ctx, view.Unit); err != nil {
 		return view, err
 	}
-	h.recordDecision(view.Unit, "promovida a la ceremonia completa", "La unidad pasa al carril completo; se conservan su documento y su evidencia.")
-	return h.Show(ctx, view.Unit.ID)
+	return h.recorded(h.Show(ctx, view.Unit.ID))
 }
 
 // HasActive es la consulta ligera del hook pre-edición: solo lee la tabla,
@@ -461,7 +453,7 @@ func (h *HCD) approve(ctx context.Context, view HCDView, action, revision, quote
 	return h.store.AddApproval(ctx, domain.Approval{ID: h.newID(), UnitID: view.Unit.ID, Action: action, Revision: revision, Fingerprint: view.State.Fingerprint, Origin: origin, Client: client, Quote: domain.ProtectHCDField(quote), ConstitutionRev: view.State.ConstitutionRev, PlaybookRev: view.State.PlaybookRev, CreatedAt: h.clock.Now()})
 }
 
-func (h *HCD) finish(ctx context.Context, view HCDView, verb, next string) (HCDView, error) {
+func (h *HCD) finish(ctx context.Context, view HCDView, next string) (HCDView, error) {
 	view.Unit.Active, view.Unit.UpdatedAt = false, h.clock.Now()
 	if err := h.store.Save(ctx, view.Unit); err != nil {
 		return view, err
@@ -469,17 +461,77 @@ func (h *HCD) finish(ctx context.Context, view HCDView, verb, next string) (HCDV
 	if data, err := h.ws.ReadDoc(view.Unit.DocPath); err == nil {
 		_ = h.ws.WriteDoc(view.Unit.DocPath, domain.ReplaceSection(data, domain.SectionNext, next, ""))
 	}
-	h.recordDecision(view.Unit, verb, next)
-	return h.Show(ctx, view.Unit.ID)
+	return h.recorded(h.Show(ctx, view.Unit.ID))
 }
 
-// recordDecision refleja la decisión en la memoria; un fallo no revierte la
-// operación HCD, que ya está confirmada.
-func (h *HCD) recordDecision(unit domain.Unit, what, content string) {
-	if h.decisions == nil {
-		return
+// recorded actualiza la ficha de la unidad con la vista recién leída y la
+// devuelve tal cual. Un fallo del historial no revierte la operación HCD, que
+// ya está confirmada: la ficha se regenera en el siguiente paso o con
+// `mem hcd index --apply`.
+func (h *HCD) recorded(view HCDView, err error) (HCDView, error) {
+	if err != nil || h.history == nil {
+		return view, err
 	}
-	_, _ = h.decisions.Insert(&domain.Memory{Project: h.project, Type: domain.Decision, Title: unit.ID + ": " + what, Content: content, Filepath: unit.DocPath})
+	entry := h.historyEntry(view.Unit, view.State.Doc, view.State.Approvals)
+	_, _ = h.history.UpsertDigest(&entry.Memory, entry.Files, false)
+	return view, nil
+}
+
+// HistoryEntry es una ficha del historial lista para guardar.
+type HistoryEntry struct {
+	Memory domain.Memory
+	Files  []string
+}
+
+func (h *HCD) historyEntry(u domain.Unit, doc domain.UnitDoc, approvals []domain.Approval) HistoryEntry {
+	d := domain.RenderHCDDigest(u, doc, approvals)
+	return HistoryEntry{
+		Memory: domain.Memory{Project: h.project, Type: domain.Decision, Title: d.Title, Content: d.Content, Filepath: u.DocPath, TopicKey: domain.HCDDigestTopic(u.ID)},
+		Files:  d.Files,
+	}
+}
+
+// HistoryEntries devuelve la ficha de cada unidad del proyecto (HCD-046).
+// No calcula la huella git: la ficha solo depende del documento y de las
+// aprobaciones. Una unidad cuyo documento ya no existe conserva su ficha con
+// lo que guarda el motor.
+func (h *HCD) HistoryEntries(ctx context.Context) ([]HistoryEntry, error) {
+	units, err := h.store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]HistoryEntry, 0, len(units))
+	known := map[string]bool{}
+	for _, u := range units {
+		known[u.ID] = true
+		var doc domain.UnitDoc
+		if data, err := h.ws.ReadDoc(u.DocPath); err == nil {
+			doc, _ = domain.ParseUnitDoc(data, u.Kind, u.Lane)
+		}
+		approvals, err := h.store.Approvals(ctx, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, h.historyEntry(u, doc, approvals))
+	}
+	// Documentos sin fila en el motor (Q7): la unidad sale del documento y la
+	// ficha no lleva aprobaciones, porque el motor no las tiene.
+	paths, err := h.ws.UnitDocs()
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range paths {
+		data, err := h.ws.ReadDoc(p)
+		if err != nil {
+			return nil, err
+		}
+		doc, _ := domain.ParseUnitDoc(data, "", "")
+		if u, ok := domain.UnitFromDoc(p, doc); ok && !known[u.ID] {
+			known[u.ID] = true
+			out = append(out, h.historyEntry(u, doc, nil))
+		}
+	}
+	return out, nil
 }
 
 func criticalSummary(findings []domain.HCDFinding) string {

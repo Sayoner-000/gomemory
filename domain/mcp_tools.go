@@ -26,6 +26,9 @@ const (
 	// compactado en la sesión activa SIN cerrarla. Complementa a
 	// ToolEndSession, que sí la cierra.
 	ToolSaveSessionSummary = "save_session_summary"
+	// ToolHCDHistory (HCD-046): historial de decisiones (fichas de unidades
+	// HCD y auditorías). Solo lectura.
+	ToolHCDHistory = "hcd_history"
 
 	ToolIndexProject     = "index_project"
 	ToolGraphStatus      = "graph_status"
@@ -74,6 +77,7 @@ var MCPMemoryTools = []string{
 	ToolStartSession,
 	ToolEndSession,
 	ToolSaveSessionSummary,
+	ToolHCDHistory,
 }
 
 // MCPCodeTools son las tools del grafo de código PROPIO de gomemory (Go, vía

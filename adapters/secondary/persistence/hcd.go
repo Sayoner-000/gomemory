@@ -58,6 +58,24 @@ func (s *HCDStore) Get(ctx context.Context, id string) (domain.Unit, error) {
 	return u, err
 }
 
+// List devuelve todas las unidades del proyecto por número (HCD-046).
+func (s *HCDStore) List(ctx context.Context) ([]domain.Unit, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT "+hcdUnitColumns+" FROM hcd_units WHERE project = ? ORDER BY number", s.project)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Unit
+	for rows.Next() {
+		u, err := scanHCDUnit(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
 func (s *HCDStore) Active(ctx context.Context) (domain.Unit, bool, error) {
 	row := s.db.QueryRowContext(ctx, "SELECT "+hcdUnitColumns+" FROM hcd_units WHERE project = ? AND active = 1 LIMIT 1", s.project)
 	u, err := scanHCDUnit(row)
@@ -157,7 +175,7 @@ func (s *HCDStore) Approvals(ctx context.Context, unitID string) ([]domain.Appro
 	return out, rows.Err()
 }
 
-func scanHCDUnit(row *sql.Row) (domain.Unit, error) {
+func scanHCDUnit(row interface{ Scan(...any) error }) (domain.Unit, error) {
 	var u domain.Unit
 	var kind, lane, state, created, updated string
 	var active int

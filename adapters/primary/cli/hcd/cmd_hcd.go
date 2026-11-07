@@ -20,6 +20,8 @@ const usage = `Uso: mem hcd <comando> [unidad] [flags] [--json] [--client CLIENT
   close   [unidad] --quote 'cita del Implementador'
   cancel  [unidad] --quote 'motivo'
   promote [unidad]                 de la Vía rápida a la ceremonia completa
+  index   [--apply]                fichas del historial (unidades y auditorías); sin --apply solo vista previa
+  history [texto] [--file RUTA]    decisiones en orden cronológico, por texto o por archivo
 `
 
 func Run(deps *clikit.Deps, args []string) int { return run(deps, args, os.Stdout, os.Stderr) }

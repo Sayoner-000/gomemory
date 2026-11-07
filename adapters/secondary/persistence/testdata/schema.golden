@@ -1,4 +1,4 @@
-user_version=11
+user_version=12
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_automatic_original_grants_ref|automatic_original_grants|CREATE INDEX idx_automatic_original_grants_ref ON automatic_original_grants(ref)
@@ -20,6 +20,7 @@ index|idx_memories_project|memories|CREATE INDEX idx_memories_project ON memorie
 index|idx_memories_project_session|memories|CREATE INDEX idx_memories_project_session ON memories(project, session_id, created_at)
 index|idx_memories_topic|memories|CREATE INDEX idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL
 index|idx_memories_type|memories|CREATE INDEX idx_memories_type ON memories(type)
+index|idx_memory_files_path|memory_files|CREATE INDEX idx_memory_files_path ON memory_files(project, path)
 index|idx_octopus_project_class|octopus_executions|CREATE INDEX idx_octopus_project_class ON octopus_executions(project, task_class)
 index|idx_octopus_project_task|octopus_executions|CREATE INDEX idx_octopus_project_task ON octopus_executions(project, task_id)
 index|idx_rejudgments_finding|rejudgments|CREATE INDEX idx_rejudgments_finding ON rejudgments(consensus_finding_id)
@@ -57,6 +58,7 @@ index|sqlite_autoindex_hcd_units_2|hcd_units|
 index|sqlite_autoindex_hook_guard_events_1|hook_guard_events|
 index|sqlite_autoindex_instinct_folded_1|instinct_folded|
 index|sqlite_autoindex_instinct_stats_1|instinct_stats|
+index|sqlite_autoindex_memory_files_1|memory_files|
 index|sqlite_autoindex_rejudgments_1|rejudgments|
 index|sqlite_autoindex_review_inherited_1|review_inherited|
 index|sqlite_autoindex_reviewer_results_1|reviewer_results|
@@ -312,6 +314,12 @@ table|memories|memories|CREATE TABLE memories (
 		created_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours')),
 		updated_at TEXT NOT NULL DEFAULT (datetime('now', '-5 hours'))
 	, origin_prompt TEXT, topic_key TEXT, source_review_id INTEGER)
+table|memory_files|memory_files|CREATE TABLE memory_files (
+		project TEXT NOT NULL,
+		memory_id INTEGER NOT NULL,
+		path TEXT NOT NULL,
+		PRIMARY KEY (memory_id, path)
+	)
 table|memory_relations|memory_relations|CREATE TABLE memory_relations (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		project TEXT NOT NULL,
@@ -683,6 +691,9 @@ col|memories|8|updated_at|TEXT|1|datetime('now', '-5 hours')|0
 col|memories|9|origin_prompt|TEXT|0||0
 col|memories|10|topic_key|TEXT|0||0
 col|memories|11|source_review_id|INTEGER|0||0
+col|memory_files|0|project|TEXT|1||0
+col|memory_files|1|memory_id|INTEGER|1||1
+col|memory_files|2|path|TEXT|1||2
 col|memory_relations|0|id|INTEGER|0||1
 col|memory_relations|1|project|TEXT|1||0
 col|memory_relations|2|memory_id_a|INTEGER|1||0

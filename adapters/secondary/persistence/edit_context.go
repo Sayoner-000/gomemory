@@ -13,7 +13,8 @@ import (
 // ListMemoriesByFilepath devuelve las memorias del proyecto ancladas a alguna
 // de las rutas, de la más reciente a la más antigua (HCD-028). Se aceptan
 // varias formas de la misma ruta (relativa y absoluta) porque las memorias
-// antiguas guardaron una u otra.
+// antiguas guardaron una u otra. Incluye las fichas del historial enlazadas a
+// la ruta por memory_files (HCD-046).
 func ListMemoriesByFilepath(db *sql.DB, project string, paths []string, limit int) ([]domain.Memory, error) {
 	if len(paths) == 0 {
 		return []domain.Memory{}, nil
@@ -26,12 +27,17 @@ func ListMemoriesByFilepath(db *sql.DB, project string, paths []string, limit in
 	for _, p := range paths {
 		args = append(args, p)
 	}
+	args = append(args, project)
+	for _, p := range paths {
+		args = append(args, p)
+	}
 	args = append(args, limit)
 	rows, err := db.Query(
 		`SELECT id, project, COALESCE(session_id,''), type, COALESCE(title,''), content,
 		        COALESCE(filepath,''), COALESCE(origin_prompt,''), COALESCE(topic_key,''), COALESCE(source_review_id,''),
 		        created_at, updated_at
-		 FROM memories WHERE project = ? AND filepath IN (`+placeholders+`)
+		 FROM memories WHERE project = ? AND (filepath IN (`+placeholders+`)
+		   OR id IN (SELECT memory_id FROM memory_files WHERE project = ? AND path IN (`+placeholders+`)))
 		 ORDER BY created_at DESC, id DESC LIMIT ?`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("memorias por archivo: %w", err)

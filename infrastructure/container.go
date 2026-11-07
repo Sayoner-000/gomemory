@@ -43,6 +43,8 @@ type Container struct {
 	instinctGlobal    *persistence.InstinctGlobalStore
 	Socratica         *usecases.SocraticaFlow
 	HCD               *usecases.HCD
+	HistoryIndex      *usecases.IndexHistory
+	HistoryQuery      *usecases.HistoryQuery
 	Root              string
 	Project           string
 	db                *sql.DB
@@ -165,7 +167,14 @@ func NewContainer(root, channel string) (*Container, error) {
 		return nil, err
 	}
 	hcdUC := usecases.NewHCD(persistence.NewHCDStore(db, project), hcdfiles.Workspace{Root: root}, clock.SystemClock{}, func() string { return uuid.Must(uuid.NewV7()).String() }, string(unitTemplate))
-	hcdUC.ConfigureDecisions(memRepo, project)
+	historyRepo := persistence.NewDecisionHistoryRepository(db)
+	hcdUC.ConfigureDecisions(historyRepo, project)
+	// Historial de decisiones (HCD-046): backfill y consulta de las fichas.
+	var historyIndex *usecases.IndexHistory
+	if memories, ok := memRepo.(ports.HistoryMemories); ok {
+		historyIndex = &usecases.IndexHistory{Units: hcdUC, Audits: hcdfiles.Workspace{Root: root}, Memories: memories, History: historyRepo, Project: project}
+	}
+	historyQuery := &usecases.HistoryQuery{Reader: historyRepo, Project: project}
 	if topics, ok := memRepo.(ports.MemoryTopicQuerier); ok {
 		constitutionDefault, _ := templatesFS.ReadFile("templates/speckit-constitution-gen.md")
 		playbookDefault, _ := templatesFS.ReadFile("templates/hcd/hcd-playbook.md")
@@ -304,6 +313,8 @@ func NewContainer(root, channel string) (*Container, error) {
 
 	c := &Container{
 		HCD:               hcdUC,
+		HistoryIndex:      historyIndex,
+		HistoryQuery:      historyQuery,
 		Instincts:         instinctUC,
 		InstinctGlobalErr: instinctGlobalErr,
 		instinctGlobal:    instinctGlobal,
@@ -470,6 +481,8 @@ func (c *Container) ToDeps() *cli.Deps {
 	return &cli.Deps{
 		Socratica:                    c.Socratica,
 		HCD:                          c.HCD,
+		HistoryIndex:                 c.HistoryIndex,
+		HistoryQuery:                 c.HistoryQuery,
 		SocraticaExec:                launcher.NewExec(nil, nil, nil),
 		SocraticaPrint:               func(w io.Writer, raw bool) ports.AgentLauncher { return launcher.NewPrint(w, raw) },
 		ReleasePort:                  cli.NewReleasePort(),

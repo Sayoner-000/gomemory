@@ -75,6 +75,9 @@ func borrarMemorias(ctx context.Context, conn *sql.Conn, where string, args []an
 		   OR memory_id_b NOT IN (SELECT id FROM memories)`); err != nil {
 		return 0, fmt.Errorf("clean orphan relations: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM memory_files WHERE memory_id NOT IN (SELECT id FROM memories)`); err != nil {
+		return 0, fmt.Errorf("clean orphan memory files: %w", err)
+	}
 	if err := limpiarIndiceDeMemorias(tx); err != nil {
 		return 0, err
 	}

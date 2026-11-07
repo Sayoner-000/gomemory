@@ -21,11 +21,39 @@ type hcdTickClock struct{ t time.Time }
 
 func (c *hcdTickClock) Now() time.Time { c.t = c.t.Add(time.Second); return c.t }
 
-type hcdDecisions struct{ titles []string }
+// hcdDecisions es el historial en memoria: guarda la última ficha por
+// topic_key y el estado que tenía la unidad en cada upsert.
+type hcdDecisions struct {
+	byTopic map[string]*domain.Memory
+	files   map[string][]string
+	steps   []string
+}
 
-func (d *hcdDecisions) Insert(m *domain.Memory) (int64, error) {
-	d.titles = append(d.titles, m.Title)
-	return int64(len(d.titles)), nil
+func (d *hcdDecisions) UpsertDigest(m *domain.Memory, files []string, inert bool) (int64, error) {
+	if d.byTopic == nil {
+		d.byTopic, d.files = map[string]*domain.Memory{}, map[string][]string{}
+	}
+	copy := *m
+	d.byTopic[m.TopicKey] = &copy
+	d.files[m.TopicKey] = files
+	d.steps = append(d.steps, stepOf(m))
+	return int64(len(d.steps)), nil
+}
+
+// stepOf deduce el paso que produjo el upsert a partir de la ficha.
+func stepOf(m *domain.Memory) string {
+	switch {
+	case strings.HasSuffix(m.Title, "(cerrada)"):
+		return "close"
+	case strings.HasSuffix(m.Title, "(cancelada)"):
+		return "cancel"
+	case strings.Contains(m.Content, "Aprobaciones: definición aprobada"):
+		return "approve"
+	case strings.Contains(m.Content, "Aclaraciones:"):
+		return "clarify"
+	default:
+		return "start"
+	}
 }
 
 type hcdEnv struct {
@@ -168,9 +196,16 @@ func TestHCDFullCeremonyStepByStep(t *testing.T) {
 	if err != nil || view.Unit.State != domain.UnitClosed || view.Stage != domain.StageClosed {
 		t.Fatalf("close = %+v %v", view.Unit, err)
 	}
-	want := "HCD-001: carril full | HCD-001: aclaración Q1 | HCD-001: definición aprobada | HCD-001: cerrada"
-	if got := strings.Join(env.decisions.titles, " | "); got != want {
-		t.Fatalf("decisions = %s", got)
+	// HCD-046: una sola ficha viva por unidad, actualizada en cada paso.
+	if len(env.decisions.byTopic) != 1 {
+		t.Fatalf("fichas = %v, quiero solo hcd/HCD-001", env.decisions.byTopic)
+	}
+	digest := env.decisions.byTopic["hcd/HCD-001"]
+	if digest == nil || digest.Title != "HCD-001 · Exportar informes (cerrada)" || !strings.Contains(digest.Content, "- Q1. ¿Separador coma o punto y coma? → coma") {
+		t.Fatalf("ficha = %+v", digest)
+	}
+	if want := "start clarify approve close"; strings.Join(env.decisions.steps, " ") != want {
+		t.Fatalf("upserts = %v, quiero %s", env.decisions.steps, want)
 	}
 }
 

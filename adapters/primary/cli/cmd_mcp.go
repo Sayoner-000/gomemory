@@ -628,6 +628,8 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 			Content: []mcp.Content{&mcp.TextContent{Text: content}},
 		}, nil, nil
 	})
+
+	registerHistoryTools(server, deps)
 }
 
 func registerResources(server *mcp.Server, deps *Deps, project string) {

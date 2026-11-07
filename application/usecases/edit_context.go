@@ -93,22 +93,24 @@ func relInside(root, p string) (string, bool) {
 	return filepath.ToSlash(rel), true
 }
 
-// prioritize pone las memorias escritas por el agente (decisiones, bugfix,
-// arquitectura…) antes que los checkpoints automáticos, conserva el orden de
-// recencia dentro de cada grupo y deja solo lo que se cita.
+// prioritize pone primero las memorias escritas por el agente y las fichas de
+// las unidades HCD (decisiones, bugfix, arquitectura…), después las fichas de
+// auditoría que solo citan el archivo (HCD-046) y al final los checkpoints
+// automáticos. Conserva el orden de recencia dentro de cada grupo y deja solo
+// lo que se cita.
 func prioritize(mems []domain.Memory) []domain.EditContextMemory {
-	sorted := slices.Clone(mems)
-	slices.SortStableFunc(sorted, func(a, b domain.Memory) int {
-		ca, cb := a.Type == domain.Checkpoint, b.Type == domain.Checkpoint
+	rank := func(m domain.Memory) int {
 		switch {
-		case ca == cb:
-			return 0
-		case cb:
-			return -1
-		default:
+		case m.Type == domain.Checkpoint:
+			return 2
+		case strings.HasPrefix(m.TopicKey, domain.AuditDigestTopicPrefix):
 			return 1
+		default:
+			return 0
 		}
-	})
+	}
+	sorted := slices.Clone(mems)
+	slices.SortStableFunc(sorted, func(a, b domain.Memory) int { return rank(a) - rank(b) })
 	out := make([]domain.EditContextMemory, 0, 3)
 	for _, m := range sorted {
 		if len(out) == 3 {

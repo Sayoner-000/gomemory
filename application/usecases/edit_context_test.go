@@ -80,3 +80,25 @@ func TestEditContext(t *testing.T) {
 		t.Fatalf("con el plazo vencido no se consultan fuentes: %+v", in)
 	}
 }
+
+// HCD-046: al editar, las fichas de auditoría que solo citan el archivo van
+// después de las decisiones y de lo que el agente ancló; los checkpoints, al
+// final.
+func TestEditContext_PriorizaDecisionesSobreAuditorias(t *testing.T) {
+	root := t.TempDir()
+	src := &fakeEditSource{mems: []domain.Memory{
+		{ID: 20, Type: domain.Discovery, Title: "Auditoría 2026-11-06 · Informe", TopicKey: "audit/2026-11-06-x.md"},
+		{ID: 19, Type: domain.Discovery, Title: "Auditoría 2026-11-02 · Informe", TopicKey: "audit/2026-11-02-x.md"},
+		{ID: 18, Type: domain.Checkpoint, Title: "Editó memory.go"},
+		{ID: 12, Type: domain.Decision, Title: "HCD-044 · Metadatos (cerrada)", TopicKey: "hcd/HCD-044"},
+		{ID: 11, Type: domain.Bugfix, Title: "Causa raíz anclada"},
+	}}
+	in := EditContext{Source: src, Root: root, Project: "p"}.Build(context.Background(), filepath.Join(root, "memory.go"))
+	var ids []int64
+	for _, m := range in.Memories {
+		ids = append(ids, m.ID)
+	}
+	if len(ids) != 3 || ids[0] != 12 || ids[1] != 11 || ids[2] != 20 {
+		t.Fatalf("memorias = %v, quiero [12 11 20]", ids)
+	}
+}

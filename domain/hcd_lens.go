@@ -13,7 +13,8 @@ import (
 
 var (
 	backtickSpan = regexp.MustCompile("`([^`\n]+)`")
-	lineSuffix   = regexp.MustCompile(`:\d+(:\d+)?$`)
+	// lineSuffix acepta «:12», «:12:3», rangos «:152-159» y listas «:160,190».
+	lineSuffix = regexp.MustCompile(`:\d+([-,]\d+)*(:\d+)?$`)
 )
 
 // pathExtensions son las extensiones que bastan para reconocer un archivo sin
@@ -45,18 +46,28 @@ func CitedPaths(doc UnitDoc) []string {
 		if name == SectionEvidence || name == SectionNext {
 			continue
 		}
-		for _, m := range backtickSpan.FindAllStringSubmatch(stripComments(body), -1) {
-			token := strings.TrimSpace(m[1])
-			if !pathLike(token) || strings.HasPrefix(token, "/") {
-				continue
-			}
-			clean := path.Clean(lineSuffix.ReplaceAllString(token, ""))
-			if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
-				continue
-			}
-			seen[clean] = true
-		}
+		addCitedPaths(seen, body)
 	}
+	return sortedKeys(seen)
+}
+
+// addCitedPaths añade a seen las rutas relativas citadas entre comillas
+// invertidas en text, sin sufijo de línea.
+func addCitedPaths(seen map[string]bool, text string) {
+	for _, m := range backtickSpan.FindAllStringSubmatch(stripComments(text), -1) {
+		token := strings.TrimSpace(m[1])
+		if !pathLike(token) || strings.HasPrefix(token, "/") {
+			continue
+		}
+		clean := path.Clean(lineSuffix.ReplaceAllString(token, ""))
+		if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+			continue
+		}
+		seen[clean] = true
+	}
+}
+
+func sortedKeys(seen map[string]bool) []string {
 	out := make([]string, 0, len(seen))
 	for p := range seen {
 		out = append(out, p)

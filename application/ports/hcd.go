@@ -13,6 +13,8 @@ type HCDStore interface {
 	// final, dentro de ella: si falla, la unidad no se crea.
 	CreateActive(ctx context.Context, build func(number int) domain.Unit, publish func(domain.Unit) error) (domain.Unit, error)
 	Get(ctx context.Context, id string) (domain.Unit, error)
+	// List devuelve todas las unidades del proyecto por número (HCD-046).
+	List(ctx context.Context) ([]domain.Unit, error)
 	Active(ctx context.Context) (domain.Unit, bool, error)
 	// Activate deja id como única unidad activa del proyecto.
 	Activate(ctx context.Context, id string) error
@@ -25,6 +27,9 @@ type HCDStore interface {
 
 // HCDWorkspace es el lado de archivos, git y ejecución de comandos.
 type HCDWorkspace interface {
+	// UnitDocs devuelve las rutas relativas de los documentos hcd/HCD-*.md,
+	// para indexar unidades sin fila en el motor (HCD-046, Q7).
+	UnitDocs() ([]string, error)
 	ReadDoc(path string) ([]byte, error)
 	// WriteDoc solo escribe bajo hcd/.
 	WriteDoc(path string, data []byte) error

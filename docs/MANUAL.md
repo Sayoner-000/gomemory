@@ -1784,6 +1784,38 @@ Son avisos `MEDIUM` y ninguno impide cerrar:
 | `PATH-MISSING` | Una ruta citada entre comillas invertidas no existe. Solo desde `verify`: antes, puede ser un archivo que la unidad todavía va a crear. |
 | `CHEAPEST-FILLER` | La «Alternativa más barata» es un «ninguna» o «n/a» sin motivo. |
 
+### Historial de decisiones (HCD-046)
+
+Cada unidad tiene una **ficha** en la memoria: una sola memoria `decision` con
+`topic_key` `hcd/HCD-NNN`. Lleva tipo, carril, estado, intención, motivo,
+aclaraciones `Qn → respuesta`, alternativa descartada, aprobaciones, alcance y
+archivos citados. El motor la actualiza en Start, Clarify (al responder),
+Approve, Close, Cancel y Promote. Ya no crea una memoria suelta por paso
+(«HCD-041: cerrada»).
+
+Cada informe de `docs/audits/` tiene también su ficha (`discovery`, `topic_key`
+`audit/<archivo>`), con veredicto, hallazgos y estado de cierre.
+
+Las fichas se enlazan con los archivos que citan (tabla `memory_files`). Al
+editar uno de esos archivos, el contexto de edición muestra primero las fichas
+de unidades y lo anclado por el agente, y después las auditorías.
+
+```bash
+mem hcd index                 # vista previa: qué fichas crearía o actualizaría y qué memorias de pasos retiraría
+mem hcd index --apply         # escribe las fichas y retira las memorias sueltas de pasos (idempotente)
+mem hcd history               # todas las fichas, en orden cronológico
+mem hcd history topic_key     # las que mencionan un texto
+mem hcd history --file adapters/secondary/persistence/memory.go   # las que citan un archivo
+```
+
+`mem hcd index` solo borra memorias `decision` cuyo título coincide exactamente
+con un paso antiguo («HCD-NNN: carril fast», «… aclaración Q1», «… definición
+aprobada», «… cerrada», «… cancelada», «… promovida a la ceremonia completa»).
+Nunca toca bugfix, discovery ni otras memorias que mencionan una unidad. También
+indexa los documentos `hcd/HCD-*.md` que no tienen fila en el motor (por
+ejemplo, creados en otro worktree). Desde un agente, la tool MCP `hcd_history`
+(`text`, `file`) devuelve el mismo listado que la CLI.
+
 ## Temas de la terminal (v2.29.0)
 
 La TUI incluye goMemory oscuro, goMemory claro y Matrix. Pulsa `c` para abrir

@@ -10,6 +10,10 @@ import (
 type Deps struct {
 	Socratica *usecases.SocraticaFlow
 	HCD       *usecases.HCD
+	// HistoryIndex y HistoryQuery son el backfill y la consulta del historial
+	// de decisiones (HCD-046). Pueden ser nil: los comandos responden internal.
+	HistoryIndex *usecases.IndexHistory
+	HistoryQuery *usecases.HistoryQuery
 	// SocraticaExec lanza el agente destino con el prompt aprobado y
 	// SocraticaPrint construye el lanzador de --print (feature 039, R4).
 	SocraticaExec  ports.AgentLauncher

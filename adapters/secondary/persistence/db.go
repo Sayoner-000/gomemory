@@ -190,8 +190,8 @@ func Init(root string) (*sql.DB, error) {
 	return Open(root)
 }
 
-// 11: code_pending_calls (HCD-041).
-const schemaVersion = 11
+// 11: code_pending_calls (HCD-041). 12: memory_files (HCD-046).
+const schemaVersion = 12
 
 // esperaOcupadaMs es el busy_timeout de cada conexión.
 const esperaOcupadaMs = 5000
@@ -742,6 +742,21 @@ func migrateSchema(ex schemaExecer) error {
 		return err
 	}
 	_, _ = ex.Exec(`CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories(project, topic_key) WHERE topic_key IS NOT NULL`)
+
+	// Enlace memoria → archivos citados (HCD-046): una ficha del historial cita
+	// varios archivos y filepath solo guarda uno. El contexto de edición busca
+	// por ruta, de ahí el índice por (project, path).
+	if _, err := ex.Exec(`CREATE TABLE IF NOT EXISTS memory_files (
+		project TEXT NOT NULL,
+		memory_id INTEGER NOT NULL,
+		path TEXT NOT NULL,
+		PRIMARY KEY (memory_id, path)
+	)`); err != nil {
+		return fmt.Errorf("create memory_files: %w", err)
+	}
+	if _, err := ex.Exec(`CREATE INDEX IF NOT EXISTS idx_memory_files_path ON memory_files(project, path)`); err != nil {
+		return fmt.Errorf("create idx_memory_files_path: %w", err)
+	}
 
 	// Unique index sobre el par de una relación. Best-effort: si la base ya
 	// tiene pares duplicados, CREATE UNIQUE INDEX FALLA y no queda índice (la
