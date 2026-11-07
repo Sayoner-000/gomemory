@@ -69,6 +69,28 @@ func addCitedPaths(seen map[string]bool, text string) {
 	}
 }
 
+// agentHomeConfigDirs son los directorios de configuración de agentes que un
+// documento cita relativos al HOME sin «~/» (.codex/agents/…, .gemini/…).
+var agentHomeConfigDirs = map[string]bool{
+	".claude": true, ".codex": true, ".gemini": true, ".config": true,
+	".cursor": true, ".windsurf": true, ".cline": true,
+}
+
+// RepoMissingPaths filtra las rutas citadas que faltan en el repositorio y
+// deja solo las que deberían estar en él (HCD-052). Una ruta ausente bajo un
+// directorio de configuración de agente es del HOME. Si esa ruta existiera en
+// el repositorio no llegaría aquí, así que el filtro no oculta nada real.
+func RepoMissingPaths(missing []string) []string {
+	var out []string
+	for _, p := range missing {
+		first, _, _ := strings.Cut(p, "/")
+		if !agentHomeConfigDirs[first] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func sortedKeys(seen map[string]bool) []string {
 	out := make([]string, 0, len(seen))
 	for p := range seen {

@@ -6,6 +6,22 @@ import (
 	"testing"
 )
 
+// HCD-052: una ruta ausente bajo un directorio de configuración de agente
+// (.codex/…, .gemini/…) es del HOME, no del repositorio: no da PATH-MISSING.
+// Las demás ausentes, incluidas las que solo empiezan por punto, sí.
+func TestHCDLens_RepoMissingPaths(t *testing.T) {
+	got := RepoMissingPaths([]string{
+		".codex", ".codex/agents/splash.toml", ".gemini/config/agents/splash/agent.md",
+		".claude/agents/splash.md", ".config/opencode/agents/splash.md", ".cursor/mcp.json",
+		".windsurf/mcp_config.json", ".cline/mcp_settings.json",
+		"src/exportar.go", ".github/workflows/nuevo.yml", ".codexx/x.md",
+	})
+	want := []string{"src/exportar.go", ".github/workflows/nuevo.yml", ".codexx/x.md"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("RepoMissingPaths = %q, want %q", got, want)
+	}
+}
+
 // HCD-050: el sufijo de líneas se quita en todas sus formas; con «:52/55»
 // la ruta quedaba con el sufijo y analyze daba un PATH-MISSING falso.
 func TestHCDLens_CitedPathsSufijosDeLinea(t *testing.T) {

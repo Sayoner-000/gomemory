@@ -300,7 +300,7 @@ func (s HCDState) analyzeLenses(add func(sev Severity, code, ref, msg string)) {
 	// Antes de verify, una ruta ausente puede ser un archivo que la unidad aún
 	// va a crear (Q1).
 	if stage := s.Stage(); stage == StageVerify || stage == StageClose {
-		for _, p := range s.MissingPaths {
+		for _, p := range RepoMissingPaths(s.MissingPaths) {
 			add(SeverityMedium, "PATH-MISSING", p, "la ruta citada "+p+" no existe en el repositorio")
 		}
 	}
