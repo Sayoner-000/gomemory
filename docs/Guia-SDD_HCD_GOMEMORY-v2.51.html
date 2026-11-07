@@ -1291,7 +1291,7 @@ claude</pre></div>
     </li>
     <li>
       <h4>Aprobar la definición: <code>/hcd-approve</code> (ceremonia completa)</h4>
-      <p class="why">El agente te muestra la revisión exacta de la definición (12 caracteres hexadecimales) y las secciones de la Constitución y del Playbook que aplican. Tu respuesta se guarda tal cual. Si la definición cambia después, vuelves a este paso; añadir slices o tareas no anula la aprobación.</p>
+      <p class="why">Antes de pedirte la cita, el agente te ofrece ejecutar una revisión previa con el subagente <code>splash</code>. <code>splash</code> opera con contexto cero (sin memorias del proyecto ni herramientas MCP) para buscar rutas inexistentes, criterios no comprobables, supuestos sin evidencia y contradicciones en el texto. Los hallazgos <code>Blocker</code> frenan la cita hasta corregirlos o descartarlos; <code>Major</code> y <code>Nit</code> son informativos. Corregir aquí no cuesta nada; después de aprobar, cualquier cambio en la definición invalida la evidencia y obliga a repetir las verificaciones. Tras la revisión, el agente muestra la revisión exacta de la definición (12 caracteres hexadecimales) y las secciones aplicables de la Constitución y el Playbook.</p>
       <div class="code"><div class="code-head"><span>tu respuesta</span><button class="copy" type="button">Copiar</button></div><pre>apruebo</pre></div>
     </li>
     <li>
@@ -1323,7 +1323,7 @@ claude</pre></div>
       <tr><td><code>hcd</code></td><td>Siempre al empezar</td><td>Elige el carril, <code>start</code> o <code>show</code>, y <code>promote</code> si hace falta</td></tr>
       <tr><td><code>hcd-define</code></td><td>Paso <code>define</code></td><td>Redacta el documento hasta que <code>show</code> no liste faltantes</td></tr>
       <tr><td><code>hcd-clarify</code></td><td>Paso <code>clarify</code></td><td><code>clarify --ask</code> y <code>clarify --id Qn --answer</code></td></tr>
-      <tr><td><code>hcd-approve</code></td><td>Paso <code>approve</code> o normas cambiadas</td><td><code>approve</code> con tu cita</td></tr>
+      <tr><td><code>hcd-approve</code></td><td>Paso <code>approve</code> o normas cambiadas</td><td>Ofrece revisión <code>splash</code> sin contexto y registra <code>approve</code> con tu cita</td></tr>
       <tr><td><code>hcd-slice</code></td><td>Paso <code>slice</code></td><td>Escribe los <code>### VS-NN.</code> con sus tareas y criterios</td></tr>
       <tr><td><code>hcd-tasks</code></td><td>Paso <code>tasks</code></td><td>Escribe el checklist atómico</td></tr>
       <tr><td><code>hcd-implement</code></td><td>Paso <code>implement</code></td><td><code>verify --expect-fail</code> antes del cambio</td></tr>

@@ -26,6 +26,7 @@ Guía para instalar, configurar y usar gomemory con los agentes compatibles.
 20. [Socratica: refinamiento de prompts](#20-socratica-refinamiento-de-prompts-mem-socratica)
 21. [Supertools expand](#21-supertools-expand-mem-expand)
 22. [HCD: Harness Continual Development](#22-hcd-harness-continual-development-mem-hcd)
+    - [Subagente splash: revisor sin contexto](#subagente-splash-revisor-sin-contexto-hcd-047-hcd-051)
 
 ---
 
@@ -1734,13 +1735,15 @@ El agente elige el carril y lo dice en una línea. La ceremonia completa se elig
 | 1 | `hcd` | ✓ | ✓ | Confirmar tipo, título y carril |
 | 2 | `hcd-define` | ✓ (+ historias) | ✓ | Nada, salvo que falte un dato |
 | 3 | `hcd-clarify` | ✓ | si hay dudas | Elegir una opción cuando algo cambia el contrato, los datos, la seguridad o el alcance |
-| 4 | `hcd-approve` | ✓ | — | Aprobar la definición: «apruebo» o su revisión |
+| 4 | `hcd-approve` | ✓ | — | Revisión opcional con `splash` sin memoria y aprobación de la definición: «apruebo» o su revisión |
 | 5 | `hcd-slice` | ✓ | — | Revisar los incrementos |
 | 6 | `hcd-tasks` | ✓ | ✓ | Revisar las tareas y qué demuestra cada una |
 | 7 | `hcd-implement` | ✓ | ✓ | Nada: el agente observa el rojo, implementa y verifica |
 | 8 | `hcd-verify` | ✓ | ✓ | Leer el resultado |
 | 9 | `hcd-analyze` | ✓ | opcional | Revisar los hallazgos antes de implementar y de cerrar |
 | 10 | `hcd-close` | ✓ | ✓ | Aprobar el cierre: «apruebo» o su revisión |
+
+**Revisión con splash antes de aprobar (HCD-047, HCD-051).** En el paso 4 (`/hcd-approve`), el agente ofrece lanzar el subagente `splash` para revisar el documento con contexto cero antes de pedirte la aprobación. `splash` no recibe memorias del proyecto ni herramientas MCP; solo lee los archivos locales para buscar rutas que no existen, criterios que no se pueden comprobar, supuestos sin evidencia y contradicciones. Un hallazgo `Blocker` frena la petición de aprobación hasta que lo corrijas o lo descartes; `Major` y `Nit` son informativos. Detectar incoherencias en este paso evita tener que corregir la definición después, lo que invalidaría las verificaciones y obligaría a reaprobar.
 
 Si una unidad de la Vía rápida resulta tener decisiones interdependientes, el agente la promueve a la ceremonia completa sin perder lo hecho.
 
