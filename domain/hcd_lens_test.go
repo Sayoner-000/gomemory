@@ -6,6 +6,21 @@ import (
 	"testing"
 )
 
+// HCD-050: el sufijo de líneas se quita en todas sus formas; con «:52/55»
+// la ruta quedaba con el sufijo y analyze daba un PATH-MISSING falso.
+func TestHCDLens_CitedPathsSufijosDeLinea(t *testing.T) {
+	doc := UnitDoc{Sections: map[string]string{SectionScope: "`a/uno.go:12`, `a/dos.go:12:3`, `a/tres.go:152-159`, " +
+		"`a/cuatro.go:160,190`, `tests/integration/session_delta_test.go:52/55` y `a/cinco.go:1-4/9`."}}
+	got := CitedPaths(doc)
+	want := []string{"a/cinco.go", "a/cuatro.go", "a/dos.go", "a/tres.go", "a/uno.go", "tests/integration/session_delta_test.go"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("CitedPaths = %q, want %q", got, want)
+	}
+	if !TaskNamesFile(Task{Text: "Ajustar session_delta_test.go:52/55"}) {
+		t.Error("TaskNamesFile no reconoce una ruta con sufijo «:52/55»")
+	}
+}
+
 // HCD-047: una ruta del HOME («~/.claude/agents/splash.md») no es del
 // repositorio; citarla daba un falso PATH-MISSING en analyze.
 func TestHCDLens_CitedPathsIgnoraHome(t *testing.T) {

@@ -13,8 +13,9 @@ import (
 
 var (
 	backtickSpan = regexp.MustCompile("`([^`\n]+)`")
-	// lineSuffix acepta «:12», «:12:3», rangos «:152-159» y listas «:160,190».
-	lineSuffix = regexp.MustCompile(`:\d+([-,]\d+)*(:\d+)?$`)
+	// lineSuffix acepta «:12», «:12:3», rangos «:152-159» y listas «:160,190»
+	// o «:52/55» (HCD-050).
+	lineSuffix = regexp.MustCompile(`:\d+([-,/]\d+)*(:\d+)?$`)
 )
 
 // pathExtensions son las extensiones que bastan para reconocer un archivo sin
