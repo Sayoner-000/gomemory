@@ -15,10 +15,12 @@ func IsSplashAgent(name string) bool {
 }
 
 // SplashCodexForkWarning es el aviso al agente raíz de Codex cuando lanza un
-// splash que heredaría su conversación.
+// splash que heredaría su conversación. Recomienda el tipo instalado
+// (~/.codex/agents/splash.toml, HCD-051), que trae las instrucciones de
+// revisor y el sandbox de solo lectura.
 const SplashCodexForkWarning = `gomemory: este spawn_agent lanza un subagente splash sin fork_turns: "none". ` +
 	`Heredará tu conversación y la memoria del proyecto, y deja de ser un revisor sin contexto. ` +
-	`Lánzalo con spawn_agent(task_name: "splash", fork_turns: "none").`
+	`Lánzalo con spawn_agent(agent_type: "splash", fork_turns: "none").`
 
 // SplashSpawnInheritsContext dice si una llamada a spawn_agent de Codex lanza
 // un splash que heredaría la conversación del raíz (HCD-047): en Codex el hijo

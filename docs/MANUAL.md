@@ -1831,25 +1831,53 @@ indexa los documentos `hcd/HCD-*.md` que no tienen fila en el motor (por
 ejemplo, creados en otro worktree). Desde un agente, la tool MCP `hcd_history`
 (`text`, `file`) devuelve el mismo listado que la CLI.
 
-### Subagente splash: revisor sin contexto (HCD-047)
+### Subagente splash: revisor sin contexto (HCD-047, HCD-051)
 
 `splash` es el revisor sin contexto (el «goldfish» del modelo Elephant-Goldfish,
 con nombre propio de gomemory: la gota que salpica sin arrastrar memoria). Lee
 solo el documento que se le indica y el código vivo. gomemory no le inyecta
-aviso, tools de memoria ni instrucciones globales. `mem setup` instala su
-definición donde el runtime la admite en archivo y `mem uninstall` la retira.
+aviso, tools de memoria ni instrucciones globales. Desde la v2.51.0, `mem setup`
+lo instala en los cuatro agentes, solo donde el agente ya tiene su
+configuración, y `mem uninstall` lo retira.
 
-| Runtime | Cómo se lanza | Qué hace gomemory |
-|---|---|---|
-| Claude Code | Subagente de tipo `splash` (`~/.claude/agents/splash.md`: `tools: Read, Grep, Glob`, sin MCP, `omitClaudeMd: true`) | `SubagentStart` no le añade contexto (`agent_type: splash`) |
-| OpenCode | Subagente `splash` (`~/.config/opencode/agents/splash.md`: `mode: subagent`, solo `read`, `grep` y `glob`) | El plugin no le inyecta el aviso de subagente |
-| agy | `invoke_subagent` con `TypeName: "splash"` (definido con `define_subagent`) | El `SessionStart` del hijo no recibe el aviso |
-| Codex | `spawn_agent(task_name: "splash", fork_turns: "none")` | Codex no avisa al hijo con hooks: el aislamiento lo da `fork_turns: "none"`. Si falta, el `pre-tool` del raíz avisa de que heredaría la memoria |
+| Runtime | Dónde se instala | Cómo se lanza | Qué hace gomemory |
+|---|---|---|---|
+| Claude Code | `~/.claude/agents/splash.md` (`tools: Read, Grep, Glob`, sin MCP, `omitClaudeMd: true`) | Subagente de tipo `splash` | `SubagentStart` no le añade contexto (`agent_type: splash`) |
+| OpenCode | `~/.config/opencode/agents/splash.md` (`mode: subagent`, solo `read`, `grep` y `glob`) | Subagente `splash` (herramienta `task`) | El plugin no le inyecta el aviso de subagente |
+| agy | `~/.gemini/config/agents/splash/agent.md` (`subagent: true`, `inheritMcp: false`) | `invoke_subagent` con `TypeName: "splash"` | El `SessionStart` del hijo no recibe el aviso |
+| Codex | `~/.codex/agents/splash.toml` (`sandbox_mode = "read-only"`) | `spawn_agent(agent_type: "splash", fork_turns: "none")` | Si falta `fork_turns: "none"`, el `pre-tool` del raíz avisa de que heredaría la conversación |
 
-Limitación de Codex (sondeo real, Codex 0.166.0): el hijo de `spawn_agent` no
-dispara hooks de arranque, así que gomemory no puede quitarle contexto. Con
-`fork_turns: "none"` arranca sin la memoria del proyecto, pero conserva el
-`AGENTS.md` global que Codex carga siempre.
+Las rutas de agy y Codex salen de un sondeo en sesiones reales (agy 1.5.3 y
+Codex 0.167.0, 2026-11-07): los dos leen agentes propios en archivo y siguen sus
+instrucciones. En las cuatro sesiones, `splash` encontró los dos errores
+sembrados en un documento de prueba (una ruta que no existe y un criterio que
+no se puede comprobar).
+
+Limitación de Codex: el hijo de `spawn_agent` hereda los servidores MCP
+globales, gomemory incluido, y el archivo del agente no lo impide (se probaron
+`enabled = false` y `enabled_tools = []`). Con `fork_turns: "none"` no recibe la
+conversación, y sus instrucciones le prohíben usar herramientas MCP, pero ese
+aislamiento es por instrucción, no impuesto. También conserva el `AGENTS.md`
+global que Codex carga siempre. En agy, `inheritMcp: false` sí lo deja sin MCP.
+
+#### Revisión splash antes de aprobar
+
+En la ceremonia completa, `/hcd-approve` ofrece lanzar `splash` sobre el
+documento de la unidad antes de presentarte la definición. Tú decides en cada
+unidad. La lente busca rutas citadas que no existen, criterios que no se pueden
+comprobar, supuestos sin evidencia y contradicciones entre secciones.
+
+- Los hallazgos llegan antes de la definición, cada uno con severidad, cita,
+  problema y la pregunta que lo resolvería.
+- Un **Blocker** frena la petición de la cita hasta que lo corrijas o lo
+  descartes de forma explícita. Major y Nit son informativos: el agente propone
+  la corrección y tú decides.
+- Si `splash` no está disponible, el agente lo dice en una línea (lo instala
+  `mem setup`) y la aprobación sigue sin la revisión.
+
+Conviene porque corregir antes de aprobar no cuesta nada. Después de aprobar,
+cambiar la definición obliga a aprobarla otra vez y a repetir todas las
+verificaciones.
 
 ## Temas de la terminal (v2.29.0)
 

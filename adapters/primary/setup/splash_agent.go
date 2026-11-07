@@ -17,13 +17,18 @@ type splashAgentTarget struct {
 }
 
 // splashAgentTargets son los runtimes con definiciones de agente en archivo.
-// agy define sus tipos con define_subagent y Codex con spawn_agent(fork_turns:
-// none): ninguno de los dos lee un archivo de agente (sondeos de HCD-047).
+// Los cuatro las admiten (sondeo real del 2026-11-07, HCD-051; HCD-047 había
+// concluido que agy y Codex no).
 var splashAgentTargets = []splashAgentTarget{
 	{agent: "claude", dir: []string{".claude"}, file: []string{"agents", "splash.md"}},
 	// OpenCode 2.x: ~/.config/opencode/agents, el mismo directorio donde otras
 	// herramientas ya instalan sus subagentes (verificado en 2.2.5).
 	{agent: "opencode", dir: []string{".config", "opencode"}, file: []string{"agents", "splash.md"}},
+	// Codex: spawn_agent(agent_type: "splash") carga ~/.codex/agents/splash.toml.
+	{agent: "codex", dir: []string{".codex"}, file: []string{"agents", "splash.toml"}},
+	// agy 1.5.3: la ruta global que /agents ofrece para crear agentes; el
+	// agente es un directorio con su agent.md.
+	{agent: "agy", dir: []string{".gemini"}, file: []string{"config", "agents", "splash", "agent.md"}},
 }
 
 // InstallSplashAgent escribe la definición del subagente splash de cada agente

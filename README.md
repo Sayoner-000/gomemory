@@ -215,8 +215,10 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
   `mem hcd index --apply` builds them for units that predate v2.50.0.
 - **A reviewer with no memory.** The `splash` subagent starts without
   gomemory's context, tools or instructions, so it reviews the work without
-  knowing the reasoning behind it. `mem setup` installs it for Claude Code and
-  OpenCode; agy and Codex launch it by name.
+  knowing the reasoning behind it. `mem setup` installs it for Claude Code,
+  OpenCode, Codex and agy. In the full ceremony, `/hcd-approve` offers a
+  `splash` review of the definition before asking for your approval; a Blocker
+  holds the approval until you fix it or dismiss it.
 - **What it doesn't guarantee.** It checks structure and evidence, not that the
   code is correct. Approvals record your literal reply with its origin and
   revision: auditable, but it relies on the agent passing your words faithfully.

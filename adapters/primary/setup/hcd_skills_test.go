@@ -78,3 +78,33 @@ func TestHCDSkillsShareRulesAndCoverMVPCommands(t *testing.T) {
 		}
 	}
 }
+
+// HCD-051: /hcd-approve ofrece la revisión splash antes de pedir la cita, con
+// la invocación de cada agente, la regla del Blocker (Q2) y el aviso cuando
+// splash no está disponible (Q3).
+func TestHCDSkillsApproveOfreceSplash(t *testing.T) {
+	data, err := os.ReadFile("../../../infrastructure/templates/hcd/hcd-approve/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(data)
+	for _, want := range []string{
+		"Revisión splash antes de aprobar",
+		"Ofrece",
+		"`invoke_subagent` con `TypeName: \"splash\"`",
+		"`spawn_agent(agent_type: \"splash\", fork_turns: \"none\")`",
+		"Blocker",
+		"descarta de forma explícita",
+		"Major y Nit son informativos",
+		"`mem setup`",
+		"la aprobación sigue sin la revisión",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("hcd-approve/SKILL.md no contiene %q", want)
+		}
+	}
+	revision, pregunta := strings.Index(body, "Revisión splash antes de aprobar"), strings.Index(body, "¿Apruebas la definición")
+	if revision < 0 || pregunta < 0 || revision > pregunta {
+		t.Errorf("la revisión splash debe ir antes de pedir la aprobación (revisión en %d, pregunta en %d)", revision, pregunta)
+	}
+}

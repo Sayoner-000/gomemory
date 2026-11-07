@@ -303,10 +303,12 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	written = append(written, skills...)
 
 	// Subagente splash (HCD-047): el revisor sin contexto, definido como agente
-	// propio donde el runtime lo admite en archivo.
+	// propio en los cuatro runtimes (Codex y agy desde HCD-051).
 	splash, err := setup.InstallSplashAgent(map[string]string{
 		"claude":   embeddedTemplate("agents/claude/splash.md"),
 		"opencode": embeddedTemplate("agents/opencode/splash.md"),
+		"codex":    embeddedTemplate("agents/codex/splash.toml"),
+		"agy":      embeddedTemplate("agents/agy/splash.md"),
 	})
 	if err != nil {
 		humanf("  ⚠ agente splash (scope global): %v\n", err)
