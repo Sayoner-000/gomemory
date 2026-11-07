@@ -5,6 +5,12 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.50.1] - 2026-11-07
+
+### Fixed
+
+- `mem hcd analyze` ya no da un `PATH-MISSING` falso cuando un documento cita varias líneas con barra, como `tests/integration/session_delta_test.go:52/55` (HCD-050). Antes solo se quitaban los sufijos `:12`, `:12:3`, `:152-159` y `:160,190`, y con `:52/55` la ruta se buscaba con el sufijo pegado. Corregir la cita en el documento para quitar el aviso cambiaba la definición, así que obligaba a aprobarla de nuevo y a verificar otra vez todas las tareas. El aviso `TASK-NO-FILE` usa la misma regla y también reconoce esas rutas.
+
 ## [v2.50.0] - 2026-11-07
 
 ### Added

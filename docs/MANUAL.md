@@ -1796,7 +1796,7 @@ Son avisos `MEDIUM` y ninguno impide cerrar:
 | Aviso | Cuándo aparece |
 |---|---|
 | `TASK-NO-FILE` | Una tarea no dice qué archivo o directorio toca. |
-| `PATH-MISSING` | Una ruta citada entre comillas invertidas no existe. Solo desde `verify`: antes, puede ser un archivo que la unidad todavía va a crear. |
+| `PATH-MISSING` | Una ruta citada entre comillas invertidas no existe. Solo desde `verify`: antes, puede ser un archivo que la unidad todavía va a crear. El sufijo de líneas no cuenta como parte de la ruta: `:12`, `:12:3`, `:152-159`, `:160,190` o, desde la v2.50.1, `:52/55`. |
 | `CHEAPEST-FILLER` | La «Alternativa más barata» es un «ninguna» o «n/a» sin motivo. |
 
 ### Historial de decisiones (HCD-046)
