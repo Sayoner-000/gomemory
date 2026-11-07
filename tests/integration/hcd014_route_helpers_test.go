@@ -13,6 +13,7 @@ import (
 // Both requests terminate on the loopback server; no credentials are involved.
 func hcd014Capture(t *testing.T, body []byte, transform func([]byte) []byte) []byte {
 	t.Helper()
+	skipIfNoLoopback(t)
 	capture := make(chan []byte, 1)
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)

@@ -86,6 +86,7 @@ func buildFakeTarGz(content []byte) []byte {
 // dummy, y verifica que el binario termina reemplazado con el contenido
 // "nuevo" servido por el fake.
 func TestUpdateIntegration(t *testing.T) {
+	skipIfNoLoopback(t)
 	bin := buildMemBinary(t)
 
 	newContent := []byte("#!/bin/sh\necho fake-new-mem\n")
@@ -152,6 +153,7 @@ func TestUpdateIntegration(t *testing.T) {
 // TestUpdateCheckDoesNotMutate verifica que --check solo consulta y no
 // descarga ni reemplaza el binario.
 func TestUpdateCheckDoesNotMutate(t *testing.T) {
+	skipIfNoLoopback(t)
 	bin := buildMemBinary(t)
 
 	mux := http.NewServeMux()

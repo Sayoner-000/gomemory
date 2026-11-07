@@ -105,8 +105,11 @@ Ahora:
   del proceso para que un PID reutilizado no herede nada. El MCP y la CLI lo
   encuentran recorriendo sus procesos ancestros.
 - `hostbind.Resolver` decide en este orden: el `session_id` del hook, el
-  enlace del host y, solo en la CLI y la TUI, `GOMEMORY_TERMINAL`
-  (`hostbind.TerminalID`, id `terminal-<valor>`). Sin ninguno, el proceso usa
+  enlace del host, `GOMEMORY_CONVERSATION_ID` (`hostbind.ConversationEnv`, el
+  respaldo de los sandboxes que no permiten `ps`, ADM-14) y, solo en la CLI y
+  la TUI, `GOMEMORY_TERMINAL` (`hostbind.TerminalID`, id `terminal-<valor>`).
+  Si `ps` falla, `psInfo` devuelve el error y el enlace no se publica ni se
+  lee: nunca se reutiliza un PID sin verificar. Sin ninguno, el proceso usa
   la sesión de proyecto con `conversation_id IS NULL`, que nunca es la de un
   agente identificado. Hasta la v2.49.2 la CLI se identificaba por su TTY; eso
   la separaba del MCP y de los hooks, que no tienen terminal y no veían su

@@ -15,6 +15,11 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 - `mem setup` instala `splash` también en Codex (`~/.codex/agents/splash.toml`, con `sandbox_mode = "read-only"`) y en agy (`~/.gemini/config/agents/splash/agent.md`, con `inheritMcp: false`), y `mem uninstall` lo retira (HCD-051). HCD-047 había concluido que esos dos agentes no leían definiciones de agente en archivo; un sondeo en sesiones reales de agy 1.5.3 y Codex 0.167.0 mostró que sí. En Codex, `splash` se lanza ahora con `spawn_agent(agent_type: "splash", fork_turns: "none")`, que carga sus instrucciones de revisor, y el aviso del hook lo recomienda así.
 
+### Fixed
+
+- En sandboxes que no permiten ejecutar `ps`, una conversación ya no pierde su identidad (ADM-14). El enlace con el agente en Unix necesita `ps` para identificar el proceso del host; si el entorno lo deniega, gomemory no reutiliza un PID sin verificarlo. El arnés puede fijar `GOMEMORY_CONVERSATION_ID` con el identificador de la conversación para los hooks, el MCP y la CLI. Esa variable solo se usa cuando no hay `session_id` del hook ni enlace del host, y no debe compartirse entre agentes. Además, `ps` tiene un plazo de 1 segundo, se ejecuta con `LC_ALL=C` para que el formato de la hora de arranque no dependa del idioma del sistema, y rechaza un PID inválido.
+- Las pruebas de integración que levantan un servidor HTTP local se saltan en sandboxes que deniegan `bind` o `connect` en loopback, en lugar de fallar (ADM-15). Cualquier otro error de red sigue haciendo fallar la prueba.
+
 ### Known issues
 
 - En Codex, el subagente `splash` hereda los servidores MCP globales, gomemory incluido, y el archivo del agente no lo impide (se probaron `enabled = false` y `enabled_tools = []`). Sus instrucciones le prohíben usar herramientas MCP, pero ese aislamiento es por instrucción, no impuesto. En agy, `inheritMcp: false` sí lo deja sin MCP.

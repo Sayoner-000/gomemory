@@ -20,6 +20,7 @@ func (e *enlaceContado) Lookup() (string, bool) {
 // con una caché corta (cada consulta recorre procesos) y solo sin hook ni
 // enlace usa el id local del canal.
 func TestResolver(t *testing.T) {
+	t.Setenv(ConversationEnv, "")
 	enlace := &enlaceContado{}
 	ahora := time.Unix(1000, 0)
 	r := NewResolver(enlace, func() string { return "local-1" })
@@ -56,5 +57,27 @@ func TestResolver(t *testing.T) {
 	}
 	if got := NewResolver(nil, nil).Current(); got != "" {
 		t.Fatalf("sin enlace ni local, sin conversación: %q", got)
+	}
+}
+
+func TestResolverConversationEnvFallback(t *testing.T) {
+	t.Setenv(ConversationEnv, "  sandbox-conversation  ")
+	enlace := &enlaceContado{}
+	r := NewResolver(enlace, func() string { return "local" })
+	if got := r.Current(); got != "sandbox-conversation" {
+		t.Fatalf("fallback de entorno: %q", got)
+	}
+	enlace.id = "bound"
+	r.checked = false
+	if got := r.Current(); got != "bound" {
+		t.Fatalf("el enlace válido precede al entorno: %q", got)
+	}
+	r.Adopt("hook")
+	if got := r.Current(); got != "hook" {
+		t.Fatalf("el hook precede al entorno: %q", got)
+	}
+	t.Setenv(ConversationEnv, " \t ")
+	if got := NewResolver(nil, func() string { return "local" }).Current(); got != "local" {
+		t.Fatalf("entorno vacío conserva el respaldo local: %q", got)
 	}
 }

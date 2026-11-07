@@ -118,7 +118,9 @@ across context compaction. Two agents working in the same project each get
 their own session, on Linux, macOS and Windows, so one starting or stopping
 doesn't make the other receive its context again. Running `mem` yourself in a
 terminal uses the same session as the agent; set `GOMEMORY_TERMINAL=<name>` if
-you want that terminal to have its own. Whatever the agent already
+you want that terminal to have its own. In a sandbox that doesn't allow `ps`,
+the harness can pass `GOMEMORY_CONVERSATION_ID` to the hooks, the MCP server
+and the CLI so they keep the same conversation. Whatever the agent already
 got at startup isn't sent again when it asks for the full context. The first
 prompt of a session costs about 3,000 characters (about 4,200 with Octopus on).
 

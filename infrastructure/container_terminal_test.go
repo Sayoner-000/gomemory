@@ -13,6 +13,8 @@ import (
 func TestConversationFor(t *testing.T) {
 	t.Setenv("GOMEMORY_DATA_HOME", t.TempDir())
 	t.Setenv("HOME", t.TempDir())
+	// El respaldo explícito de sandboxes (ADM-14) no debe colarse en la prueba.
+	t.Setenv(hostbind.ConversationEnv, "")
 	current := func(channel string) string {
 		conv, _ := conversationFor(channel, "hcd048-proyecto")
 		return conv.Current()

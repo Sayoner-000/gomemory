@@ -20,7 +20,8 @@ const (
 )
 
 // Resolver implementa ports.ConversationResolver para un proceso: el id que
-// adopta de un hook, el enlace de su host o su id local, en ese orden.
+// adopta de un hook, el enlace de su host, ConversationEnv o su id local,
+// en ese orden.
 type Resolver struct {
 	mu      sync.Mutex
 	hook    string
@@ -38,6 +39,10 @@ var _ ports.ConversationResolver = (*Resolver)(nil)
 // TerminalEnv es la variable de entorno que da a la CLI y a la TUI una
 // identidad de terminal propia (HCD-048, Q1).
 const TerminalEnv = "GOMEMORY_TERMINAL"
+
+// ConversationEnv proporciona una identidad explícita cuando el sandbox impide
+// inspeccionar procesos. No sustituye un hook ni un enlace de host vigente.
+const ConversationEnv = "GOMEMORY_CONVERSATION_ID"
 
 // TerminalID es la identidad de terminal fijada con GOMEMORY_TERMINAL
 // («terminal-<valor>»), o "" sin ella. No se deduce del TTY (HCD-048): el MCP
@@ -76,6 +81,11 @@ func (r *Resolver) Current() string {
 	if r.binding != nil && (!r.checked || r.now().Sub(r.checkedAt) >= ttl) {
 		r.bound, _ = r.binding.Lookup()
 		r.checked, r.checkedAt = true, r.now()
+	}
+	if r.bound == "" {
+		if id := strings.TrimSpace(os.Getenv(ConversationEnv)); id != "" {
+			return id
+		}
 	}
 	local := ""
 	if r.local != nil {

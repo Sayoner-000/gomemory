@@ -262,11 +262,20 @@ propia sesión, su registro de lo ya entregado y su estado por turno en
 `.memory/conversations/<id>/`. Antes compartían todo eso: cuando un agente
 arrancaba o cerraba, al otro le volvían a llegar el contexto y el bootstrap.
 Un proceso sabe a qué conversación pertenece por el `session_id` de su hook o
-por el enlace que SessionStart deja para el proceso del agente. Sin ninguno de
-los dos (un cliente MCP sin hooks, o `mem` lanzado a mano en tu terminal) usa la
+por el enlace que SessionStart deja para el proceso del agente. Si ambos faltan,
+puede usar `GOMEMORY_CONVERSATION_ID`, descrita abajo. Sin esas identidades usa la
 sesión de proyecto sin conversación, la misma para todos. Las sesiones que
 llevan más de 4 horas sin actividad se cierran solas. Desde la v2.49.1 este
 enlace también funciona en Windows, a través de `cmd`, PowerShell o `pwsh`.
+
+**Sandboxes sin inspección de procesos.** El enlace de host en Unix necesita
+ejecutar `ps`. Si el entorno lo deniega o no lo proporciona, no se reutiliza un
+PID sin verificar. El arnés debe enviar `session_id` en cada hook o proporcionar
+`GOMEMORY_CONVERSATION_ID` con el mismo identificador de conversación a los
+hooks, al MCP y a sus comandos. La precedencia es: hook explícito, enlace de
+host vigente, variable de entorno y resolución local. La variable se recorta
+en los extremos y se ignora si está vacía; debe cambiar al abrir otra
+conversación y no compartirse entre agentes independientes.
 
 **La CLI y la sesión del agente (v2.50.0).** Entre la v2.49.0 y la v2.49.2,
 `mem` usaba el TTY como identidad cuando lo ejecutabas en una terminal
