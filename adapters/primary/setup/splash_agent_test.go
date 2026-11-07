@@ -86,7 +86,7 @@ func TestSplashCodexYAgy(t *testing.T) {
 	}
 }
 
-const splashDePrueba ="---\nname: splash\ndescription: revisor\ntools: Read, Grep, Glob\nomitClaudeMd: true\n---\nRevisa.\n"
+const splashDePrueba = "---\nname: splash\ndescription: revisor\ntools: Read, Grep, Glob\nomitClaudeMd: true\n---\nRevisa.\n"
 
 // HCD-047: mem setup instala el agente splash de Claude solo donde Claude ya
 // tiene su directorio, sin reescribir lo que no cambió, y mem uninstall lo
