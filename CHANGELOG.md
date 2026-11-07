@@ -5,6 +5,20 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.51.0] - 2026-11-07
+
+### Added
+
+- `/hcd-approve` ofrece una revisión `splash` antes de pedir la aprobación (HCD-051). En la ceremonia completa, la skill pregunta si se lanza el subagente `splash` sobre el documento de la unidad. `splash` arranca sin la memoria del proyecto y busca rutas citadas que no existen, criterios que no se pueden comprobar, supuestos sin evidencia y contradicciones entre secciones. Los hallazgos se muestran antes de la definición. Un Blocker no deja pedir la cita hasta que se corrige o se descarta de forma explícita; Major y Nit son informativos. Si `splash` no está disponible, una línea remite a `mem setup` y la aprobación sigue. Corregir la definición antes de aprobarla no cuesta nada; hacerlo después obliga a aprobarla de nuevo y a repetir todas las verificaciones.
+
+### Changed
+
+- `mem setup` instala `splash` también en Codex (`~/.codex/agents/splash.toml`, con `sandbox_mode = "read-only"`) y en agy (`~/.gemini/config/agents/splash/agent.md`, con `inheritMcp: false`), y `mem uninstall` lo retira (HCD-051). HCD-047 había concluido que esos dos agentes no leían definiciones de agente en archivo; un sondeo en sesiones reales de agy 1.5.3 y Codex 0.167.0 mostró que sí. En Codex, `splash` se lanza ahora con `spawn_agent(agent_type: "splash", fork_turns: "none")`, que carga sus instrucciones de revisor, y el aviso del hook lo recomienda así.
+
+### Known issues
+
+- En Codex, el subagente `splash` hereda los servidores MCP globales, gomemory incluido, y el archivo del agente no lo impide (se probaron `enabled = false` y `enabled_tools = []`). Sus instrucciones le prohíben usar herramientas MCP, pero ese aislamiento es por instrucción, no impuesto. En agy, `inheritMcp: false` sí lo deja sin MCP.
+
 ## [v2.50.1] - 2026-11-07
 
 ### Fixed
