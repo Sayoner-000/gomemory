@@ -62,6 +62,22 @@ func TestSubagentNotice_PrecargaSoloLectura(t *testing.T) {
 	}
 }
 
+// HCD-047: un subagente de tipo splash arranca sin nada de gomemory; los
+// demás conservan el aviso mínimo de HCD-026.
+func TestSubagentStart_Splash(t *testing.T) {
+	for _, agentType := range []string{"splash", "Splash", " splash "} {
+		if out := subagentStartOutput(map[string]any{"agent_type": agentType}, true); out != "{}" {
+			t.Errorf("agent_type %q: el splash no debe recibir contexto, salió %s", agentType, out)
+		}
+	}
+	for _, payload := range []map[string]any{{"agent_type": "Explore"}, {"agent_type": "general-purpose"}, {}, nil} {
+		out := subagentStartOutput(payload, true)
+		if !strings.Contains(out, `"hookEventName":"SubagentStart"`) || !strings.Contains(out, "Eres un subagente") {
+			t.Errorf("payload %v: los demás subagentes conservan el aviso, salió %s", payload, out)
+		}
+	}
+}
+
 func TestSubagentNotice_Acotado(t *testing.T) {
 	const tope = 1200
 	if n := utf8.RuneCountInString(subagentNotice(true)); n > tope {

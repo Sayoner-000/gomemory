@@ -26,6 +26,13 @@ import { spawn } from "node:child_process";
 // sustituye y deja el texto sin sentido en el plugin instalado.
 const BIN = "{{BIN_PATH}}";
 
+// isSplashAgent reconoce el subagente splash (HCD-047) tanto por nombre como
+// por un objeto de agente con `name`, sin distinguir mayúsculas.
+const isSplashAgent = (agent: unknown): boolean => {
+  const name = typeof agent === "string" ? agent : (agent as any)?.name;
+  return typeof name === "string" && name.trim().toLowerCase() === "splash";
+};
+
 export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   const root = directory;
 
@@ -35,6 +42,9 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
   // y su session.created reiniciaba la sesión del agente raíz. Un fallo de
   // consulta no se recuerda y la sesión se trata como raíz, como antes.
   const childSessions = new Map<string, boolean>();
+  // HCD-047: el subagente splash (revisor sin contexto) no recibe nada de
+  // gomemory. Su agente llega en la información de la sesión.
+  const splashSessions = new Set<string>();
   const isChildSession = async (sessionID?: string): Promise<boolean> => {
     if (!sessionID) return false;
     const known = childSessions.get(sessionID);
@@ -45,6 +55,7 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       const res = await get.call((client as any).session, { path: { id: sessionID } });
       const child = Boolean(res?.data?.parentID);
       childSessions.set(sessionID, child);
+      if (child && isSplashAgent(res?.data?.agent)) splashSessions.add(sessionID);
       return child;
     } catch {
       return false;
@@ -375,6 +386,8 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
       // que el resto: es lo más urgente si acaba de compactarse.
       const sessionID = _input.sessionID;
       if (await isChildSession(sessionID)) {
+        // El agente también puede llegar en la entrada del gancho.
+        if (splashSessions.has(sessionID) || isSplashAgent((_input as any).agent)) return;
         const notice = await run(["hook", "subagent-start", "opencode"]);
         if (notice) output.system.push(notice);
         return;

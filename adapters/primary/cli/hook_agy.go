@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"mem/adapters/secondary/persistence"
+	"mem/domain"
 )
 
 // agyHookBudget deja margen dentro del timeout que declara cada hook de agy.
@@ -43,6 +44,8 @@ type agyEvent struct {
 			Path        string `json:"Path"`
 			Content     string `json:"Content"`
 			Replacement string `json:"Replacement"`
+			// TypeName es el tipo de subagente de invoke_subagent (HCD-047).
+			TypeName string `json:"TypeName"`
 		} `json:"args"`
 	} `json:"toolCall"`
 }
@@ -94,6 +97,26 @@ func agySubagentSessionsPath(dir string) string {
 	return filepath.Join(dir, persistence.MemDir, ".agy-subagent-sessions")
 }
 
+// agySplashSessionsPath anota las conversaciones hijas de tipo splash
+// (HCD-047): arrancan sin nada de gomemory.
+func agySplashSessionsPath(dir string) string {
+	return filepath.Join(dir, persistence.MemDir, ".agy-splash-sessions")
+}
+
+// agySplashMark es el sufijo del marcador de invoke_subagent cuyo TypeName es
+// splash.
+const agySplashMark = " splash"
+
+// isAgySplashSession dice si la conversación es un hijo splash ya anotado.
+func isAgySplashSession(dir, conversationID string) bool {
+	for _, id := range readLines(agySplashSessionsPath(dir)) {
+		if id == conversationID {
+			return true
+		}
+	}
+	return false
+}
+
 func readLines(path string) []string {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -135,7 +158,11 @@ func classifyAgySubagent(event string, raw []byte, now time.Time) bool {
 	switch event {
 	case "PreToolUse":
 		if ev.ToolCall.Name == "invoke_subagent" {
-			pending := append(readLines(agySubagentPendingPath(dir)), strconv.FormatInt(now.UnixNano(), 10))
+			mark := strconv.FormatInt(now.UnixNano(), 10)
+			if domain.IsSplashAgent(ev.ToolCall.Args.TypeName) {
+				mark += agySplashMark
+			}
+			pending := append(readLines(agySubagentPendingPath(dir)), mark)
 			writeLines(agySubagentPendingPath(dir), pending)
 		}
 		return false
@@ -145,7 +172,8 @@ func classifyAgySubagent(event string, raw []byte, now time.Time) bool {
 		}
 		var vigentes []string
 		for _, l := range readLines(agySubagentPendingPath(dir)) {
-			if ns, err := strconv.ParseInt(l, 10, 64); err == nil && now.Sub(time.Unix(0, ns)) <= agySubagentWindow {
+			stamp := strings.TrimSuffix(l, agySplashMark)
+			if ns, err := strconv.ParseInt(stamp, 10, 64); err == nil && now.Sub(time.Unix(0, ns)) <= agySubagentWindow {
 				vigentes = append(vigentes, l)
 			}
 		}
@@ -154,6 +182,13 @@ func classifyAgySubagent(event string, raw []byte, now time.Time) bool {
 			return false
 		}
 		writeLines(agySubagentPendingPath(dir), vigentes[1:])
+		if strings.HasSuffix(vigentes[0], agySplashMark) {
+			splash := append(readLines(agySplashSessionsPath(dir)), ev.ConversationID)
+			if len(splash) > agySubagentSessionsMax {
+				splash = splash[len(splash)-agySubagentSessionsMax:]
+			}
+			writeLines(agySplashSessionsPath(dir), splash)
+		}
 		sessions := append(readLines(agySubagentSessionsPath(dir)), ev.ConversationID)
 		if len(sessions) > agySubagentSessionsMax {
 			sessions = sessions[len(sessions)-agySubagentSessionsMax:]
@@ -192,6 +227,10 @@ func planAgyHookFor(event string, raw []byte, subagent bool) agyPlan {
 	if subagent {
 		switch event {
 		case "SessionStart":
+			// El hijo splash (HCD-047) arranca sin nada de gomemory.
+			if plan.dir != "" && isAgySplashSession(plan.dir, ev.ConversationID) {
+				return plan
+			}
 			plan.calls = []agyCall{agyHookCall(session, "subagent-start", "agy")}
 			return plan
 		case "PreInvocation":

@@ -459,6 +459,14 @@ func runHookExpand(ctx context.Context, d hookExpandDeps, event, emit string, st
 		out.Context = append(out.Context, domain.HCDNoUnitWarning)
 		out.Fired = append(out.Fired, "expand.hcd:no-unit")
 	}
+	// HCD-047: un splash de Codex que heredaría la conversación del raíz.
+	if ev == domain.ExpandPreTool && out.Decision != domain.DecisionBlock {
+		toolInput, _ := payload["tool_input"].(map[string]any)
+		if domain.SplashSpawnInheritsContext(in.tool, toolInput) {
+			out.Context = append(out.Context, domain.SplashCodexForkWarning)
+			out.Fired = append(out.Fired, "expand.splash:fork")
+		}
+	}
 	for _, f := range out.Fired {
 		kind, detail, _ := strings.Cut(f, ":")
 		record(kind, detail)

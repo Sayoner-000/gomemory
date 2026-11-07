@@ -137,6 +137,8 @@ func TestOpenCodeV2_RamaV1ConservaGanchos(t *testing.T) {
 // hook de compresión y conceder recuperación automática a la sesión propietaria.
 // HCD-026: referencia actualizada para que la sesión hija (parentID) reciba
 // solo el aviso mínimo de subagente y no reinicie la sesión del raíz.
+// HCD-047: referencia actualizada para que el subagente splash (revisor sin
+// contexto) no reciba nada de gomemory, tampoco en OpenCode 1.x.
 func TestOpenCodeV2_FabricaV1IdenticaALaReferencia(t *testing.T) {
 	ref, err := os.ReadFile("../../specs/032-opencode-v2-plugin-compat/baseline/gomemory.v1.ts")
 	if err != nil {

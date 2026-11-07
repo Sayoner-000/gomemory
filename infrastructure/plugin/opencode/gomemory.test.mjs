@@ -873,3 +873,34 @@ test('child session (parentID) gets only the minimal subagent notice', async () 
   assert.ok(root.includes('CONTEXTO-COMPLETO'), 'el agente raíz conserva su contexto');
   assert.ok(!root.includes('AVISO-SUBAGENTE'));
 });
+
+// HCD-047: el subagente splash (revisor sin contexto) no recibe nada de
+// gomemory: ni el aviso de subagente ni el contexto. Su agente llega en la
+// entrada del gancho o en la información de la sesión.
+test('splash child session gets nothing from gomemory', async () => {
+  const calls = [];
+  const shell = (_s, _bin, args) => {
+    const proc = {
+      cwd: () => proc, quiet: () => proc,
+      stdin: { getWriter: () => ({ write: async () => {}, close: async () => {} }) },
+      text: async () => {
+        calls.push(args.join(' '));
+        if (args.join(' ') === 'hook subagent-start opencode') return 'AVISO-SUBAGENTE';
+        if (args[0] === 'context') return 'CONTEXTO-COMPLETO';
+        return '';
+      },
+    };
+    return proc;
+  };
+  const sessions = { root: {}, hijo: { parentID: 'root' }, splashInfo: { parentID: 'root', agent: 'splash' }, splashInput: { parentID: 'root' } };
+  const hooks = await GomemoryPlugin({ $: shell, directory: '/tmp', client: { session: {
+    messages: async () => ({ data: [] }),
+    get: async ({ path }) => ({ data: { id: path.id, ...sessions[path.id] } }),
+  } } });
+  const transform = async (id, extra = {}) => { const out = { system: [] }; await hooks['experimental.chat.system.transform']({ sessionID: id, ...extra }, out); return out.system.join('\n'); };
+
+  assert.equal(await transform('splashInfo'), '', 'splash por la sesión: sin nada de gomemory');
+  assert.equal(await transform('splashInput', { agent: 'splash' }), '', 'splash por la entrada del gancho: sin nada de gomemory');
+  assert.ok(!calls.includes('hook subagent-start opencode'), 'al splash no se le pide el aviso');
+  assert.ok((await transform('hijo')).includes('AVISO-SUBAGENTE'), 'los demás hijos conservan el aviso de HCD-026');
+});

@@ -1816,6 +1816,26 @@ indexa los documentos `hcd/HCD-*.md` que no tienen fila en el motor (por
 ejemplo, creados en otro worktree). Desde un agente, la tool MCP `hcd_history`
 (`text`, `file`) devuelve el mismo listado que la CLI.
 
+### Subagente splash: revisor sin contexto (HCD-047)
+
+`splash` es el revisor sin contexto (el «goldfish» del modelo Elephant-Goldfish,
+con nombre propio de gomemory: la gota que salpica sin arrastrar memoria). Lee
+solo el documento que se le indica y el código vivo. gomemory no le inyecta
+aviso, tools de memoria ni instrucciones globales. `mem setup` instala su
+definición donde el runtime la admite en archivo y `mem uninstall` la retira.
+
+| Runtime | Cómo se lanza | Qué hace gomemory |
+|---|---|---|
+| Claude Code | Subagente de tipo `splash` (`~/.claude/agents/splash.md`: `tools: Read, Grep, Glob`, sin MCP, `omitClaudeMd: true`) | `SubagentStart` no le añade contexto (`agent_type: splash`) |
+| OpenCode | Subagente `splash` (`~/.config/opencode/agents/splash.md`: `mode: subagent`, solo `read`, `grep` y `glob`) | El plugin no le inyecta el aviso de subagente |
+| agy | `invoke_subagent` con `TypeName: "splash"` (definido con `define_subagent`) | El `SessionStart` del hijo no recibe el aviso |
+| Codex | `spawn_agent(task_name: "splash", fork_turns: "none")` | Codex no avisa al hijo con hooks: el aislamiento lo da `fork_turns: "none"`. Si falta, el `pre-tool` del raíz avisa de que heredaría la memoria |
+
+Limitación de Codex (sondeo real, Codex 0.166.0): el hijo de `spawn_agent` no
+dispara hooks de arranque, así que gomemory no puede quitarle contexto. Con
+`fork_turns: "none"` arranca sin la memoria del proyecto, pero conserva el
+`AGENTS.md` global que Codex carga siempre.
+
 ## Temas de la terminal (v2.29.0)
 
 La TUI incluye goMemory oscuro, goMemory claro y Matrix. Pulsa `c` para abrir

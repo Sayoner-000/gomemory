@@ -6,6 +6,16 @@ import (
 	"testing"
 )
 
+// HCD-047: una ruta del HOME («~/.claude/agents/splash.md») no es del
+// repositorio; citarla daba un falso PATH-MISSING en analyze.
+func TestHCDLens_CitedPathsIgnoraHome(t *testing.T) {
+	doc := UnitDoc{Sections: map[string]string{SectionScope: "Instala `~/.claude/agents/splash.md` y toca `adapters/primary/setup/splash_agent.go`."}}
+	got := CitedPaths(doc)
+	if len(got) != 1 || got[0] != "adapters/primary/setup/splash_agent.go" {
+		t.Fatalf("CitedPaths = %v, quiero solo la ruta del repositorio", got)
+	}
+}
+
 // HCD-034: las lentes son avisos MEDIUM; PATH-MISSING solo desde verify (Q1).
 func TestAnalyzeLenses(t *testing.T) {
 	doc := fill(render(t, KindFeature, LaneFast), LaneFast)

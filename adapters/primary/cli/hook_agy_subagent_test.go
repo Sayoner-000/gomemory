@@ -42,6 +42,37 @@ func callNames(plan agyPlan) []string {
 	return out
 }
 
+// HCD-047: el PreToolUse(invoke_subagent) trae TypeName (sondeo real, agy
+// 1.5.2). Un hijo de tipo splash arranca sin el aviso de subagente; los demás
+// hijos lo conservan.
+func TestAgySubagent_Splash(t *testing.T) {
+	dir := agyProjectDir(t)
+	now := time.Now()
+	invoke := func(typeName string) []byte {
+		return agyEventJSON(t, map[string]any{"conversationId": "root", "workspacePaths": []string{dir},
+			"lastUserInput": "revisa", "toolCall": map[string]any{"name": "invoke_subagent", "args": map[string]any{"TypeName": typeName, "Role": "Revisor", "Prompt": "x"}}})
+	}
+	start := func(conv string) []byte {
+		return agyEventJSON(t, map[string]any{"conversationId": conv, "workspacePaths": []string{dir}, "lastUserInput": ""})
+	}
+
+	classifyAgySubagent("PreToolUse", invoke("splash"), now)
+	if !classifyAgySubagent("SessionStart", start("hijo-splash"), now.Add(time.Second)) {
+		t.Fatal("el hijo splash sigue siendo un subagente")
+	}
+	if got := callNames(planAgyHookFor("SessionStart", start("hijo-splash"), true)); len(got) != 0 {
+		t.Fatalf("el hijo splash no debe recibir nada de gomemory, se planificó %v", got)
+	}
+
+	classifyAgySubagent("PreToolUse", invoke("research"), now.Add(2*time.Second))
+	if !classifyAgySubagent("SessionStart", start("hijo-normal"), now.Add(3*time.Second)) {
+		t.Fatal("el hijo normal es un subagente")
+	}
+	if got := callNames(planAgyHookFor("SessionStart", start("hijo-normal"), true)); len(got) != 1 || !strings.HasPrefix(got[0], "subagent-start agy") {
+		t.Fatalf("los demás hijos conservan el aviso de HCD-026, se planificó %v", got)
+	}
+}
+
 func TestAgySubagent_SessionStartTrasInvokeSubagentEmiteSoloAviso(t *testing.T) {
 	dir := agyProjectDir(t)
 	now := time.Now()

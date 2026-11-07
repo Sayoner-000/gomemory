@@ -302,6 +302,18 @@ func runGlobalScopeSetup(agentList []string) map[string]bool {
 	skillsWritten = skillSummary("revisión adversarial", skills) || skillsWritten
 	written = append(written, skills...)
 
+	// Subagente splash (HCD-047): el revisor sin contexto, definido como agente
+	// propio donde el runtime lo admite en archivo.
+	splash, err := setup.InstallSplashAgent(map[string]string{
+		"claude":   embeddedTemplate("agents/claude/splash.md"),
+		"opencode": embeddedTemplate("agents/opencode/splash.md"),
+	})
+	if err != nil {
+		humanf("  ⚠ agente splash (scope global): %v\n", err)
+	}
+	skillsWritten = skillSummary("agente splash", splash) || skillsWritten
+	written = append(written, splash...)
+
 	// Auditoría defensiva multilenguaje: mismo canal y mismo criterio de ámbito
 	// que la revisión adversarial — es un método de trabajo del usuario.
 	auditoria, err := setup.InstallDefensiveQASkill(embeddedTemplate("defensive-qa-audit/SKILL.md"))

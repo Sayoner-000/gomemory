@@ -56,7 +56,8 @@ func CitedPaths(doc UnitDoc) []string {
 func addCitedPaths(seen map[string]bool, text string) {
 	for _, m := range backtickSpan.FindAllStringSubmatch(stripComments(text), -1) {
 		token := strings.TrimSpace(m[1])
-		if !pathLike(token) || strings.HasPrefix(token, "/") {
+		// Las rutas absolutas y las del HOME («~/…») no son del repositorio.
+		if !pathLike(token) || strings.HasPrefix(token, "/") || strings.HasPrefix(token, "~") {
 			continue
 		}
 		clean := path.Clean(lineSuffix.ReplaceAllString(token, ""))

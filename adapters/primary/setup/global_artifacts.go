@@ -53,5 +53,9 @@ func GlobalGeneratedArtifacts() [][]string {
 	for _, t := range socraticaWrapperTargets {
 		add(append(append([]string{}, t.dir...), t.file...))
 	}
+	// Agente splash (HCD-047): un archivo suelto en el directorio de agentes.
+	for _, t := range splashAgentTargets {
+		add(append(append([]string{}, t.dir...), t.file...))
+	}
 	return out
 }

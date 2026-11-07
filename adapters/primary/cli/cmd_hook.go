@@ -865,15 +865,23 @@ func hookSubagentStart(deps *Deps, args []string) {
 		fmt.Print(subagentNoticeFor(runtime, !settings.CodeGraphDisabled))
 		return
 	}
-	out := map[string]any{
+	fmt.Print(subagentStartOutput(readHookStdin(), !settings.CodeGraphDisabled))
+}
+
+// subagentStartOutput es la respuesta de SubagentStart en Claude Code. Un
+// subagente splash (agent_type, HCD-047) arranca sin nada de gomemory; los
+// demás reciben el aviso mínimo de HCD-026.
+func subagentStartOutput(payload map[string]any, includeCodeGraphProvider bool) string {
+	if agentType, _ := payload["agent_type"].(string); domain.IsSplashAgent(agentType) {
+		return "{}"
+	}
+	data, _ := json.Marshal(map[string]any{
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     "SubagentStart",
-			"additionalContext": subagentNotice(!settings.CodeGraphDisabled),
+			"additionalContext": subagentNotice(includeCodeGraphProvider),
 		},
-	}
-	data, _ := json.Marshal(out)
-	fmt.Print(string(data))
-	return
+	})
+	return string(data)
 }
 
 // hookSubagentStop corre cuando un subagente (tool Task) termina en Claude Code.
