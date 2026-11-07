@@ -115,6 +115,9 @@ func ImportBundle(memRepo ports.MemoryRepository, relRepo ports.RelationReposito
 		if strings.TrimSpace(domain.ProtectText(em.Content)) == "" {
 			return rep, fmt.Errorf("%w: la memoria ref %d queda vacía tras redactar <private>", domain.ErrValidation, em.RefID)
 		}
+		if err := domain.ValidateMemoryMetadata(em.Filepath, em.TopicKey); err != nil {
+			return rep, fmt.Errorf("la memoria ref %d: %w", em.RefID, err)
+		}
 	}
 
 	existing, err := memRepo.ListAll(targetProject)

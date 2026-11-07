@@ -1,0 +1,13 @@
+package main
+import (
+ "context"
+ "fmt"
+ "time"
+ "mem/adapters/secondary/hcdfiles"
+)
+func main(){
+ w:=hcdfiles.Workspace{Root:"/private/tmp", Timeout:100*time.Millisecond}
+ started:=time.Now()
+ exit,out,err:=w.Run(context.Background(),"sleep 2 & wait")
+ fmt.Printf("configured_timeout=100ms elapsed=%s exit=%d out=%q err=%v\n",time.Since(started).Round(time.Millisecond),exit,out,err)
+}

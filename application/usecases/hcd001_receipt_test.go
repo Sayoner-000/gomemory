@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"mem/adapters/secondary/compression"
+	"mem/adapters/secondary/persistence"
 	"mem/adapters/secondary/tokens"
 	"mem/application/ports"
 	"mem/application/usecases"
@@ -13,9 +14,20 @@ import (
 )
 
 func TestHCD001DeliveryReceipt(t *testing.T) {
-	repo := newContextPackTestDeps(t)
-	m := domain.Memory{Project: "receipt", Type: domain.Learning, Title: "recibo", Content: strings.Repeat("recibo detallado ", 100), Filepath: "<private>ruta-sensible</private>"}
-	if _, err := repo.Insert(&m); err != nil {
+	// Desde HCD-044 un filepath privado se rechaza al guardar; solo puede
+	// llegar en una fila histórica: se guarda por la vía normal y se degrada.
+	db, err := persistence.Init(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	repo := persistence.NewMemoryRepository(db)
+	m := domain.Memory{Project: "receipt", Type: domain.Learning, Title: "recibo", Content: strings.Repeat("recibo detallado ", 100), Filepath: "ruta-publica"}
+	id, err := repo.Insert(&m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE memories SET filepath = '<private>ruta-sensible</private>' WHERE id = ?`, id); err != nil {
 		t.Fatal(err)
 	}
 	pack, err := usecases.BuildContextPack(repo, compression.StructuralCompressor{}, tokens.ApproximateTokenCounter{}, nil, usecases.ContextRequest{Project: "receipt", Task: "recibo", MaxTokens: 1, Compression: ports.CompressionStructural})

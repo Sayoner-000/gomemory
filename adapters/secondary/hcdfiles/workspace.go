@@ -23,6 +23,9 @@ const (
 	defaultTimeout = 10 * time.Minute
 	excerptBytes   = 2000
 	excerptLines   = 20
+	// waitDelay es el margen máximo tras el plazo: Run vuelve como mucho en
+	// Timeout + waitDelay.
+	waitDelay = time.Second
 )
 
 // Workspace implementa ports.HCDWorkspace sobre la raíz del proyecto.
@@ -154,10 +157,17 @@ func (w Workspace) Run(ctx context.Context, command string) (int, string, error)
 		cmd = exec.CommandContext(ctx, "cmd", "/C", command)
 	}
 	cmd.Dir = w.Root
+	// Al vencer el plazo se termina el árbol entero; WaitDelay acota además la
+	// espera de los pipes si algún descendiente escapó del grupo (HCD-045).
+	configureProcessTree(cmd)
+	cmd.WaitDelay = waitDelay
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	err := cmd.Run()
-	excerpt := tail(out.String())
+	// Proteger antes de recortar (HCD-043): si el recorte dejara la apertura
+	// <private> fuera del extracto, ProtectText ya no podría reconocer el
+	// contenido privado que queda dentro.
+	excerpt := tail(domain.ProtectText(out.String()))
 	if ctx.Err() == context.DeadlineExceeded {
 		return -1, excerpt + "\n(tiempo límite agotado)", nil
 	}

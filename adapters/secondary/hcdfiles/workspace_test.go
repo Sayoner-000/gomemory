@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func gitRepo(t *testing.T) string {
@@ -100,6 +101,63 @@ func TestRunReportsExitCodeAndTail(t *testing.T) {
 	code, out, err = w.Run(ctx, "for i in $(seq 1 50); do echo l$i; done; exit 3")
 	if err != nil || code != 3 || !strings.HasSuffix(out, "l50") || strings.Contains(out, "l1\n") {
 		t.Fatalf("Run fail = %d %q %v", code, out, err)
+	}
+}
+
+// HCD-043: la salida se protege entera antes de recortarla; si se recortara
+// primero, la apertura <private> quedaría fuera del extracto y el contenido
+// privado llegaría a la evidencia.
+func TestRunProtegeLaSalidaAntesDeRecortar(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el caso usa printf y un bucle de sh; en Windows Run delega en cmd /C")
+	}
+	w, ctx := Workspace{Root: t.TempDir()}, context.Background()
+	cases := map[string]struct{ command, canary string }{
+		"apertura a más de 2000 bytes": {
+			command: `printf '<private>'; printf '%2500s' 'SYNTH-PRIVATE-0001'; printf '</private>\npublico-final\n'`,
+			canary:  "SYNTH-PRIVATE-0001",
+		},
+		"apertura a más de 20 líneas": {
+			command: `echo '<private>'; for i in $(seq 1 30); do echo SYNTH-PRIVATE-0002-$i; done; echo '</private>'; echo publico-final`,
+			canary:  "SYNTH-PRIVATE-0002",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			code, out, err := w.Run(ctx, c.command)
+			if err != nil || code != 0 {
+				t.Fatalf("Run = %d %v", code, err)
+			}
+			if strings.Contains(out, c.canary) {
+				t.Fatalf("el extracto contiene el canario privado: %q", out)
+			}
+			if !strings.HasSuffix(out, "publico-final") {
+				t.Fatalf("el extracto perdió el texto público final: %q", out)
+			}
+		})
+	}
+}
+
+// HCD-045: al vencer el plazo, Run termina también a los descendientes que
+// heredan la salida y vuelve dentro del plazo más el margen.
+func TestRunTerminaLosDescendientesAlVencerElPlazo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el caso usa sleep y & de sh; en Windows Run delega en cmd /C")
+	}
+	root := t.TempDir()
+	w := Workspace{Root: root, Timeout: 100 * time.Millisecond}
+	started := time.Now()
+	code, out, err := w.Run(context.Background(), "(sleep 2; touch canario-tardio) & wait")
+	elapsed := time.Since(started)
+	if err != nil || code != -1 || !strings.Contains(out, "tiempo límite agotado") {
+		t.Fatalf("Run = %d %q %v, quiero -1 con aviso de tiempo agotado", code, out, err)
+	}
+	if elapsed > 1500*time.Millisecond {
+		t.Fatalf("Run tardó %s con un plazo de 100ms", elapsed)
+	}
+	time.Sleep(2500*time.Millisecond - elapsed)
+	if _, err := os.Stat(filepath.Join(root, "canario-tardio")); err == nil {
+		t.Fatal("un descendiente siguió vivo y escribió después del plazo")
 	}
 }
 

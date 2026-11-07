@@ -1,5 +1,7 @@
 package domain
 
+import "fmt"
+
 type MemoryType string
 
 const (
@@ -53,4 +55,15 @@ type Memory struct {
 	SourceReviewID string `json:"source_review_id,omitempty"`
 	CreatedAt      string `json:"created_at"`
 	UpdatedAt      string `json:"updated_at"`
+}
+
+// ValidateMemoryMetadata rechaza un filepath o un topic_key con texto
+// protegido (HCD-044). No se redactan: topic_key es identidad del upsert y
+// una clave transformada en silencio podría coincidir con la de otra
+// memoria. El error nunca incluye los valores.
+func ValidateMemoryMetadata(filepath, topicKey string) error {
+	if NeedsSanitize(filepath) || NeedsSanitize(topicKey) {
+		return fmt.Errorf("%w: filepath o topic_key contienen texto privado o una credencial; quítalo y vuelve a guardar", ErrValidation)
+	}
+	return nil
 }

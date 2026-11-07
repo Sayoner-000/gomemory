@@ -69,6 +69,10 @@ func InsertSeedMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 }
 
 func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) {
+	// Antes de la deduplicación: un rechazo no debe tocar una memoria existente.
+	if err := domain.ValidateMemoryMetadata(m.Filepath, m.TopicKey); err != nil {
+		return 0, fmt.Errorf("insert memory: %w", err)
+	}
 	title := domain.RedactSecrets(domain.RedactPrivate(m.Title))
 	content := domain.RedactSecrets(domain.RedactPrivate(m.Content))
 	if strings.TrimSpace(content) == "" {
@@ -718,6 +722,9 @@ func ListAllMemories(db *sql.DB, project string) ([]domain.Memory, error) {
 // idempotente sobre datos ya redactados). Si created_at/updated_at vienen vacíos
 // se usa el reloj local.
 func ImportMemory(db *sql.DB, m *domain.Memory) (int64, error) {
+	if err := domain.ValidateMemoryMetadata(m.Filepath, m.TopicKey); err != nil {
+		return 0, fmt.Errorf("import memory: %w", err)
+	}
 	title := domain.RedactSecrets(domain.RedactPrivate(m.Title))
 	content := domain.RedactSecrets(domain.RedactPrivate(m.Content))
 	if strings.TrimSpace(content) == "" {
@@ -868,9 +875,10 @@ func finishScannedMemory(m *domain.Memory, memType string) {
 	m.Type = domain.MemoryType(memType)
 	m.Title = domain.StripTerminalControls(m.Title)
 	m.Content = domain.StripTerminalControls(m.Content)
-	m.Filepath = domain.StripTerminalControls(m.Filepath)
+	// Filas anteriores a HCD-044 pudieron guardar metadatos sin proteger.
+	m.Filepath = domain.StripTerminalControls(domain.ProtectText(m.Filepath))
 	m.OriginPrompt = domain.StripTerminalControls(m.OriginPrompt)
-	m.TopicKey = domain.StripTerminalControls(m.TopicKey)
+	m.TopicKey = domain.StripTerminalControls(domain.ProtectText(m.TopicKey))
 }
 
 func scanMemories(rows *sql.Rows) ([]domain.Memory, error) {

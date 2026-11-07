@@ -1,0 +1,15 @@
+package main
+import (
+ "context"
+ "fmt"
+ "strings"
+ "time"
+ "mem/adapters/secondary/hcdfiles"
+ "mem/domain"
+)
+func main(){
+ w:=hcdfiles.Workspace{Root:"/private/tmp", Timeout:time.Second}
+ _,out,err:=w.Run(context.Background(),"printf '<private>'; printf '%2500s' 'SYNTH-PRIVATE-0001'; printf '</private>'")
+ protected:=domain.ProtectText(out)
+ fmt.Printf("excerpt_bytes=%d contains_private_marker=%v protected_leaks_synthetic_private=%v err=%v\n",len(out),strings.Contains(out,"<private>"),strings.Contains(protected,"SYNTH-PRIVATE-0001"),err)
+}

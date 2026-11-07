@@ -138,11 +138,18 @@ func readSanitizeCandidates(ctx context.Context, q queryer, project string) ([]d
 	// Memorias: siempre se guardaron depuradas, pero las anteriores a la
 	// política de credenciales o con remanentes de bloques anidados (cierre
 	// huérfano) no se pueden reescribir con seguridad. Solo se reportan.
-	err = scanRows(ctx, q, `SELECT id, title, content, COALESCE(origin_prompt,'') FROM memories WHERE project = ?`, project, func(r *sql.Rows) error {
+	err = scanRows(ctx, q, `SELECT id, title, content, COALESCE(origin_prompt,''), COALESCE(filepath,''), COALESCE(topic_key,'') FROM memories WHERE project = ?`, project, func(r *sql.Rows) error {
 		var id int64
-		var title, content, origin string
-		if err := r.Scan(&id, &title, &content, &origin); err != nil {
+		var title, content, origin, path, topic string
+		if err := r.Scan(&id, &title, &content, &origin, &path, &topic); err != nil {
 			return err
+		}
+		// Metadatos (HCD-044): escribibles, a diferencia del remanente de abajo.
+		if domain.NeedsSanitize(path) {
+			add(domain.SanitizeMemoryFilepath, "filepath", strconv.FormatInt(id, 10), path)
+		}
+		if domain.NeedsSanitize(topic) {
+			add(domain.SanitizeMemoryTopicKey, "topic_key", strconv.FormatInt(id, 10), topic)
 		}
 		for _, text := range []string{title, content, origin} {
 			if domain.NeedsSanitize(text) || domain.HasOrphanPrivateClose(text) {
@@ -348,6 +355,21 @@ func (t *privacyTx) Apply(ctx context.Context, c domain.SanitizeCandidate, text 
 		res, err = t.tx.ExecContext(ctx,
 			`UPDATE memory_relations SET reasoning = ? WHERE id = ? AND project = ? AND reasoning = ?`,
 			text, id, c.Project, c.Text)
+	case domain.SanitizeMemoryFilepath, domain.SanitizeMemoryTopicKey:
+		id, perr := strconv.ParseInt(c.RecordID, 10, 64)
+		if perr != nil {
+			return false, fmt.Errorf("%w: id de memoria inválido", domain.ErrValidation)
+		}
+		if c.Category == domain.SanitizeMemoryFilepath {
+			res, err = t.tx.ExecContext(ctx,
+				`UPDATE memories SET filepath = ? WHERE id = ? AND project = ? AND filepath = ?`,
+				text, id, c.Project, c.Text)
+		} else {
+			// topic_key se vacía en vez de redactarse (HCD-044, Q3).
+			res, err = t.tx.ExecContext(ctx,
+				`UPDATE memories SET topic_key = NULL WHERE id = ? AND project = ? AND topic_key = ?`,
+				id, c.Project, c.Text)
+		}
 	case domain.SanitizeChannelError:
 		agent, scope, kind, perr := parseChannelRecordID(c.RecordID)
 		if perr != nil {

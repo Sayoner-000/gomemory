@@ -1,0 +1,18 @@
+package main
+
+import (
+ "database/sql"
+ "fmt"
+ "mem/domain"
+ p "mem/adapters/secondary/persistence"
+)
+
+func main() {
+ d,e:=sql.Open("sqlite",":memory:"); if e!=nil {panic(e)}
+ d.SetMaxOpenConns(1); defer d.Close()
+ _,e=d.Exec(`CREATE TABLE memories(id INTEGER PRIMARY KEY,project TEXT,session_id TEXT,type TEXT,title TEXT,content TEXT,filepath TEXT,origin_prompt TEXT,topic_key TEXT,source_review_id TEXT,created_at TEXT,updated_at TEXT)`); if e!=nil {panic(e)}
+ m:=domain.Memory{Project:"synthetic-project",Type:domain.Discovery,Title:"public",Content:"public",Filepath:"<private>SYNTH-PATH-SECRET</private>",TopicKey:"<private>SYNTH-TOPIC-SECRET</private>"}
+ id,e:=p.InsertSeedMemory(d,&m); if e!=nil {panic(e)}
+ r,e:=p.GetMemoryByID(d,m.Project,id); if e!=nil {panic(e)}
+ fmt.Printf("filepath=%q topic_key=%q\n",r.Filepath,r.TopicKey)
+}

@@ -31,6 +31,11 @@ const (
 	// anterior cortó a medias. El texto privado no se puede delimitar, así que
 	// nunca se modifica automáticamente: se reporta para revisión manual.
 	SanitizeMemoryReview SanitizeCategory = "memory_review"
+	// Metadatos de memorias (HCD-044): filepath se protege; topic_key se
+	// vacía, porque una clave redactada podría coincidir con la de otra
+	// memoria y desviar un upsert posterior.
+	SanitizeMemoryFilepath SanitizeCategory = "memory_filepath"
+	SanitizeMemoryTopicKey SanitizeCategory = "memory_topic_key"
 	// Ledger de revisión: duradero por diseño, así que las filas anteriores
 	// a la redacción al escribir no caducan solas.
 	SanitizeReviewFinding         SanitizeCategory = "review_finding"
@@ -68,12 +73,14 @@ var sanitizeFields = map[SanitizeCategory]string{
 	SanitizeCategory("socratica_history_approved"):    "approved_prompt",
 	SanitizeCategory("socratica_history_additions"):   "additions_json",
 	SanitizeCategory("socratica_history_scrutiny"):    "scrutiny_json",
-	SanitizeSession:       "summary",
-	SanitizeSessionPrompt: "last_prompt",
-	SanitizeRelation:      "reasoning",
-	SanitizeChannelError:  "last_error",
-	SanitizeOriginal:      "content",
-	SanitizeMemoryReview:  "content",
+	SanitizeSession:        "summary",
+	SanitizeSessionPrompt:  "last_prompt",
+	SanitizeRelation:       "reasoning",
+	SanitizeChannelError:   "last_error",
+	SanitizeOriginal:       "content",
+	SanitizeMemoryReview:   "content",
+	SanitizeMemoryFilepath: "filepath",
+	SanitizeMemoryTopicKey: "topic_key",
 
 	SanitizeReviewFinding:         "claim",
 	SanitizeReviewFindingEvidence: "evidence",
