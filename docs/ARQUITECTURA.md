@@ -178,3 +178,64 @@ añade aristas con el `src_file_id` del archivo que llama sin borrar las demás,
 a diferencia de `InsertEdges`. `ReplaceFileNodes` y `DeleteCodeFile` borran
 las pendientes del archivo junto con sus nodos. Con esto se cierra el límite
 que había dejado HCD-029.
+
+## Historial de Decisiones HCD y Tabla memory_files (HCD-046)
+
+Para evitar la dispersión de memorias efímeras generadas en cada paso de una
+unidad de trabajo, HCD-046 consolidó el historial en fichas únicas:
+- **Una ficha por unidad:** Identificada con `topic_key` `hcd/HCD-NNN` que el motor
+  actualiza de forma idempotente en cada transición de estado (`HCD.recorded`).
+- **Una ficha por auditoría:** Con clave `audit/<nombre>` para los informes de
+  `docs/audits/`, reflejando hallazgos y cierres verificados.
+- **Tabla `memory_files` (esquema 12):** Relaciona de forma N:M cada memoria con
+  las rutas citadas en su texto. Al editar un archivo, `get_context` recupera las
+  fichas HCD asociadas antes que las auditorías.
+- **Herramientas de consulta e indexación:** Comando CLI `mem hcd history`
+  (con filtro `--file`), backfill con `mem hcd index [--apply]` y la herramienta
+  MCP `hcd_history` para que los agentes consulten decisiones previas sobre archivos concretos.
+
+## Subagente splash: Revisor sin Memoria y Ceremonia HCD (HCD-047 y HCD-051)
+
+`splash` implementa el patrón **Elephant-Goldfish (EGM)**: mientras el agente
+principal acumula memoria y contexto continuo (el elefante), `splash` actúa como
+revisor de contexto cero (el pez dorado) para auditar propuestas técnicas y
+documentos de unidad sin sesgo ni preconceptos.
+
+- **Aislamiento en los cuatro runtimes:**
+  - **Claude Code:** `SubagentStart` detecta `agent_type == "splash"` y omite
+    la inyección de contexto. La plantilla (`~/.claude/agents/splash.md`) fija
+    herramientas de solo lectura (`Read`, `Grep`, `Glob`), sin MCP y con `omitClaudeMd: true`.
+  - **OpenCode:** El plugin (`infrastructure/plugin/opencode/gomemory.ts`) intercepta
+    la sesión del hijo y suprime el aviso de subagente.
+  - **Antigravity (agy):** `classifyAgySubagent` reconoce `TypeName: "splash"` en
+    el hook `PreToolUse`; el inicio de sesión del hijo no recibe memoria y
+    se configura con `inheritMcp: false`.
+  - **Codex:** Plantilla `~/.codex/agents/splash.toml` con `sandbox_mode = "read-only"`.
+    El hook `pre-tool` exige invocar con `spawn_agent(agent_type: "splash", fork_turns: "none")`
+    para evitar heredar la conversación.
+- **Integración en `/hcd-approve` (HCD-051):** En la ceremonia completa, el paso
+  de aprobación ofrece una revisión preliminar con `splash` antes de pedir la cita.
+  Los hallazgos clasificados como **Blocker** impiden la aprobación hasta su
+  corrección o descarte explícito por el usuario, evitando re-aprobaciones posteriores.
+
+## Filtro de Rutas de Agentes del HOME en analyze (HCD-052)
+
+Los documentos HCD citan frecuentemente archivos de configuración de agentes
+ubicados en el directorio del usuario (`~/.claude/`, `~/.codex/`, `~/.gemini/`,
+`~/.config/`). `domain/hcd_lens.go` introdujo `RepoMissingPaths` diferenciado de
+`CitedPaths`: `analyze` ignora rutas ausentes que pertenezcan a directorios de
+configuración conocidos del entorno para no emitir falsas alarmas de `PATH-MISSING`,
+mientras `CitedPaths` preserva el enlace en el grafo de memorias.
+
+## Resiliencia y Concesiones en el Hook tool-output (HCD-053 y HCD-054)
+
+- **Determinismo y consumo de pistas (HCD-053):** El hook `tool-output` ordena
+  alfabéticamente los campos JSON antes de comprimir, asegurando que la pista de
+  recuperación se inyecte siempre en el mismo campo. Además, la pista solo se
+  marca como entregada si la respuesta se emite efectivamente dentro del
+  presupuesto de 150 ms (`runToolOutputBudget`), evitando que un timeout descarte
+  la salida y deje al agente sin saber cómo recuperar los originales.
+- **Omisión de concesiones tras vencimiento (HCD-054):** `toolOutputCompress`
+  valida de forma estricta que una compresión finalizada fuera del presupuesto no
+  inicie `GrantAutomaticOriginals` ni registre concesiones en la base de datos,
+  protegiendo la integridad del almacén de originales.

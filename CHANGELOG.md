@@ -5,6 +5,21 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.51.1] - 2026-11-07
+
+### Added
+
+- Índice maestro de documentación en `/docs` (`docs/README.md`) para navegación completa en GitHub y GitLab con enlaces a todas las guías, arquitectura, referencias y manuales.
+- Documentación integral del subagente `splash` (modelo Elephant-Goldfish / revisor sin memoria) y su integración en `/hcd-approve` en `docs/ARQUITECTURA.md`, `docs/architecture.md` y `docs/AGENT-INTEGRATION.md`.
+- Pruebas que demuestran que una compresión que vence el plazo de 150 ms del hook `tool-output` omite la concesión automática de referencias sin tocar el almacén de concesiones (HCD-054).
+
+### Fixed
+
+- El hook `tool-output` ya no consume la nota de recuperación si la salida comprimida se descarta por superar el presupuesto (HCD-053). El marcador solo se anota cuando la salida se entrega efectivamente al agente.
+- Los campos JSON comprimidos por el hook `tool-output` se ordenan alfabéticamente para garantizar que la nota de recuperación vaya de manera determinista en el primer campo (HCD-053).
+- Las pruebas de integración del hook `tool-output` y de tope de originales toleran la carga intermitente de los runners de CI sin relajar el presupuesto en producción (HCD-053).
+- `mem hcd analyze` ya no emite avisos `PATH-MISSING` falsos para rutas de configuración de agentes bajo el directorio HOME (`.claude`, `.codex`, `.gemini`, `.config`, `.cursor`, `.windsurf`, `.cline`) citadas en la definición (HCD-052).
+
 ## [v2.51.0] - 2026-11-07
 
 ### Added

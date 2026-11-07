@@ -8,6 +8,7 @@
 <h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
 
 <p align="center">
+  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.51.1"><img src="https://img.shields.io/badge/version-2.51.1-blue" alt="Version 2.51.1"></a>
   <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
   <a href="https://github.com/Sayoner-000/gomemory/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sayoner-000/gomemory/test.yml?branch=main&label=CI" alt="CI status"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
@@ -18,6 +19,7 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
+  <a href="docs/README.md">Documentation</a> ·
   <a href="docs/MANUAL.md">Manual</a> ·
   <a href="INSTALLATION.md">Installation</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -295,15 +297,17 @@ it is open can be inconsistent. Use `mem export` instead. The
 
 | Document | Contents |
 | :--- | :--- |
+| [`docs/README.md`](docs/README.md) | Master documentation portal and architecture map |
 | [`INSTALLATION.md`](INSTALLATION.md) | Installation, agent registration, updates, troubleshooting |
-| [`docs/MANUAL.md`](docs/MANUAL.md) | Complete user guide |
+| [`docs/MANUAL.md`](docs/MANUAL.md) | Complete user guide and CLI reference |
+| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Layered architecture, SQLite design, hostbind and splash subagent |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Settings reference |
-| [`docs/architecture.md`](docs/architecture.md) | Internal architecture |
+| [`docs/architecture.md`](docs/architecture.md) | Internal architecture and hook lifecycle |
 | [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Memory protocol reference |
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Tecnica_GOMEMORY-v2.51.html`](docs/Guia-Tecnica_GOMEMORY-v2.51.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.51.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.51.html) | Current printable technical and SDD_HCD guides (Spanish) |
+| [`docs/Guia-Rapida-HCD_GOMEMORY-v2.51.html`](docs/Guia-Rapida-HCD_GOMEMORY-v2.51.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.51.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.51.html) · [`docs/Guia-Tecnica_GOMEMORY-v2.51.html`](docs/Guia-Tecnica_GOMEMORY-v2.51.html) | Printable visual guides (HCD Quick Guide, SDD_HCD Guide, Technical Guide) |
 
 ## Contributing
 
