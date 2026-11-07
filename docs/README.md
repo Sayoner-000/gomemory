@@ -1,100 +1,90 @@
 # Documentación de gomemory
 
-Bienvenido al centro de documentación técnica y operativa de **gomemory** (`v2.51.1`).
+Índice y referencias técnicas de gomemory (versión 2.51.1).
 
-gomemory proporciona memoria persistente, local y portable para agentes de codificación de inteligencia artificial (Claude Code, OpenCode, Codex, Antigravity CLI / agy y harnesses personalizados), gestionada mediante una base de datos SQLite independiente por proyecto fuera del árbol de trabajo de git y servida a través del estándar [Model Context Protocol (MCP)](https://modelcontextprotocol.io/).
+gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, OpenCode, Codex y Antigravity CLI). Cada proyecto almacena sus datos en una base SQLite local fuera del árbol de Git y se comunica con el modelo mediante el protocolo MCP (Model Context Protocol).
 
----
+## Índice de documentos
 
-## 🗺️ Mapa de la Documentación
-
-| Documento | Descripción |
+| Archivo | Contenido |
 |---|---|
-| [**Manual de Usuario (MANUAL.md)**](MANUAL.md) | Guía completa de uso, comandos de CLI, configuración de agentes, flags y ejemplos prácticos. |
-| [**Arquitectura General (ARQUITECTURA.md)**](ARQUITECTURA.md) | Resumen técnico de diseño en capas, adaptadores primarios/secundarios, SQLite, hostbind y ciclo de vida de sesiones. |
-| [**Especificación Interna de Arquitectura (architecture.md)**](architecture.md) | Detalle profundo de estructuras internas, eventos de hooks, compresión estructural y árbol de dependencias. |
-| [**Configuración y Variables de Entorno (CONFIGURATION.md)**](CONFIGURATION.md) | Variables de entorno (`GOMEMORY_*`), límites de almacenamiento, umbrales y timeouts. |
-| [**Esquema de Base de Datos (DATABASE.md)**](DATABASE.md) | Migraciones de esquema SQLite (versiones 1 a 12), tablas (`memory_files`, `sessions`, `code_nodes`, etc.) e índices. |
-| [**Integración de Agentes y Runtimes (AGENT-INTEGRATION.md)**](AGENT-INTEGRATION.md) | Contrato de integración para nuevos agentes (Niveles 1, 2 y 3) y soporte específico para Claude Code, OpenCode, agy y Codex. |
-| [**Protocolo de Memoria (MEMORY-PROTOCOL.md)**](MEMORY-PROTOCOL.md) | Formatos JSON/MCP, bloques de integración, persistencia de decisiones, aprendizajes y checkpoints. |
-| [**Superherramienta Socratica (socratica.md)**](socratica.md) | Flujo socrático para clarificación reflexiva y diseño antes de implementar. |
-| [**Superherramienta Expand (expand.md)**](expand.md) | Auditoría de reglas operativas en tiempo real durante pre-tool invocations. |
-| [**Lecciones Aprendidas (lessons.md)**](lessons.md) | Registro de aprendizajes técnicos y casos límite resueltos en el desarrollo del proyecto. |
-| [**Temas de Consola y TUI (CONSOLE-THEMES.md)**](CONSOLE-THEMES.md) | Configuración visual y paletas para la interfaz de terminal interactiva. |
-| [**TDD Visual en CLI (CLI-VISUAL-TDD.md)**](CLI-VISUAL-TDD.md) | Metodología de pruebas para salidas visuales en consola. |
-| [**Notas y Guía de Release (release_gomemory_notes.md)**](release_gomemory_notes.md) | Proceso de empaquetado y publicación automatizada con GoReleaser y GitHub Actions. |
-| [**Auditorías Técnicas (audits/)**](audits/) | Informes de auditorías ACR/ADM, veredictos de calidad y registros de cierre de hallazgos. |
+| [MANUAL.md](MANUAL.md) | Manual de usuario: comandos, opciones de terminal, configuración de agentes y ejemplos de uso. |
+| [ARQUITECTURA.md](ARQUITECTURA.md) | Resumen de diseño: separación por capas, SQLite, resolución de identidad de procesos con hostbind y ciclo de vida. |
+| [architecture.md](architecture.md) | Especificación técnica interna: ciclo de eventos de hooks, compresión de contexto y estructura del grafo. |
+| [CONFIGURATION.md](CONFIGURATION.md) | Variables de entorno del sistema (`GOMEMORY_*`), límites de almacenamiento y tiempos de espera. |
+| [DATABASE.md](DATABASE.md) | Estructura de tablas e índices en SQLite (migraciones del esquema 1 al 12). |
+| [AGENT-INTEGRATION.md](AGENT-INTEGRATION.md) | Guía de integración para arneses y agentes nuevos (niveles 1, 2 y 3). |
+| [MEMORY-PROTOCOL.md](MEMORY-PROTOCOL.md) | Formato de mensajes MCP, bloques de contexto y guardado de decisiones o aprendizajes. |
+| [socratica.md](socratica.md) | Herramienta de clarificación socrática para refinar tareas antes de codificar. |
+| [expand.md](expand.md) | Verificación de reglas operativas en pre-tool para evitar ediciones directas de código con scripts. |
+| [lessons.md](lessons.md) | Registro de incidentes técnicos y decisiones tomadas ante problemas de concurrencia o límites de entorno. |
+| [CONSOLE-THEMES.md](CONSOLE-THEMES.md) | Configuración de color y temas visuales para la interfaz de consola. |
+| [CLI-VISUAL-TDD.md](CLI-VISUAL-TDD.md) | Pruebas de contrato visual para interfaces de terminal. |
+| [release_gomemory_notes.md](release_gomemory_notes.md) | Procedimiento de publicación y empaquetado multiplataforma con GoReleaser. |
+| [audits/](audits/) | Informes de auditorías ACR y ADM con seguimiento de cierres verificados. |
 
----
+## Guías de referencia
 
-## 📘 Guías Vigentes (HTML imprimibles e interactivas)
+Documentos en formato HTML preparados para lectura en pantalla o impresión directa a PDF:
 
-El proyecto mantiene tres guías ejecutivas visuales de diseño editorial en formato HTML (con soporte de impresión a PDF en 1040px y barra fija de herramientas):
+- [Guía rápida HCD (Guia-Rapida-HCD_GOMEMORY-v2.51.html)](Guia-Rapida-HCD_GOMEMORY-v2.51.html): resumen del flujo de trabajo con unidades HCD, diferencias entre la vía rápida y la ceremonia completa, y comandos de verificación.
+- [Guía SDD y HCD (Guia-SDD_HCD_GOMEMORY-v2.51.html)](Guia-SDD_HCD_GOMEMORY-v2.51.html): coordinación entre especificaciones formales con Spec Kit y el ciclo de comprobación de HCD.
+- [Guía técnica (Guia-Tecnica_GOMEMORY-v2.51.html)](Guia-Tecnica_GOMEMORY-v2.51.html): desglose de arquitectura del proyecto en 14 secciones, desde persistencia hasta compresión de respuestas.
 
-1. **[Guía Rápida HCD (Guia-Rapida-HCD_GOMEMORY-v2.51.html)](Guia-Rapida-HCD_GOMEMORY-v2.51.html)**: Resumen operativo de la metodología HCD (Hipótesis, Comprobación y Demostración), carril rápido (`fast`) vs ceremonia completa (`full`), comandos esenciales y buenas prácticas.
-2. **[Guía SDD_HCD (Guia-SDD_HCD_GOMEMORY-v2.51.html)](Guia-SDD_HCD_GOMEMORY-v2.51.html)**: Manual de convivencia entre Spec Kit y HCD, con ejemplos de descomposición atómica y trazabilidad.
-3. **[Guía Técnica de Arquitectura (Guia-Tecnica_GOMEMORY-v2.51.html)](Guia-Tecnica_GOMEMORY-v2.51.html)**: Arquitectura completa de gomemory en 14 capítulos, cubriendo desde el almacenamiento SQLite hasta la compresión con preservación sintáctica.
+## Subagente splash: revisor sin contexto
 
----
+El subagente `splash` resuelve un problema recurrente al revisar código o especificaciones: el sesgo de confirmación.
 
-## 🐟 Subagente `splash`: Revisor sin Contexto (Modelo Elephant-Goldfish)
+Cuando un agente trabaja durante varios turnos en un proyecto, acumula contexto de las decisiones y discusiones previas (el modelo del elefante). Si ese mismo agente revisa una definición técnica, tiende a dar por sentadas premisas que nunca se escribieron en el documento o pasa por alto rutas que no existen porque recuerda la intención original.
 
-Una de las innovaciones centrales de gomemory (incorporada en `HCD-047` y consolidada en `HCD-051`) es el subagente **`splash`**.
+gomemory implementa para este caso el modelo de revisor de contexto cero (el modelo del pez dorado o goldfish, denominado `splash`):
+- Inicia la sesión sin memorias históricas del proyecto ni bloques de contexto previo.
+- No dispone de herramientas MCP para escribir o buscar recuerdos.
+- Solo utiliza herramientas de lectura del sistema de archivos (`read`, `grep`, `glob`) para contrastar el documento con el estado real del repositorio.
 
-### ¿Qué es y por qué existe?
-El agente principal que trabaja en un proyecto opera bajo el modelo del **elefante**: acumula contexto, historial de decisiones, convenciones y memoria continua. Sin embargo, al momento de revisar una propuesta, un diseño o una definición de requerimientos, este exceso de contexto produce un **sesgo de confirmación**: el agente asume como evidentes cosas que nunca se especificaron o ignora incoherencias porque "sabe" lo que se intentaba hacer.
+### Soporte por agente
 
-Para resolver esto, gomemory implementa el modelo **Elephant-Goldfish (EGM)** con el subagente `splash` (la gota que salpica sin arrastrar memoria):
-- **Contexto Cero:** Arranca sin memoria previa del proyecto, sin volcado de memorias ni avisos de contexto.
-- **Sin Herramientas MCP de Memoria:** No tiene acceso a `save_memory`, `search_memories`, ni a instrucciones globales.
-- **Solo Código Vivo y Documento:** Únicamente dispone de lectura de archivos locales (`read`, `grep`, `glob`) para auditar la realidad física del repositorio frente al texto planteado.
+El comando `mem setup` configura la plantilla de `splash` en los entornos presentes en la máquina:
 
-### Despliegue en los 4 Runtimes Soportados
-
-`mem setup` instala automáticamente la plantilla de `splash` en todos los agentes que se encuentren configurados en el entorno:
-
-| Runtime | Archivo de Configuración | Modo de Lanzamiento | Mecanismo de Aislamiento en gomemory |
+| Entorno | Archivo instalado | Invocación | Aislamiento en gomemory |
 |---|---|---|---|
-| **Claude Code** | `~/.claude/agents/splash.md` | Subagente tipo `splash` (`/splash`) | `SubagentStart` detecta `agent_type: "splash"` y omite la inyección de contexto. Configurado con `omitClaudeMd: true` y tools de solo lectura (`Read`, `Grep`, `Glob`). |
-| **OpenCode** | `~/.config/opencode/agents/splash.md` | Subagente `splash` (tool `task`) | El plugin de OpenCode intercepta la creación de la sesión hija y no le inyecta el aviso de subagente ni el protocolo. |
-| **Antigravity (agy)** | `~/.gemini/config/agents/splash/agent.md` | `invoke_subagent` con `TypeName: "splash"` | El hook `classifyAgySubagent` marca el subagente y `SessionStart` suprime el bloque de memoria; `inheritMcp: false` lo aísla del MCP. |
-| **Codex** | `~/.codex/agents/splash.toml` | `spawn_agent(agent_type: "splash", fork_turns: "none")` | Instrucciones estrictas de no invocar herramientas MCP; `sandbox_mode = "read-only"`. Si el padre omite `fork_turns: "none"`, el hook pre-tool avisa de la herencia indeseada. |
+| Claude Code | `~/.claude/agents/splash.md` | Subagente `splash` (`/splash`) | `SubagentStart` detecta `agent_type: "splash"` y no inyecta recuerdos. La plantilla usa `omitClaudeMd: true` y solo permite lectura de archivos. |
+| OpenCode | `~/.config/opencode/agents/splash.md` | Subagente `splash` mediante la herramienta `task` | El plugin de OpenCode intercepta la sesión hija y no envía el aviso de subagente ni el bloque de protocolo. |
+| Antigravity (agy) | `~/.gemini/config/agents/splash/agent.md` | `invoke_subagent` con `TypeName: "splash"` | El hook `classifyAgySubagent` identifica el nombre en pre-tool; `SessionStart` suprime el contexto y la configuración fija `inheritMcp: false`. |
+| Codex | `~/.codex/agents/splash.toml` | `spawn_agent(agent_type: "splash", fork_turns: "none")` | La plantilla opera en `sandbox_mode = "read-only"`. Las instrucciones prohíben llamar herramientas MCP. Si el padre no pasa `fork_turns: "none"`, el hook pre-tool emite un aviso. |
 
-### Integración en la Ceremonia HCD (`/hcd-approve`)
+### Revisión en la ceremonia de aprobación
 
-En la ceremonia completa de HCD, el paso `/hcd-approve` ofrece invocar al revisor `splash` sobre el documento de la unidad (`hcd/HCD-NNN-*.md`) antes de pedir la aprobación formal:
-1. **Lentes de Inspección:**
-   - **Rutas inexistentes:** Rutas de archivo citadas en el documento que no existen en el árbol de trabajo.
-   - **Criterios no comprobables:** Condiciones de aceptación ambiguas o sin método de prueba reproducible.
-   - **Supuestos sin evidencia:** Declaraciones sobre el comportamiento del sistema no respaldadas por pruebas.
-   - **Contradicciones internas:** Incoherencias entre alcance, intención y tareas.
-2. **Severidad de Hallazgos:**
-   - **Blocker:** Detiene la solicitud de aprobación hasta que el error sea corregido o descartado explícitamente por el usuario.
-   - **Major / Nit:** Informativos. Se propone la corrección y el usuario decide si aplicarla.
-3. **Economía del Cambio:** Corregir la definición en la fase de aprobación evita re-aprobaciones costosas y repetición de baterías de pruebas durante la verificación.
+En la ceremonia completa de HCD, el paso `/hcd-approve` propone ejecutar `splash` sobre el archivo de la unidad antes de pedir la aprobación formal.
 
----
+La revisión analiza cuatro puntos: rutas que no existen en el disco, criterios de aceptación que no se pueden medir, afirmaciones sin respaldo técnico y contradicciones entre apartados del documento.
 
-## 🛠️ Comandos Esenciales de gomemory
+Los problemas detectados se clasifican en dos niveles:
+1. Hallazgos bloqueantes (Blocker): impiden pedir la aprobación hasta que la persona decida corregir el documento o descartar el aviso de forma explícita.
+2. Hallazgos informativos (Major y Nit): sugerencias de redacción o advertencias menores que no detienen el flujo.
+
+Detectar estos errores antes de la aprobación evita tener que reescribir la definición después de implementar, lo que obligaría a reiniciar las comprobaciones de todas las tareas.
+
+## Comandos frecuentes
 
 ```bash
-# Diagnóstico integral del sistema y agentes
+# Diagnóstico de integración y estado de agentes
 mem doctor
 
-# Inspección y estado del ciclo HCD
+# Estado de la unidad de trabajo activa
 mem hcd
 mem hcd status
 mem hcd analyze
 
-# Historial de decisiones y unidades HCD que citan un archivo
+# Historial de decisiones asociadas a un archivo
 mem hcd history [texto] [--file ruta/al/archivo]
 
-# Gestión y exportación de documentos fijados
+# Gestión de documentos fijados del proyecto
 mem docs list
 mem docs show rules
 mem docs show constitution
 
-# Instalación y configuración de agentes y subagentes
+# Configuración y actualización de plantillas de agente
 mem setup
 mem update
 ```

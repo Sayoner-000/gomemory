@@ -297,7 +297,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 
 | Document | Contents |
 | :--- | :--- |
-| [`docs/README.md`](docs/README.md) | Master documentation portal and architecture map |
+| [`docs/README.md`](docs/README.md) | Documentation index, guide directory, and architecture map |
 | [`INSTALLATION.md`](INSTALLATION.md) | Installation, agent registration, updates, troubleshooting |
 | [`docs/MANUAL.md`](docs/MANUAL.md) | Complete user guide and CLI reference |
 | [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Layered architecture, SQLite design, hostbind and splash subagent |

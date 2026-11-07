@@ -182,18 +182,18 @@ garantía completa sin una sola línea modificada en gomemory.
 
 En agy 1.4.12 no hay compresión automática de salidas ni aviso tras compactar. `allow` no aprueba nada: la decisión sigue siendo de los permisos de agy. `mem doctor` marca como desactualizada cualquier otra versión. Las skills se instalan en `~/.gemini/config/skills`, la carpeta global de agy. La instalación también convierte a rutas absolutas las entradas de `skills.json` que empiezan por `~`, porque agy las descarta. Evidencia: `docs/evidence/hcd015/`.
 
-## Aislamiento de Subagentes Revisor sin Contexto (`splash`)
+## Subagente splash: revisor sin contexto
 
-Cuando un agente lanza un subagente de tipo `splash` (el revisor sin contexto bajo el modelo Elephant-Goldfish, HCD-047 y HCD-051), el runtime o el envoltorio debe cumplir las siguientes reglas de aislamiento:
+Un agente que integre soporte para el revisor sin contexto (`splash`, HCD-047 y HCD-051) debe cumplir tres condiciones de aislamiento:
 
-1. **Sin Contexto de Arranque:** Si `agent_type == "splash"` o el subagente se identifica con ese nombre, `SubagentStart` o el hook de inicio no debe inyectar memorias previas, instrucciones globales ni el bloque de integración MCP.
-2. **Sin Herramientas MCP de Memoria:** El subagente debe disponer únicamente de herramientas del sistema de archivos de solo lectura (`read`, `grep`, `glob`). No debe tener acceso a herramientas como `save_memory` o `search_memories`.
-3. **Sin Herencia de Conversación:** En agentes que soporten bifurcación de contexto (como `spawn_agent` en Codex), la invocación debe forzar `fork_turns: "none"` para garantizar que el revisor evalúe la especificación de manera estrictamente imparcial.
+- Omitir el contexto inicial: si `agent_type` es `splash` o el subagente se lanza con ese nombre, el hook de inicio no debe inyectar memorias previas ni bloques de integración MCP.
+- Limitar las herramientas: el subagente solo debe tener acceso a herramientas de lectura del sistema de archivos (`read`, `grep`, `glob`), sin herramientas de memoria.
+- Evitar la herencia de conversación: en arneses que permitan bifurcar turnos (como `spawn_agent` en Codex), la llamada debe forzar `fork_turns: "none"`.
 
-`mem setup` instala automáticamente las plantillas correspondientes en Claude Code (`~/.claude/agents/splash.md`), OpenCode (`~/.config/opencode/agents/splash.md`), agy (`~/.gemini/config/agents/splash/agent.md`) y Codex (`~/.codex/agents/splash.toml`).
+El comando `mem setup` instala estas plantillas en Claude Code (`~/.claude/agents/splash.md`), OpenCode (`~/.config/opencode/agents/splash.md`), agy (`~/.gemini/config/agents/splash/agent.md`) y Codex (`~/.codex/agents/splash.toml`).
 
 ## Ver también
 
-- `mem doctor [--json] [--strict]` — reporte de cobertura de canales por agente.
-- [MANUAL.md](./MANUAL.md) — comandos del CLI en general.
-- [architecture.md](./architecture.md) — cómo encajan los hooks y el registro de capacidades.
+- `mem doctor [--json] [--strict]`: reporte de cobertura de canales por agente.
+- [MANUAL.md](./MANUAL.md): comandos del CLI en general.
+- [architecture.md](./architecture.md): cómo encajan los hooks y el registro de capacidades.

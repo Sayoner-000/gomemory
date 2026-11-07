@@ -647,19 +647,19 @@ Se registran en `.claude/settings.json` (`mem setup claude-code` o `mem hook`), 
 | _(interno, transversal)_ | `prompt` | Persiste el prompt del usuario (recibido por stdin `{"prompt": …}`) en la sesión activa. Lo invoca el plugin de OpenCode desde su evento `chat.message` (equivalente a `UserPromptSubmit`); en Claude Code la captura va inline dentro de `user-prompt-submit`. `InsertMemory` adjunta ese prompt como `origin_prompt` a toda memoria guardada en el turno |
 | `SubagentStart` | `subagent-start` | Registra el inicio de una delegación para conservar su trazabilidad. Con `agent_type` `splash` no inyecta contexto (HCD-047) |
 | `SubagentStop` | `subagent-stop` | Registra el checkpoint del subagente y extrae de forma determinista los ítems válidos de `Aprendizajes clave` o `Key Learnings` |
-
-#### Subagente splash y modelo Elephant-Goldfish (HCD-047, HCD-051)
-
-`splash` actúa como revisor sin contexto ni memoria del proyecto para mitigar el sesgo de confirmación del agente principal al evaluar especificaciones o acuerdos técnicos:
-- **Claude Code:** `SubagentStart` detecta `agent_type: "splash"` y omite la inyección de contexto.
-- **OpenCode:** El plugin `gomemory.ts` omite el aviso de subagente para sesiones del tipo `splash`.
-- **agy:** `classifyAgySubagent` marca el subagente en `PreToolUse`; el inicio de sesión del hijo no recibe memoria e inhabilita MCP (`inheritMcp: false`).
-- **Codex:** Plantilla con `sandbox_mode = "read-only"` y advertencia en pre-tool si se omite `fork_turns: "none"`.
-- **Ceremonia HCD:** `/hcd-approve` ofrece revisión preliminar por `splash`; un hallazgo **Blocker** frena la cita de aprobación hasta su subsanación.
 | `PreToolUse` (matcher `ExitPlanMode`) | `plan-guard` | Valida la estructura del plan antes de presentarlo |
 | `PostToolUse` (matcher `ExitPlanMode`) | `plan-approved` | Cuando el usuario **aprueba un plan**, guarda el plan como memoria `decision` de forma determinista (sin gastar tokens ni depender de que el modelo llame `save_memory`). Cubre un hueco: un turno de plan mode es puro chat (sin ediciones ni comandos), así que `turn-end` lo descarta por vacío y las decisiones del plan se perdían. `PostToolUse` solo dispara si el usuario aprobó (un plan rechazado no ejecuta la tool). Transversal: acepta el plan en `tool_input.plan` (Claude Code) o en `plan` de nivel superior (OpenCode/otros); el plugin de OpenCode lo invoca al detectar un turno con `info.mode==="plan"`. Append-only: cada aprobación (incluidos planes revisados) genera una nueva `decision`, así la evolución no se pierde |
 | `PostToolUse` (matcher `EnterPlanMode`) | `plan-entered` | Entrega el método de descomposición y el historial necesario antes de redactar el plan |
 | _(interno, transversal)_ | `nudge` | Imprime en texto plano el recordatorio de guardado (o nada) según la misma decisión que `user-prompt-submit`. Lo consumen integraciones sin acceso al JSON de Claude Code, como el plugin de OpenCode, para que el comportamiento sea idéntico entre agentes |
+
+#### Aislamiento del subagente splash (HCD-047, HCD-051)
+
+`splash` actúa como revisor sin recuerdos del proyecto para evitar el sesgo de confirmación al revisar documentos técnicos:
+- Claude Code: `SubagentStart` detecta `agent_type: "splash"` y no añade memorias al contexto.
+- OpenCode: el plugin `gomemory.ts` no emite el aviso de subagente a la sesión hija.
+- agy: `classifyAgySubagent` identifica el subagente en pre-tool; la sesión hija arranca sin memoria y con `inheritMcp: false`.
+- Codex: plantilla en modo solo lectura (`sandbox_mode = "read-only"`) y advertencia si falta `fork_turns: "none"`.
+- HCD: en la ceremonia completa, `/hcd-approve` propone ejecutar `splash` antes de solicitar la aprobación de la unidad.
 
 #### Integridad de hooks (feature 035)
 

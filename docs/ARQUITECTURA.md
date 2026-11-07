@@ -179,63 +179,12 @@ a diferencia de `InsertEdges`. `ReplaceFileNodes` y `DeleteCodeFile` borran
 las pendientes del archivo junto con sus nodos. Con esto se cierra el límite
 que había dejado HCD-029.
 
-## Historial de Decisiones HCD y Tabla memory_files (HCD-046)
+## Historial de decisiones, subagente splash y resiliencia de hooks (HCD-046 a HCD-054)
 
-Para evitar la dispersión de memorias efímeras generadas en cada paso de una
-unidad de trabajo, HCD-046 consolidó el historial en fichas únicas:
-- **Una ficha por unidad:** Identificada con `topic_key` `hcd/HCD-NNN` que el motor
-  actualiza de forma idempotente en cada transición de estado (`HCD.recorded`).
-- **Una ficha por auditoría:** Con clave `audit/<nombre>` para los informes de
-  `docs/audits/`, reflejando hallazgos y cierres verificados.
-- **Tabla `memory_files` (esquema 12):** Relaciona de forma N:M cada memoria con
-  las rutas citadas en su texto. Al editar un archivo, `get_context` recupera las
-  fichas HCD asociadas antes que las auditorías.
-- **Herramientas de consulta e indexación:** Comando CLI `mem hcd history`
-  (con filtro `--file`), backfill con `mem hcd index [--apply]` y la herramienta
-  MCP `hcd_history` para que los agentes consulten decisiones previas sobre archivos concretos.
+**Fichas de decisiones y tabla `memory_files` (HCD-046).** Antes cada paso del motor dejaba una memoria suelta en la base de datos. Ahora cada unidad conserva una única ficha viva con clave `hcd/HCD-NNN` que se actualiza en cada cambio de estado, y cada auditoría de `docs/audits/` mantiene su propia ficha `audit/<archivo>`. La tabla `memory_files` (esquema 12) indexa los archivos citados en cada ficha; cuando el agente va a editar un archivo, `get_context` recupera las decisiones previas asociadas. `mem hcd index` genera el índice histórico de forma acumulativa y la herramienta MCP `hcd_history` expone las consultas para los agentes.
 
-## Subagente splash: Revisor sin Memoria y Ceremonia HCD (HCD-047 y HCD-051)
+**Subagente `splash` sin memoria (HCD-047 y HCD-051).** Para evitar el sesgo de confirmación al revisar documentos y propuestas técnicas, `splash` arranca con contexto cero (el modelo del pez dorado frente al modelo del elefante). No recibe memorias del proyecto ni herramientas MCP, y solo puede leer archivos locales con `read`, `grep` y `glob`. `SubagentStart` omite el contexto en Claude Code (`~/.claude/agents/splash.md`), el plugin de OpenCode intercepta la sesión hija, agy aísla el MCP con `inheritMcp: false` y Codex usa `spawn_agent` con `fork_turns: "none"`. En la ceremonia completa de HCD, `/hcd-approve` ofrece lanzar `splash` sobre el documento de la unidad antes de pedir la aprobación formal; los hallazgos de tipo Blocker detienen la cita hasta su resolución.
 
-`splash` implementa el patrón **Elephant-Goldfish (EGM)**: mientras el agente
-principal acumula memoria y contexto continuo (el elefante), `splash` actúa como
-revisor de contexto cero (el pez dorado) para auditar propuestas técnicas y
-documentos de unidad sin sesgo ni preconceptos.
+**Rutas de configuración en `analyze` (HCD-052).** Un documento de unidad suele citar rutas del entorno del usuario bajo `~/.claude/`, `~/.codex/` o `~/.gemini/`. `RepoMissingPaths` en `domain/hcd_lens.go` las descarta de la comprobación de archivos inexistentes para no generar falsos positivos `PATH-MISSING`. `CitedPaths` las conserva para mantener los enlaces en el grafo.
 
-- **Aislamiento en los cuatro runtimes:**
-  - **Claude Code:** `SubagentStart` detecta `agent_type == "splash"` y omite
-    la inyección de contexto. La plantilla (`~/.claude/agents/splash.md`) fija
-    herramientas de solo lectura (`Read`, `Grep`, `Glob`), sin MCP y con `omitClaudeMd: true`.
-  - **OpenCode:** El plugin (`infrastructure/plugin/opencode/gomemory.ts`) intercepta
-    la sesión del hijo y suprime el aviso de subagente.
-  - **Antigravity (agy):** `classifyAgySubagent` reconoce `TypeName: "splash"` en
-    el hook `PreToolUse`; el inicio de sesión del hijo no recibe memoria y
-    se configura con `inheritMcp: false`.
-  - **Codex:** Plantilla `~/.codex/agents/splash.toml` con `sandbox_mode = "read-only"`.
-    El hook `pre-tool` exige invocar con `spawn_agent(agent_type: "splash", fork_turns: "none")`
-    para evitar heredar la conversación.
-- **Integración en `/hcd-approve` (HCD-051):** En la ceremonia completa, el paso
-  de aprobación ofrece una revisión preliminar con `splash` antes de pedir la cita.
-  Los hallazgos clasificados como **Blocker** impiden la aprobación hasta su
-  corrección o descarte explícito por el usuario, evitando re-aprobaciones posteriores.
-
-## Filtro de Rutas de Agentes del HOME en analyze (HCD-052)
-
-Los documentos HCD citan frecuentemente archivos de configuración de agentes
-ubicados en el directorio del usuario (`~/.claude/`, `~/.codex/`, `~/.gemini/`,
-`~/.config/`). `domain/hcd_lens.go` introdujo `RepoMissingPaths` diferenciado de
-`CitedPaths`: `analyze` ignora rutas ausentes que pertenezcan a directorios de
-configuración conocidos del entorno para no emitir falsas alarmas de `PATH-MISSING`,
-mientras `CitedPaths` preserva el enlace en el grafo de memorias.
-
-## Resiliencia y Concesiones en el Hook tool-output (HCD-053 y HCD-054)
-
-- **Determinismo y consumo de pistas (HCD-053):** El hook `tool-output` ordena
-  alfabéticamente los campos JSON antes de comprimir, asegurando que la pista de
-  recuperación se inyecte siempre en el mismo campo. Además, la pista solo se
-  marca como entregada si la respuesta se emite efectivamente dentro del
-  presupuesto de 150 ms (`runToolOutputBudget`), evitando que un timeout descarte
-  la salida y deje al agente sin saber cómo recuperar los originales.
-- **Omisión de concesiones tras vencimiento (HCD-054):** `toolOutputCompress`
-  valida de forma estricta que una compresión finalizada fuera del presupuesto no
-  inicie `GrantAutomaticOriginals` ni registre concesiones en la base de datos,
-  protegiendo la integridad del almacén de originales.
+**Presupuesto y concesiones en `tool-output` (HCD-053 y HCD-054).** El hook `tool-output` comprime respuestas JSON ordenando los campos alfabéticamente para que la nota de recuperación aparezca de forma determinista en el primer campo. `runToolOutputBudget` anota la pista como mostrada solo si la salida se entrega dentro de los 150 ms del presupuesto. Si el proceso supera el plazo, `toolOutputCompress` descarta la salida y omite la llamada a `GrantAutomaticOriginals`, de modo que no se conceden referencias de almacenamiento que el agente nunca llegó a recibir.
