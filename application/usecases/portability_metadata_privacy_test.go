@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"mem/adapters/secondary/persistence"
+	"mem/application/ports"
 	"mem/application/usecases"
 	"mem/domain"
 )
@@ -55,5 +56,51 @@ func TestExportProject_ProtegeMetadatosHistoricos(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "SYNTH-") {
 		t.Fatalf("export reemite metadatos privados:\n%s", buf.String())
+	}
+}
+
+type mockMemRepoForExport struct {
+	ports.MemoryRepository
+	mems []domain.Memory
+}
+
+func (m *mockMemRepoForExport) ListAll(project string) ([]domain.Memory, error) {
+	return m.mems, nil
+}
+
+type mockRelRepoForExport struct {
+	ports.RelationRepository
+}
+
+func (r *mockRelRepoForExport) ListAll(project string) ([]domain.Relation, error) {
+	return nil, nil
+}
+
+func TestExportProject_ProtegeMetadatosDefensaEnProfundidad(t *testing.T) {
+	memRepo := &mockMemRepoForExport{
+		mems: []domain.Memory{
+			{
+				ID:       1,
+				Project:  "src",
+				Type:     domain.Decision,
+				Title:    "limpio",
+				Content:  "cuerpo",
+				Filepath: "src/<private>SYNTH-RAW-PATH</private>/foo.go",
+				TopicKey: "<private>SYNTH-RAW-TOPIC</private>",
+			},
+		},
+	}
+	bundle, err := usecases.ExportProject(memRepo, &mockRelRepoForExport{}, "src")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bundle.Memories) != 1 {
+		t.Fatalf("se esperaba 1 memoria, got %d", len(bundle.Memories))
+	}
+	if strings.Contains(bundle.Memories[0].Filepath, "SYNTH-RAW-PATH") {
+		t.Errorf("Filepath conservó texto privado: %s", bundle.Memories[0].Filepath)
+	}
+	if strings.Contains(bundle.Memories[0].TopicKey, "SYNTH-RAW-TOPIC") {
+		t.Errorf("TopicKey conservó texto privado: %s", bundle.Memories[0].TopicKey)
 	}
 }

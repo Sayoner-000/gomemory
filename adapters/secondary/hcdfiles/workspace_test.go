@@ -2,6 +2,7 @@ package hcdfiles
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -158,6 +159,27 @@ func TestRunTerminaLosDescendientesAlVencerElPlazo(t *testing.T) {
 	time.Sleep(2500*time.Millisecond - elapsed)
 	if _, err := os.Stat(filepath.Join(root, "canario-tardio")); err == nil {
 		t.Fatal("un descendiente siguió vivo y escribió después del plazo")
+	}
+}
+
+func TestConfigureProcessTree_PidInvalido(t *testing.T) {
+	cmd := exec.Command("echo", "test")
+	configureProcessTree(cmd)
+	if cmd.Cancel == nil {
+		t.Fatal("configureProcessTree no configuró cmd.Cancel")
+	}
+	// Sin cmd.Process asignado:
+	if err := cmd.Cancel(); !errors.Is(err, os.ErrProcessDone) {
+		t.Fatalf("cmd.Cancel() sin Process = %v, quiero ErrProcessDone", err)
+	}
+	// Con cmd.Process con Pid <= 0:
+	cmd.Process = &os.Process{Pid: 0}
+	if err := cmd.Cancel(); !errors.Is(err, os.ErrProcessDone) {
+		t.Fatalf("cmd.Cancel() con Pid 0 = %v, quiero ErrProcessDone", err)
+	}
+	cmd.Process = &os.Process{Pid: -1}
+	if err := cmd.Cancel(); !errors.Is(err, os.ErrProcessDone) {
+		t.Fatalf("cmd.Cancel() con Pid -1 = %v, quiero ErrProcessDone", err)
 	}
 }
 

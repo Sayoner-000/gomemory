@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -53,7 +54,13 @@ func store(t *testing.T, dir string, procs map[int]proc, self int) *Store {
 // los hooks sin session_id perdían su conversación.
 func TestPsInfo_ProcesoActual(t *testing.T) {
 	ppid, start, comm, err := psInfo(os.Getpid())
-	if err != nil || ppid != os.Getppid() || start == "" || comm == "" {
+	if err != nil {
+		if strings.Contains(err.Error(), "operation not permitted") {
+			t.Skipf("ps no permitido en este entorno (sandbox/contenedor): %v", err)
+		}
+		t.Fatalf("psInfo(self) en %s = %d %q %q %v; padre real %d", runtime.GOOS, ppid, start, comm, err, os.Getppid())
+	}
+	if ppid != os.Getppid() || start == "" || comm == "" {
 		t.Fatalf("psInfo(self) en %s = %d %q %q %v; padre real %d", runtime.GOOS, ppid, start, comm, err, os.Getppid())
 	}
 	again, start2, _, err := psInfo(os.Getpid())
