@@ -14,6 +14,74 @@ func fakeCompress(s string) (string, bool) {
 	return "COMPRIMIDO ⟦mem⟧ · ref=abcdefabcdef", true
 }
 
+// HCD-053: la nota de recuperación solo se da por mostrada si la salida se
+// entrega. Una ejecución que vence el presupuesto no la consume, no concede
+// referencias y la siguiente la vuelve a llevar. Con stdout y stderr
+// comprimibles, la nota va en un solo campo y siempre en el mismo.
+func TestToolOutputHint(t *testing.T) {
+	root := t.TempDir()
+	const budget = 50 * time.Millisecond
+
+	// Vence el presupuesto después de pedir la nota: la salida se descarta.
+	expiredSeen := make(chan bool, 1)
+	out := runToolOutputBudget(root, budget, func(hint func() string, expired func() bool) []byte {
+		h := hint()
+		time.Sleep(3 * budget)
+		expiredSeen <- expired()
+		return []byte("salida" + h)
+	})
+	if out != nil {
+		t.Fatalf("una salida fuera de presupuesto se descarta: %q", out)
+	}
+	select {
+	case seen := <-expiredSeen:
+		if !seen {
+			t.Error("expired() debe ser cierto tras el plazo: sin eso se concederían referencias que nadie ve")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("la ejecución descartada no terminó")
+	}
+
+	// La siguiente entrega sí la lleva, y solo entonces cuenta como mostrada.
+	out = runToolOutputBudget(root, time.Second, func(hint func() string, _ func() bool) []byte {
+		return []byte("salida" + hint())
+	})
+	if !strings.Contains(string(out), RetrieveHint) {
+		t.Fatalf("la nota perdida por el plazo debe llegar en la siguiente entrega: %q", out)
+	}
+	out = runToolOutputBudget(root, time.Second, func(hint func() string, _ func() bool) []byte {
+		return []byte("salida" + hint())
+	})
+	if strings.Contains(string(out), RetrieveHint) {
+		t.Fatalf("una nota ya entregada no se repite: %q", out)
+	}
+
+	// Un solo campo lleva la nota, y siempre el mismo (orden alfabético).
+	in := `{"tool_name":"Bash","tool_response":{"stdout":"` + strings.Repeat("o", 80) + `","stderr":"` + strings.Repeat("e", 80) + `"}}`
+	for i := 0; i < 20; i++ {
+		fresh := t.TempDir()
+		out = runToolOutputBudget(fresh, time.Second, func(hint func() string, _ func() bool) []byte {
+			return rewriteToolOutput("claude", []byte(in), func(s string) (string, bool) {
+				c, ok := fakeCompress(s)
+				return c + hint(), ok
+			})
+		})
+		var got struct {
+			HSO struct {
+				Updated map[string]any `json:"updatedToolOutput"`
+			} `json:"hookSpecificOutput"`
+		}
+		if err := json.Unmarshal(out, &got); err != nil {
+			t.Fatalf("salida no JSON: %s", out)
+		}
+		stderr, _ := got.HSO.Updated["stderr"].(string)
+		stdout, _ := got.HSO.Updated["stdout"].(string)
+		if !strings.Contains(stderr, RetrieveHint) || strings.Contains(stdout, RetrieveHint) {
+			t.Fatalf("la nota debe ir solo en stderr, el primer campo en orden alfabético: stderr=%q stdout=%q", stderr, stdout)
+		}
+	}
+}
+
 func TestRewriteToolOutputClaudeBashShape(t *testing.T) {
 	in := `{"tool_name":"Bash","tool_response":{"stdout":"` + strings.Repeat("x", 80) + `","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false}}`
 	out := rewriteToolOutput("claude", []byte(in), fakeCompress)

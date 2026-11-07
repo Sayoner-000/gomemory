@@ -21,6 +21,8 @@ func TestCompressKeepsEveryRefWithSmallConfiguredCap(t *testing.T) {
 	clk := &fakeClock{now: time.Date(2026, 9, 25, 10, 0, 0, 0, time.UTC)}
 	store := NewOriginalStoreRepository(db, clk, 7, domain.EffectiveOriginalsMaxMB(1))
 	engine := native.NewEngine(store, nil, nil, "p")
+	// Esta prueba mide el tope de originales, no la latencia de guardado.
+	engine.StoreTimeout = 10 * time.Second
 
 	rng := rand.New(rand.NewSource(3))
 	fenced := func() string { // array JSON grande e incompresible por gzip

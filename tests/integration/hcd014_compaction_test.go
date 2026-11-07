@@ -34,6 +34,10 @@ func TestHCD014CompactionContinuity(t *testing.T) {
 		}
 		hook := func() string {
 			r := correrMem(t, bin, root, os.Environ(), string(payload), "hook", "tool-output", "claude")
+			// Reintentar solo el descarte por presupuesto, hasta cinco intentos.
+			for attempt := 1; attempt < 5 && r.code == 0 && r.stdout == ""; attempt++ {
+				r = correrMem(t, bin, root, os.Environ(), string(payload), "hook", "tool-output", "claude")
+			}
 			if r.code != 0 || !strings.Contains(r.stdout, "ref=") {
 				t.Fatalf("hook: %s %s", r.stdout, r.stderr)
 			}

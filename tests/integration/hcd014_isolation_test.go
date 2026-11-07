@@ -128,6 +128,10 @@ func testHCD014AutomaticRecoveryCLI(t *testing.T) {
 	env := append(os.Environ(), "GOMEMORY_DATA_HOME="+t.TempDir(), "GOMEMORY_NO_CODE_REFRESH=1")
 	payload, _ := json.Marshal(map[string]any{"session_id": "stable-host-session", "tool_name": "Bash", "tool_input": map[string]any{"command": "go test ./..."}, "tool_response": map[string]any{"stdout": hcd014Log(), "stderr": "", "interrupted": false}})
 	r := correrMem(t, bin, root, env, string(payload), "hook", "tool-output", "claude")
+	// Reintentar solo el descarte por presupuesto, hasta cinco intentos.
+	for attempt := 1; attempt < 5 && r.code == 0 && r.stdout == ""; attempt++ {
+		r = correrMem(t, bin, root, env, string(payload), "hook", "tool-output", "claude")
+	}
 	refs := regexp.MustCompile(`ref=([a-f0-9]{12,16})`).FindStringSubmatch(r.stdout)
 	if r.code != 0 || len(refs) != 2 {
 		t.Fatalf("hook did not publish original: %s %s", r.stdout, r.stderr)

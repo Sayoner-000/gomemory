@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"mem/domain"
 )
@@ -77,10 +78,17 @@ func TestToolOutputMinTokens_Umbral(t *testing.T) {
 // vez por conversación, no en cada salida comprimida.
 func TestRetrieveHintOnce(t *testing.T) {
 	root := t.TempDir()
-	if got := retrieveHintOnce(root); got != RetrieveHint {
+	if got := retrieveHintPending(root); got != RetrieveHint {
 		t.Errorf("la primera salida comprimida lleva la nota")
 	}
-	if got := retrieveHintOnce(root); got != "" {
+	// Pedirla no la marca: solo cuenta una vez entregada (HCD-053).
+	if got := retrieveHintPending(root); got != RetrieveHint {
+		t.Errorf("consultar la nota no la consume: %q", got)
+	}
+	runToolOutputBudget(root, time.Second, func(hint func() string, _ func() bool) []byte {
+		return []byte("salida" + hint())
+	})
+	if got := retrieveHintPending(root); got != "" {
 		t.Errorf("las siguientes no la repiten: %q", got)
 	}
 }

@@ -48,6 +48,14 @@ func TestHookToolOutput(t *testing.T) {
 		}
 		return out, time.Since(start)
 	}
+	// El presupuesto real puede descartar la salida bajo carga (HCD-053).
+	runCompressed := func(runtime string, in []byte) ([]byte, time.Duration) {
+		out, took := run(on, runtime, in)
+		for attempt := 1; attempt < 5 && len(out) == 0; attempt++ {
+			out, took = run(on, runtime, in)
+		}
+		return out, took
+	}
 	keysOf := func(v any) []string {
 		m, _ := v.(map[string]any)
 		var ks []string
@@ -64,7 +72,7 @@ func TestHookToolOutput(t *testing.T) {
 		{"claude-mcp.json", "claude", "updatedToolOutput"},
 	} {
 		in := fixture(c.fixture)
-		out, took := run(on, c.runtime, in)
+		out, took := runCompressed(c.runtime, in)
 		var ev struct {
 			TR any `json:"tool_response"`
 		}
@@ -90,7 +98,7 @@ func TestHookToolOutput(t *testing.T) {
 		t.Logf("%s: %d → %d bytes en %v", c.fixture, len(origJSON), len(updJSON), took)
 	}
 
-	if out, _ := run(on, "opencode", fixture("opencode-bash.json")); !bytes.Contains(out, []byte(`"output":`)) || !bytes.Contains(out, []byte("⟦mem⟧")) {
+	if out, _ := runCompressed("opencode", fixture("opencode-bash.json")); !bytes.Contains(out, []byte(`"output":`)) || !bytes.Contains(out, []byte("⟦mem⟧")) {
 		t.Errorf("opencode: %q", out)
 	}
 	for _, c := range []struct{ dir, fixture, runtime, why string }{

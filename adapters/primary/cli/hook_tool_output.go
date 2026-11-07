@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -94,7 +95,15 @@ func rewriteToolResponse(v any, compress compressFunc) (any, bool) {
 	switch x := v.(type) {
 	case map[string]any:
 		out := make(map[string]any, len(x))
-		for k, fv := range x {
+		// Orden alfabético: la nota de recuperación va en el primer campo que se
+		// comprime, y tiene que ser siempre el mismo (HCD-053).
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fv := x[k]
 			out[k] = fv
 			if !textFields[k] {
 				continue
@@ -261,9 +270,21 @@ func hookToolOutput(deps *Deps, args []string) {
 		recordGuard(deps, args[0], domain.GuardToolOutputExcluded, name)
 		os.Exit(0)
 	}
-	minTokens := domain.ToolOutputMinTokens
-	compress := func(s string) (string, bool) {
-		if (len([]rune(s))+3)/4 < minTokens {
+	out := runToolOutputBudget(root, domain.HookBudget, func(hint func() string, expired func() bool) []byte {
+		compress := toolOutputCompress(deps, ports.AutomaticOriginalScope{Project: deps.Project, Agent: agent, SessionID: identity.SessionID}, hint, expired)
+		return rewriteToolOutput(args[0], payload, compress)
+	})
+	if len(out) > 0 {
+		_, _ = os.Stdout.Write(out)
+	}
+	os.Exit(0)
+}
+
+// toolOutputCompress construye el callback que usa el hook. Separarlo permite
+// probar la concesión real y su guarda de plazo sin ejecutar os.Exit (HCD-054).
+func toolOutputCompress(deps *Deps, scope ports.AutomaticOriginalScope, hint func() string, expired func() bool) compressFunc {
+	return func(s string) (string, bool) {
+		if (len([]rune(s))+3)/4 < domain.ToolOutputMinTokens {
 			return "", false
 		}
 		res, err := deps.Compressor.Compress(s, ports.CompressionOptions{Level: ports.CompressionMax, PreserveCode: true,
@@ -271,39 +292,69 @@ func hookToolOutput(deps *Deps, args []string) {
 		if err != nil || len(res.Refs) == 0 {
 			return "", false
 		}
+		// Tras el plazo la salida se descarta: no se conceden referencias
+		// que nadie va a ver. Los originales ya guardados quedan y los
+		// retira el LRU (HCD-053, Q2).
+		if expired() {
+			return "", false
+		}
 		// Legacy hosts without an identity retain manual project recovery only.
 		// Never guess a host session from the memory session of this subprocess.
-		if identity.SessionID != "" {
+		if scope.SessionID != "" {
 			ctx, cancel := context.WithTimeout(context.Background(), domain.StoreTimeout)
-			err := usecases.GrantAutomaticOriginals(ctx, deps.OriginalStore, deps.AutomaticOriginalGrants, ports.AutomaticOriginalScope{Project: deps.Project, Agent: agent, SessionID: identity.SessionID}, res.Refs)
+			err := usecases.GrantAutomaticOriginals(ctx, deps.OriginalStore, deps.AutomaticOriginalGrants, scope, res.Refs)
 			cancel()
 			if err != nil {
 				return "", false
 			}
 		}
-		return res.Content + retrieveHintOnce(root), true
+		return res.Content + hint(), true
 	}
-	out := withBudget(domain.HookBudget, func() []byte { return rewriteToolOutput(args[0], payload, compress) })
-	if len(out) > 0 {
-		_, _ = os.Stdout.Write(out)
-	}
-	os.Exit(0)
 }
 
 func markersNotePath(root string) string {
 	return perConversationPath(root, ".markers-note-emitted")
 }
 
-// retrieveHintOnce devuelve la nota de cómo recuperar lo omitido solo la
-// primera vez en la conversación (feature 035, FR-015): repetirla en cada
-// salida comprimida añadía el mismo párrafo una y otra vez al historial.
-func retrieveHintOnce(root string) string {
+// runToolOutputBudget ejecuta la reescritura del hook dentro del presupuesto
+// (HCD-053). hint devuelve la nota de recuperación la primera vez que se pide
+// en la ejecución, si la conversación aún no la recibió, y "" después; expired
+// dice si el presupuesto ya venció. La nota se da por mostrada solo cuando la
+// salida se entrega con ella: una ejecución descartada por el plazo no la
+// consume.
+func runToolOutputBudget(root string, budget time.Duration, run func(hint func() string, expired func() bool) []byte) []byte {
+	deadline := time.Now().Add(budget)
+	pending := retrieveHintPending(root)
+	used := false
+	hint := func() string {
+		if used || pending == "" {
+			return ""
+		}
+		used = true
+		return pending
+	}
+	out := withBudget(budget, func() []byte {
+		return run(hint, func() bool { return time.Now().After(deadline) })
+	})
+	// used solo se lee con una salida entregada: withBudget la recibió por su
+	// canal, así que la ejecución ya terminó y no hay carrera.
+	if len(out) > 0 && used && root != "" {
+		_ = writeHookMarker(markersNotePath(root))
+	}
+	return out
+}
+
+// retrieveHintPending devuelve la nota de cómo recuperar lo omitido si la
+// conversación aún no la recibió, sin marcarla (feature 035, FR-015: repetirla
+// en cada salida comprimida añadía el mismo párrafo al historial). La marca
+// runToolOutputBudget al entregarla. Dos hooks en paralelo pueden llevarla los
+// dos: es inocuo y se acepta (HCD-053).
+func retrieveHintPending(root string) string {
 	if root == "" {
 		return RetrieveHint
 	}
 	if _, err := os.Stat(markersNotePath(root)); err == nil {
 		return ""
 	}
-	_ = writeHookMarker(markersNotePath(root))
 	return RetrieveHint
 }
