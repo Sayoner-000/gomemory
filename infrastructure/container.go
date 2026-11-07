@@ -412,9 +412,10 @@ func underTempDir(root, tmp string) bool {
 }
 
 // conversationFor arma la resolución de la conversación del proceso (HCD-036).
-// Sin id del hook ni enlace del host, la CLI y la TUI usan el de su terminal;
-// el MCP y los hooks, ninguno: comparten la sesión del proyecto sin
-// conversación, como antes, y nunca toman la de un agente identificado.
+// Sin id del hook ni enlace del host, todos los canales comparten la sesión
+// del proyecto sin conversación y nunca toman la de un agente identificado.
+// La CLI y la TUI solo tienen identidad propia si la fija GOMEMORY_TERMINAL;
+// el TTY ya no cuenta, porque el MCP y los hooks no lo tienen (HCD-048).
 // Los enlaces viven en el directorio del proyecto: un host solo atiende una
 // conversación por proyecto y no la filtra a otros.
 func conversationFor(channel, project string) (ports.ConversationResolver, ports.HostBinding) {

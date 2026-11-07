@@ -13,16 +13,34 @@ import (
 
 const repo = "Sayoner-000/gomemory"
 
-func newServer(t *testing.T, h http.HandlerFunc) *httptest.Server {
-	t.Helper()
-	srv := httptest.NewServer(h)
-	t.Cleanup(srv.Close)
-	return srv
+// handlerTransport atiende cada petición con un handler en memoria. Las
+// pruebas no necesitan bind en loopback, que algunos sandboxes prohíben (C-002).
+type handlerTransport struct{ h http.Handler }
+
+func (tr handlerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	tr.h.ServeHTTP(rec, r)
+	// Como un transporte real: una petición cancelada (el tiempo límite del
+	// cliente) no devuelve respuesta.
+	if err := r.Context().Err(); err != nil {
+		return nil, err
+	}
+	resp := rec.Result()
+	resp.Request = r
+	return resp, nil
+}
+
+// newGitHub crea el adaptador contra un host ficticio que atiende h en memoria.
+func newGitHub(timeout time.Duration, h http.HandlerFunc) *GitHub {
+	const base = "http://release.test"
+	g := New(base, base, repo, timeout)
+	g.client.Transport = handlerTransport{h}
+	return g
 }
 
 // R4: la consulta usa ETag; un 304 no descarga nada y conserva la versión.
 func TestLatest_ConETag(t *testing.T) {
-	srv := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+	g := newGitHub(time.Second, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/repos/"+repo+"/releases/latest" {
 			http.NotFound(w, r)
 			return
@@ -36,7 +54,6 @@ func TestLatest_ConETag(t *testing.T) {
 			t.Errorf("escribir release: %v", err)
 		}
 	})
-	g := New(srv.URL, srv.URL, repo, time.Second)
 
 	tag, etag, notModified, err := g.Latest(context.Background(), "")
 	if err != nil || tag != "v2.27.0" || etag != `"abc"` || notModified {
@@ -49,22 +66,22 @@ func TestLatest_ConETag(t *testing.T) {
 }
 
 func TestLatest_ErrorHTTP(t *testing.T) {
-	srv := newServer(t, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusForbidden) })
-	if _, _, _, err := New(srv.URL, srv.URL, repo, time.Second).Latest(context.Background(), ""); err == nil {
+	g := newGitHub(time.Second, func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusForbidden) })
+	if _, _, _, err := g.Latest(context.Background(), ""); err == nil {
 		t.Fatal("un 403 (límite de peticiones) debe ser error")
 	}
 }
 
 // Constitución §8: toda llamada externa tiene tiempo límite.
 func TestLatest_TiempoLimite(t *testing.T) {
-	srv := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+	g := newGitHub(200*time.Millisecond, func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 		case <-time.After(3 * time.Second):
 		}
 	})
 	start := time.Now()
-	_, _, _, err := New(srv.URL, srv.URL, repo, 200*time.Millisecond).Latest(context.Background(), "")
+	_, _, _, err := g.Latest(context.Background(), "")
 	if err == nil {
 		t.Fatal("debía agotar el tiempo")
 	}
@@ -76,7 +93,7 @@ func TestLatest_TiempoLimite(t *testing.T) {
 // R5: el checksum se lee de checksums.txt del mismo release.
 func TestChecksum(t *testing.T) {
 	sums := "aaa111  mem_linux_amd64.tar.gz\nbbb222  mem_darwin_arm64.tar.gz\n"
-	srv := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+	g := newGitHub(time.Second, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/download/v2.27.0/checksums.txt":
 			if _, err := fmt.Fprint(w, sums); err != nil {
@@ -86,7 +103,6 @@ func TestChecksum(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	})
-	g := New(srv.URL, srv.URL, repo, time.Second)
 
 	got, err := g.Checksum(context.Background(), "v2.27.0", "mem_darwin_arm64.tar.gz")
 	if err != nil || got != "bbb222" {
@@ -105,7 +121,7 @@ func TestChecksum(t *testing.T) {
 // maxMetadataBytes; lo que quede detrás del tope no cuenta.
 func TestMetadataReadsAreBounded(t *testing.T) {
 	pad := strings.Repeat("x", maxMetadataBytes)
-	srv := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+	g := newGitHub(time.Second, func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "checksums.txt") {
 			// Líneas cortas: una sola línea larga ya la corta bufio.Scanner.
 			_, _ = fmt.Fprintf(w, "%sccc333  mem_linux_amd64.tar.gz\n", strings.Repeat("0  other.tar.gz\n", maxMetadataBytes/16+1))
@@ -113,7 +129,6 @@ func TestMetadataReadsAreBounded(t *testing.T) {
 		}
 		_, _ = fmt.Fprintf(w, `{"pad":"%s","tag_name":"v9.9.9"}`, pad)
 	})
-	g := New(srv.URL, srv.URL, repo, time.Second)
 	if tag, _, _, err := g.Latest(context.Background(), ""); err == nil {
 		t.Errorf("Latest aceptó metadatos por encima del tope: %q", tag)
 	}

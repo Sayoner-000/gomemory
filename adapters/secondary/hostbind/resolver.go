@@ -2,9 +2,6 @@ package hostbind
 
 import (
 	"os"
-	"os/exec"
-	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,21 +35,19 @@ type Resolver struct {
 
 var _ ports.ConversationResolver = (*Resolver)(nil)
 
-// TerminalID identifica el terminal del proceso («terminal-ttys003»), o ""
-// si no tiene: la sesión propia de una persona en su terminal (Q2).
+// TerminalEnv es la variable de entorno que da a la CLI y a la TUI una
+// identidad de terminal propia (HCD-048, Q1).
+const TerminalEnv = "GOMEMORY_TERMINAL"
+
+// TerminalID es la identidad de terminal fijada con GOMEMORY_TERMINAL
+// («terminal-<valor>»), o "" sin ella. No se deduce del TTY (HCD-048): el MCP
+// y los hooks no tienen terminal, y una CLI con TTY abría una sesión que ellos
+// no veían.
 func TerminalID() string {
-	if runtime.GOOS == "windows" {
-		return ""
+	if v := strings.TrimSpace(os.Getenv(TerminalEnv)); v != "" {
+		return "terminal-" + v
 	}
-	out, err := exec.Command("ps", "-o", "tty=", "-p", strconv.Itoa(os.Getpid())).Output()
-	if err != nil {
-		return ""
-	}
-	tty := strings.TrimSpace(string(out))
-	if tty == "" || strings.Trim(tty, "?") == "" {
-		return ""
-	}
-	return "terminal-" + tty
+	return ""
 }
 
 // NewResolver crea el resolver. binding y local pueden ser nil.

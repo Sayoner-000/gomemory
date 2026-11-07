@@ -37,8 +37,40 @@ func TestAssetNameFor(t *testing.T) {
 	}
 }
 
+// testReleaseBase es el host ficticio de las pruebas: inMemoryClient nunca lo
+// resuelve ni abre conexión.
+const testReleaseBase = "http://release.test"
+
+// handlerTransport atiende cada petición con un handler en memoria. Las
+// pruebas no necesitan bind en loopback, que algunos sandboxes prohíben (C-002).
+type handlerTransport struct{ h http.Handler }
+
+func (tr handlerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	rec := httptest.NewRecorder()
+	tr.h.ServeHTTP(rec, r)
+	// Como un transporte real: una petición cancelada no devuelve respuesta.
+	if err := r.Context().Err(); err != nil {
+		return nil, err
+	}
+	resp := rec.Result()
+	resp.Request = r
+	return resp, nil
+}
+
+func inMemoryClient(h http.Handler) *http.Client {
+	return &http.Client{Transport: handlerTransport{h}}
+}
+
+// useTestReleaseBase apunta la API de releases al host ficticio.
+func useTestReleaseBase(t *testing.T) {
+	t.Helper()
+	orig := releaseAPIBase
+	releaseAPIBase = testReleaseBase
+	t.Cleanup(func() { releaseAPIBase = orig })
+}
+
 func TestLatestReleaseTag(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := inMemoryClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/repos/Sayoner-000/gomemory/releases/latest" {
 			t.Errorf("ruta inesperada: %s", r.URL.Path)
 		}
@@ -46,13 +78,9 @@ func TestLatestReleaseTag(t *testing.T) {
 			t.Errorf("encode: %v", err)
 		}
 	}))
-	defer srv.Close()
+	useTestReleaseBase(t)
 
-	origBase := releaseAPIBase
-	releaseAPIBase = srv.URL
-	defer func() { releaseAPIBase = origBase }()
-
-	tag, err := latestReleaseTag(srv.Client())
+	tag, err := latestReleaseTag(client)
 	if err != nil {
 		t.Fatalf("latestReleaseTag: %v", err)
 	}
@@ -62,17 +90,13 @@ func TestLatestReleaseTag(t *testing.T) {
 }
 
 func TestLatestReleaseTagErrorStatus(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := inMemoryClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte("not found"))
 	}))
-	defer srv.Close()
+	useTestReleaseBase(t)
 
-	origBase := releaseAPIBase
-	releaseAPIBase = srv.URL
-	defer func() { releaseAPIBase = origBase }()
-
-	if _, err := latestReleaseTag(srv.Client()); err == nil {
+	if _, err := latestReleaseTag(client); err == nil {
 		t.Fatal("esperaba error ante status 404")
 	}
 }
@@ -345,7 +369,12 @@ func TestDownloadFileRejectsOversizedBody(t *testing.T) {
 	defer func(v int64) { maxUpdateArchiveBytes = v }(maxUpdateArchiveBytes)
 	maxUpdateArchiveBytes = 1024
 	for name, h := range map[string]http.HandlerFunc{
-		"content-length": func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(make([]byte, 2048)) },
+		// Un servidor real declara Content-Length en un cuerpo pequeño; el
+		// handler en memoria lo dice explícitamente.
+		"content-length": func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Length", "2048")
+			_, _ = w.Write(make([]byte, 2048))
+		},
 		"chunked": func(w http.ResponseWriter, _ *http.Request) {
 			for range 4 {
 				_, _ = w.Write(make([]byte, 512))
@@ -353,16 +382,13 @@ func TestDownloadFileRejectsOversizedBody(t *testing.T) {
 			}
 		},
 	} {
-		srv := httptest.NewServer(h)
-		err := downloadFile(srv.Client(), srv.URL, filepath.Join(t.TempDir(), "a.tar.gz"))
-		srv.Close()
+		err := downloadFile(inMemoryClient(h), testReleaseBase+"/asset", filepath.Join(t.TempDir(), "a.tar.gz"))
 		if err == nil || !strings.Contains(err.Error(), "límite") {
 			t.Errorf("%s: err = %v, want límite", name, err)
 		}
 	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(make([]byte, 1024)) }))
-	defer srv.Close()
-	if err := downloadFile(srv.Client(), srv.URL, filepath.Join(t.TempDir(), "a.tar.gz")); err != nil {
+	client := inMemoryClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(make([]byte, 1024)) }))
+	if err := downloadFile(client, testReleaseBase+"/asset", filepath.Join(t.TempDir(), "a.tar.gz")); err != nil {
 		t.Fatalf("cuerpo en el límite: %v", err)
 	}
 }
@@ -420,14 +446,11 @@ func TestExtractBinaryRejectsOversizedBinary(t *testing.T) {
 func TestLatestReleaseTagBoundsMetadata(t *testing.T) {
 	defer func(v int64) { maxUpdateMetadataBytes = v }(maxUpdateMetadataBytes)
 	maxUpdateMetadataBytes = 64
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	client := inMemoryClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"pad":"` + strings.Repeat("x", 128) + `","tag_name":"v9.9.9"}`))
 	}))
-	defer srv.Close()
-	origBase := releaseAPIBase
-	releaseAPIBase = srv.URL
-	defer func() { releaseAPIBase = origBase }()
-	if tag, err := latestReleaseTag(srv.Client()); err == nil {
+	useTestReleaseBase(t)
+	if tag, err := latestReleaseTag(client); err == nil {
 		t.Fatalf("metadatos por encima del límite aceptados: %q", tag)
 	}
 }
