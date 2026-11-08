@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,17 +17,9 @@ func TestInstallLanguageIntegration(t *testing.T) {
 		SettingsRepo: persistence.NewSettingsRepository(),
 	}
 
-	var buf bytes.Buffer
-	origStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	CmdInstall(deps1, []string{tmp1, "--yes", "--agents=none", "--lang=en"})
-
-	w.Close()
-	os.Stdout = origStdout
-	_, _ = buf.ReadFrom(r)
-	installOut := buf.String()
+	installOut := captureStdout(t, func() {
+		CmdInstall(deps1, []string{tmp1, "--yes", "--agents=none", "--lang=en"})
+	})
 
 	// Verificar que stdout emitió en inglés
 	if !strings.Contains(installOut, "Installing gomemory in") {
@@ -47,16 +38,9 @@ func TestInstallLanguageIntegration(t *testing.T) {
 		SettingsRepo: persistence.NewSettingsRepository(),
 	}
 
-	buf.Reset()
-	r, w, _ = os.Pipe()
-	os.Stdout = w
-
-	CmdInstall(deps2, []string{tmp2, "--yes", "--agents=none"})
-
-	w.Close()
-	os.Stdout = origStdout
-	_, _ = buf.ReadFrom(r)
-	installOutES := buf.String()
+	installOutES := captureStdout(t, func() {
+		CmdInstall(deps2, []string{tmp2, "--yes", "--agents=none"})
+	})
 
 	if !strings.Contains(installOutES, "Instalando gomemory en") {
 		t.Errorf("stdout de install por defecto debe estar en español ('Instalando gomemory en'), se obtuvo:\n%s", installOutES)
@@ -84,19 +68,12 @@ func TestInstallLanguageIntegration(t *testing.T) {
 	}
 
 	// 5. Comprobar que CmdSettings con proyecto en inglés emite etiquetas en inglés
-	buf.Reset()
-	r, w, _ = os.Pipe()
-	os.Stdout = w
-
 	deps1.Project = "test"
 	deps1.Root = tmp1
 	deps1.ProjectRepo = &fakeProjectRepo{root: tmp1}
-	CmdSettings(deps1, []string{"--show"})
-
-	w.Close()
-	os.Stdout = origStdout
-	_, _ = buf.ReadFrom(r)
-	settingsOut := buf.String()
+	settingsOut := captureStdout(t, func() {
+		CmdSettings(deps1, []string{"--show"})
+	})
 
 	if !strings.Contains(settingsOut, "CONFIGURATION") || !strings.Contains(settingsOut, "Language: en") {
 		t.Errorf("CmdSettings para proyecto en inglés debe mostrar 'CONFIGURATION' y 'Language: en', se obtuvo:\n%s", settingsOut)
