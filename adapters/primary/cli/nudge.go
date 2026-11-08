@@ -39,10 +39,14 @@ const planModeReminderMessage = "Si vas a entrar en modo plan (o la tarea pide u
 // el coste es una sola línea, y la garantía que sostiene es "en cualquier
 // punto de la sesión", no "de vez en cuando".
 func computePlanModeReminder(atomicPlanDisabled bool) (string, bool) {
+	return computePlanModeReminderWithLang("", atomicPlanDisabled)
+}
+
+func computePlanModeReminderWithLang(lang string, atomicPlanDisabled bool) (string, bool) {
 	if atomicPlanDisabled {
 		return "", false
 	}
-	return planModeReminderMessage, true
+	return GetPlanModeReminder(lang), true
 }
 
 // nudgeStatePath es el marcador de debounce: guarda el epoch del último
@@ -100,7 +104,11 @@ func computeSaveNudge(deps *Deps, root, project string) (string, bool) {
 		}
 	}
 	_ = writeFileAtomic(state, []byte(strconv.FormatInt(now, 10)), 0644)
-	return saveNudgeMessage, true
+	lang := ""
+	if deps != nil && deps.SettingsRepo != nil {
+		lang = deps.SettingsRepo.Read(root).Language
+	}
+	return GetSaveNudge(lang), true
 }
 
 // ageSeconds interpreta un timestamp SQLite ('YYYY-MM-DD HH:MM:SS') escrito con

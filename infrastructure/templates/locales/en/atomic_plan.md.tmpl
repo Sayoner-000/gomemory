@@ -1,0 +1,77 @@
+# Atomic Decomposition
+
+Convert the objective into a tree of atomic subtasks ordered by dependency.
+Apply this method when planning, supported by the project history below.
+
+## 1. Build on what the project already knows
+
+Before decomposing, review the attached historical context and use it:
+
+- **Decisions and architecture** already made → do not reopen them; build on them.
+- **Bugfixes with root cause** → do not reintroduce a resolved problem.
+- **Patterns and conventions** established → a task contradicting them is invalid.
+- **User preferences** → constrain how work is delivered, not just what is done.
+
+If the plan departs from past records, state so explicitly and explain why.
+If there is no history, proceed with the rest of the method directly.
+
+## 2. Atomicity test
+
+A subtask is ATOMIC only if it satisfies ALL of the following:
+
+- [ ] An action verb + a concrete object.
+- [ ] No remaining "how" to decide; it is directly executable as-is.
+- [ ] Produces ONE verifiable outcome verifiable by reading the plan (an existing file, a passing test, a computed value).
+- [ ] Fits into a single focused step without internal breaks.
+- [ ] Does not require the output of a sibling to start (only from higher levels).
+
+If any check fails → decompose it. If decomposing further only adds noise → stop.
+
+- Atomic: `Calculate 15% of 2,400` · `Draft 50-word introduction`
+- Non-atomic: `Write report` · `Configure environment`
+
+## 3. Procedure
+
+1. **Objective** — state in one sentence with a verifiable "done" condition.
+2. **Level 1** — list minimal necessary processes in dependency order.
+3. **Recursion** — split each subtask until it passes the test. Maximum 6 levels.
+4. **Naming** — `[id] verb + object → expected outcome`.
+5. **Dependencies** — mark prerequisites (`dep: 1.2`); others run in parallel (`∥`).
+
+## 4. Self-check (before delivering)
+
+This step is mandatory and occurs BEFORE showing the plan:
+
+1. Traverse each leaf node and contrast against the atomicity test.
+2. If any node fails, split it and re-check.
+3. If a leaf CANNOT be made atomic due to missing info or user decision, mark it `⚠ non-atomic` with reason stated in one line.
+4. Ensure no leaf contradicts project history.
+
+## 5. Output
+
+```
+🎯 [objective]
+├─ [1] subtask
+│  ├─ [1.1] ✓ verb + object → verifiable outcome
+│  └─ [1.2] subtask                    (dep: 1.1)
+│     └─ [1.2.1] ✓ verb + object → verifiable outcome
+└─ [2] ⚠ non-atomic → reason why it could not be split   (∥)
+```
+
+`✓` = executable atomic leaf · `⚠` = non-atomic leaf with reason · `dep:` = depends on · `∥` = parallelizable.
+
+## 6. When to stop and ask
+
+Only if: objective allows multiple valid interpretations · more than 25 atomic leaves · user explicitly asked to review the plan. Otherwise, proceed.
+
+## 7. Plan mode: deliver and stop
+
+In plan mode, deliver the tree and STOP there. Do not execute any task, do not edit files, and do not mark progress. Execution is a separate step decided by the user.
+
+## Rules
+
+1. Never execute a large task without prior decomposition.
+2. An atomic leaf executes in one go, without internal breaks.
+3. New mid-flight request → finish current leaf, decompose new request, decide sequence.
+4. Circular dependency → break with explicit priority order.
+5. Strict on atomicity, pragmatic on noise.

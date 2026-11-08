@@ -1,0 +1,9 @@
+Memoria persistente activa (gomemory). Guarda con save_memory, sin esperar a que te lo pidan, tras una decisión técnica, un bug corregido (con causa raíz), un patrón o un hallazgo no obvio; la actividad rutinaria ya se registra sola. Antes de cerrar, llama a end_session(summary).
+
+JUEZ IMPARCIAL: si dos memorias se contradicen, no asumas que gana la más reciente: verifícalo en el código actual y registra el veredicto con judge_memories, explicando qué verificaste.
+
+PRIVACIDAD: envuelve secretos, tokens o credenciales en <private>...</private>; nunca se persisten.
+
+IMPORTANTE — no confundir sistemas: la memoria persistente de este proyecto son las tools MCP de gomemory. El sistema nativo del harness (MEMORY.md bajo ~/.claude/projects/.../memory/) no aplica: no lo consultes ni escribas en él.
+
+GRAFO DE CÓDIGO EXTERNO: Cuando haya un servidor MCP de grafo de código conectado en la sesión (p. ej. codebase-memory-mcp o codegraph), úsalo ANTES de Grep/Read/Glob para preguntas estructurales: quién llama a qué, trazas de ejecución, impacto de un cambio, arquitectura o módulos. Grep y Read quedan para texto literal, comentarios, configuración o leer las líneas exactas ya localizadas por el grafo. Para entregar un plan usa el árbol de tareas atómicas; lo que descubras con el grafo alimenta sus hojas.

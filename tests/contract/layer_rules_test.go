@@ -28,6 +28,7 @@ import (
 // fallar también, para que la lista solo pueda encoger.
 var primaryToSecondary = map[string]string{
 	"adapters/primary/cli -> adapters/secondary/atomicfs":      "escritura atómica de archivos de configuración del proyecto",
+	"adapters/primary/cli -> adapters/secondary/i18n":          "catálogo de localización por defecto cuando Deps se construye sin contenedor",
 	"adapters/primary/cli -> adapters/secondary/persistence":   "rutas del almacén (MemDir, DataHome) y operaciones entre proyectos de install/uninstall/doctor",
 	"adapters/primary/cli -> adapters/secondary/release":       "adaptador por defecto del aviso de versión cuando Deps no lo trae",
 	"adapters/primary/setup -> adapters/secondary/configpath":  "resolución de rutas de configuración de cada agente",
@@ -141,7 +142,7 @@ func cliSlice(pkg string) string {
 }
 
 func allowedInApplication(pkg, imp string) bool {
-	if imp == "domain" {
+	if imp == "domain" || strings.HasPrefix(imp, "domain/") {
 		return true
 	}
 	return pkg != "application/ports" && imp == "application/ports"

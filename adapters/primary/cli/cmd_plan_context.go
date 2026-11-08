@@ -62,12 +62,24 @@ func CmdPlanContext(deps *Deps, args []string) {
 // buildPlanContextDocFull arma el documento aplicando el gate de configuración.
 // Con full=true se ignora el registro de entregas y se devuelve todo.
 func buildPlanContextDocFull(deps *Deps, full bool) (string, error) {
-	disabled := deps.SettingsRepo.Read(deps.Root).AtomicPlanDisabled
+	var disabled bool
+	var lang string
+	if deps != nil && deps.SettingsRepo != nil {
+		s := deps.SettingsRepo.Read(deps.Root)
+		disabled = s.AtomicPlanDisabled
+		lang = s.Language
+	}
+	method := planMethod
+	if lang != "" {
+		if tmpl, err := getCatalog().GetTemplate(lang, "atomic_plan"); err == nil && tmpl != "" {
+			method = tmpl
+		}
+	}
 	log := deps.DeliveryLog
 	if full {
 		log = nil // sin registro, el caso de uso entrega el documento completo
 	}
-	doc, err := usecases.NewPlanContext(planMethod, deps.ContextBuilder, log).Build(disabled)
+	doc, err := usecases.NewPlanContext(method, contextBuilderForLang(deps, lang), log).Build(disabled)
 	if err != nil || full {
 		return doc, err
 	}
@@ -77,6 +89,20 @@ func buildPlanContextDocFull(deps *Deps, full bool) (string, error) {
 	// una sección de memorias) y la supresión por hash del caso de uso sigue
 	// siendo la primera defensa.
 	return applyPlanDelta(deps, doc), nil
+}
+
+func isContextDocumentHeader(doc string) bool {
+	trimmed := strings.TrimSpace(doc)
+	if strings.HasPrefix(trimmed, "# Memoria del Proyecto") {
+		return true
+	}
+	cat := getCatalog()
+	for _, code := range cat.SupportedCodes() {
+		if title := strings.TrimSpace(cat.Get(code, "context_title")); title != "" && title != "context_title" && strings.HasPrefix(trimmed, title) {
+			return true
+		}
+	}
+	return false
 }
 
 // applyPlanDelta separa el método del historial (PlanContext los une con
@@ -89,7 +115,7 @@ func applyPlanDelta(deps *Deps, doc string) string {
 	method, history, found := strings.Cut(doc, planSeparator)
 	if !found {
 		// Solo método o solo historial.
-		if strings.HasPrefix(strings.TrimSpace(doc), "# Memoria del Proyecto") {
+		if isContextDocumentHeader(doc) {
 			return applyContextDelta(deps, doc)
 		}
 		method, history = doc, ""

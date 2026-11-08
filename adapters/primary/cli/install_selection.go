@@ -18,7 +18,8 @@ type installSelection struct {
 	agents []string
 	scope  string // "project" | "global"
 	// binary: "global" | "project"; solo se pregunta si no hay global.
-	binary string
+	binary   string
+	language string // código de idioma descubierto
 }
 
 func (s installSelection) has(agent string) bool {
@@ -31,13 +32,15 @@ func (s installSelection) has(agent string) bool {
 }
 
 type installOptions struct {
-	target    string
-	yes       bool
-	agents    []string
-	scope     string
-	events    bool
-	help      bool
-	agentsSet bool
+	target      string
+	yes         bool
+	agents      []string
+	scope       string
+	language    string
+	events      bool
+	help        bool
+	agentsSet   bool
+	languageSet bool
 }
 
 // parseInstallArgs acepta los flags en cualquier posición, como uninstall:
@@ -86,6 +89,18 @@ func parseInstallArgs(args []string) (installOptions, error) {
 				return o, fmt.Errorf("%w: --scope admite project o global", errUsage)
 			}
 			o.scope = v
+		case a == "--lang" || strings.HasPrefix(a, "--lang=") || a == "--language" || strings.HasPrefix(a, "--language="):
+			v, err := value()
+			if err != nil {
+				return o, err
+			}
+			v = strings.ToLower(strings.TrimSpace(v))
+			cat := getCatalog()
+			if !cat.Supports(v) {
+				return o, fmt.Errorf("%w: --lang no soportado %q (disponibles: %s)", errUsage, v, strings.Join(cat.SupportedCodes(), ", "))
+			}
+			o.language = v
+			o.languageSet = true
 		case strings.HasPrefix(a, "-"):
 			return o, fmt.Errorf("%w: flag desconocido %s", errUsage, a)
 		default:
@@ -101,7 +116,7 @@ func parseInstallArgs(args []string) (installOptions, error) {
 // resolveInstallSelection es la selección sin preguntar (FR-022, FR-023): los
 // flags mandan; si no, la guardada; si no, los detectados.
 func resolveInstallSelection(o installOptions, saved installSelection, choices []agentChoice) installSelection {
-	sel := installSelection{agents: o.agents, scope: o.scope, binary: "global"}
+	sel := installSelection{agents: o.agents, scope: o.scope, binary: "global", language: o.language}
 	if len(sel.agents) == 0 && !o.agentsSet {
 		sel.agents = saved.agents
 	}
@@ -115,6 +130,12 @@ func resolveInstallSelection(o installOptions, saved installSelection, choices [
 	}
 	if sel.scope == "" {
 		sel.scope = "project"
+	}
+	if sel.language == "" && !o.languageSet {
+		sel.language = saved.language
+	}
+	if sel.language == "" {
+		sel.language = "es"
 	}
 	return sel
 }
@@ -145,7 +166,37 @@ func askInstallSelection(ui console.UI, choices []agentChoice, hasGlobal bool, s
 	if err != nil {
 		return installSelection{}, err
 	}
-	sel := installSelection{agents: agents, binary: "global"}
+	sel := installSelection{agents: agents, binary: "global", language: saved.language}
+
+	cat := getCatalog()
+	locales := cat.AvailableLocales()
+	if len(locales) > 1 {
+		langOpts := make([]console.Option, 0, len(locales))
+		for _, l := range locales {
+			isDefault := l.Default
+			if saved.language != "" {
+				isDefault = l.Code == saved.language
+			}
+			langOpts = append(langOpts, console.Option{
+				Value:       l.Code,
+				Label:       l.Name,
+				Recommended: isDefault,
+			})
+		}
+		promptLang := saved.language
+		if promptLang == "" {
+			promptLang = cat.DefaultLocale().Code
+		}
+		langChoice, err := ui.Select(cat.Get(promptLang, "install_prompt_lang"), langOpts)
+		if err != nil {
+			return installSelection{}, err
+		}
+		sel.language = langChoice
+	} else if len(locales) == 1 {
+		sel.language = locales[0].Code
+	} else if sel.language == "" {
+		sel.language = "es"
+	}
 
 	if !hasGlobal {
 		if sel.binary, err = ui.Select("¿Dónde instalar el binario?", []console.Option{

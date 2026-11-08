@@ -23,26 +23,27 @@ func choicesFor(detected ...string) []agentChoice {
 	return out
 }
 
-// FR-020: agentes (detectados ya marcados) → binario (solo sin global) →
+// FR-020: agentes (detectados ya marcados) → idioma → binario (solo sin global) →
 // alcance → resumen con confirmación, en ese orden.
 func TestAskInstallSelection_OrdenYDefectos(t *testing.T) {
 	var out bytes.Buffer
-	// Enter en agentes (acepta los marcados), Enter en binario (global,
-	// recomendado), Enter en alcance (proyecto), s en la confirmación.
-	ui := console.NewPlain(strings.NewReader("\n\n\ns\n"), &out)
+	// Enter en agentes (acepta los marcados), Enter en idioma (es, recomendado),
+	// Enter en binario (global, recomendado), Enter en alcance (proyecto), s en la confirmación.
+	ui := console.NewPlain(strings.NewReader("\n\n\n\ns\n"), &out)
 	sel, err := askInstallSelection(ui, choicesFor("claude", "codex"), false, installSelection{})
 	if err != nil {
 		t.Fatalf("error: %v\n%s", err, out.String())
 	}
-	if strings.Join(sel.agents, ",") != "claude,codex" || sel.scope != "project" || sel.binary != "global" {
+	if strings.Join(sel.agents, ",") != "claude,codex" || sel.scope != "project" || sel.binary != "global" || sel.language != "es" {
 		t.Errorf("selección = %+v", sel)
 	}
 	s := out.String()
 	iAg := strings.Index(s, "¿Qué agentes quieres conectar?")
+	iLang := strings.Index(s, "¿Qué idioma prefieres para gomemory?")
 	iBin := strings.Index(s, "¿Dónde instalar el binario?")
 	iSc := strings.Index(s, "¿Alcance de la configuración?")
 	iRes := strings.Index(s, "Se configurará")
-	if iAg < 0 || iBin < iAg || iSc < iBin || iRes < iSc {
+	if iAg < 0 || iLang < iAg || iBin < iLang || iSc < iBin || iRes < iSc {
 		t.Errorf("orden de preguntas incorrecto:\n%s", s)
 	}
 	if !strings.Contains(s, "[x] Claude Code") || !strings.Contains(s, "[ ] OpenCode") {
@@ -53,7 +54,7 @@ func TestAskInstallSelection_OrdenYDefectos(t *testing.T) {
 // Con un global no se pregunta por el binario.
 func TestAskInstallSelection_ConGlobalSinPreguntaDeBinario(t *testing.T) {
 	var out bytes.Buffer
-	ui := console.NewPlain(strings.NewReader("\n\ns\n"), &out)
+	ui := console.NewPlain(strings.NewReader("\n\n\ns\n"), &out)
 	if _, err := askInstallSelection(ui, choicesFor("claude"), true, installSelection{}); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +66,7 @@ func TestAskInstallSelection_ConGlobalSinPreguntaDeBinario(t *testing.T) {
 // FR-023: una selección guardada aparece ya marcada.
 func TestAskInstallSelection_SeleccionGuardadaMarcada(t *testing.T) {
 	var out bytes.Buffer
-	ui := console.NewPlain(strings.NewReader("\n\ns\n"), &out)
+	ui := console.NewPlain(strings.NewReader("\n\n\ns\n"), &out)
 	sel, err := askInstallSelection(ui, choicesFor("claude", "codex"), true, installSelection{agents: []string{"opencode"}, scope: "global"})
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +86,7 @@ func TestInstallSelection_SeleccionVaciaGuardada(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	ui := console.NewPlain(strings.NewReader("\n\ns\n"), &out)
+	ui := console.NewPlain(strings.NewReader("\n\n\ns\n"), &out)
 	got, err := askInstallSelection(ui, choices, true, saved)
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +98,7 @@ func TestInstallSelection_SeleccionVaciaGuardada(t *testing.T) {
 
 // Cancelar en la confirmación no escribe nada.
 func TestAskInstallSelection_Cancelar(t *testing.T) {
-	ui := console.NewPlain(strings.NewReader("\n\nn\n"), &bytes.Buffer{})
+	ui := console.NewPlain(strings.NewReader("\n\n\nn\n"), &bytes.Buffer{})
 	if _, err := askInstallSelection(ui, choicesFor("claude"), true, installSelection{}); !errors.Is(err, console.ErrCanceled) {
 		t.Fatalf("responder n en la confirmación cancela: %v", err)
 	}

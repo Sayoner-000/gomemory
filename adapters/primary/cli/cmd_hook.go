@@ -646,7 +646,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 		// additionalContext se acumula en el historial, repetirlo era ruido:
 		// ahí sale al inicio, tras compactar y al entrar en plan (feature 035,
 		// FR-008). Sobra en el turno que ya entregó el documento completo.
-		if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok && !planEntered {
+		if msg, ok := computePlanModeReminderWithLang(deps.SettingsRepo.Read(root).Language, deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok && !planEntered {
 			if dialect != dialectClaude || claimPlanReminder(root, payload) {
 				sections = append(sections, domain.HookSection{Name: "plan_reminder", Priority: domain.HookPriorityPlan, Text: msg})
 			}
@@ -691,7 +691,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	recordOctopusEmitted(root, settings.OctopusEnabled)
 	sections := []domain.HookSection{
 		{Name: "bootstrap", Priority: domain.HookPriorityBootstrap, Text: bootstrap},
-		{Name: "protocol", Priority: domain.HookPriorityProtocol, Text: memoryProtocolReminder},
+		{Name: "protocol", Priority: domain.HookPriorityProtocol, Text: getMemoryProtocolReminder(settings.Language)},
 	}
 	// Un aviso pendiente de ESTA conversación también se entrega en el primer
 	// prompt tras el arranque: antes solo lo consumían los prompts siguientes,
@@ -703,7 +703,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	if planEntered {
 		sections = append(sections, domain.HookSection{Name: "plan", Priority: domain.HookPriorityPlan, Text: planDoc, Trimmable: true})
 		_ = writeHookMarker(planReminderMarkerPath(root))
-	} else if msg, ok := computePlanModeReminder(settings.AtomicPlanDisabled); ok {
+	} else if msg, ok := computePlanModeReminderWithLang(settings.Language, settings.AtomicPlanDisabled); ok {
 		sections = append(sections, domain.HookSection{Name: "plan", Priority: domain.HookPriorityPlan, Text: msg, Trimmable: true})
 	}
 	sections = appendSocraticaSection(sections, socratica)
@@ -746,15 +746,18 @@ func hookNudge(deps *Deps) {
 	project := deps.ProjectRepo.Key(root)
 
 	var parts []string
+	var settings ports.SettingsData
+	if deps.SettingsRepo != nil {
+		settings = deps.SettingsRepo.Read(root)
+	}
 	if msg, ok := computeSaveNudge(deps, root, project); ok {
 		parts = append(parts, msg)
 	}
-	if msg, ok := computePlanModeReminder(deps.SettingsRepo.Read(root).AtomicPlanDisabled); ok {
+	if msg, ok := computePlanModeReminderWithLang(settings.Language, settings.AtomicPlanDisabled); ok {
 		parts = append(parts, msg)
 	}
 
-	threshold := deps.SettingsRepo.Read(root).CompactThreshold
-	if msg, ok := computeCompactNudge(root, threshold); ok {
+	if msg, ok := computeCompactNudge(root, settings.CompactThreshold); ok {
 		parts = append(parts, msg)
 	}
 
@@ -1561,7 +1564,17 @@ const planEntryUnmarkedReminder = "Modo plan: llama a get_plan_context() antes d
 // no se puede construir, lo declara y apunta a get_plan_context() en lugar de
 // entregar el método solo como si fuera el documento completo.
 func planEntryDocument(deps *Deps, budget int) string {
-	context, err := deps.ContextBuilder.Build()
+	lang := ""
+	if deps != nil && deps.SettingsRepo != nil {
+		lang = deps.SettingsRepo.Read(deps.Root).Language
+	}
+	method := planMethod
+	if lang != "" {
+		if tmpl, err := getCatalog().GetTemplate(lang, "atomic_plan"); err == nil && tmpl != "" {
+			method = tmpl
+		}
+	}
+	context, err := contextBuilderForLang(deps, lang).Build()
 	if err != nil {
 		context = "> Historial del proyecto no disponible (" + err.Error() + "): llama a get_plan_context() para reintentarlo."
 	} else if contextAlreadyDelivered(deps, context) {
@@ -1570,7 +1583,7 @@ func planEntryDocument(deps *Deps, budget int) string {
 		// contexto (feature 035, FR-007).
 		context = planDocMemoryDelivered
 	}
-	return domain.AdjustPlanDocumentToBudget(planMethod, context, budget)
+	return domain.AdjustPlanDocumentToBudget(method, context, budget)
 }
 
 const planDocMemoryDelivered = "> La memoria del proyecto ya se entregó al iniciar esta sesión; " +

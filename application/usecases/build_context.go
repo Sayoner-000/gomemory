@@ -124,6 +124,10 @@ type Builder struct {
 	CodeProviders []ports.CodeGraphProvider
 	Project       string
 	Root          string
+	// Language selecciona el idioma del encabezado y directivas (ej: "es", "en").
+	Language string
+	// Catalog resuelve encabezados y etiquetas localizadas desde las plantillas.
+	Catalog ports.LocaleCatalog
 	// BaselineDefault es la plantilla embebida del baseline universal: cubre
 	// los proyectos instalados antes de que existiera su semilla.
 	BaselineDefault string
@@ -374,6 +378,14 @@ func New(lister ports.MemoryLister, session ports.SessionQuerier, relations port
 	return &Builder{Lister: lister, Session: session, Relations: relations, Project: project, Root: root}
 }
 
+// WithLanguage devuelve una copia superficial del Builder con el idioma
+// indicado para esta llamada, sin mutar la instancia compartida (H-01 / C-004).
+func (b *Builder) WithLanguage(lang string) *Builder {
+	cp := *b
+	cp.Language = lang
+	return &cp
+}
+
 // Build arma el contexto del proyecto. Cada llamada trabaja sobre una copia
 // local del Builder con el contador de descartes en cero (spec 037, H-03):
 // la configuración es inmutable y se comparte, pero el estado de una
@@ -382,7 +394,23 @@ func New(lister ports.MemoryLister, session ports.SessionQuerier, relations port
 func (b *Builder) Build() (string, error) {
 	local := *b
 	local.discardedChars = 0
+	if local.Language == "" && local.ExpandSettings != nil && local.Root != "" {
+		local.Language = local.ExpandSettings.Read(local.Root).Language
+	}
 	return local.build()
+}
+
+func (b *Builder) contextTitle() string {
+	lang := b.Language
+	if lang == "" {
+		lang = "es"
+	}
+	if b.Catalog != nil {
+		if title := strings.TrimSpace(b.Catalog.Get(lang, "context_title")); title != "" && title != "context_title" {
+			return title
+		}
+	}
+	return "# Memoria del Proyecto"
 }
 
 func (b *Builder) build() (string, error) {
@@ -398,7 +426,7 @@ func (b *Builder) build() (string, error) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("# Memoria del Proyecto\n\n")
+	sb.WriteString(b.contextTitle() + "\n\n")
 	if b.HCD != nil {
 		info, ok, e := b.HCD.ActiveHCDContext(context.Background())
 		if e != nil {

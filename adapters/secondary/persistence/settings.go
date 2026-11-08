@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 
 	"mem/adapters/secondary/configpath"
 	"mem/domain"
@@ -13,6 +15,8 @@ import (
 
 type Settings struct {
 	domain.SocraticaSettings
+	// Language selecciona el idioma del proyecto (ej: "es", "en"). Vacío = default ("es").
+	Language string `json:"language,omitempty"`
 	// Theme selecciona la apariencia TUI: dark, light, matrix o auto.
 	Theme            string   `json:"theme,omitempty"`
 	AutoApprove      bool     `json:"auto_approve"`
@@ -196,6 +200,7 @@ const (
 
 func DefaultSettings() Settings {
 	return Settings{
+		Language:    "es",
 		AutoApprove: false,
 		// Derivado de domain: son las tools que ApplyAutoApprove escribe como
 		// `autoApprove` para Cursor. Cuando esta lista estaba
@@ -297,7 +302,35 @@ func ReadSettings(root string) Settings {
 	applyContextDefaults(&s)
 	applyReviewDefaults(&s)
 	applyExpandDefaults(&s)
+	applyLanguageDefaults(&s)
 	return s
+}
+
+var languageValidatorMu sync.RWMutex
+var languageValidator func(string) bool
+
+// SetLanguageValidator registra el validador de códigos de idioma descubiertos
+// por el catálogo i18n (HCD-056, Tarea 4).
+func SetLanguageValidator(fn func(string) bool) {
+	languageValidatorMu.Lock()
+	defer languageValidatorMu.Unlock()
+	languageValidator = fn
+}
+
+func applyLanguageDefaults(s *Settings) {
+	lang := strings.ToLower(strings.TrimSpace(s.Language))
+	if lang == "" || strings.ContainsAny(lang, "/\\.") {
+		s.Language = "es"
+		return
+	}
+	languageValidatorMu.RLock()
+	validator := languageValidator
+	languageValidatorMu.RUnlock()
+	if validator != nil && !validator(lang) {
+		s.Language = "es"
+		return
+	}
+	s.Language = lang
 }
 
 // applyExpandDefaults normaliza el umbral de strategic-compact (feature 040):

@@ -1,0 +1,23 @@
+{
+  "context_title": "# Project Memory",
+  "lang_switched": "Language switched to %{name}",
+  "lang_current": "Current language: %{name} (%{code})",
+  "lang_available_list": "Available languages: %{available}",
+  "lang_canceled": "Canceled.",
+  "lang_unsupported": "Unsupported language '%{code}'. Available languages: %{available}",
+  "lang_usage": "Usage: mem lang [code] (e.g., mem lang en, mem lang es)",
+  "install_prompt_lang": "¿Qué idioma prefieres para gomemory? / Which language do you prefer?",
+  "save_nudge": "MEMORY REMINDER: more than 15 minutes have passed since your last real save. If during that time you made a decision, fixed a bug, discovered something non-obvious, or established a convention, call save_memory now. If there is nothing relevant to save, ignore this reminder.",
+  "plan_mode_reminder": "If you enter plan mode (or the task asks for a plan/approach before touching code), call get_plan_context() BEFORE drafting: it provides the atomic decomposition method and project history. Use the code graph to explore and the atomic task tree to present results.",
+  "settings_updated": "✓ Settings updated",
+  "settings_title": "CONFIGURATION",
+  "settings_auto_approve": "Auto-approve",
+  "settings_code_graph": "External code graph",
+  "settings_impact_annotation": "Impact annotation on save",
+  "settings_adr_sync": "ADR synchronization",
+  "settings_speckit": "Spec-kit extension arm",
+  "settings_atomic_plan": "Atomic planning in plan mode",
+  "settings_language": "Language",
+  "install_starting": "Installing gomemory in %{target}\n",
+  "install_finished_prefix": "gomemory installed. Now you can:"
+}

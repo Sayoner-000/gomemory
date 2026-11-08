@@ -18,6 +18,17 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+func getMemoryProtocolReminder(lang string) string {
+	if lang == "" {
+		lang = "es"
+	}
+	tmpl, err := getCatalog().GetTemplate(lang, "get_context")
+	if err == nil && strings.TrimSpace(tmpl) != "" {
+		return strings.TrimSpace(tmpl)
+	}
+	return memoryProtocolReminder
+}
+
 // CmdMCP arranca el servidor MCP stdio. root y project ya vienen resueltos
 // por el composition root (infrastructure.NewContainer, vía
 // resolveRootForCommand) — respeta --root si se pasó, o el cwd (git root o
@@ -430,7 +441,11 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 	}, func(ctx context.Context, req *mcp.CallToolRequest, in struct {
 		Full bool `json:"full,omitempty" jsonschema:"Entregar todo aunque ya se haya enviado en esta sesión (subagente, salida truncada, compactación)"`
 	}) (*mcp.CallToolResult, any, error) {
-		output, err := deps.ContextBuilder.Build()
+		lang := ""
+		if deps.SettingsRepo != nil {
+			lang = deps.SettingsRepo.Read(deps.Root).Language
+		}
+		output, err := contextBuilderForLang(deps, lang).Build()
 		if err != nil {
 			return nil, nil, fmt.Errorf("generar contexto: %w", err)
 		}
@@ -442,8 +457,9 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		if deps.DeliveryLog != nil && !in.Full {
 			_ = deps.DeliveryLog.Record(ports.DeliveryContext, usecases.HashDeContenido(output))
 		}
+		reminder := getMemoryProtocolReminder(lang)
 		return &mcp.CallToolResult{
-			Content: []mcp.Content{&mcp.TextContent{Text: memoryProtocolReminder + "\n\n" + deliverContextDocFull(deps, output, in.Full)}},
+			Content: []mcp.Content{&mcp.TextContent{Text: reminder + "\n\n" + deliverContextDocFull(deps, output, in.Full)}},
 		}, nil, nil
 	})
 
@@ -468,9 +484,18 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		// la memoria no esté disponible (FR-034). Un output vacío significa que
 		// la funcionalidad está apagada por configuración (FR-032) y se respeta
 		// tal cual — no se repone el método, o el interruptor no serviría.
+		lang := ""
+		if deps.SettingsRepo != nil {
+			lang = deps.SettingsRepo.Read(deps.Root).Language
+		}
 		output, err := buildPlanContextDocFull(deps, in.Full)
 		if err != nil {
 			output = planMethod
+			if lang != "" {
+				if tmpl, err := getCatalog().GetTemplate(lang, "atomic_plan"); err == nil && tmpl != "" {
+					output = tmpl
+				}
+			}
 		}
 		// memoryProtocolReminder va SIEMPRE que haya contenido, igual que en
 		// get_context. Corrige un hueco real: una sesión que solo planifica
@@ -481,7 +506,7 @@ func registerTools(server *mcp.Server, deps *Deps, project string) {
 		// output=="" (apagado por configuración, FR-032): un recordatorio sobre
 		// contenido vacío contradiría al interruptor.
 		if output != "" {
-			output = memoryProtocolReminder + "\n\n" + output
+			output = getMemoryProtocolReminder(lang) + "\n\n" + output
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: output}},
@@ -639,13 +664,17 @@ func registerResources(server *mcp.Server, deps *Deps, project string) {
 		Description: "Contexto completo del proyecto en markdown, con el protocolo de memoria activo",
 		MIMEType:    "text/markdown",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		output, err := deps.ContextBuilder.Build()
+		lang := ""
+		if deps.SettingsRepo != nil {
+			lang = deps.SettingsRepo.Read(deps.Root).Language
+		}
+		output, err := contextBuilderForLang(deps, lang).Build()
 		if err != nil {
 			return nil, err
 		}
 		return &mcp.ReadResourceResult{
 			Contents: []*mcp.ResourceContents{
-				{URI: "mem://context", Text: memoryProtocolReminder + "\n\n" + output, MIMEType: "text/markdown"},
+				{URI: "mem://context", Text: getMemoryProtocolReminder(lang) + "\n\n" + output, MIMEType: "text/markdown"},
 			},
 		}, nil
 	})

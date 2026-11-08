@@ -1,0 +1,23 @@
+{
+  "context_title": "# Memoria del Proyecto",
+  "lang_switched": "Idioma cambiado a %{name}",
+  "lang_current": "Idioma actual: %{name} (%{code})",
+  "lang_available_list": "Idiomas disponibles: %{available}",
+  "lang_canceled": "Cancelado.",
+  "lang_unsupported": "Idioma no soportado '%{code}'. Idiomas disponibles: %{available}",
+  "lang_usage": "Uso: mem lang [código] (ej: mem lang en, mem lang es)",
+  "install_prompt_lang": "¿Qué idioma prefieres para gomemory? / Which language do you prefer?",
+  "save_nudge": "RECORDATORIO DE MEMORIA: pasaron más de 15 minutos desde tu último guardado real. Si en ese tiempo tomaste una decisión, corregiste un bug, descubriste algo no obvio o estableciste una convención, llama a save_memory ahora. Si no hay nada relevante que guardar, ignora este recordatorio.",
+  "plan_mode_reminder": "Si vas a entrar en modo plan (o la tarea pide un plan/enfoque antes de tocar código), llama a get_plan_context() ANTES de redactar: trae el método de descomposición atómica y el historial del proyecto. Usa el grafo de código para explorar y el árbol de tareas atómicas para presentar el resultado.",
+  "settings_updated": "✓ Settings actualizados",
+  "settings_title": "CONFIGURACIÓN",
+  "settings_auto_approve": "Auto-approve",
+  "settings_code_graph": "Grafo de código externo",
+  "settings_impact_annotation": "Anotación de impacto al guardar",
+  "settings_adr_sync": "Sincronización de ADR",
+  "settings_speckit": "Brazo extensor spec-kit",
+  "settings_atomic_plan": "Planificación atómica en modo plan",
+  "settings_language": "Idioma",
+  "install_starting": "Instalando gomemory en %{target}\n",
+  "install_finished_prefix": "gomemory instalado. Ahora puedes:"
+}

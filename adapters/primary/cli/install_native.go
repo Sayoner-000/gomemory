@@ -127,7 +127,11 @@ func runNativeInstall(target string, selection installSelection, hasGlobal bool)
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, self, "install", target, "--events", "--yes", "--agents", agents, "--scope", selection.scope)
+	cmdArgs := []string{"install", target, "--events", "--yes", "--agents", agents, "--scope", selection.scope}
+	if selection.language != "" {
+		cmdArgs = append(cmdArgs, "--lang", selection.language)
+	}
+	cmd := exec.CommandContext(ctx, self, cmdArgs...)
 	cmd.Cancel = func() error { return requestInstallStop(cmd) }
 	var logs nativeLogs
 	cmd.Stderr = &logs

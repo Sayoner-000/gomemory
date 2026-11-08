@@ -61,7 +61,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// terminal interactiva (hooks, CI, `curl | sh`, el subproceso de update)
 	// o con --yes nunca se pregunta (FR-022).
 	stored := deps.SettingsRepo.Read(target)
-	saved := installSelection{agents: supportedAgents(stored.Agents), scope: stored.AgentScope}
+	saved := installSelection{agents: supportedAgents(stored.Agents), scope: stored.AgentScope, language: stored.Language}
 	home, _ := os.UserHomeDir()
 	choices := detectAgents(home, exec.LookPath)
 	sel := resolveInstallSelection(opts, saved, choices)
@@ -75,7 +75,13 @@ func CmdInstall(deps *Deps, args []string) {
 		if opts.scope != "" {
 			asked.scope = opts.scope
 		}
+		if opts.languageSet {
+			asked.language = opts.language
+		}
 		sel = asked
+	}
+	if opts.languageSet {
+		sel.language = opts.language
 	}
 	if sel.scope == "global" {
 		for _, agent := range sel.agents {
@@ -92,7 +98,8 @@ func CmdInstall(deps *Deps, args []string) {
 		return
 	}
 
-	humanf("Instalando gomemory en %s\n\n", target)
+	cat := getCatalog()
+	humanf("%s", cat.Get(sel.language, "install_starting", map[string]string{"target": target}))
 	var results []console.StepResult
 	recordStep := func(step console.StepResult) {
 		results = append(results, step)
@@ -383,10 +390,18 @@ func CmdInstall(deps *Deps, args []string) {
 
 	// La selección queda guardada: las reinstalaciones (también la de
 	// `mem update`) la reutilizan sin preguntar (FR-023).
-	if s := deps.SettingsRepo.Read(target); strings.Join(s.Agents, ",") != strings.Join(sel.agents, ",") || s.AgentScope != sel.scope {
-		s.Agents, s.AgentScope = sel.agents, sel.scope
+	s := deps.SettingsRepo.Read(target)
+	agentsDiff := strings.Join(s.Agents, ",") != strings.Join(sel.agents, ",") || s.AgentScope != sel.scope
+	langDiff := sel.language != "" && s.Language != sel.language
+	if agentsDiff || langDiff {
+		if agentsDiff {
+			s.Agents, s.AgentScope = sel.agents, sel.scope
+		}
+		if langDiff {
+			s.Language = sel.language
+		}
 		if err := deps.SettingsRepo.Write(target, s); err != nil {
-			humanf("  ⚠ No se pudo guardar la selección de agentes: %v\n", err)
+			humanf("  ⚠ No se pudo guardar la configuración: %v\n", err)
 			addStep("Selección de agentes", err, "repite mem install --yes")
 		} else {
 			addStep("Selección de agentes", nil, "")
@@ -406,7 +421,7 @@ func CmdInstall(deps *Deps, args []string) {
 	}
 
 	humanln()
-	humanln("gomemory instalado. Ahora puedes:")
+	humanln(cat.Get(sel.language, "install_finished_prefix"))
 	humanln()
 	humanln("   cd", target)
 	for _, line := range installNextSteps() {

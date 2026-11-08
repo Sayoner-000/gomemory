@@ -23,6 +23,8 @@ func CmdSettings(deps *Deps, args []string) {
 	compressionLevel := fs.String("compression-level", "", "Nivel de compresión del contexto: none|structural|max (feature 033)")
 	toolOutput := fs.Bool("tool-output-compression", false, "Comprimir la salida de las herramientas del agente (opt-in; requiere `mem install` para registrar el hook)")
 	concise := fs.Bool("concise-output", false, "Añadir la directiva de respuestas concisas al contexto (opt-in)")
+	lang := fs.String("lang", "", "Idioma del proyecto (ej: es, en)")
+	language := fs.String("language", "", "Alias de --lang")
 	show := fs.Bool("show", false, "Mostrar configuración actual")
 	if err := fs.Parse(args); err != nil {
 		return
@@ -74,6 +76,18 @@ func CmdSettings(deps *Deps, args []string) {
 			settings.ToolOutputCompression = *toolOutput
 		case "concise-output":
 			settings.ConciseOutputDirective = *concise
+		case "lang", "language":
+			target := *lang
+			if target == "" {
+				target = *language
+			}
+			target = strings.ToLower(strings.TrimSpace(target))
+			cat := getCatalog()
+			if !cat.Supports(target) {
+				flagErr = fmt.Errorf("idioma no soportado %q: disponibles: %s", target, strings.Join(cat.SupportedCodes(), ", "))
+			} else {
+				settings.Language = target
+			}
 		}
 	})
 	if flagErr != nil {
@@ -88,7 +102,8 @@ func CmdSettings(deps *Deps, args []string) {
 			fail("aplicar auto-approve: %v", err)
 		}
 	}
-	humanln("✓ Settings actualizados")
+	cat := getCatalog()
+	humanln(cat.Get(settings.Language, "settings_updated"))
 	printSettings(deps, root)
 }
 
@@ -96,20 +111,26 @@ func printSettings(deps *Deps, root string) {
 	console.BeginPage()
 	defer console.EndPage()
 	s := deps.SettingsRepo.Read(root)
-	humanf("CONFIGURACIÓN\n\nAuto-approve: %v\n", s.AutoApprove)
+	lang := s.Language
+	if lang == "" {
+		lang = "es"
+	}
+	cat := getCatalog()
+	humanf("%s\n\n%s: %v\n", cat.Get(lang, "settings_title"), cat.Get(lang, "settings_auto_approve"), s.AutoApprove)
 	if s.AutoApprove {
 		humanf("Tools: %v\n", s.AutoApproveTools)
 	}
-	humanf("Grafo de código externo: %v\n", !s.CodeGraphDisabled)
+	humanf("%s: %v\n", cat.Get(lang, "settings_code_graph"), !s.CodeGraphDisabled)
 	if len(s.CodeGraphProviders) > 0 {
 		humanf("Proveedores candidatos (en orden): %s\n", strings.Join(s.CodeGraphProviders, ", "))
 	} else if s.CodeGraphCommand != "" {
 		humanf("Binario del proveedor: %s\n", s.CodeGraphCommand)
 	}
-	humanf("Anotación de impacto al guardar: %v\n", !s.CodeImpactAnnotationDisabled)
-	humanf("Sincronización de ADR: %v\n", s.AdrSyncEnabled)
-	humanf("Brazo extensor spec-kit: %v\n", !s.SpeckitContextDisabled)
-	humanf("Planificación atómica en modo plan: %v\n", !s.AtomicPlanDisabled)
+	humanf("%s: %v\n", cat.Get(lang, "settings_impact_annotation"), !s.CodeImpactAnnotationDisabled)
+	humanf("%s: %v\n", cat.Get(lang, "settings_adr_sync"), s.AdrSyncEnabled)
+	humanf("%s: %v\n", cat.Get(lang, "settings_speckit"), !s.SpeckitContextDisabled)
+	humanf("%s: %v\n", cat.Get(lang, "settings_atomic_plan"), !s.AtomicPlanDisabled)
+	humanf("%s: %s\n", cat.Get(lang, "settings_language"), s.Language)
 	humanf("%s", formatCompressionSettings(s))
 }
 

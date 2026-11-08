@@ -186,6 +186,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		contextBuilder.InstinctGlobal = instinctGlobal
 	}
 	contextBuilder.ExpandSettings = persistence.NewSettingsRepository()
+	contextBuilder.Catalog = cli.GetCatalog()
 	contextBuilder.Graph = codeGraphRepo
 	contextBuilder.Files = codeGraphRepo
 	// Resolución por clave de tópico (feature 021): habilita la sección de

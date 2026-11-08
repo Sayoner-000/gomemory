@@ -93,6 +93,8 @@ func Run(cmd string, args []string, deps *Deps) {
 		CmdList(deps, args)
 	case "settings":
 		CmdSettings(deps, args)
+	case "lang", "language":
+		CmdLang(deps, args)
 	case "doctor":
 		CmdDoctor(deps, args)
 	case "docs":
