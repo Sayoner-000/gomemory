@@ -158,7 +158,7 @@ func runExpand(d *Deps, args []string, x expandIO) int {
 			emit(map[string]any{"wiring": wiring, "supertools": states, "rules": rules, "errors": errs, "activations": events, "shield": shield})
 			return 0
 		}
-		for _, n := range []string{"claude", "codex", "opencode"} {
+		for _, n := range []string{"claude", "codex", "opencode", "agy"} {
 			mark := "✗"
 			if wiring[n] {
 				mark = "✓"

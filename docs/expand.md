@@ -1,6 +1,6 @@
 # Supertools expand
 
-`mem expand` reúne reglas de protección, inspección de configuración, sugerencias de flujo y aprendizaje de patrones. Se activa desde la instalación en Claude Code, Codex y OpenCode mediante cinco eventos: inicio de sesión, prompt, antes y después de una herramienta y fin de turno.
+`mem expand` reúne reglas de protección, inspección de configuración, sugerencias de flujo y aprendizaje de patrones. Se activa desde la instalación en Claude Code, Codex, OpenCode y agy mediante cinco eventos: inicio de sesión, prompt, antes y después de una herramienta y fin de turno.
 
 ## Estado e interruptores
 
@@ -12,7 +12,11 @@ mem expand off rules
 mem expand on rules
 ```
 
-El estado informa el cableado leído de los archivos reales, las reglas y sus errores, las activaciones `expand.*` de siete días y el último informe de shield. `off` apaga todo; `on` reactiva también las capacidades apagadas individualmente. Los ajustes se guardan en `.memory/settings.json`. Los nombres válidos son `rules`, `shield`, `flow` e `instincts`.
+El estado informa el cableado leído de los archivos reales para los cuatro harness, las reglas y sus errores, las activaciones `expand.*` de siete días y el último informe de shield. En texto incluye una línea de estado para agy; en JSON, el booleano `wiring.agy`.
+
+Para agy se lee `~/.gemini/config/hooks.json`: el grupo `gomemory-lifecycle` debe estar habilitado y registrar los comandos `mem hook agy <evento>` para `SessionStart`, `PreInvocation`, `PreToolUse`, `PostToolUse` y `Stop`. Los matchers de `PreToolUse` deben cubrir `run_command`, `write_file`, `edit_file` e `invoke_subagent`; los de `PostToolUse`, `run_command`. Se aceptan rutas de binario con espacios entre comillas. Una configuración ausente, ilegible, inválida, deshabilitada o incompleta se informa como desconectada sin modificarla. Este diagnóstico comprueba el registro de hooks; no ejecuta agy ni sus hooks, y las activaciones históricas no sustituyen la comprobación del cableado actual.
+
+`off` apaga todo; `on` reactiva también las capacidades apagadas individualmente. Los ajustes se guardan en `.memory/settings.json`. Los nombres válidos son `rules`, `shield`, `flow`, `instincts` y `context`.
 
 ## Reglas
 
