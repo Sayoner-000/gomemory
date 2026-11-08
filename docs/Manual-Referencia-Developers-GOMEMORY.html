@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2322e3f7'/%3E%3Cstop offset='.55' stop-color='%232c8ff0'/%3E%3Cstop offset='1' stop-color='%236b56d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z'/%3E%3C/svg%3E">
+<title>Manual de Referencia y Guía de Explicación para Developers — gomemory</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Marca gomemory: abismo del logo + gota cian → azul → violeta ─── */
+  :root {
+    --abyss:#061328; --abyss-2:#0c1d3a; --abyss-3:#13284d;
+    --cyan:#06c1ee; --glow:#22e3f7; --azure:#2c8ff0; --indigo:#3926e3; --violet:#6b56d4; --blush:#ff8fa3;
+    --grad:linear-gradient(90deg, var(--glow) 0%, var(--azure) 48%, var(--violet) 100%);
+    --grad-v:linear-gradient(180deg, var(--glow) 0%, var(--azure) 55%, var(--violet) 100%);
+
+    --ink:#0d1526; --slate:#2c374c; --soft:#4b566b; --faint:#68728a;
+    --paper:#f6f9fd; --paper-2:#e9eff8; --surface:#ffffff; --line:#d9e1ee; --backdrop:#dfe6f2;
+
+    --cyan-ink:#006d8a;   --cyan-soft:#dcf5fc;   --cyan-on:#06394a;
+    --azure-ink:#1557b0;  --azure-soft:#e2eefd;  --azure-on:#0f2f5e;
+    --violet-ink:#4a37a8; --violet-soft:#ece8fb; --violet-on:#2d2068;
+    --mint:#0f9f7b; --mint-ink:#0b7a5f; --mint-soft:#daf4ec; --mint-on:#07493a;
+    --rose:#d23c5a; --rose-ink:#a32640; --rose-soft:#fde5ea; --rose-on:#6a1426;
+    --amber:#c98a06; --amber-ink:#8a5c00; --amber-soft:#fcf0d2; --amber-on:#523700;
+
+    --code-bg:#071833; --code-ink:#dce8fb; --code-faint:#7d8fb0; --code-hl:#22e3f7; --code-hl2:#b9a9ff;
+    --zone-a:#eef3fa; --zone-b:#e4f5fb;
+
+    --display:'Nunito', 'DM Sans', system-ui, sans-serif;
+    --sans:'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --drop:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 48'%3E%3Cpath d='M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z'/%3E%3C/svg%3E");
+    --pad:56px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:#e9effb; --slate:#c4cee2; --soft:#9ba8c0; --faint:#7c89a3;
+      --paper:#0a1730; --paper-2:#11213f; --surface:#0e1c38; --line:#21345a; --backdrop:#040c1b;
+      --cyan-ink:#6fe3fb; --cyan-soft:#0b2c40; --cyan-on:#c9f3fd;
+      --azure-ink:#8cc0ff; --azure-soft:#10284d; --azure-on:#d3e5ff;
+      --violet-ink:#c2b6ff; --violet-soft:#211a4d; --violet-on:#e3ddff;
+      --mint-ink:#5fe0bb; --mint-soft:#0b3229; --mint-on:#c8f5e7;
+      --rose-ink:#ff9cb0; --rose-soft:#3d1420; --rose-on:#ffd9e1;
+      --amber-ink:#ffd27a; --amber-soft:#33260a; --amber-on:#ffeec7;
+      --code-bg:#040e22; --zone-a:#0d1b36; --zone-b:#0b2238;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:#e9effb; --slate:#c4cee2; --soft:#9ba8c0; --faint:#7c89a3;
+    --paper:#0a1730; --paper-2:#11213f; --surface:#0e1c38; --line:#21345a; --backdrop:#040c1b;
+    --cyan-ink:#6fe3fb; --cyan-soft:#0b2c40; --cyan-on:#c9f3fd;
+    --azure-ink:#8cc0ff; --azure-soft:#10284d; --azure-on:#d3e5ff;
+    --violet-ink:#c2b6ff; --violet-soft:#211a4d; --violet-on:#e3ddff;
+    --mint-ink:#5fe0bb; --mint-soft:#0b3229; --mint-on:#c8f5e7;
+    --rose-ink:#ff9cb0; --rose-soft:#3d1420; --rose-on:#ffd9e1;
+    --amber-ink:#ffd27a; --amber-soft:#33260a; --amber-on:#ffeec7;
+    --code-bg:#040e22; --zone-a:#0d1b36; --zone-b:#0b2238;
+  }
+  :root[data-theme="light"] {
+    --ink:#0d1526; --slate:#2c374c; --soft:#4b566b; --faint:#68728a;
+    --paper:#f6f9fd; --paper-2:#e9eff8; --surface:#ffffff; --line:#d9e1ee; --backdrop:#dfe6f2;
+    --cyan-ink:#006d8a; --cyan-soft:#dcf5fc; --cyan-on:#06394a;
+    --azure-ink:#1557b0; --azure-soft:#e2eefd; --azure-on:#0f2f5e;
+    --violet-ink:#4a37a8; --violet-soft:#ece8fb; --violet-on:#2d2068;
+    --mint:#0f9f7b; --mint-ink:#0b7a5f; --mint-soft:#daf4ec; --mint-on:#07493a;
+    --rose:#d23c5a; --rose-ink:#a32640; --rose-soft:#fde5ea; --rose-on:#6a1426;
+    --amber:#c98a06; --amber-ink:#8a5c00; --amber-soft:#fcf0d2; --amber-on:#523700;
+    --code-bg:#071833; --zone-a:#eef3fa; --zone-b:#e4f5fb;
+  }
+
+  html { font-size: 10.5pt; scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body {
+    font-family: var(--sans); color: var(--ink); background: var(--backdrop); line-height: 1.6;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--glow); color: var(--abyss); }
+  :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; border-radius: 3px; }
+  a { color: var(--azure-ink); text-underline-offset: 3px; }
+
+  /* ── Barra superior sticky de lectura ───────────────────────────────── */
+  .printbar {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 16px; padding: 10px 22px;
+    background: rgba(6,19,40,.92); color: #dfe8f7;
+    backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px);
+    box-shadow: 0 6px 20px -12px rgba(6,19,40,.5);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; color: inherit; }
+  .brand-logo { width: 22px; height: 26px; -webkit-mask: var(--drop) center/100% 100% no-repeat; mask: var(--drop) center/100% 100% no-repeat; background: var(--grad-v); }
+  .brand-name { font-family: var(--display); font-size: 11pt; font-weight: 900; letter-spacing: -.01em; color: #fff; }
+  .brand-name span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  .toc { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+  .toc::-webkit-scrollbar { display: none; }
+  .toc a {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    font-size: 8pt; font-weight: 600; color: #c3cfe3; text-decoration: none;
+    padding: 5px 9px; border-radius: 8px; transition: background .18s, color .18s;
+  }
+  .toc a span { font-family: var(--display); font-weight: 900; font-size: 7.5pt; color: var(--glow); font-variant-numeric: tabular-nums; }
+  .toc a:hover { background: rgba(255,255,255,.08); color: #fff; }
+  .toc a[aria-current] { background: rgba(34,227,247,.14); color: #fff; }
+
+  .pb-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .pb-btn {
+    font-family: var(--sans); font-size: 8.5pt; font-weight: 700; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.18); background: transparent; color: #dfe8f7;
+    padding: 6px 12px; border-radius: 9px; transition: background .18s, transform .18s, border-color .18s;
+  }
+  .pb-btn:hover { background: rgba(255,255,255,.08); border-color: var(--glow); color: #fff; }
+  .pb-btn.primary { background: var(--grad); color: var(--abyss); border: 0; font-weight: 800; }
+  .pb-btn.primary:hover { filter: brightness(1.1); }
+
+  .readbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; pointer-events: none; }
+  .readbar i { display: block; height: 100%; background: var(--grad); transform-origin: 0 50%; transform: scaleX(0); }
+
+  /* ── Estructura de documento ───────────────────────────────────────── */
+  .doc { max-width: 1040px; margin: 0 auto; background: var(--paper); box-shadow: 0 24px 60px -30px rgba(6,19,40,.5); }
+  .wrap { padding: 0 var(--pad); }
+
+  /* ── Portada principal ─────────────────────────────────────────────── */
+  .cover {
+    position: relative; overflow: hidden; color: #e7eefa; padding: 48px 0 56px;
+    background:
+      radial-gradient(60% 45% at 50% 30%, rgba(44,143,240,.28), transparent 70%),
+      radial-gradient(40% 30% at 85% 75%, rgba(107,86,212,.22), transparent 70%),
+      linear-gradient(180deg, var(--abyss-2), var(--abyss));
+  }
+  .cover-pill {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 8pt; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--glow);
+    background: rgba(34,227,247,.12); border: 1px solid rgba(34,227,247,.28);
+    padding: 4px 12px; border-radius: 999px; margin-bottom: 18px;
+  }
+  .cover h1 {
+    font-family: var(--display); font-weight: 900; font-size: clamp(26pt, 4.8vw, 42pt);
+    line-height: 1.05; letter-spacing: -.025em; color: #fff; text-wrap: balance; margin-bottom: 14px;
+  }
+  .cover h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .cover .accent { width: 64px; height: 4px; border-radius: 2px; background: var(--grad); margin-bottom: 20px; }
+  .cover p.desc { font-size: 11pt; color: #c9d5ea; max-width: 74ch; line-height: 1.65; margin-bottom: 24px; }
+  .cover p.desc code { background: var(--abyss-3); color: var(--glow); }
+
+  .cover-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 36px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.12); }
+  .cover-meta p { font-size: 8.5pt; color: #aebcd4; line-height: 1.55; margin: 0; max-width: none; }
+  .cover-meta strong { display: block; color: #fff; font-weight: 600; font-size: 8pt; letter-spacing: .02em; }
+
+  /* ── Apertura de capítulos con halo y anillo rotatorio ────────────── */
+  .chapter {
+    position: relative; margin: 0 calc(var(--pad) * -1) 34px; min-height: 210px;
+    display: flex; align-items: flex-end; color: #fff; overflow: hidden;
+    background:
+      radial-gradient(55% 90% at 82% 40%, rgba(44,143,240,.30), transparent 70%),
+      radial-gradient(35% 60% at 10% 100%, rgba(107,86,212,.25), transparent 70%),
+      linear-gradient(180deg, var(--abyss-2), var(--abyss));
+  }
+  .chapter::after {
+    content: ''; position: absolute; right: var(--rx, 6%); top: 50%; width: 250px; height: 250px; transform: translateY(-50%) rotate(var(--rot, 0deg));
+    border-radius: 50%;
+    background: repeating-conic-gradient(from 0deg, var(--glow) 0 8deg, transparent 8deg 22.5deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 26px), #000 calc(100% - 25px)), conic-gradient(from 200deg, transparent 0 25%, #000 70%, rgba(0,0,0,.15));
+    -webkit-mask-composite: source-in;
+    mask: radial-gradient(farthest-side, transparent calc(100% - 26px), #000 calc(100% - 25px)), conic-gradient(from 200deg, transparent 0 25%, #000 70%, rgba(0,0,0,.15));
+    mask-composite: intersect;
+    opacity: .55; pointer-events: none;
+  }
+  .chapter::before {
+    content: ''; position: absolute; right: calc(var(--rx, 6%) + 88px); top: 50%; width: 74px; height: 88px; transform: translateY(-50%);
+    -webkit-mask: var(--drop) center/100% 100% no-repeat; mask: var(--drop) center/100% 100% no-repeat;
+    background: var(--grad-v); opacity: .9; filter: drop-shadow(0 0 22px rgba(34,227,247,.6));
+  }
+  .chapter-inner { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 18px; padding: 0 var(--pad) 26px; width: 100%; max-width: 760px; }
+  .dropnum {
+    flex-shrink: 0; display: inline-grid; place-items: center; width: 50px; height: 60px; padding-top: 10px;
+    -webkit-mask: var(--drop) center/100% 100% no-repeat; mask: var(--drop) center/100% 100% no-repeat;
+    background: var(--grad-v); color: var(--abyss);
+    font-family: var(--display); font-weight: 900; font-size: 16pt; font-variant-numeric: tabular-nums;
+  }
+  .chapter h2 { font-family: var(--display); font-weight: 900; font-size: clamp(18pt, 3vw, 24pt); line-height: 1.1; letter-spacing: -.02em; color: #fff; text-wrap: balance; margin-bottom: 6px; }
+  .chapter h2 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .chapter .pg-sub { font-size: 9.5pt; color: #cbd6ea; max-width: 64ch; line-height: 1.5; margin: 0; }
+  .chapter .pg-sub code { background: rgba(255,255,255,.12); color: #fff; }
+
+  /* ── Tipografía y contenido ────────────────────────────────────────── */
+  .section-header { margin: 26px 0 16px; }
+  .section-header h3 { font-family: var(--display); font-size: 13.5pt; font-weight: 800; color: var(--ink); letter-spacing: -.01em; line-height: 1.25; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .section-header h3::before { content: ''; flex-shrink: 0; width: 11px; height: 13px; -webkit-mask: var(--drop) center/100% 100% no-repeat; mask: var(--drop) center/100% 100% no-repeat; background: var(--grad-v); transform: translateY(1px); }
+  .section-header p { font-size: 9pt; color: var(--faint); margin: 4px 0 0 21px; }
+
+  p { margin-bottom: 12px; font-size: 10pt; color: var(--slate); max-width: 78ch; }
+  .lead { font-size: 11pt; line-height: 1.65; color: var(--ink); max-width: 74ch; margin-bottom: 14px; font-weight: 500; }
+  p strong, li strong, td strong { color: var(--ink); }
+  ul, ol { margin: 6px 0 14px 20px; }
+  li { font-size: 9.6pt; margin-bottom: 5px; color: var(--slate); }
+  code { font-family: var(--mono); font-size: .85em; background: var(--paper-2); padding: 1px 5px; border-radius: 5px; color: var(--azure-ink); }
+
+  /* ── Diagramas Visuales e Ilustraciones ────────────────────────────── */
+  .diagram-box { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 18px 0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,.03); }
+  .diagram-box svg { display: block; width: 100%; height: auto; }
+  .diagram-caption { font-size: 8.5pt; color: var(--faint); margin-top: 10px; text-align: center; font-weight: 600; }
+
+  /* Estilos específicos del Metro Map */
+  .metro { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin: 18px 0; }
+  .metro svg { display: block; width: 100%; height: auto; }
+  .mt-zone-a { fill: var(--zone-a); }
+  .mt-zone-b { fill: var(--zone-b); }
+  .mt-zone-t { font: 800 15px var(--display); fill: var(--ink); }
+  .mt-zone-s { font: 500 12.5px var(--sans); fill: var(--soft); }
+  .mt-trunk { fill: none; stroke: var(--soft); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+  .mt-fast { fill: none; stroke: var(--mint); stroke-width: 6; stroke-linecap: round; }
+  .mt-full { fill: none; stroke: var(--violet-ink); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+  .mt-st { fill: var(--surface); stroke: var(--soft); stroke-width: 4; }
+  .mt-st.full { stroke: var(--violet-ink); }
+  .mt-start { fill: var(--soft); }
+  .mt-end { fill: var(--mint); }
+  .mt-check { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .mt-name { font: 600 13.5px var(--mono); fill: var(--ink); }
+  .mt-cond { font: 400 12.5px var(--sans); fill: var(--soft); }
+  .mt-lane { font: 700 12.5px var(--sans); }
+  .mt-lane.fast { fill: var(--mint-ink); }
+  .mt-lane.full { fill: var(--violet-ink); }
+  .mt-back { fill: none; stroke: var(--rose); stroke-width: 2; stroke-dasharray: 6 5; stroke-linecap: round; }
+  .mt-back-head { fill: var(--rose); }
+  .mt-back-t { font: 600 12.5px var(--sans); fill: var(--rose-ink); }
+  .mt-leg { font: 500 12.5px var(--sans); fill: var(--soft); }
+
+  /* ── Infoboxes / Cajas destacadas ──────────────────────────────────── */
+  .infobox { --bg: var(--cyan-soft); --fg: var(--cyan-on); --ac: var(--cyan); background: var(--bg); color: var(--fg); border-radius: 14px; padding: 14px 18px 14px 20px; font-size: 9.5pt; margin: 16px 0; line-height: 1.6; position: relative; overflow: hidden; }
+  .infobox::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ac); }
+  .infobox strong { color: inherit; }
+  .infobox p { color: inherit; font-size: inherit; margin-bottom: 6px; max-width: none; }
+  .infobox p:last-child { margin-bottom: 0; }
+  .infobox .lbl { display: block; font-size: 7.5pt; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; opacity: .85; }
+  .infobox.azure  { --bg: var(--azure-soft);  --fg: var(--azure-on);  --ac: var(--azure); }
+  .infobox.violet { --bg: var(--violet-soft); --fg: var(--violet-on); --ac: var(--violet); }
+  .infobox.mint   { --bg: var(--mint-soft);   --fg: var(--mint-on);   --ac: var(--mint); }
+  .infobox.rose   { --bg: var(--rose-soft);   --fg: var(--rose-on);   --ac: var(--rose); }
+  .infobox.amber  { --bg: var(--amber-soft);  --fg: var(--amber-on);  --ac: var(--amber); }
+
+  /* ── Diálogo / Guion verbal para el speaker ────────────────────────── */
+  .speech { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--violet); border-radius: 12px; padding: 16px 20px; margin: 18px 0; position: relative; }
+  .speech-lbl { font-family: var(--display); font-size: 8pt; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--violet-ink); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .speech-text { font-size: 10pt; line-height: 1.6; color: var(--ink); font-style: italic; }
+  .speech-tip { display: inline-block; margin-top: 8px; font-size: 8pt; font-weight: 600; color: var(--mint-ink); background: var(--mint-soft); padding: 3px 8px; border-radius: 6px; }
+
+  /* ── Grillas y Tarjetas ────────────────────────────────────────────── */
+  .grid { display: grid; gap: 14px; margin: 16px 0; }
+  .grid > * { min-width: 0; }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .card { --c: var(--cyan); position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px 17px; }
+  .card.azure { --c: var(--azure); } .card.violet { --c: var(--violet); } .card.mint { --c: var(--mint); } .card.amber { --c: var(--amber); }
+  .card-title { font-family: var(--display); font-size: 10.5pt; font-weight: 800; color: var(--ink); margin-bottom: 6px; line-height: 1.3; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card-title::before { content: ''; flex-shrink: 0; width: 9px; height: 11px; -webkit-mask: var(--drop) center/100% 100% no-repeat; mask: var(--drop) center/100% 100% no-repeat; background: var(--c); }
+  .card-body { font-size: 9pt; color: var(--soft); line-height: 1.6; }
+  .card-body p { font-size: 9pt; color: var(--soft); margin-bottom: 6px; }
+
+  /* ── Tablas ────────────────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; margin: 14px 0 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; font-variant-numeric: tabular-nums; }
+  th { text-align: left; padding: 10px 12px; font-size: 7.5pt; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); border-bottom: 2px solid var(--ink); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--slate); }
+  tbody tr:hover td { background: rgba(34,227,247,.05); }
+
+  /* ── Insignias ─────────────────────────────────────────────────────── */
+  .badge { display: inline-block; font-size: 7pt; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .02em; vertical-align: 1px; white-space: nowrap; }
+  .b-cyan   { background: var(--cyan-soft);   color: var(--cyan-ink); }
+  .b-azure  { background: var(--azure-soft);  color: var(--azure-ink); }
+  .b-violet { background: var(--violet-soft); color: var(--violet-ink); }
+  .b-mint   { background: var(--mint-soft);   color: var(--mint-ink); }
+  .b-amber  { background: var(--amber-soft);  color: var(--amber-ink); }
+
+  /* ── Glosario con analogías ────────────────────────────────────────── */
+  .glossary-list { display: grid; gap: 10px; margin: 16px 0; }
+  .glossary-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 16px; align-items: start; }
+  .glossary-term { font-family: var(--mono); font-size: 9pt; font-weight: 700; color: var(--azure-ink); }
+  .glossary-desc { font-size: 9pt; color: var(--slate); line-height: 1.55; }
+  .glossary-analogy { margin-top: 5px; font-size: 8.5pt; color: var(--violet-ink); font-style: italic; display: block; }
+
+  footer { background: var(--abyss); color: #9fb0cc; padding: 32px 0; font-size: 8.5pt; border-top: 1px solid var(--line); }
+  footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; }
+
+  @media print {
+    .printbar { display: none !important; }
+    body { background: #fff !important; color: #0d1526 !important; font-size: 9pt; }
+    .doc { box-shadow: none !important; max-width: 100% !important; margin: 0 !important; }
+    .wrap { padding: 0 16mm !important; }
+    .cover, .chapter { background: #061328 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; page-break-after: avoid; }
+    .chapter { min-height: 140px !important; margin: 0 -16mm 20px !important; }
+    .chapter-inner { padding: 0 16mm 16px !important; }
+    .card, .infobox, .speech, .diagram-box, .metro, .glossary-card, tr { page-break-inside: avoid; }
+    h2, h3, h4 { page-break-after: avoid; }
+  }
+
+  @media (max-width: 800px) {
+    :root { --pad: 20px; }
+    .g2, .g3 { grid-template-columns: 1fr; }
+    .cover-meta { grid-template-columns: 1fr; }
+    .glossary-card { grid-template-columns: 1fr; gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Barra superior sticky -->
+<header class="printbar">
+  <a href="#inicio" class="brand">
+    <div class="brand-logo"></div>
+    <span class="brand-name">gomemory <span>v2.52</span></span>
+  </a>
+  <nav class="toc" aria-label="Capítulos">
+    <a href="#cap-1"><span>01</span> Puntos Clave</a>
+    <a href="#cap-2"><span>02</span> La Espec en Palabras</a>
+    <a href="#cap-3"><span>03</span> Desencadenamiento</a>
+    <a href="#cap-4"><span>04</span> stdio vs HTTP/SSE</a>
+    <a href="#cap-5"><span>05</span> Hooks vs Events</a>
+    <a href="#cap-6"><span>06</span> Diálogo y Glosario</a>
+    <a href="#anexo-grafos"><span>A1</span> Grafos de Código</a>
+  </nav>
+  <div class="pb-actions">
+    <button class="pb-btn" id="themeBtn">Tema</button>
+    <button class="pb-btn primary" onclick="window.print()">Descargar PDF</button>
+  </div>
+  <div class="readbar"><i id="readProgress"></i></div>
+</header>
+
+<main class="doc" id="inicio">
+  <!-- Portada oficial abismo -->
+  <div class="cover">
+    <div class="wrap">
+      <div class="cover-pill">Manual de Referencia y Guía de Exposición</div>
+      <h1>gomemory: <span>Memoria, Protocolos y Meta-Harness</span></h1>
+      <div class="accent"></div>
+      <p class="desc">
+        Manual técnico estructurado con el sistema de diseño oficial de gomemory. Cubre la persistencia fuera de Git, el rol de la especificación humana, los diagramas de flujo completos del desencadenamiento en el harness, la anatomía de los transportes MCP (<code>stdio</code> frente a <code>SSE</code> y <code>HTTP</code>), la frontera arquitectónica entre <strong>Eventos del Host</strong> y <strong>Hooks deterministas</strong>, y el guion pedagógico con glosario para explicarlo a un equipo de desarrollo.
+      </p>
+      <div class="cover-meta">
+        <div>
+          <strong>Harnesses soportados nativamente:</strong>
+          <p>Claude Code · OpenAI Codex · Antigravity CLI (<code>agy</code>) · OpenCode</p>
+        </div>
+        <div>
+          <strong>Formatos disponibles:</strong>
+          <p>HTML interactivo + Gráficos SVG vectoriales + PDF compilado A4</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- CAPÍTULO 1 -->
+    <article class="chapter" id="cap-1" style="--rx: 5%; --rot: 18deg;">
+      <div class="chapter-inner">
+        <div class="dropnum">1</div>
+        <div>
+          <h2>Lo mejor del proyecto: <span>Pilares y Puntos Clave</span></h2>
+          <p class="pg-sub">Por qué gomemory rompe la amnesia de los agentes mediante ingeniería verificable y no con simples volcados de texto.</p>
+        </div>
+      </div>
+    </article>
+
+    <p class="lead">
+      El problema fundamental de los asistentes de codificación actuales es que <strong>arrancan cada sesión desde cero</strong>. No recuerdan por qué se adoptó un framework la semana pasada, cómo se solucionó un fallo intermitente o qué alternativas se descartaron. Esto provoca que el usuario deba repetir explicaciones y pagar repetidamente por los mismos tokens.
+    </p>
+
+    <div class="grid g2">
+      <div class="card azure">
+        <div class="card-title">Memoria persistente fuera de Git</div>
+        <div class="card-body">
+          <p>La memoria vive en SQLite local bajo <code>~/.local/share/gomemory</code> (macOS/Linux) o <code>%LOCALAPPDATA%\gomemory</code> (Windows). El repositorio solo conserva la configuración en <code>.memory/</code> (ignorada en Git).</p>
+          <p>Clasificada en tipos rigurosos (<code>architecture</code>, <code>decision</code>, <code>bugfix</code>, <code>pattern</code>, <code>learning</code>) e indexada con <strong>SQLite FTS5 + BM25</strong> y métricas de masa/centralidad en grafo.</p>
+        </div>
+      </div>
+
+      <div class="card mint">
+        <div class="card-title">Token Budgeting y Compresión Pack</div>
+        <div class="card-body">
+          <p>No ahoga el contexto del LLM. <code>get_context</code> opera bajo un presupuesto estricto (~3.000–4.200 caracteres al arrancar la sesión).</p>
+          <p>Implementa compresión reversible de fragmentos con <code>mem pack</code> y captura automática de salidas masivas de consola (<em>tool-output</em>) para ahorrar miles de tokens por turno.</p>
+        </div>
+      </div>
+
+      <div class="card violet">
+        <div class="card-title">Metodología HCD (Harness Continual Dev)</div>
+        <div class="card-body">
+          <p>Protocolo riguroso de dos carriles (<em>fast</em> y <em>full</em>) con TDD obligatorio: en corrección de bugs, exige observar el fallo previo (<code>--expect-fail</code>) antes del cambio.</p>
+          <p>Las tareas solo se marcan como completadas si la comprobación automatizada devuelve código de éxito en la máquina real.</p>
+        </div>
+      </div>
+
+      <div class="card amber">
+        <div class="card-title">Revisión Imparcial: Subagente Splash</div>
+        <div class="card-body">
+          <p>Para evitar que el agente aplauda su propio trabajo, gomemory instancia a <strong>Splash</strong>: un subagente deliberadamente privado de memoria del proyecto.</p>
+          <p>Splash lee la especificación y el código en frío, sin sesgo de confirmación, actuando como un auditor implacable antes de la aprobación.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPÍTULO 2 -->
+    <article class="chapter" id="cap-2" style="--rx: 8%; --rot: -24deg;">
+      <div class="chapter-inner">
+        <div class="dropnum">2</div>
+        <div>
+          <h2>El Rol del Usuario: <span>La Especificación con sus Palabras</span></h2>
+          <p class="pg-sub">El desarrollador gobierna la intención y las restricciones; el agente propone la implementación dentro de esos límites.</p>
+        </div>
+      </div>
+    </article>
+
+    <div class="infobox violet">
+      <span class="lbl">Principio de diseño</span>
+      <strong>La persona es el árbitro de la necesidad:</strong> No se le exige escribir sintaxis formal ni pseudocódigo. Su misión es describir el problema real, qué resultado espera y, sobre todo, qué fronteras no deben cruzarse.
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Etapa</th>
+            <th>Lo que hace el Usuario en lenguaje natural</th>
+            <th>Lo que ejecuta gomemory y el Harness</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1. Intención pura</strong></td>
+            <td>Explica el problema y qué valor busca: <em>"Necesito que el endpoint /status devuelva el uptime real del servicio"</em>.</td>
+            <td>Crea la unidad <code>hcd/HCD-NNN-slug.md</code>, enlaza el ID de sesión y clasifica el carril (fast o full).</td>
+          </tr>
+          <tr>
+            <td><strong>2. Alcance explícito</strong></td>
+            <td>Declara qué incluye y qué queda <strong>fuera de alcance</strong>: <em>"No toques la autenticación ni migres dependencias"</em>.</td>
+            <td>El motor HCD convierte lo excluido en restricciones de guarda que el agente no puede ignorar.</td>
+          </tr>
+          <tr>
+            <td><strong>3. Clarificación</strong></td>
+            <td>Responde a un máximo de 1 a 3 preguntas críticas formuladas por <strong>Socratica</strong> (<code>hcd-clarify</code>).</td>
+            <td>Desambigua opciones de arquitectura y contratos sin someter al usuario a interrogatorios tediosos.</td>
+          </tr>
+          <tr>
+            <td><strong>4. Aprobación vinculada</strong></td>
+            <td>Revisa la definición final y da su consentimiento explícito (vía chat o comando <code>/hcd-approve</code>).</td>
+            <td>Firma la aprobación en la base de datos atándola a la revisión Git exacta; bloquea desviaciones (*drift*).</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- EL METRO OFICIAL HCD -->
+    <div class="section-header">
+      <h3>El recorrido de una unidad HCD en el motor</h3>
+      <p>Línea de metro de start a closed con sus estaciones de control y verificación</p>
+    </div>
+
+    <div class="metro">
+      <svg viewBox="0 0 1080 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="mt-title mt-desc">
+        <title id="mt-title">Recorrido de una unidad HCD</title>
+        <desc id="mt-desc">Línea de metro de start a closed. La Vía rápida va recta de clarify a tasks; la ceremonia completa se desvía por approve y slice. approve y close son tus aprobaciones. Si cambia el código, el motor vuelve a verify; si cambia la definición, vuelve a approve.</desc>
+        <defs>
+          <linearGradient id="mtGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22e3f7"/><stop offset=".55" stop-color="#2c8ff0"/><stop offset="1" stop-color="#6b56d4"/></linearGradient>
+          <marker id="mtArrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mt-back-head" d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+        <rect x="8" y="8" width="660" height="346" rx="14" class="mt-zone-a"/>
+        <rect x="676" y="8" width="396" height="346" rx="14" class="mt-zone-b"/>
+        <text x="28" y="38" class="mt-zone-t">Defines</text><text x="28" y="57" class="mt-zone-s">lo redacta una persona o el agente</text>
+        <text x="696" y="38" class="mt-zone-t">Construyes y demuestras</text><text x="696" y="57" class="mt-zone-s">el motor ejecuta las pruebas y registra</text>
+        <path d="M50,250 L240,250" class="mt-trunk"/>
+        <path d="M620,250 L1030,250" class="mt-trunk"/>
+        <path d="M240,250 C310,250 310,140 380,140 L480,140 C550,140 550,250 620,250" class="mt-full"/>
+        <path d="M240,250 L620,250" class="mt-fast"/>
+        <text x="430.0" y="280" text-anchor="middle" class="mt-lane fast">Vía rápida: recta, sin approve ni slice</text>
+        <text x="296" y="150" text-anchor="end" class="mt-lane full">Ceremonia completa</text>
+        <path d="M935,232 C935,168 835,168 835,230" class="mt-back" marker-end="url(#mtArrow)"/>
+        <text x="885.0" y="158" text-anchor="middle" class="mt-back-t">si cambia el código,</text>
+        <text x="885.0" y="174" text-anchor="middle" class="mt-back-t">la evidencia caduca</text>
+        <path d="M735,232 C735,20 380,20 380,110" class="mt-back" marker-end="url(#mtArrow)"/>
+        <text x="557.5" y="44" text-anchor="middle" class="mt-back-t">si cambia la definición, vuelve a approve</text>
+        <circle cx="50" cy="250" r="9" class="mt-start"/>
+        <text x="50" y="288" text-anchor="middle" class="mt-name">start</text><text x="50" y="307" text-anchor="middle" class="mt-cond">/hcd con tipo</text><text x="50" y="322" text-anchor="middle" class="mt-cond">y carril</text>
+        <circle cx="145" cy="250" r="11" class="mt-st"/>
+        <text x="145" y="288" text-anchor="middle" class="mt-name">define</text><text x="145" y="307" text-anchor="middle" class="mt-cond">secciones</text><text x="145" y="322" text-anchor="middle" class="mt-cond">completas</text>
+        <circle cx="240" cy="250" r="11" class="mt-st"/>
+        <text x="240" y="288" text-anchor="middle" class="mt-name">clarify</text><text x="240" y="307" text-anchor="middle" class="mt-cond">cada Qn</text><text x="240" y="322" text-anchor="middle" class="mt-cond">respondida</text>
+        <g transform="translate(365.5,120) scale(.74)"><path d="M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z" fill="url(#mtGrad)"/><ellipse cx="13" cy="27" rx="3" ry="6" fill="#fff" opacity=".35"/></g>
+        <text x="380" y="180" text-anchor="middle" class="mt-name">approve</text><text x="380" y="198" text-anchor="middle" class="mt-cond">tu cita sobre</text><text x="380" y="213" text-anchor="middle" class="mt-cond">la revisión</text>
+        <circle cx="480" cy="140" r="11" class="mt-st full"/>
+        <text x="480" y="180" text-anchor="middle" class="mt-name">slice</text><text x="480" y="198" text-anchor="middle" class="mt-cond">VS-NN con</text><text x="480" y="213" text-anchor="middle" class="mt-cond">tareas y C-NN</text>
+        <circle cx="620" cy="250" r="11" class="mt-st"/>
+        <text x="620" y="288" text-anchor="middle" class="mt-name">tasks</text><text x="620" y="307" text-anchor="middle" class="mt-cond">checklist</text><text x="620" y="322" text-anchor="middle" class="mt-cond">N. → prueba</text>
+        <circle cx="735" cy="250" r="11" class="mt-st"/>
+        <text x="735" y="288" text-anchor="middle" class="mt-name">implement</text><text x="735" y="307" text-anchor="middle" class="mt-cond">rojo (si es fix)</text><text x="735" y="322" text-anchor="middle" class="mt-cond">y el cambio</text>
+        <circle cx="835" cy="250" r="11" class="mt-st"/>
+        <text x="835" y="288" text-anchor="middle" class="mt-name">verify</text><text x="835" y="307" text-anchor="middle" class="mt-cond">evidencia</text><text x="835" y="322" text-anchor="middle" class="mt-cond">vigente</text>
+        <g transform="translate(920.5,230) scale(.74)"><path d="M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z" fill="url(#mtGrad)"/><ellipse cx="13" cy="27" rx="3" ry="6" fill="#fff" opacity=".35"/></g>
+        <text x="935" y="288" text-anchor="middle" class="mt-name">close</text><text x="935" y="307" text-anchor="middle" class="mt-cond">analyze limpio</text><text x="935" y="322" text-anchor="middle" class="mt-cond">y tu cita</text>
+        <circle cx="1030" cy="250" r="15" class="mt-end"/><path d="M1024,250 l4,4.5 l8,-9" class="mt-check"/>
+        <text x="1030" y="288" text-anchor="middle" class="mt-name">closed</text><text x="1030" y="307" text-anchor="middle" class="mt-cond">unidad</text><text x="1030" y="322" text-anchor="middle" class="mt-cond">liberada</text>
+        <g transform="translate(20,375) scale(.42)"><path d="M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z" fill="url(#mtGrad)"/></g><text x="44" y="390" class="mt-leg">tu aprobación</text>
+        <line x1="158" y1="386" x2="190" y2="386" class="mt-trunk"/><text x="200" y="390" class="mt-leg">ambos carriles</text>
+        <line x1="320" y1="386" x2="352" y2="386" class="mt-fast"/><text x="362" y="390" class="mt-leg">Vía rápida</text>
+        <line x1="460" y1="386" x2="492" y2="386" class="mt-full"/><text x="502" y="390" class="mt-leg">solo ceremonia completa</text>
+        <line x1="680" y1="386" x2="712" y2="386" class="mt-back"/><text x="722" y="390" class="mt-leg">el motor te devuelve a un paso anterior</text>
+      </svg>
+    </div>
+
+    <!-- CAPÍTULO 3: EL DIAGRAMA DE DESENCADENAMIENTO ORIGINAL -->
+    <article class="chapter" id="cap-3" style="--rx: 10%; --rot: 40deg;">
+      <div class="chapter-inner">
+        <div class="dropnum">3</div>
+        <div>
+          <h2>El Desencadenamiento: <span>Cómo opera en el Harness</span></h2>
+          <p class="pg-sub">El flujo completo creado al inicio: desde el prompt del usuario hasta la ejecución coordinada de hooks, MCP y subagentes.</p>
+        </div>
+      </div>
+    </article>
+
+    <p class="lead">
+      Cuando el usuario escribe un comando o una orden en lenguaje natural en cualquiera de los cuatro agentes, el sistema desencadena dos canales paralelos que aseguran contexto, guardrails y verificación.
+    </p>
+
+    <!-- EL GRÁFICO EXACTO DEL INICIO: DIAGRAMA DE FLUJO DE DESENCADENAMIENTO -->
+    <div class="diagram-box">
+      <svg viewBox="0 0 960 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama del Flujo de Desencadenamiento en el Harness">
+        <defs>
+          <linearGradient id="userGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#22e3f7"/><stop offset="100%" stop-color="#2c8ff0"/></linearGradient>
+          <linearGradient id="harnessGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#0c1d3a"/><stop offset="100%" stop-color="#13284d"/></linearGradient>
+          <linearGradient id="hookGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#0b2c40"/><stop offset="100%" stop-color="#061328"/></linearGradient>
+          <linearGradient id="mcpGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#211a4d"/><stop offset="100%" stop-color="#061328"/></linearGradient>
+        </defs>
+
+        <!-- NODO 1: USUARIO -->
+        <rect x="255" y="15" width="450" height="50" rx="25" fill="url(#userGrad)" stroke="#22e3f7" stroke-width="2"/>
+        <text x="480" y="45" fill="#061328" font-family="'Nunito', sans-serif" font-weight="900" font-size="14" text-anchor="middle">USUARIO: Prompt Inicial / Slash command (/hcd, $hcd)</text>
+
+        <!-- Flecha hacia abajo -->
+        <path d="M480 65 L480 95" fill="none" stroke="#22e3f7" stroke-width="3"/>
+        <polygon points="475,95 480,105 485,95" fill="#22e3f7"/>
+
+        <!-- NODO 2: HARNESS -->
+        <rect x="180" y="105" width="600" height="54" rx="10" fill="url(#harnessGrad)" stroke="#2c8ff0" stroke-width="2"/>
+        <text x="480" y="132" fill="#fff" font-family="'Nunito', sans-serif" font-weight="800" font-size="14" text-anchor="middle">HARNESS ANFITRIÓN</text>
+        <text x="480" y="148" fill="#8cc0ff" font-family="'JetBrains Mono', monospace" font-size="11" text-anchor="middle">Claude Code · OpenAI Codex · Antigravity (agy) · OpenCode</text>
+
+        <!-- Flechas divergentes -->
+        <path d="M350 160 L240 200" fill="none" stroke="#22e3f7" stroke-width="2.5"/>
+        <polygon points="236,194 233,204 244,200" fill="#22e3f7"/>
+        <text x="270" y="175" fill="#6fe3fb" font-family="'DM Sans', sans-serif" font-weight="700" font-size="10.5">Lifecycle Hooks</text>
+
+        <path d="M610 160 L720 200" fill="none" stroke="#c2b6ff" stroke-width="2.5"/>
+        <polygon points="716,200 727,204 724,194" fill="#c2b6ff"/>
+        <text x="690" y="175" fill="#c2b6ff" font-family="'DM Sans', sans-serif" font-weight="700" font-size="10.5">MCP sobre stdio</text>
+
+        <!-- SUBGRAFO 1: LIFECYCLE HOOKS -->
+        <rect x="40" y="205" width="410" height="155" rx="12" fill="url(#hookGrad)" stroke="#006d8a" stroke-width="1.5"/>
+        <text x="245" y="230" fill="#22e3f7" font-family="'Nunito', sans-serif" font-weight="800" font-size="13" text-anchor="middle">1. LIFECYCLE HOOKS (mem hook ...)</text>
+        <line x1="60" y1="240" x2="430" y2="240" stroke="#006d8a" stroke-width="1"/>
+        <text x="60" y="260" fill="#e9effb" font-family="'JetBrains Mono', monospace" font-size="10">● session-start: </text>
+        <text x="180" y="260" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10">Inyección memoria fija, reglas y estado</text>
+        <text x="60" y="285" fill="#e9effb" font-family="'JetBrains Mono', monospace" font-size="10">● user-prompt-submit: </text>
+        <text x="210" y="285" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10">Guardrails shell y Socratica</text>
+        <text x="60" y="310" fill="#e9effb" font-family="'JetBrains Mono', monospace" font-size="10">● tool-output: </text>
+        <text x="160" y="310" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10">Compresión de salidas masivas</text>
+        <text x="60" y="335" fill="#e9effb" font-family="'JetBrains Mono', monospace" font-size="10">● pre-compact: </text>
+        <text x="160" y="335" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10">Preservación ante truncado de tokens</text>
+
+        <!-- SUBGRAFO 2: MCP TOOLS -->
+        <rect x="510" y="205" width="410" height="155" rx="12" fill="url(#mcpGrad)" stroke="#4a37a8" stroke-width="1.5"/>
+        <text x="715" y="230" fill="#c2b6ff" font-family="'Nunito', sans-serif" font-weight="800" font-size="13" text-anchor="middle">2. SERVIDOR MCP (mem mcp stdio)</text>
+        <line x1="530" y1="240" x2="900" y2="240" stroke="#4a37a8" stroke-width="1"/>
+        <text x="530" y="260" fill="#e9effb" font-family="'JetBrains Mono', monospace" font-size="10">● get_context / search_memories / save_memory</text>
+        <text x="548" y="278" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="9.5">Recuperación budgeted y persistencia estructurada</text>
+        <text x="530" y="302" fill="#e9effb" font-family="'JetBrains Mono', monospace" font-size="10">● mem hcd (define, clarify, slice, tasks, verify)</text>
+        <text x="548" y="320" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="9.5">Control de máquina de estados de la unidad</text>
+        <text x="530" y="344" fill="#e9effb" font-family="'JetBrains Mono', monospace" font-size="10">● pack_retrieve / codegraph_explore</text>
+
+        <!-- Flechas convergentes hacia Motor Central -->
+        <path d="M245 360 L400 395" fill="none" stroke="#22e3f7" stroke-width="2"/>
+        <polygon points="400,390 408,397 398,400" fill="#22e3f7"/>
+
+        <path d="M715 360 L560 395" fill="none" stroke="#c2b6ff" stroke-width="2"/>
+        <polygon points="562,400 552,397 560,390" fill="#c2b6ff"/>
+
+        <!-- NODO 3: MOTOR CENTRAL GOMEMORY -->
+        <rect x="230" y="395" width="500" height="52" rx="10" fill="#061328" stroke="url(#userGrad)" stroke-width="2"/>
+        <text x="480" y="418" fill="#fff" font-family="'Nunito', sans-serif" font-weight="900" font-size="13.5" text-anchor="middle">MOTOR CENTRAL GOMEMORY (Núcleo Go)</text>
+        <text x="480" y="436" fill="#cbd6ea" font-family="'DM Sans', sans-serif" font-size="10" text-anchor="middle">SQLite Local (mem.db) · Ledger de Aprobaciones · Grafo de Código</text>
+
+        <!-- Flecha hacia Splash -->
+        <path d="M480 447 L480 470" fill="none" stroke="#ff8fa3" stroke-width="2"/>
+        <polygon points="476,470 480,478 484,470" fill="#ff8fa3"/>
+
+        <!-- NODO 4: SUBAGENTE SPLASH -->
+        <rect x="300" y="478" width="360" height="36" rx="8" fill="#211a4d" stroke="#ff8fa3" stroke-width="1.5"/>
+        <text x="480" y="501" fill="#ff9cb0" font-family="'DM Sans', sans-serif" font-weight="800" font-size="11.5" text-anchor="middle">3. SUBAGENTE SPLASH (Revisión ciega sin memoria)</text>
+      </svg>
+      <div class="diagram-caption">Figura 3.1: Diagrama de flujo exacto del desencadenamiento en el harness: bifurcación entre Lifecycle Hooks y herramientas MCP hacia el motor central.</div>
+    </div>
+
+    <!-- CAPÍTULO 4 -->
+    <article class="chapter" id="cap-4" style="--rx: 4%; --rot: -12deg;">
+      <div class="chapter-inner">
+        <div class="dropnum">4</div>
+        <div>
+          <h2>Bajo el Capó: <span>stdio, HTTP y Server-Sent Events (SSE)</span></h2>
+          <p class="pg-sub">Por qué el transporte local por tuberías de entrada/salida supera a los sockets de red para agentes de desarrollo.</p>
+        </div>
+      </div>
+    </article>
+
+    <p class="lead">
+      El protocolo <strong>Model Context Protocol (MCP)</strong> estandariza cómo los LLMs consumen herramientas y memorias. Sin embargo, el canal físico por el que viajan los mensajes condiciona la latencia, la seguridad y la fiabilidad.
+    </p>
+
+    <!-- GRÁFICO COMPARATIVA STDIO VS HTTP/SSE -->
+    <div class="diagram-box">
+      <svg viewBox="0 0 960 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Comparativa de Transporte stdio vs HTTP/SSE">
+        <rect x="20" y="20" width="440" height="220" rx="12" fill="#0c1d3a" stroke="#22e3f7" stroke-width="1.5"/>
+        <text x="240" y="50" fill="#22e3f7" font-family="'Nunito', sans-serif" font-weight="900" font-size="15" text-anchor="middle">TRANSPORTE STDIO (IPC Local)</text>
+        <rect x="45" y="80" width="110" height="70" rx="8" fill="#13284d" stroke="#2c8ff0" stroke-width="1"/>
+        <text x="100" y="112" fill="#fff" font-family="'DM Sans', sans-serif" font-weight="700" font-size="12" text-anchor="middle">Host Agent</text>
+        <text x="100" y="130" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10" text-anchor="middle">(Proceso Padre)</text>
+        <path d="M155 100 L320 100" fill="none" stroke="#0f9f7b" stroke-width="2.5"/>
+        <polygon points="320,96 328,100 320,104" fill="#0f9f7b"/>
+        <text x="237" y="93" fill="#5fe0bb" font-family="'JetBrains Mono', monospace" font-size="9.5" text-anchor="middle">stdin (JSON-RPC request)</text>
+        <path d="M328 130 L163 130" fill="none" stroke="#22e3f7" stroke-width="2.5"/>
+        <polygon points="163,126 155,130 163,134" fill="#22e3f7"/>
+        <text x="241" y="145" fill="#6fe3fb" font-family="'JetBrains Mono', monospace" font-size="9.5" text-anchor="middle">stdout (JSON-RPC result)</text>
+        <rect x="330" y="80" width="110" height="70" rx="8" fill="#13284d" stroke="#0f9f7b" stroke-width="1.5"/>
+        <text x="385" y="112" fill="#5fe0bb" font-family="'JetBrains Mono', monospace" font-weight="800" font-size="12" text-anchor="middle">mem mcp</text>
+        <text x="385" y="130" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10" text-anchor="middle">(Subproceso Hijo)</text>
+        <rect x="45" y="175" width="395" height="45" rx="6" fill="#061328"/>
+        <text x="242" y="196" fill="#5fe0bb" font-family="'DM Sans', sans-serif" font-weight="700" font-size="10" text-anchor="middle">✔ Cero puertos de red abiertos · Sin latencia de sockets</text>
+        <text x="242" y="210" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="9" text-anchor="middle">✔ Si el proceso padre muere, el hijo se apaga limpiamente</text>
+
+        <rect x="500" y="20" width="440" height="220" rx="12" fill="#0c1d3a" stroke="#6b56d4" stroke-width="1.5"/>
+        <text x="720" y="50" fill="#c2b6ff" font-family="'Nunito', sans-serif" font-weight="900" font-size="15" text-anchor="middle">TRANSPORTE HTTP / SSE (Red)</text>
+        <rect x="525" y="80" width="105" height="70" rx="8" fill="#13284d" stroke="#2c8ff0" stroke-width="1"/>
+        <text x="577" y="112" fill="#fff" font-family="'DM Sans', sans-serif" font-weight="700" font-size="12" text-anchor="middle">Host Agent</text>
+        <text x="577" y="130" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10" text-anchor="middle">(Cliente HTTP)</text>
+        <path d="M630 100 L795 100" fill="none" stroke="#2c8ff0" stroke-width="2.5"/>
+        <polygon points="795,96 803,100 795,104" fill="#2c8ff0"/>
+        <text x="715" y="93" fill="#8cc0ff" font-family="'JetBrains Mono', monospace" font-size="9.5" text-anchor="middle">POST /message (HTTP)</text>
+        <path d="M803 130 L638 130" fill="none" stroke="#6b56d4" stroke-width="2.5"/>
+        <polygon points="638,126 630,130 638,134" fill="#6b56d4"/>
+        <text x="715" y="145" fill="#c2b6ff" font-family="'JetBrains Mono', monospace" font-size="9.5" text-anchor="middle">text/event-stream (SSE Push)</text>
+        <rect x="805" y="80" width="110" height="70" rx="8" fill="#13284d" stroke="#6b56d4" stroke-width="1.5"/>
+        <text x="860" y="112" fill="#c2b6ff" font-family="'DM Sans', sans-serif" font-weight="800" font-size="12" text-anchor="middle">MCP Server</text>
+        <text x="860" y="130" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="10" text-anchor="middle">(Daemon Remoto)</text>
+        <rect x="525" y="175" width="390" height="45" rx="6" fill="#061328"/>
+        <text x="720" y="196" fill="#c2b6ff" font-family="'DM Sans', sans-serif" font-weight="700" font-size="10" text-anchor="middle">Recomendado para servidores compartidos o remotos en nube</text>
+        <text x="720" y="210" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="9" text-anchor="middle">Requiere gestión de puertos TCP, cortafuegos y reconexión</text>
+      </svg>
+      <div class="diagram-caption">Figura 4.1: Comparativa física entre tuberías stdio locales y streaming HTTP/SSE.</div>
+    </div>
+
+    <!-- CAPÍTULO 5: EVENTO VS HOOK CON DIAGRAMA DE FLUJO -->
+    <article class="chapter" id="cap-5" style="--rx: 7%; --rot: 28deg;">
+      <div class="chapter-inner">
+        <div class="dropnum">5</div>
+        <div>
+          <h2>El Meta-Harness: <span>Eventos del Host vs. Hooks de gomemory</span></h2>
+          <p class="pg-sub">El diagrama de flujo exacto de la interceptación: cómo un evento del agente se convierte en un veredicto determinista.</p>
+        </div>
+      </div>
+    </article>
+
+    <div class="infobox cyan">
+      <span class="lbl">La frontera conceptual</span>
+      <strong>El Evento es la señal que emite el harness; el Hook es el árbitro que decide qué hacer.</strong> Los agentes tienen APIs y nombres de eventos completamente distintos; gomemory actúa como el meta-harness que los traduce a un estándar común.
+    </div>
+
+    <!-- EL GRÁFICO EXACTO DE EVENTO VS HOOK -->
+    <div class="diagram-box">
+      <svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagrama del Flujo Evento vs Hook en gomemory">
+        <defs>
+          <linearGradient id="hostGrad" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#0c1d3a"/><stop offset="100%" stop-color="#13284d"/></linearGradient>
+          <linearGradient id="metaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#061328"/><stop offset="100%" stop-color="#0c1d3a"/></linearGradient>
+        </defs>
+
+        <!-- CAJA 1: HARNESS ANFITRIÓN -->
+        <rect x="80" y="15" width="800" height="75" rx="10" fill="url(#hostGrad)" stroke="#2c8ff0" stroke-width="2"/>
+        <text x="480" y="42" fill="#fff" font-family="'Nunito', sans-serif" font-weight="900" font-size="15" text-anchor="middle">HARNESS ANFITRIÓN (Claude Code · Codex · agy · OpenCode)</text>
+        <text x="480" y="62" fill="#8cc0ff" font-family="'DM Sans', sans-serif" font-size="11" text-anchor="middle">Ciclo de vida interno del agente  ───  Dispara: EVENTO (Ej. SessionStart, UserPromptSubmit, PreToolUse)</text>
+
+        <!-- Flecha con payload -->
+        <path d="M480 90 L480 135" fill="none" stroke="#22e3f7" stroke-width="3"/>
+        <polygon points="474,135 480,145 486,135" fill="#22e3f7"/>
+        <rect x="330" y="102" width="300" height="24" rx="6" fill="#061328" stroke="#22e3f7" stroke-width="1"/>
+        <text x="480" y="118" fill="#22e3f7" font-family="'JetBrains Mono', monospace" font-size="9.5" text-anchor="middle">Payload del host (JSON / Stdin / Env)</text>
+
+        <!-- CAJA 2: GOMEMORY META-HARNESS -->
+        <rect x="80" y="145" width="800" height="195" rx="12" fill="url(#metaGrad)" stroke="#22e3f7" stroke-width="2"/>
+        <text x="480" y="172" fill="#22e3f7" font-family="'Nunito', sans-serif" font-weight="900" font-size="15" text-anchor="middle">GOMEMORY (Meta-Harness)  ──  Invoca: mem hook &lt;subcomando&gt;</text>
+
+        <!-- PASO 1 -->
+        <rect x="110" y="185" width="740" height="38" rx="6" fill="#13284d" stroke="#2c8ff0" stroke-width="1"/>
+        <text x="130" y="209" fill="#22e3f7" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="11">1. Adaptador de Dialecto (hook_dialect.go):</text>
+        <text x="465" y="209" fill="#cbd6ea" font-family="'DM Sans', sans-serif" font-size="10.5">Traduce formato host a Contrato Neutral (detecta claude, json, text)</text>
+
+        <!-- PASO 2 -->
+        <rect x="110" y="232" width="740" height="48" rx="6" fill="#13284d" stroke="#6b56d4" stroke-width="1"/>
+        <text x="130" y="254" fill="#c2b6ff" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="11">2. Lógica Pura de Dominio (domain):</text>
+        <text x="430" y="254" fill="#cbd6ea" font-family="'DM Sans', sans-serif" font-size="10.5">Presupuesto de contexto · Reglas de guarda expand (destructive-shell)</text>
+        <text x="130" y="271" fill="#94a3b8" font-family="'DM Sans', sans-serif" font-size="9.5">Evaluación en memoria en &lt; 50 ms sin dependencias externas</text>
+
+        <!-- PASO 3 -->
+        <rect x="110" y="290" width="740" height="38" rx="6" fill="#13284d" stroke="#0f9f7b" stroke-width="1"/>
+        <text x="130" y="314" fill="#5fe0bb" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="11">3. Veredicto o Enriquecimiento:</text>
+        <text x="415" y="314" fill="#e9effb" font-family="'DM Sans', sans-serif" font-weight="600" font-size="10.5">Permitir (0) / Denegar (≠ 0) / Inyectar additionalContext al modelo</text>
+      </svg>
+      <div class="diagram-caption">Figura 5.1: Diagrama de flujo exacto de la interceptación: de Evento del Host a Hook determinista en gomemory.</div>
+    </div>
+
+    <!-- CAPÍTULO 6: GUION DEL DIÁLOGO Y GLOSARIO -->
+    <article class="chapter" id="cap-6" style="--rx: 12%; --rot: -32deg;">
+      <div class="chapter-inner">
+        <div class="dropnum">6</div>
+        <div>
+          <h2>Guion de Exposición y <span>Glosario para Developers</span></h2>
+          <p class="pg-sub">Narrativa verbal paso a paso y conceptos explicados con analogías del mundo real.</p>
+        </div>
+      </div>
+    </article>
+
+    <div class="speech">
+      <div class="speech-lbl">1. El Gancho de Entrada (El dolor que todos han vivido)</div>
+      <p class="speech-text">
+        "¿A cuántos de ustedes les ha pasado que le explican detalladamente a su agente de IA cómo funciona la arquitectura de su API, logran que funcione, pero al día siguiente, en una nueva sesión, les vuelve a sugerir exactamente el mismo patrón roto que ya habían descartado? Los LLMs son brillantes redactando sintaxis, pero nacen con amnesia total en cada sesión. Y esa amnesia nos cuesta tiempo, frustración y dinero en tokens. gomemory es la infraestructura que le da memoria local persistente, gobierno y disciplina a los agentes."
+      </p>
+      <span class="speech-tip">Enfatiza: Conectar con el dolor real de la pérdida de contexto en proyectos de mediano/largo plazo.</span>
+    </div>
+
+    <div class="speech">
+      <div class="speech-lbl">2. La Analogía del Vuelo y la Caja Negra</div>
+      <p class="speech-text">
+        "No queremos que el agente improvise. gomemory funciona como el registrador de vuelo del proyecto. Guarda en una base de datos SQLite local, fuera de Git, cada decisión, cada bugfix y cada convención aprobada. Cuando el agente arranca, no le inyectamos 50 páginas de texto: le damos un presupuesto estricto de tokens con lo indispensable, y el agente puede buscar mediante FTS5 y BM25 el historial relevante solo cuando lo necesita."
+      </p>
+    </div>
+
+    <div class="speech">
+      <div class="speech-lbl">3. La Analogía de stdio vs Red</div>
+      <p class="speech-text">
+        "Muchos preguntan: '¿Por qué no levantaron una API REST o un servidor HTTP local para conectar las herramientas?' Porque abrir puertos de red en la máquina del desarrollador es una mala práctica: hay colisiones de puertos, problemas con proxies, latencia y procesos huérfanos. Usamos `stdio`. El agente lanza a gomemory como un subproceso hijo de Go. Se hablan por los pipes del sistema operativo en nanosegundos. Si el agente se cierra, gomemory se apaga. Cero puertos abiertos, cero brechas de seguridad."
+      </p>
+    </div>
+
+    <div class="speech">
+      <div class="speech-lbl">4. La Analogía del Guardia de Seguridad (Eventos vs Hooks)</div>
+      <p class="speech-text">
+        "Para entender la diferencia entre Evento y Hook: El Evento es el timbre de la puerta. Lo toca el harness: 'Oye, el modelo quiere ejecutar un comando de shell'. El Hook de gomemory es el guardia de seguridad que abre la puerta. En menos de 50 milisegundos lee el comando, comprueba si contiene un `rm -rf` o si viola una regla del equipo, y si es peligroso, rechaza la acción antes de que toque el disco. Los LLMs son probabilísticos; la seguridad debe ser determinista."
+      </p>
+      <span class="speech-tip">Cierre: Rematar con la frase: 'gomemory transforma un chatbot conversacional en un colega de ingeniería confiable'.</span>
+    </div>
+
+    <div class="section-header">
+      <h3>Glosario de Términos con Analogías</h3>
+      <p>Definiciones claras para dominar el vocabulario técnico</p>
+    </div>
+
+    <div class="glossary-list">
+      <div class="glossary-card">
+        <div class="glossary-term">Harness</div>
+        <div class="glossary-desc">
+          El runtime o plataforma anfitriona que envuelve al modelo de lenguaje (Claude Code, Codex, Antigravity, OpenCode). Gestiona el bucle de razonamiento, las ventanas de chat y la ejecución de herramientas.
+          <span class="glossary-analogy">Analogía: El chasis, tablero y transmisión del vehículo donde se monta el motor.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">Meta-Harness</div>
+        <div class="glossary-desc">
+          Capa de abstracción superior (gomemory) que unifica el comportamiento de múltiples harnesses distintos, asegurando que las reglas, la memoria y la disciplina de ingeniería sean idénticas sin importar qué agente use el desarrollador.
+          <span class="glossary-analogy">Analogía: Un sistema operativo portátil que se ejecuta sobre diferentes marcas de hardware sin cambiar la experiencia.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">Lifecycle Hook</div>
+        <div class="glossary-desc">
+          Subcomando ejecutable que se dispara en un momento específico del ciclo de vida del agente para enriquecer el contexto (observabilidad) o impedir una operación no autorizada (guardia).
+          <span class="glossary-analogy">Analogía: Un middleware en una API web o un hook pre-commit de Git.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">MCP (Model Context Protocol)</div>
+        <div class="glossary-desc">
+          Estándar abierto de la industria para que los LLMs invoquen herramientas y fuentes de datos externas utilizando mensajes estructurados en JSON-RPC.
+          <span class="glossary-analogy">Analogía: El puerto USB-C universal que permite conectar cualquier periférico a cualquier computadora.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">stdio (Standard I/O)</div>
+        <div class="glossary-desc">
+          Canal de comunicación interproceso (IPC) que transfiere datos a través de los descriptores estándar <code>stdin</code> y <code>stdout</code> sin utilizar redes ni puertos TCP.
+          <span class="glossary-analogy">Analogía: Hablar directamente por un tubo acústico privado de barco en vez de hacer una llamada telefónica por red pública.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">SSE (Server-Sent Events)</div>
+        <div class="glossary-desc">
+          Protocolo sobre HTTP unidireccional persistente donde el servidor transmite un flujo constante de eventos (<em>stream push</em>) al cliente sin que este tenga que consultarlo reiteradamente.
+          <span class="glossary-analogy">Analogía: Un teletipo de noticias de bolsa que imprime continuamente datos a medida que ocurren.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">Token Budgeting</div>
+        <div class="glossary-desc">
+          Estrategia algorítmica para limitar y seleccionar quirúrgicamente qué información se inyecta en el prompt del sistema, evitando saturar la ventana de atención y abaratando costos.
+          <span class="glossary-analogy">Analogía: Pesar cada gramo del equipaje antes de subir a un avión para no pagar sobrepeso.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">FTS5 + BM25</div>
+        <div class="glossary-desc">
+          Motor de indexación léxica de texto completo integrado en SQLite que calcula la relevancia probabilística de los términos para devolver memorias pertinentes en milisegundos.
+          <span class="glossary-analogy">Analogía: El índice alfabético al final de una enciclopedia técnica que te indica el párrafo exacto que buscas.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">HCD (Harness Continual Dev)</div>
+        <div class="glossary-desc">
+          Metodología de ingeniería de gomemory que guía el ciclo de vida de cada tarea desde la intención en lenguaje natural hasta la verificación empírica con TDD obligatorio y evidencia registrada.
+          <span class="glossary-analogy">Analogía: El control de calidad aeronáutico donde cada pieza debe tener un certificado de prueba física antes de instalarse.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">Subagente Splash</div>
+        <div class="glossary-desc">
+          Agente revisor instanciado deliberadamente sin memoria previa ni contexto de gomemory para evaluar especificaciones y código en frío, garantizando una auditoría sin sesgos.
+          <span class="glossary-analogy">Analogía: Un auditor externo que no estuvo en la reunión de diseño para comprobar si los manuales se entienden de verdad.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANEXO 1: LOS TRES GRAFOS DE CÓDIGO -->
+    <article class="chapter" id="anexo-grafos" style="--rx: 14%; --rot: 35deg;">
+      <div class="chapter-inner">
+        <div class="dropnum">A1</div>
+        <div>
+          <h2>Anexo: <span>Los Tres Grafos de Código y el Guardarraíl de Búsqueda</span></h2>
+          <p class="pg-sub">Diferenciación conceptual, propósito, convivencia y comportamiento determinista ante la regla <code>graph-before-grep</code>.</p>
+        </div>
+      </div>
+    </article>
+
+    <p class="lead">
+      En el ecosistema de <strong>gomemory</strong> coexisten tres representaciones de grafo de código distintas. Lejos de competir, cada una responde a una necesidad arquitectónica precisa y con niveles de granularidad diferenciados: <strong>gomemory guarda el PORQUÉ</strong> (decisiones, lecciones, sinapsis), <strong>CodeGraph responde el CÓMO</strong> (código fuente y llamadores en 1 round-trip) y <strong>codebase-memory-mcp analiza la TOPOLOGÍA profunda</strong> (métricas relacionales y multi-hop).
+    </p>
+
+    <div class="section-header">
+      <h3>Tabla Comparativa: Propósito, Alcance y Ciclo de Vida</h3>
+      <p>Matriz de decisión para comprender qué herramienta resuelve cada problema</p>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 18%;">Característica</th>
+            <th style="width: 27%;">Grafo Propio (gomemory)</th>
+            <th style="width: 28%;">CodeGraph (<code>codegraph</code>)</th>
+            <th style="width: 27%;">codebase-memory-mcp</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Propósito Principal</strong></td>
+            <td><strong>Autosuficiencia en Go sin dependencias.</strong> Inteligencia de código nativa de serie sin requerir binarios externos de terceros.</td>
+            <td><strong>Sustituir la lectura y búsqueda manual (<em>Read-equivalent</em>).</strong> Reducir drásticamente el consumo de tokens y llamadas del LLM.</td>
+            <td><strong>Auditoría estructural y consultas relacionales formales.</strong> Grafo relacional profundo estilo base de datos de conocimiento.</td>
+          </tr>
+          <tr>
+            <td><strong>¿Para qué sirve exactamente?</strong></td>
+            <td>Mapear paquetes, llamadas y dependencias Go en <code>.memory/gomemory.db</code>. Alimenta el resumen de código en <code>mem context</code>.</td>
+            <td>Entregar en <strong>una sola llamada</strong> (<code>codegraph_explore</code>) el código verbatim con números de línea, dynamic-dispatch y blast radius.</td>
+            <td>Inspeccionar métricas arquitectónicas (hotspots, clusters, fan-in/fan-out), trazar rutas paso a paso y ejecutar queries Cypher.</td>
+          </tr>
+          <tr>
+            <td><strong>Cobertura de Lenguajes</strong></td>
+            <td><span class="badge b-amber">Solo Go (.go)</span></td>
+            <td><span class="badge b-mint">30+ Lenguajes</span> (Go, TS, JS, Python, Rust, Java, C#, C/C++, PHP, Swift…)</td>
+            <td><span class="badge b-azure">Multi-lenguaje</span> (según parsers instalados en el runtime)</td>
+          </tr>
+          <tr>
+            <td><strong>Herramientas MCP / CLI</strong></td>
+            <td><code>search_code</code>, <code>get_symbol</code>, <code>list_dependencies</code>, <code>graph_status</code>.</td>
+            <td><strong><code>codegraph_explore</code></strong> <em>(herramienta única omni-comprensiva)</em>.</td>
+            <td><code>search_graph</code>, <code>trace_path</code>, <code>get_code_snippet</code>, <code>query_graph</code>, <code>get_architecture</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>Filosofía y Salida</strong></td>
+            <td>Consultas específicas de firmas, dependencias y relaciones de paquetes.</td>
+            <td><strong>Todo en 1 llamada:</strong> fuente exacto listo para editar + quién lo llama + qué afecta.</td>
+            <td>Navegación granular y exploratoria por etapas sucesivas (buscar → trazar → leer snippet).</td>
+          </tr>
+          <tr>
+            <td><strong>Sincronización y Frescura</strong></td>
+            <td><strong>Incremental turno a turno:</strong> en el hook <code>turn-end</code> reindexa solo los archivos <code>.go</code> tocados.</td>
+            <td><strong>File-watcher en tiempo real</strong> (~1s) con MCP activo + sincronización desacoplada (<code>codegraph sync</code>).</td>
+            <td>Sondeos periódicos y refresco en segundo plano (debounce 60s).</td>
+          </tr>
+          <tr>
+            <td><strong>Reindexado Completo</strong></td>
+            <td><code>mem index</code> (explícito).</td>
+            <td><code>codegraph index</code> o <code>mem index</code> (explícito).</td>
+            <td><code>cli index_repository</code> o <code>mem index</code> (explícito).</td>
+          </tr>
+          <tr>
+            <td><strong>Caso de Uso Típico</strong></td>
+            <td>Proyectos Go sin dependencias externas, o para consultar dependencias y firmas nativas.</td>
+            <td><strong>Opción primaria siempre que esté disponible.</strong> Entender código, ver impacto y leer archivos antes de editar.</td>
+            <td>Auditorías de calidad, refactorizaciones complejas, detección de código muerto o dependencias multi-hop.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section-header">
+      <h3>El Guardarraíl <code>graph-before-grep</code>: ¿Qué ocurre ante un bloqueo?</h3>
+      <p>Entendiendo el evento <code>locked by hook</code> y por qué no requiere ninguna intervención manual</p>
+    </div>
+
+    <div class="infobox mint">
+      <span class="lbl">Comportamiento Verificado del Guardarraíl</span>
+      <p>
+        Cuando el agente intenta ejecutar <code>rg</code>, <code>grep</code> o <code>find</code> sobre código y recibe un bloqueo del hook:
+        <br>
+        <code>locked by hook: gomemory expand · regla graph-before-grep: buscar código .go con rg cuando el grafo ya lo indexa; usa codegraph_explore...</code>
+        <br>
+        <strong>Esto NO es un error de índice ni un síntoma de desincronización.</strong> Significa exactamente lo contrario: el guardarraíl comprobó que el proyecto ya está indexado y le impide al agente usar fuerza bruta textual, obligándolo a usar las herramientas de grafo especializadas.
+      </p>
+    </div>
+
+    <div class="grid g3">
+      <div class="card azure">
+        <div class="card-title">1. Cero Reindexado en Hook</div>
+        <div class="card-body">
+          <p>El hook de expand dispone de un presupuesto estricto de <strong>150 ms</strong>. Un reindexado completo (<code>codegraph index</code>) puede tardar minutos; el contrato <code>ports.CodeGraphIndexer</code> prohíbe taxativamente ejecutar indexaciones pesadas en el camino caliente de los hooks.</p>
+        </div>
+      </div>
+      <div class="card violet">
+        <div class="card-title">2. Frescura Autónoma</div>
+        <div class="card-body">
+          <p>Los índices se mantienen actualizados por sí mismos: CodeGraph mediante su <em>file-watcher</em> en vivo mientras el servidor MCP está conectado (y sincronizaciones de fondo con <code>codegraph sync</code>), y gomemory actualizando archivos <code>.go</code> modificados al final de cada turno.</p>
+        </div>
+      </div>
+      <div class="card amber">
+        <div class="card-title">3. Acción del Desarrollador</div>
+        <div class="card-body">
+          <p><strong>En conclusión: no debes hacer nada.</strong> El agente debe emplear <code>codegraph_explore</code>. Si como desarrollador deseas ejecutar un <code>rg</code> en tu shell o desactivar la regla temporalmente para el agente, puedes hacerlo con <code>mem expand off rules</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="speech">
+      <div class="speech-lbl">Analogía para Developers: La Biblioteca y la Linterna</div>
+      <p class="speech-text">
+        "Buscar código con <code>grep</code> en un repositorio grande es como entrar a oscuras en la Biblioteca Nacional con una linterna pequeña, leyendo estante por estante a ver si encuentras una palabra clave. Toma tiempo, cansa al investigador y quema combustible inútilmente. El grafo de código es el sistema computarizado del bibliotecario: le dices qué buscas y en un segundo te entrega el libro abierto en la página exacta, mostrándote quién citó ese párrafo y qué otros libros se verán afectados si se modifica. La regla <code>graph-before-grep</code> es el guardia de la biblioteca que te quita la linterna de la mano y te conduce cortésmente al mostrador de consulta."
+      </p>
+      <span class="speech-tip">Argumento clave: Los LLMs recurren a grep por inercia; gomemory impone el uso de herramientas estructuradas para preservar el contexto.</span>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><strong>gomemory</strong> · Memoria persistente, local y portátil para coding agents.</div>
+    <div>Documento oficial de referencia técnica y guía pedagógica para equipos de ingeniería.</div>
+  </div>
+</footer>
+
+<script>
+// Barra de lectura
+(function(){
+  var bar = document.getElementById('readProgress');
+  var links = [].slice.call(document.querySelectorAll('.toc a'));
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    if(bar) bar.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, h.scrollTop / max) : 0) + ')';
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+
+  // Control de Tema (Dark / Light) con persistencia en localStorage
+  var root = document.documentElement;
+  var btn = document.getElementById('themeBtn');
+  try {
+    var saved = localStorage.getItem('gomemory-ref-theme');
+    if(saved === 'dark' || saved === 'light') root.setAttribute('data-theme', saved);
+  } catch(e){}
+
+  if(btn) {
+    btn.addEventListener('click', function(){
+      var cur = root.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      var next = cur === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('gomemory-ref-theme', next); } catch(e){}
+    });
+  }
+
+  // ScrollSpy para el menú superior
+  if(!('IntersectionObserver' in window)) return;
+  var byId = {};
+  links.forEach(function(a){ byId[a.getAttribute('href').slice(1)] = a; });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      links.forEach(function(a){ a.removeAttribute('aria-current'); });
+      var a = byId[e.target.id];
+      if(a) a.setAttribute('aria-current', 'true');
+    });
+  }, {rootMargin: '-20% 0px -70% 0px'});
+
+  document.querySelectorAll('article[id]').forEach(function(s){ io.observe(s); });
+})();
+</script>
+</body>
+</html>

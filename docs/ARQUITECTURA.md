@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.51.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), y la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.51.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y cómo conviven los dos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.52.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.52.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y el [manual de referencia para desarrolladores](Manual-Referencia-Developers-GOMEMORY.html) junto con la [guía de explicación](Guia-Explicacion-Developers-GOMEMORY.html) detallan la convivencia de los tres grafos de código y los protocolos operativos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -188,3 +188,13 @@ que había dejado HCD-029.
 **Rutas de configuración en `analyze` (HCD-052).** Un documento de unidad suele citar rutas del entorno del usuario bajo `~/.claude/`, `~/.codex/` o `~/.gemini/`. `RepoMissingPaths` en `domain/hcd_lens.go` las descarta de la comprobación de archivos inexistentes para no generar falsos positivos `PATH-MISSING`. `CitedPaths` las conserva para mantener los enlaces en el grafo.
 
 **Presupuesto y concesiones en `tool-output` (HCD-053 y HCD-054).** El hook `tool-output` comprime respuestas JSON ordenando los campos alfabéticamente para que la nota de recuperación aparezca de forma determinista en el primer campo. `runToolOutputBudget` anota la pista como mostrada solo si la salida se entrega dentro de los 150 ms del presupuesto. Si el proceso supera el plazo, `toolOutputCompress` descarta la salida y omite la llamada a `GrantAutomaticOriginals`, de modo que no se conceden referencias de almacenamiento que el agente nunca llegó a recibir.
+
+## Cableado de agy en expand y soporte bilingüe desacoplado (HCD-055 y HCD-056)
+
+**Diagnóstico y retiro de `agy` en `mem expand` (HCD-055).** `CheckExpandWiring` y `RemoveExpandHooks` en `adapters/primary/setup/expand_wiring.go` inspeccionan y sanean también `~/.gemini/settings.json` para Antigravity CLI (`agy`). `mem expand status` muestra `agy ✓/✗` en la salida humana e incluye `wiring.agy` en `--json`, comprobando que el grupo `gomemory-lifecycle` esté habilitado y tenga los cinco eventos (`SessionStart`, `PreInvocation`, `PreToolUse`, `PostToolUse` y `Stop`) con los comandos y matchers del instalador.
+
+**Motor de localización desacoplado y `mem lang` (HCD-056).** El soporte bilingüe (`es`/`en`) se organiza sin condicionales acoplados al idioma:
+- **Dominio y Puertos** (`domain/i18n`, `application/ports/i18n.go`): definen `Language`, `LocaleMeta`, `DefaultLanguage` (`"es"`) y la interfaz `ports.LocaleCatalog` (`Supports`, `SupportedCodes`, `Get`, `GetTemplate`).
+- **Adaptador secundario** (`adapters/secondary/i18n`): descubre dinámicamente los directorios bajo `infrastructure/templates/locales/<código>/` desde el `embed.FS`, cargando `meta.json`, `messages.json` y las plantillas `.md.tmpl` (`get_context.md.tmpl`, `atomic_plan.md.tmpl`) con fallback seguro al idioma por defecto.
+- **Concurrencia y resolución en caliente** (`application/usecases/build_context.go`, `adapters/primary/cli/i18n.go`): `(*Builder).WithLanguage` y `contextBuilderForLang` devuelven una copia superficial por llamada sin mutar el singleton compartido `deps.ContextBuilder`, eliminando condiciones de carrera en llamadas MCP concurrentes. `Builder.Build()` resuelve el idioma activo desde `.memory/settings.json` cuando no se fija explícitamente, y `isContextDocumentHeader` en `cmd_plan_context.go` deduplica cabeceras en cualquier idioma registrado en el catálogo.
+- **Validación defensiva** (`adapters/secondary/persistence/settings.go`): `SetLanguageValidator` registra `Catalog.Supports` para normalizar cualquier código desconocido o con caracteres de ruta a `es` al leer o persistir `.memory/settings.json`.

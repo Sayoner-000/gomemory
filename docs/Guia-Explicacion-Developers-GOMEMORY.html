@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>gomemory: Guía de Explicación para Developers y Resumen Técnico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --abyss:#061328; --abyss-2:#0c1d3a; --abyss-3:#13284d;
+  --cyan:#06c1ee; --glow:#22e3f7; --azure:#2c8ff0; --indigo:#3926e3; --violet:#6b56d4; --blush:#ff8fa3;
+  --grad:linear-gradient(90deg,var(--glow) 0%,var(--azure) 48%,var(--violet) 100%);
+  --grad-v:linear-gradient(180deg,var(--glow) 0%,var(--azure) 55%,var(--violet) 100%);
+  --ink:#0d1526; --slate:#2c374c; --soft:#4b566b; --faint:#68728a;
+  --paper:#f6f9fd; --paper-2:#e9eff8; --surface:#ffffff; --line:#d9e1ee; --backdrop:#dfe6f2;
+  --cyan-ink:#006d8a; --cyan-soft:#dcf5fc; --cyan-on:#06394a;
+  --azure-ink:#1557b0; --azure-soft:#e2eefd; --azure-on:#0f2f5e;
+  --violet-ink:#4a37a8; --violet-soft:#ece8fb; --violet-on:#2d2068;
+  --mint:#0f9f7b; --mint-ink:#0b7a5f; --mint-soft:#daf4ec; --mint-on:#07493a;
+  --rose:#d23c5a; --rose-ink:#a32640; --rose-soft:#fde5ea; --rose-on:#6a1426;
+  --amber:#c98a06; --amber-ink:#8a5c00; --amber-soft:#fcf0d2; --amber-on:#523700;
+  --code-bg:#071833; --code-ink:#dce8fb; --code-faint:#7d8fb0; --code-hl:#22e3f7; --code-hl2:#b9a9ff;
+  --display:'Nunito','DM Sans',system-ui,sans-serif;
+  --sans:'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --drop:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 48'%3E%3Cpath d='M20 0C24 8 39 21 39 31.5a19 16.5 0 0 1-38 0C1 21 16 8 20 0Z'/%3E%3C/svg%3E");
+  --pad:52px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ink:#e9effb; --slate:#c4cee2; --soft:#9ba8c0; --faint:#7c89a3;
+  --paper:#0a1730; --paper-2:#11213f; --surface:#0e1c38; --line:#21345a; --backdrop:#040c1b;
+  --cyan-ink:#6fe3fb; --cyan-soft:#0b2c40; --cyan-on:#c9f3fd;
+  --azure-ink:#8cc0ff; --azure-soft:#10284d; --azure-on:#d3e5ff;
+  --violet-ink:#c2b6ff; --violet-soft:#211a4d; --violet-on:#e3ddff;
+  --mint-ink:#5fe0bb; --mint-soft:#0b3229; --mint-on:#c8f5e7;
+  --rose-ink:#ff9cb0; --rose-soft:#3d1420; --rose-on:#ffd9e1;
+  --amber-ink:#ffd27a; --amber-soft:#33260a; --amber-on:#ffeec7;
+  --code-bg:#040e22;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ink:#e9effb; --slate:#c4cee2; --soft:#9ba8c0; --faint:#7c89a3;
+  --paper:#0a1730; --paper-2:#11213f; --surface:#0e1c38; --line:#21345a; --backdrop:#040c1b;
+  --cyan-ink:#6fe3fb; --cyan-soft:#0b2c40; --cyan-on:#c9f3fd;
+  --azure-ink:#8cc0ff; --azure-soft:#10284d; --azure-on:#d3e5ff;
+  --violet-ink:#c2b6ff; --violet-soft:#211a4d; --violet-on:#e3ddff;
+  --mint-ink:#5fe0bb; --mint-soft:#0b3229; --mint-on:#c8f5e7;
+  --rose-ink:#ff9cb0; --rose-soft:#3d1420; --rose-on:#ffd9e1;
+  --amber-ink:#ffd27a; --amber-soft:#33260a; --amber-on:#ffeec7;
+  --code-bg:#040e22;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --ink:#0d1526; --slate:#2c374c; --soft:#4b566b; --faint:#68728a;
+  --paper:#f6f9fd; --paper-2:#e9eff8; --surface:#ffffff; --line:#d9e1ee; --backdrop:#dfe6f2;
+  --cyan-ink:#006d8a; --cyan-soft:#dcf5fc; --cyan-on:#06394a;
+  --azure-ink:#1557b0; --azure-soft:#e2eefd; --azure-on:#0f2f5e;
+  --violet-ink:#4a37a8; --violet-soft:#ece8fb; --violet-on:#2d2068;
+  --mint:#0f9f7b; --mint-ink:#0b7a5f; --mint-soft:#daf4ec; --mint-on:#07493a;
+  --rose:#d23c5a; --rose-ink:#a32640; --rose-soft:#fde5ea; --rose-on:#6a1426;
+  --amber:#c98a06; --amber-ink:#8a5c00; --amber-soft:#fcf0d2; --amber-on:#523700;
+  --code-bg:#071833;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{font-size:10.5pt;scroll-behavior:smooth;scroll-padding-top:72px}
+body{font-family:var(--sans);color:var(--ink);background:var(--backdrop);line-height:1.6;-webkit-font-smoothing:antialiased;margin:0}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+p{margin:0;font-size:10pt;color:var(--slate);line-height:1.65}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.85em;background:var(--paper-2);padding:2px 6px;border-radius:4px;color:var(--azure-ink)}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* Barra superior */
+.printbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:14px;padding:10px 24px;background:rgba(6,19,40,.94);color:#dfe8f7;backdrop-filter:saturate(1.4) blur(10px);box-shadow:0 4px 18px rgba(0,0,0,.35)}
+.brand{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:#fff}
+.brand-drop{width:18px;height:22px;-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--grad-v)}
+.brand-title{font-family:var(--display);font-weight:900;font-size:11.5pt;letter-spacing:-.01em}
+.toc{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+.toc a{flex-shrink:0;font-size:8pt;font-weight:600;color:#c3cfe3;text-decoration:none;padding:5px 9px;border-radius:6px;transition:background .18s,color .18s}
+.toc a:hover{background:rgba(255,255,255,.1);color:#fff}
+.toc a[aria-current]{background:rgba(34,227,247,.16);color:#fff}
+.pb-actions{display:flex;gap:8px;flex-shrink:0}
+.pb-btn{font-family:var(--sans);font-size:8.5pt;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,.2);background:transparent;color:#dfe8f7;padding:6px 12px;border-radius:8px;transition:all .18s}
+.pb-btn:hover{background:rgba(255,255,255,.12);border-color:var(--glow);color:#fff}
+.pb-btn.primary{background:var(--grad);color:var(--abyss);border:none}
+.pb-btn.primary:hover{filter:brightness(1.1)}
+.readbar{position:absolute;left:0;right:0;bottom:0;height:2.5px;pointer-events:none}
+.readbar i{display:block;height:100%;background:var(--grad);transform-origin:0 50%;transform:scaleX(0)}
+
+/* Documento */
+.doc{max-width:1040px;margin:0 auto 60px;background:var(--paper);box-shadow:0 24px 60px -30px rgba(6,19,40,.5)}
+.wrap{padding-left:var(--pad);padding-right:var(--pad)}
+
+/* Portada */
+.cover{position:relative;overflow:hidden;color:#e7eefa;background:radial-gradient(60% 45% at 50% 30%,rgba(44,143,240,.3),transparent 70%),radial-gradient(40% 30% at 85% 75%,rgba(107,86,212,.25),transparent 70%),var(--abyss)}
+.cover .wrap{padding-block:44px 50px;display:grid;gap:18px}
+.cover-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(34,227,247,.12);border:1px solid rgba(34,227,247,.3);padding:5px 12px;border-radius:20px;font-size:8.5pt;font-weight:700;color:var(--glow);width:fit-content}
+.cover h1{font-family:var(--display);font-weight:900;font-size:clamp(26pt,4.5vw,40pt);line-height:1.08;letter-spacing:-.025em;color:#fff}
+.accent{width:64px;height:4px;border-radius:2px;background:var(--grad)}
+.cover p{font-size:10.5pt;color:#c9d5ea;max-width:75ch;line-height:1.65}
+.cover-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:8.5pt;color:#94a3b8;margin-top:6px}
+
+/* Secciones y Capítulos */
+section{padding-bottom:44px;border-top:1px solid var(--line)}
+.chapter-header{position:relative;min-height:140px;display:flex;align-items:flex-end;color:#fff;overflow:hidden;background:linear-gradient(180deg,var(--abyss-2),var(--abyss));padding-bottom:20px}
+.chapter-header .wrap{display:flex;align-items:center;gap:16px;width:100%}
+.dropnum{flex-shrink:0;display:inline-grid;place-items:center;width:44px;height:52px;padding-top:10px;-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--grad-v);color:var(--abyss);font-family:var(--display);font-weight:900;font-size:15pt}
+.chapter-header h2{font-family:var(--display);font-weight:900;font-size:20pt;letter-spacing:-.015em;color:#fff}
+.chapter-header .sub{font-size:9.5pt;color:#cbd6ea;margin-top:3px}
+
+.body{display:grid;gap:18px;padding-top:28px}
+
+/* Cajas y Tarjetas */
+.dialogue-box{background:var(--surface);border-left:4px solid var(--azure);border-radius:0 12px 12px 0;padding:16px 20px;box-shadow:0 4px 14px rgba(0,0,0,.04);display:grid;gap:8px}
+.dialogue-title{font-family:var(--display);font-size:10pt;font-weight:800;color:var(--azure-ink);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:8px}
+.dialogue-text{font-style:italic;color:var(--ink);font-size:10.5pt;line-height:1.6}
+.speech-tip{font-size:8.5pt;font-weight:600;color:var(--mint-ink);background:var(--mint-soft);padding:4px 10px;border-radius:6px;width:fit-content}
+
+.infobox{position:relative;padding:14px 18px 14px 22px;border-radius:12px;background:var(--bg);color:var(--fg);overflow:hidden;display:grid;gap:6px}
+.infobox::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ac)}
+.infobox.mint{--bg:var(--mint-soft);--fg:var(--mint-on);--ac:var(--mint)}
+.infobox.amber{--bg:var(--amber-soft);--fg:var(--amber-on);--ac:var(--amber)}
+.infobox.violet{--bg:var(--violet-soft);--fg:var(--violet-on);--ac:var(--violet)}
+.infobox.cyan{--bg:var(--cyan-soft);--fg:var(--cyan-on);--ac:var(--cyan)}
+
+.cards{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:grid;gap:6px}
+.card-title{font-family:var(--display);font-size:11pt;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px}
+.card-title::before{content:"";width:8px;height:10px;-webkit-mask:var(--drop) center/100% 100% no-repeat;mask:var(--drop) center/100% 100% no-repeat;background:var(--cyan)}
+
+/* Bloques de código y terminal */
+.code{background:var(--code-bg);color:var(--code-ink);border-radius:10px;overflow:hidden;border:1px solid rgba(34,227,247,.16)}
+.code-head{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(0,0,0,.25);border-bottom:1px solid rgba(255,255,255,.08);font:600 7.5pt var(--mono);color:var(--code-faint);text-transform:uppercase}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font:400 8.8pt/1.65 var(--mono);color:#38bdf8}
+
+/* Tablas */
+table{width:100%;border-collapse:collapse;margin:10px 0;background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--line);font-size:9.5pt}
+th{background:var(--paper-2);color:var(--ink);text-align:left;padding:10px 14px;font-weight:700;border-bottom:2px solid var(--line)}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--slate)}
+tr:last-child td{border-bottom:none}
+
+/* Glosario */
+.glossary-grid{display:grid;gap:12px}
+.glossary-item{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px;display:grid;grid-template-columns:190px 1fr;gap:16px;align-items:baseline}
+.glossary-term{font-family:var(--mono);font-size:9.5pt;font-weight:700;color:var(--azure-ink)}
+.glossary-def{font-size:9.5pt;color:var(--slate);line-height:1.55}
+.glossary-analogy{font-size:8.5pt;color:var(--violet-ink);margin-top:4px;display:block;font-style:italic}
+
+footer{background:var(--abyss);color:#9fb0cc;padding:26px 0;font-size:8.5pt}
+footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+
+/* Impresión limpia a PDF */
+@media print{
+  .printbar{display:none}
+  body{background:#fff;color:#000}
+  .doc{box-shadow:none;margin:0;max-width:100%}
+  .cover{background:#0c1d3a !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .chapter-header{background:#0c1d3a !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;page-break-after:avoid}
+  section{page-break-inside:avoid;border-top:1px solid #ccc}
+  .dialogue-box,.card,.infobox,.code{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<header class="printbar">
+  <a href="#inicio" class="brand">
+    <div class="brand-drop"></div>
+    <span class="brand-title">gomemory <span class="grad">v2.52</span></span>
+  </a>
+  <nav class="toc" aria-label="Secciones">
+    <a href="#prologo"><span>00</span> Apertura</a>
+    <a href="#cap-1"><span>01</span> Memoria Viva</a>
+    <a href="#cap-2"><span>02</span> El Rol Dev</a>
+    <a href="#cap-3"><span>03</span> stdio vs Red</a>
+    <a href="#cap-4"><span>04</span> Hooks vs Events</a>
+    <a href="#cap-5"><span>05</span> Glosario</a>
+  </nav>
+  <div class="pb-actions">
+    <button class="pb-btn" id="themeBtn">Tema</button>
+    <button class="pb-btn primary" onclick="window.print()">Descargar PDF</button>
+  </div>
+  <div class="readbar"><i id="readProgress"></i></div>
+</header>
+
+<main class="doc" id="inicio">
+  <div class="cover">
+    <div class="wrap">
+      <div class="cover-badge">Guía Maestra para Expositores y Developers</div>
+      <h1>Cómo explicar <span class="grad">gomemory</span> sin rodeos</h1>
+      <div class="accent"></div>
+      <p>
+        Estructura completa de diálogo, narrativa conceptual, desmitificación de protocolos (stdio, SSE, HTTP) y arquitectura de meta-harness para explicar a un público técnico por qué la memoria persistente y la disciplina de ingeniería son esenciales para los agentes de IA.
+      </p>
+      <div class="cover-meta">
+        <span>Diseñado para: Claude Code · Codex · agy · OpenCode</span>
+        <span>·</span>
+        <span>Formato: HTML interactivo + Exportable a PDF nativo</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRÓLOGO: EL PROBLEMA -->
+  <section id="prologo">
+    <div class="wrap">
+      <div class="body">
+        <div class="dialogue-box">
+          <div class="dialogue-title">Tu Gancho de Apertura (Pitch inicial)</div>
+          <p class="dialogue-text">
+            "¿Cuántas veces le han explicado a Claude Code o a Cursor la arquitectura de su API o por qué no deben usar cierta librería, para que dos días después, en una nueva sesión, vuelva a sugerir exactamente el mismo código roto? Cada sesión de un agente arranca con amnesia total. Y pagamos por esa amnesia en tokens, tiempo y frustración. Hoy les voy a mostrar cómo gomemory le da memoria persistente, cerebro local y disciplina de ingeniería a los agentes."
+          </p>
+          <div class="speech-tip">Consejo: Haz contacto visual y enfatiza el dolor cotidiano de la pérdida de contexto.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAPÍTULO 1: MEMORIA VIVA -->
+  <section id="cap-1">
+    <div class="chapter-header">
+      <div class="wrap">
+        <div class="dropnum">1</div>
+        <div>
+          <h2>Lo mejor del proyecto: Los Puntos Clave</h2>
+          <div class="sub">Por qué gomemory no es un simple volcado de texto sino infraestructura real</div>
+        </div>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="body">
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">1. SQLite Local y Estructurado</div>
+            <p>La memoria vive fuera del repositorio en <code>~/.local/share/gomemory</code> (o AppData en Windows). No ensucia el historial de Git con archivos Markdown dispersos. Guarda decisiones, bugs resueltos, arquitecturas y preferencias clasificadas con FTS5 y ranking BM25.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">2. Presupuesto de Contexto</div>
+            <p>Los LLMs tienen límites de ventana y costo. gomemory no inyecta "todo": administra un presupuesto de tokens riguroso (aprox. 3,000–4,200 caracteres al arrancar), comprime salidas gigantescas de herramientas y ofrece compresión reversible con <code>mem pack</code>.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">3. Metodología HCD y Verificación</div>
+            <p>No asume que el código funciona porque el modelo diga "listo". Exige comprobaciones reproducibles, TDD donde se debe ver el fallo previo antes de la corrección (<code>--expect-fail</code>) y aprobación ligada a revisiones Git concretas.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">4. Revisión Adversarial: Splash</div>
+            <p>Para evitar el sesgo de confirmación donde el agente aplaude su propio diseño, gomemory despliega a <strong>Splash</strong>: un subagente que nace sin memoria ni contexto del proyecto para realizar una auditoría fría e implacable.</p>
+          </div>
+        </div>
+
+        <div class="dialogue-box">
+          <div class="dialogue-title">Cómo explicárselo a la audiencia:</div>
+          <p class="dialogue-text">
+            "Imaginen que gomemory es el 'Flight Recorder' y la libreta de bitácora del proyecto. El agente no improvisa: consulta la base de datos local, recupera las decisiones del equipo y valida con pruebas verificables antes de tocar producción."
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAPÍTULO 2: ESPECIFICACIÓN HUMANA -->
+  <section id="cap-2">
+    <div class="chapter-header">
+      <div class="wrap">
+        <div class="dropnum">2</div>
+        <div>
+          <h2>El Rol del Usuario: La Especificación en Palabras</h2>
+          <div class="sub">El desarrollador es el dueño de la intención, no el mecanógrafo de código</div>
+        </div>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="body">
+        <div class="infobox violet">
+          <strong>La regla de oro:</strong> El usuario define el <em>QUÉ</em> y el <em>POR QUÉ</em>. El agente propone el <em>CÓMO</em>, pero queda restringido por las fronteras del alcance.
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Paso</th>
+              <th>Lo que hace el Usuario</th>
+              <th>Lo que ejecuta gomemory</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Intención</strong></td>
+              <td>Escribe en lenguaje natural el objetivo y el valor de negocio esperado.</td>
+              <td>Inicia la unidad HCD y estructura el documento <code>hcd/HCD-NNN-slug.md</code>.</td>
+            </tr>
+            <tr>
+              <td><strong>2. Alcance (Scope)</strong></td>
+              <td>Declara qué está dentro y explícitamente <strong>qué queda fuera</strong>.</td>
+              <td>Bloquea que el modelo modifique componentes colaterales o asuma tareas extra.</td>
+            </tr>
+            <tr>
+              <td><strong>3. Clarificación</strong></td>
+              <td>Responde de 1 a 3 preguntas críticas (Socratica).</td>
+              <td>Resuelve ambigüedades arquitectónicas sin obligar a escribir 20 páginas de especificaciones.</td>
+            </tr>
+            <tr>
+              <td><strong>4. Aprobación</strong></td>
+              <td>Revisa el resumen y aprueba con un comando o confirmación verbal.</td>
+              <td>Firma la revisión en el ledger de la base de datos atada al hash exacto de Git.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="dialogue-box">
+          <div class="dialogue-title">Tu Guion Verbal:</div>
+          <p class="dialogue-text">
+            "Nadie quiere escribir especificaciones interminables en Jira. En gomemory, tu trabajo como dev es decir: 'Quiero este endpoint, con este criterio de éxito, y NO toques el módulo de autenticación existente'. El sistema toma eso, te hace dos preguntas clave para desambiguar, y solo cuando das el visto bueno arranca el motor."
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAPÍTULO 3: STDIO VS HTTP VS SSE -->
+  <section id="cap-3">
+    <div class="chapter-header">
+      <div class="wrap">
+        <div class="dropnum">3</div>
+        <div>
+          <h2>Bajo el Capó: stdio, HTTP y Server-Sent Events (SSE)</h2>
+          <div class="sub">Por qué el protocolo local stdio es la elección superior para coding agents</div>
+        </div>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="body">
+        <p>Cuando un agente interactúa mediante el estándar MCP (Model Context Protocol), la forma en que los datos viajan define la seguridad, velocidad y robustez del sistema:</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Mecanismo</th>
+              <th>Cómo funciona</th>
+              <th>Ventajas</th>
+              <th>Cuándo se usa</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>stdio</strong><br><em>(Standard I/O)</em></td>
+              <td>El harness lanza <code>mem mcp</code> como subproceso hijo. La comunicación viaja por tuberías directas del SO (<code>stdin</code> / <code>stdout</code>) con JSON-RPC.</td>
+              <td>Sin puertos de red, sin firewalls, sin latencia de socket TCP, muere automáticamente con el padre.</td>
+              <td><strong>Por defecto en gomemory</strong> para Claude Code, agy, Codex y OpenCode locales.</td>
+            </tr>
+            <tr>
+              <td><strong>HTTP clásico</strong></td>
+              <td>Petición y respuesta tradicional (Request/Response). El cliente envía un POST y el servidor responde cerrando la transacción.</td>
+              <td>Familiar, ampliamente soportado por cualquier proxy o balanceador.</td>
+              <td>Servidores remotos donde no se necesita streaming en tiempo real.</td>
+            </tr>
+            <tr>
+              <td><strong>SSE</strong><br><em>(Server-Sent Events)</em></td>
+              <td>Canal HTTP persistente (<code>text/event-stream</code>). El cliente abre la conexión y el servidor "empuja" (push) mensajes continuos.</td>
+              <td>Streaming ligero, reconexión automática nativa, sin la sobrecarga de WebSockets.</td>
+              <td>Servidores MCP desacoplados o remotos en la nube que emiten respuestas token por token.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="dialogue-box">
+          <div class="dialogue-title">Frase para impresionar a la audiencia:</div>
+          <p class="dialogue-text">
+            "¿Por qué usamos stdio en vez de levantar un servidor HTTP local? Porque un socket de red local es una vulnerabilidad innecesaria: expone puertos, compite por recursos y puede quedar huérfano. Con stdio, el agente y gomemory se comunican a través de pipes del kernel de Go. Cero latencia, cero puertos abiertos y aislamiento total."
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAPÍTULO 4: HOOKS VS EVENTS -->
+  <section id="cap-4">
+    <div class="chapter-header">
+      <div class="wrap">
+        <div class="dropnum">4</div>
+        <div>
+          <h2>El Meta-Harness: Eventos del Host vs. Hooks de gomemory</h2>
+          <div class="sub">La frontera arquitectónica entre la notificación y el gobierno determinista</div>
+        </div>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="body">
+        <p>Uno de los mayores logros arquitectónicos de gomemory es ser un <strong>meta-harness</strong>: abstrae las peculiaridades de cada agente mediante una capa neutral.</p>
+
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">El Evento (Emitido por el Host)</div>
+            <p>Es una notificación interna del ciclo de vida del agente: <em>"Inicié sesión"</em> (<code>SessionStart</code>), <em>"El usuario envió un prompt"</em> (<code>UserPromptSubmit</code>) o <em>"Voy a ejecutar una herramienta"</em> (<code>PreToolUse</code>). Depende enteramente de la empresa creadora del agente.</p>
+          </div>
+          <div class="card">
+            <div class="card-title">El Hook (Ejecutado por gomemory)</div>
+            <p>Es el comando ejecutable de Go (<code>mem hook &lt;subcomando&gt;</code>) que atrapa el evento. Traduce el dialecto del host a un contrato neutral, evalúa reglas en menos de 50 ms y decide: inyectar memorias, registrar evidencias o bloquear comandos destructivos.</p>
+          </div>
+        </div>
+
+        <div class="code">
+          <div class="code-head">Flujo en Tiempo de Ejecución</div>
+          <pre>Harness Host (Claude/Codex/agy)  ──[ Dispara Evento: PreToolUse ]──>
+  └─> gomemory (`mem hook expand`)
+        ├─> hook_dialect.go: Decodifica payload JSON
+        ├─> domain/rules.go: ¿El comando contiene 'rm -rf' o toca secretos?
+        └─> Veredicto: Exit Code ≠ 0 (Denegado)  ──>  El host cancela la ejecución</pre>
+        </div>
+
+        <div class="dialogue-box">
+          <div class="dialogue-title">Tu Analogía para Explicarlo:</div>
+          <p class="dialogue-text">
+            "El Evento es como el timbre de una puerta: el harness dice 'alguien tocó'. El Hook es el guardia de seguridad que abre la puerta, revisa la identificación contra una lista de reglas en milisegundos y decide si te deja pasar o te detiene."
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAPÍTULO 5: GLOSARIO DEV -->
+  <section id="cap-5">
+    <div class="chapter-header">
+      <div class="wrap">
+        <div class="dropnum">5</div>
+        <div>
+          <h2>Glosario Técnico para Desarrolladores</h2>
+          <div class="sub">Definiciones precisas y analogías cotidianas para responder cualquier pregunta</div>
+        </div>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="body">
+        <div class="glossary-grid">
+          <div class="glossary-item">
+            <div class="glossary-term">Harness</div>
+            <div class="glossary-def">
+              El entorno o runtime que envuelve y ejecuta al LLM (ej. Claude Code, Codex, Antigravity, OpenCode). Provee la interfaz de usuario, ejecuta comandos en la terminal y maneja el bucle de herramientas.
+              <span class="glossary-analogy">Analogía: El chasis y tablero del automóvil donde se monta el motor.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">Meta-Harness</div>
+            <div class="glossary-def">
+              Una capa arquitectónica superior (gomemory) que se sitúa por encima de múltiples harnesses distintos, estandarizando su memoria, sus hooks y su disciplina operativa para que un proyecto se comporte igual sin importar qué agente uses.
+              <span class="glossary-analogy">Analogía: Un sistema operativo común que corre indistintamente en Macs, PCs o servidores Linux.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">Lifecycle Hook</div>
+            <div class="glossary-def">
+              Punto de interceptación donde un programa externo puede inyectar lógica o reglas antes o después de que el agente ejecute una acción crítica.
+              <span class="glossary-analogy">Analogía: Un middleware en Express.js o un Git Hook pre-commit.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">MCP (Model Context Protocol)</div>
+            <div class="glossary-def">
+              Estándar abierto de la industria para que los modelos de lenguaje descubran y llamen a herramientas y orígenes de datos locales o remotos usando JSON-RPC.
+              <span class="glossary-analogy">Analogía: El conector USB-C universal para conectar periféricos a la IA.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">FTS5 + BM25</div>
+            <div class="glossary-def">
+              Motor de búsqueda de texto completo integrado nativamente en SQLite (Full-Text Search 5) con el algoritmo probabilístico de ranking BM25, garantizando búsquedas léxicas instantáneas sin bases de datos vectoriales pesadas.
+              <span class="glossary-analogy">Analogía: El motor de búsqueda interno de un libro con un índice analítico perfecto.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">Token Budgeting</div>
+            <div class="glossary-def">
+              Técnica de gestión estricta del número de tokens enviados en el prompt del sistema para no desperdiciar dinero ni saturar la atención del modelo con información irrelevante.
+              <span class="glossary-analogy">Analogía: Empacar una mochila con peso exacto para no pagar exceso de equipaje en el avión.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">HCD (Harness Continual Dev)</div>
+            <div class="glossary-def">
+              Metodología creada por gomemory para guiar el ciclo de vida de una tarea: definición, clarificación, descomposición en tareas atómicas, TDD estricto y verificación empírica.
+              <span class="glossary-analogy">Analogía: El método de doble diamante de diseño combinado con Extreme Programming.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">Splash (Subagente Ciego)</div>
+            <div class="glossary-def">
+              Instancia aislada del agente que se invoca deliberadamente sin el contexto de memoria del proyecto para revisar documentos o código de forma completamente imparcial.
+              <span class="glossary-analogy">Analogía: El revisor externo o auditor que no participó en la reunión de diseño para garantizar que la documentación sea autoexplicativa.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">Context Pack</div>
+            <div class="glossary-def">
+              Estructura de empaquetado y compresión reversible de fragmentos de código y memoria diseñada para ser rehidratada bajo demanda cuando el agente realmente la necesite.
+              <span class="glossary-analogy">Analogía: Un archivo .zip que solo descomprimes cuando vas a leer el documento.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dialogue-box" style="margin-top:20px;">
+          <div class="dialogue-title">Cierre Magistral de tu Presentación:</div>
+          <p class="dialogue-text">
+            "Al final del día, los LLMs son probabilísticos, pero la ingeniería de software debe ser determinista. gomemory es el puente que pone orden, memoria y verificación donde antes solo había prompts efímeros. Muchas gracias."
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div><strong>gomemory</strong> · Memoria persistente, local y portátil para coding agents.</div>
+    <div>Documentación técnica para equipos de ingeniería</div>
+  </div>
+</footer>
+
+<script>
+// Barra de progreso de lectura
+(function(){
+  var bar = document.getElementById('readProgress');
+  var links = [].slice.call(document.querySelectorAll('.toc a'));
+  function onScroll(){
+    var h = document.documentElement;
+    var max = h.scrollHeight - h.clientHeight;
+    if(bar) bar.style.transform = 'scaleX(' + (max > 0 ? Math.min(1, h.scrollTop / max) : 0) + ')';
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+
+  // Switch de tema
+  var root = document.documentElement;
+  var btn = document.getElementById('themeBtn');
+  var saved = null;
+  try { saved = localStorage.getItem('gomemory-guide-theme'); } catch(e){}
+  if(saved === 'dark' || saved === 'light') root.setAttribute('data-theme', saved);
+
+  if(btn) btn.addEventListener('click', function(){
+    var cur = root.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('gomemory-guide-theme', next); } catch(e){}
+  });
+
+  // Intersection Observer para menú superior
+  if(!('IntersectionObserver' in window)) return;
+  var byId = {};
+  links.forEach(function(a){ byId[a.getAttribute('href').slice(1)] = a; });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      links.forEach(function(a){ a.removeAttribute('aria-current'); });
+      var a = byId[e.target.id];
+      if(a){ a.setAttribute('aria-current', 'true'); }
+    });
+  }, {rootMargin: '-20% 0px -70% 0px'});
+
+  document.querySelectorAll('section[id]').forEach(function(s){ io.observe(s); });
+})();
+</script>
+</body>
+</html>

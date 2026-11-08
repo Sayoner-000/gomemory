@@ -1718,7 +1718,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.51.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.52.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 
@@ -1944,3 +1944,12 @@ byte a byte, sin logos ni colores.
   conectado.
 - `scripts/visual-smoke.py ./mem` verifica la presentación por PTY
   (temas × anchos × comandos) y la instalación real en un HOME aislado.
+
+
+## Soporte bilingüe y cambio de idioma en caliente (v2.52.0)
+
+gomemory descubre los idiomas disponibles desde `infrastructure/templates/locales/<código>/` (`es` para español neutral, por defecto, y `en` para inglés) y guarda la preferencia del proyecto en `.memory/settings.json` (`language`):
+
+- **Durante la instalación:** `mem install .` incluye un paso de selección de idioma en terminales interactivas y acepta `--lang es|en` en ejecuciones no interactivas (`mem install . --yes --lang en`).
+- **En caliente con `mem lang`:** ejecuta `mem lang en` o `mem lang es` para cambiar el idioma al instante, o `mem lang` sin argumentos en una terminal interactiva para elegirlo de una lista numerada. También puedes usar `mem settings --lang en`.
+- **Efecto inmediato:** `get_context`, `get_plan_context`, el recurso MCP `mem://context`, `mem context` y los recordatorios de los hooks (`nudge` y entrada a modo plan) entregan el título del documento, las directivas del protocolo de memoria y la guía de descomposición atómica en el idioma activo sin necesidad de reiniciar el servidor MCP ni la sesión del agente.

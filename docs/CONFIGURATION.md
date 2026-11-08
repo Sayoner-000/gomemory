@@ -5,6 +5,7 @@ TUI; `mem settings --show` prints the live values for the current project.
 
 | Setting | Default | Description |
 | :--- | :--- | :--- |
+| `language` | `"es"` | Active language for CLI hints and agent protocol templates (`"es"` or `"en"`). Change on the fly with `mem lang [es\|en]` or `mem settings --lang <code\|es\|en>` |
 | `budget` | `24000` | Max characters returned by `get_context` |
 | `compact_threshold` | `48000` | Context size that triggers compaction guidance |
 | `compact_agent_notice` | `false` | Remind the agent to persist pending decisions when the compaction threshold is reached |
