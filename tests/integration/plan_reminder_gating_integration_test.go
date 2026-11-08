@@ -74,6 +74,7 @@ func TestPlanReminder_CodexEnCadaTurno(t *testing.T) {
 // T029 (feature 035, FR-007): el documento de plan del primer prompt no repite
 // la memoria del proyecto si el arranque de la sesión ya la entregó.
 func TestPlanDoc_NoRepiteLaMemoriaYaEntregada(t *testing.T) {
+	skipIfNoProcessInspection(t)
 	bin := buildMemBinary(t)
 
 	conArranque := dirDeProyecto(t)

@@ -66,6 +66,7 @@ func newReleaseServer(t *testing.T, tag string, checksum string) *releaseServer 
 // newReleaseServerFor publica bin como binario de la release.
 func newReleaseServerFor(t *testing.T, tag, checksum string, bin []byte) *releaseServer {
 	t.Helper()
+	skipIfNoLoopback(t)
 	rs := &releaseServer{newBinary: bin, asset: releaseAssetName()}
 	archive := buildReleaseArchive(t, rs.newBinary)
 	sum := sha256.Sum256(archive)

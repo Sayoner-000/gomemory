@@ -121,6 +121,7 @@ func writeUpdateCache(t *testing.T, s *lifecycleSandbox, latest string, checkedA
 // apiServer cuenta las consultas; delay simula una API lenta o inalcanzable.
 func apiServer(t *testing.T, tag string, delay time.Duration) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
+	skipIfNoLoopback(t)
 	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)

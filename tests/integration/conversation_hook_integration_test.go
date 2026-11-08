@@ -16,6 +16,7 @@ const avisoAgente = "AVISO DE MEMORIA"
 // aviso de compactación pendiente; la conversación termina; antes, el segundo
 // prompt de la conversación SIGUIENTE lo recibía.
 func TestConversation_AvisoPendienteNoCruzaDeConversacion(t *testing.T) {
+	skipIfNoProcessInspection(t)
 	bin := buildMemBinary(t)
 	target := setUpAgentNoticeProject(t, true)
 

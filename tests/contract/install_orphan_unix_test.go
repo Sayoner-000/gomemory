@@ -17,6 +17,7 @@ import (
 // se cierra, el cliente se va, o lo matan con SIGKILL), el instalador real y
 // sus descendientes no pueden seguir trabajando huérfanos.
 func TestInstallEvents_ElInstaladorNoQuedaHuerfano(t *testing.T) {
+	skipIfNoProcessInspection(t)
 	bin := buildLifecycleBinary(t)
 	for _, name := range []string{"SIGINT de control", "SIGHUP", "SIGKILL", "el cliente muere", "arranca adoptado y el lector se cierra"} {
 		t.Run(name, func(t *testing.T) {

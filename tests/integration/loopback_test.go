@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net"
+	"os/exec"
 	"runtime"
 	"syscall"
 	"testing"
@@ -12,6 +13,20 @@ import (
 func loopbackPermissionDenied(err error) bool {
 	return errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EACCES) ||
 		(runtime.GOOS == "windows" && errors.Is(err, syscall.Errno(10013))) // WSAEACCES
+}
+
+// skipIfNoProcessInspection salta la prueba cuando el sandbox deniega invocar
+// herramientas de inspección de procesos (ps/pgrep) con EPERM/EACCES.
+func skipIfNoProcessInspection(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if err := exec.Command("ps", "-p", "1").Run(); err != nil {
+		if loopbackPermissionDenied(err) {
+			t.Skipf("inspección de procesos no permitida por el sandbox: %v", err)
+		}
+	}
 }
 
 // skipIfNoLoopback comprueba bind Y connect: algunos sandboxes solo deniegan

@@ -78,6 +78,7 @@ func TestHCD036(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("el enlace por proceso del host se resuelve con ps; en Windows cada proceso usa su sesión local")
 	}
+	skipIfNoProcessInspection(t)
 	bin := buildMemBinary(t)
 	repo, sync, dataHome, home := t.TempDir(), t.TempDir(), t.TempDir(), t.TempDir()
 	env := append(os.Environ(), "HOME="+home, "USERPROFILE="+home, "GOMEMORY_DATA_HOME="+dataHome,
