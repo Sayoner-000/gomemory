@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%2322e3f7'/%3E%3Cstop offset='.55' stop-color='%232c8ff0'/%3E%3Cstop offset='1' stop-color='%236b56d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M20 1C24 9 38 21 38 31a18 16.5 0 0 1-36 0C2 21 16 9 20 1Z'/%3E%3C/svg%3E">
-<title>Manual de Referencia y Guía de Explicación para Developers — gomemory</title>
+<title>Manual de referencia para desarrolladores: gomemory</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -333,20 +333,20 @@
   <!-- Portada oficial abismo -->
   <div class="cover">
     <div class="wrap">
-      <div class="cover-pill">Manual de Referencia y Guía de Exposición</div>
-      <h1>gomemory: <span>Memoria, Protocolos y Meta-Harness</span></h1>
+      <div class="cover-pill">Manual de referencia y exposición</div>
+      <h1>gomemory: <span>Memoria, protocolos y hooks</span></h1>
       <div class="accent"></div>
       <p class="desc">
-        Manual técnico estructurado con el sistema de diseño oficial de gomemory. Cubre la persistencia fuera de Git, el rol de la especificación humana, los diagramas de flujo completos del desencadenamiento en el harness, la anatomía de los transportes MCP (<code>stdio</code> frente a <code>SSE</code> y <code>HTTP</code>), la frontera arquitectónica entre <strong>Eventos del Host</strong> y <strong>Hooks deterministas</strong>, y el guion pedagógico con glosario para explicarlo a un equipo de desarrollo.
+        Referencia técnica de gomemory para equipos de desarrollo. Describe la persistencia en SQLite fuera de Git, la definición de alcance en HCD, el flujo de ejecución en cada agente, los transportes MCP (<code>stdio</code>, <code>SSE</code> y <code>HTTP</code>), la relación entre eventos del cliente y hooks del binario, y la comparativa de los tres grafos de código junto con la regla <code>graph-before-grep</code>.
       </p>
       <div class="cover-meta">
         <div>
-          <strong>Harnesses soportados nativamente:</strong>
+          <strong>Agentes compatibles:</strong>
           <p>Claude Code · OpenAI Codex · Antigravity CLI (<code>agy</code>) · OpenCode</p>
         </div>
         <div>
-          <strong>Formatos disponibles:</strong>
-          <p>HTML interactivo + Gráficos SVG vectoriales + PDF compilado A4</p>
+          <strong>Formato:</strong>
+          <p>HTML interactivo con diagramas SVG e impresión directa a PDF A4</p>
         </div>
       </div>
     </div>
@@ -358,46 +358,62 @@
       <div class="chapter-inner">
         <div class="dropnum">1</div>
         <div>
-          <h2>Lo mejor del proyecto: <span>Pilares y Puntos Clave</span></h2>
-          <p class="pg-sub">Por qué gomemory rompe la amnesia de los agentes mediante ingeniería verificable y no con simples volcados de texto.</p>
+          <h2>Qué aporta al proyecto: <span>piezas principales</span></h2>
+          <p class="pg-sub">Almacenamiento local fuera de Git, presupuesto de contexto, comprobaciones en HCD y revisión sin historial.</p>
         </div>
       </div>
     </article>
 
     <p class="lead">
-      El problema fundamental de los asistentes de codificación actuales es que <strong>arrancan cada sesión desde cero</strong>. No recuerdan por qué se adoptó un framework la semana pasada, cómo se solucionó un fallo intermitente o qué alternativas se descartaron. Esto provoca que el usuario deba repetir explicaciones y pagar repetidamente por los mismos tokens.
+      Los agentes de código empiezan cada sesión sin recordar las anteriores: ni por qué se descartó una librería la semana pasada, ni cómo se corrigió un fallo intermitente, ni qué convenciones sigue el repositorio. Sin una base local, toca repetir esas explicaciones en cada conversación y volver a pagar esos tokens.
     </p>
 
     <div class="grid g2">
       <div class="card azure">
         <div class="card-title">Memoria persistente fuera de Git</div>
         <div class="card-body">
-          <p>La memoria vive en SQLite local bajo <code>~/.local/share/gomemory</code> (macOS/Linux) o <code>%LOCALAPPDATA%\gomemory</code> (Windows). El repositorio solo conserva la configuración en <code>.memory/</code> (ignorada en Git).</p>
-          <p>Clasificada en tipos rigurosos (<code>architecture</code>, <code>decision</code>, <code>bugfix</code>, <code>pattern</code>, <code>learning</code>) e indexada con <strong>SQLite FTS5 + BM25</strong> y métricas de masa/centralidad en grafo.</p>
+          <p>Las memorias se guardan en una base SQLite local en <code>~/.local/share/gomemory</code> (macOS/Linux) o <code>%LOCALAPPDATA%\gomemory</code> (Windows). En el repositorio solo vive <code>.memory/</code>, ignorado por Git.</p>
+          <p>Cada entrada tiene tipo (<code>architecture</code>, <code>decision</code>, <code>bugfix</code>, <code>pattern</code>, <code>learning</code>) y se indexa con <strong>SQLite FTS5 + BM25</strong> y relaciones en el grafo de sinapsis.</p>
         </div>
       </div>
 
       <div class="card mint">
-        <div class="card-title">Token Budgeting y Compresión Pack</div>
+        <div class="card-title">Presupuesto de contexto y compresión</div>
         <div class="card-body">
-          <p>No ahoga el contexto del LLM. <code>get_context</code> opera bajo un presupuesto estricto (~3.000–4.200 caracteres al arrancar la sesión).</p>
-          <p>Implementa compresión reversible de fragmentos con <code>mem pack</code> y captura automática de salidas masivas de consola (<em>tool-output</em>) para ahorrar miles de tokens por turno.</p>
+          <p>El arranque y <code>get_context</code> respetan un tope de caracteres (~3.000 a 4.200 caracteres en el primer prompt) para no llenar la ventana del modelo.</p>
+          <p>Con <code>mem pack</code> y el hook <code>tool-output</code>, las salidas largas de herramientas se comprimen manteniendo el original disponible por referencia.</p>
         </div>
       </div>
 
       <div class="card violet">
-        <div class="card-title">Metodología HCD (Harness Continual Dev)</div>
+        <div class="card-title">Flujo HCD (Harness Continual Dev)</div>
         <div class="card-body">
-          <p>Protocolo riguroso de dos carriles (<em>fast</em> y <em>full</em>) con TDD obligatorio: en corrección de bugs, exige observar el fallo previo (<code>--expect-fail</code>) antes del cambio.</p>
-          <p>Las tareas solo se marcan como completadas si la comprobación automatizada devuelve código de éxito en la máquina real.</p>
+          <p>Tiene dos carriles (<em>fast</em> y <em>full</em>) y aplica TDD: cuando el tipo de unidad es <code>fix</code>, el motor exige registrar primero el fallo de la prueba (<code>--expect-fail</code>) antes de aceptar el arreglo.</p>
+          <p>Una tarea solo pasa a verificada cuando el comando de prueba devuelve código 0 al ejecutarlo con <code>mem hcd verify</code>.</p>
         </div>
       </div>
 
       <div class="card amber">
-        <div class="card-title">Revisión Imparcial: Subagente Splash</div>
+        <div class="card-title">Revisión sin contexto: subagente Splash</div>
         <div class="card-body">
-          <p>Para evitar que el agente aplauda su propio trabajo, gomemory instancia a <strong>Splash</strong>: un subagente deliberadamente privado de memoria del proyecto.</p>
-          <p>Splash lee la especificación y el código en frío, sin sesgo de confirmación, actuando como un auditor implacable antes de la aprobación.</p>
+          <p>Cuando el mismo agente que escribió una propuesta la revisa, arrastra los supuestos de la conversación. Para evitarlo, gomemory incluye el subagente <strong>splash</strong>.</p>
+          <p>Splash se ejecuta en modo de solo lectura, sin memorias del proyecto ni herramientas MCP, y comprueba el documento únicamente contra los archivos del repositorio.</p>
+        </div>
+      </div>
+
+      <div class="card azure">
+        <div class="card-title">Idioma del proyecto en caliente (<code>es</code> / <code>en</code>)</div>
+        <div class="card-body">
+          <p>Desde v2.52.0 (HCD-056), las plantillas, memorias iniciales, bloques de contexto y avisos de hooks están disponibles en español (<code>es</code>) e inglés (<code>en</code>).</p>
+          <p>Se elige durante <code>mem install --lang es|en</code> o se cambia en cualquier momento con <code>mem lang [es|en]</code> sin reiniciar el servidor MCP ni la sesión del agente.</p>
+        </div>
+      </div>
+
+      <div class="card mint">
+        <div class="card-title">Supertool <code>expand</code> en los cuatro agentes</div>
+        <div class="card-body">
+          <p>El estado y los interruptores de <code>mem expand</code> (<code>status</code>, <code>on</code>, <code>off</code>) cubren Claude Code, OpenAI Codex, Antigravity CLI (<code>agy</code>) y OpenCode (HCD-055).</p>
+          <p>Las reglas de pre-tool (<code>destructive-shell</code>, <code>inline-Workaround</code>, <code>graph-before-grep</code>) y la compactación de salidas operan bajo un presupuesto de 150 ms.</p>
         </div>
       </div>
     </div>
@@ -407,15 +423,15 @@
       <div class="chapter-inner">
         <div class="dropnum">2</div>
         <div>
-          <h2>El Rol del Usuario: <span>La Especificación con sus Palabras</span></h2>
-          <p class="pg-sub">El desarrollador gobierna la intención y las restricciones; el agente propone la implementación dentro de esos límites.</p>
+          <h2>El papel de quien desarrolla: <span>definir el alcance</span></h2>
+          <p class="pg-sub">La persona define el problema y los límites; el agente propone e implementa los pasos dentro de ese marco.</p>
         </div>
       </div>
     </article>
 
     <div class="infobox violet">
-      <span class="lbl">Principio de diseño</span>
-      <strong>La persona es el árbitro de la necesidad:</strong> No se le exige escribir sintaxis formal ni pseudocódigo. Su misión es describir el problema real, qué resultado espera y, sobre todo, qué fronteras no deben cruzarse.
+      <span class="lbl">Criterio de uso</span>
+      <strong>Quién fija los límites:</strong> No hace falta escribir pseudocódigo ni plantillas largas. Basta con indicar qué problema se quiere resolver, cómo se comprobará el resultado y qué partes del código quedan fuera del cambio.
     </div>
 
     <div class="table-wrap">
@@ -423,30 +439,30 @@
         <thead>
           <tr>
             <th>Etapa</th>
-            <th>Lo que hace el Usuario en lenguaje natural</th>
-            <th>Lo que ejecuta gomemory y el Harness</th>
+            <th>Lo que indica la persona</th>
+            <th>Lo que ejecuta gomemory y el agente</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>1. Intención pura</strong></td>
-            <td>Explica el problema y qué valor busca: <em>"Necesito que el endpoint /status devuelva el uptime real del servicio"</em>.</td>
-            <td>Crea la unidad <code>hcd/HCD-NNN-slug.md</code>, enlaza el ID de sesión y clasifica el carril (fast o full).</td>
+            <td><strong>1. Objetivo</strong></td>
+            <td>Describe el cambio esperado: <em>"Necesito que el endpoint /status devuelva el uptime del servicio"</em>.</td>
+            <td>Crea la unidad <code>hcd/HCD-NNN-slug.md</code>, la asocia a la sesión activa y asigna el carril (<em>fast</em> o <em>full</em>).</td>
           </tr>
           <tr>
-            <td><strong>2. Alcance explícito</strong></td>
-            <td>Declara qué incluye y qué queda <strong>fuera de alcance</strong>: <em>"No toques la autenticación ni migres dependencias"</em>.</td>
-            <td>El motor HCD convierte lo excluido en restricciones de guarda que el agente no puede ignorar.</td>
+            <td><strong>2. Fuera de alcance</strong></td>
+            <td>Declara qué entra y qué <strong>no se debe tocar</strong>: <em>"No modifiques la autenticación ni actualices dependencias"</em>.</td>
+            <td>Guarda las exclusiones en la definición de la unidad para acotar las tareas siguientes.</td>
           </tr>
           <tr>
-            <td><strong>3. Clarificación</strong></td>
-            <td>Responde a un máximo de 1 a 3 preguntas críticas formuladas por <strong>Socratica</strong> (<code>hcd-clarify</code>).</td>
-            <td>Desambigua opciones de arquitectura y contratos sin someter al usuario a interrogatorios tediosos.</td>
+            <td><strong>3. Aclaración</strong></td>
+            <td>Responde las preguntas abiertas en <code>/hcd-clarify</code> (una pregunta a la vez).</td>
+            <td>Registra las respuestas en el documento y cierra los puntos abiertos antes de pasar a tareas.</td>
           </tr>
           <tr>
-            <td><strong>4. Aprobación vinculada</strong></td>
-            <td>Revisa la definición final y da su consentimiento explícito (vía chat o comando <code>/hcd-approve</code>).</td>
-            <td>Firma la aprobación en la base de datos atándola a la revisión Git exacta; bloquea desviaciones (*drift*).</td>
+            <td><strong>4. Aprobación</strong></td>
+            <td>En la ceremonia completa, revisa la definición y la aprueba con <code>/hcd-approve</code>.</td>
+            <td>Guarda la cita de aprobación ligada al hash del documento; si la definición cambia después, invalida la aprobación anterior.</td>
           </tr>
         </tbody>
       </table>
@@ -514,14 +530,14 @@
       <div class="chapter-inner">
         <div class="dropnum">3</div>
         <div>
-          <h2>El Desencadenamiento: <span>Cómo opera en el Harness</span></h2>
-          <p class="pg-sub">El flujo completo creado al inicio: desde el prompt del usuario hasta la ejecución coordinada de hooks, MCP y subagentes.</p>
+          <h2>Ejecución en el agente: <span>hooks, MCP y subagentes</span></h2>
+          <p class="pg-sub">Recorrido desde el prompt inicial hasta los hooks de ciclo de vida, el servidor MCP y el núcleo en Go.</p>
         </div>
       </div>
     </article>
 
     <p class="lead">
-      Cuando el usuario escribe un comando o una orden en lenguaje natural en cualquiera de los cuatro agentes, el sistema desencadena dos canales paralelos que aseguran contexto, guardrails y verificación.
+      Cuando la persona envía un prompt o un comando en cualquiera de los cuatro agentes, la interacción con gomemory circula por dos vías: los hooks de ciclo de vida y el servidor MCP sobre <code>stdio</code>.
     </p>
 
     <!-- EL GRÁFICO EXACTO DEL INICIO: DIAGRAMA DE FLUJO DE DESENCADENAMIENTO -->
@@ -607,14 +623,14 @@
       <div class="chapter-inner">
         <div class="dropnum">4</div>
         <div>
-          <h2>Bajo el Capó: <span>stdio, HTTP y Server-Sent Events (SSE)</span></h2>
-          <p class="pg-sub">Por qué el transporte local por tuberías de entrada/salida supera a los sockets de red para agentes de desarrollo.</p>
+          <h2>Transporte MCP: <span>stdio frente a HTTP y SSE</span></h2>
+          <p class="pg-sub">Diferencias operativas entre tuberías de entrada/salida estándar y conexiones de red para agentes locales.</p>
         </div>
       </div>
     </article>
 
     <p class="lead">
-      El protocolo <strong>Model Context Protocol (MCP)</strong> estandariza cómo los LLMs consumen herramientas y memorias. Sin embargo, el canal físico por el que viajan los mensajes condiciona la latencia, la seguridad y la fiabilidad.
+      El protocolo <strong>Model Context Protocol (MCP)</strong> define cómo el agente invoca herramientas y lee recursos. El transporte elegido determina si la comunicación ocurre entre procesos locales o a través de un socket de red.
     </p>
 
     <!-- GRÁFICO COMPARATIVA STDIO VS HTTP/SSE -->
@@ -664,15 +680,15 @@
       <div class="chapter-inner">
         <div class="dropnum">5</div>
         <div>
-          <h2>El Meta-Harness: <span>Eventos del Host vs. Hooks de gomemory</span></h2>
-          <p class="pg-sub">El diagrama de flujo exacto de la interceptación: cómo un evento del agente se convierte en un veredicto determinista.</p>
+          <h2>Eventos del agente y <span>hooks de gomemory</span></h2>
+          <p class="pg-sub">Cómo se traduce el payload de cada cliente a las reglas y al contexto de gomemory.</p>
         </div>
       </div>
     </article>
 
     <div class="infobox cyan">
-      <span class="lbl">La frontera conceptual</span>
-      <strong>El Evento es la señal que emite el harness; el Hook es el árbitro que decide qué hacer.</strong> Los agentes tienen APIs y nombres de eventos completamente distintos; gomemory actúa como el meta-harness que los traduce a un estándar común.
+      <span class="lbl">Relación entre piezas</span>
+      <strong>El evento lo emite el agente; el hook lo ejecuta gomemory.</strong> Como cada cliente usa nombres de eventos y esquemas JSON distintos, <code>hook_dialect.go</code> los convierte a un formato común antes de evaluar las reglas.
     </div>
 
     <!-- EL GRÁFICO EXACTO DE EVENTO VS HOOK -->
@@ -722,125 +738,141 @@
       <div class="chapter-inner">
         <div class="dropnum">6</div>
         <div>
-          <h2>Guion de Exposición y <span>Glosario para Developers</span></h2>
-          <p class="pg-sub">Narrativa verbal paso a paso y conceptos explicados con analogías del mundo real.</p>
+          <h2>Guion de exposición y <span>glosario técnico</span></h2>
+          <p class="pg-sub">Argumentos para presentar la herramienta al equipo y definiciones de los términos principales.</p>
         </div>
       </div>
     </article>
 
     <div class="speech">
-      <div class="speech-lbl">1. El Gancho de Entrada (El dolor que todos han vivido)</div>
+      <div class="speech-lbl">1. El problema: cada sesión empieza desde cero</div>
       <p class="speech-text">
-        "¿A cuántos de ustedes les ha pasado que le explican detalladamente a su agente de IA cómo funciona la arquitectura de su API, logran que funcione, pero al día siguiente, en una nueva sesión, les vuelve a sugerir exactamente el mismo patrón roto que ya habían descartado? Los LLMs son brillantes redactando sintaxis, pero nacen con amnesia total en cada sesión. Y esa amnesia nos cuesta tiempo, frustración y dinero en tokens. gomemory es la infraestructura que le da memoria local persistente, gobierno y disciplina a los agentes."
+        "¿Cuántas veces le han explicado a su agente cómo está organizada la API o por qué descartaron un enfoque, y al día siguiente, en una sesión nueva, vuelve a proponer exactamente lo mismo? El modelo no conserva nada entre sesiones. Con gomemory, esas decisiones y correcciones se guardan en una base local para que el agente las tenga presentes desde el arranque."
       </p>
-      <span class="speech-tip">Enfatiza: Conectar con el dolor real de la pérdida de contexto en proyectos de mediano/largo plazo.</span>
+      <span class="speech-tip">Nota: Conecta con casos reales del proyecto donde se haya tenido que repetir el mismo contexto.</span>
     </div>
 
     <div class="speech">
-      <div class="speech-lbl">2. La Analogía del Vuelo y la Caja Negra</div>
+      <div class="speech-lbl">2. Bitácora local con presupuesto de tokens</div>
       <p class="speech-text">
-        "No queremos que el agente improvise. gomemory funciona como el registrador de vuelo del proyecto. Guarda en una base de datos SQLite local, fuera de Git, cada decisión, cada bugfix y cada convención aprobada. Cuando el agente arranca, no le inyectamos 50 páginas de texto: le damos un presupuesto estricto de tokens con lo indispensable, y el agente puede buscar mediante FTS5 y BM25 el historial relevante solo cuando lo necesita."
-      </p>
-    </div>
-
-    <div class="speech">
-      <div class="speech-lbl">3. La Analogía de stdio vs Red</div>
-      <p class="speech-text">
-        "Muchos preguntan: '¿Por qué no levantaron una API REST o un servidor HTTP local para conectar las herramientas?' Porque abrir puertos de red en la máquina del desarrollador es una mala práctica: hay colisiones de puertos, problemas con proxies, latencia y procesos huérfanos. Usamos `stdio`. El agente lanza a gomemory como un subproceso hijo de Go. Se hablan por los pipes del sistema operativo en nanosegundos. Si el agente se cierra, gomemory se apaga. Cero puertos abiertos, cero brechas de seguridad."
+        "gomemory guarda en SQLite, fuera de Git, las decisiones, los bugfixes y las reglas del proyecto. Al abrir sesión no vuelca toda la base en el prompt: envía un bloque acotado con las reglas y las entradas de mayor peso, y el agente consulta el resto con FTS5 y BM25 cuando toca esos temas."
       </p>
     </div>
 
     <div class="speech">
-      <div class="speech-lbl">4. La Analogía del Guardia de Seguridad (Eventos vs Hooks)</div>
+      <div class="speech-lbl">3. Por qué stdio en lugar de un puerto local</div>
       <p class="speech-text">
-        "Para entender la diferencia entre Evento y Hook: El Evento es el timbre de la puerta. Lo toca el harness: 'Oye, el modelo quiere ejecutar un comando de shell'. El Hook de gomemory es el guardia de seguridad que abre la puerta. En menos de 50 milisegundos lee el comando, comprueba si contiene un `rm -rf` o si viola una regla del equipo, y si es peligroso, rechaza la acción antes de que toque el disco. Los LLMs son probabilísticos; la seguridad debe ser determinista."
+        "A veces preguntan por qué no levantamos un servidor HTTP local para conectar el MCP. En una máquina de desarrollo, abrir un puerto TCP implica elegir puerto, evitar choques entre varias sesiones abiertas y vigilar que el proceso no quede colgado al cerrar el editor. Con <code>stdio</code>, el agente lanza <code>mem mcp</code> como proceso hijo, se comunican por las tuberías del sistema operativo y, cuando cierras el agente, el proceso termina con él."
       </p>
-      <span class="speech-tip">Cierre: Rematar con la frase: 'gomemory transforma un chatbot conversacional en un colega de ingeniería confiable'.</span>
+    </div>
+
+    <div class="speech">
+      <div class="speech-lbl">4. Eventos frente a hooks</div>
+      <p class="speech-text">
+        "Para distinguir evento y hook: el evento es el aviso que da el agente cuando está por ejecutar una herramienta, por ejemplo un comando de shell. El hook de gomemory recibe ese comando, comprueba en pocos milisegundos si contiene un <code>rm -rf</code> o si incumple una regla del repositorio y, si corresponde, detiene la ejecución antes de que corra."
+      </p>
+      <span class="speech-tip">Idea de cierre: las reglas de seguridad y de búsqueda se comprueban con código, sin depender de que el modelo las recuerde todas las veces.</span>
     </div>
 
     <div class="section-header">
-      <h3>Glosario de Términos con Analogías</h3>
-      <p>Definiciones claras para dominar el vocabulario técnico</p>
+      <h3>Glosario de términos</h3>
+      <p>Definiciones de referencia para las piezas del sistema</p>
     </div>
 
     <div class="glossary-list">
       <div class="glossary-card">
         <div class="glossary-term">Harness</div>
         <div class="glossary-desc">
-          El runtime o plataforma anfitriona que envuelve al modelo de lenguaje (Claude Code, Codex, Antigravity, OpenCode). Gestiona el bucle de razonamiento, las ventanas de chat y la ejecución de herramientas.
-          <span class="glossary-analogy">Analogía: El chasis, tablero y transmisión del vehículo donde se monta el motor.</span>
+          El cliente o entorno que ejecuta al modelo de lenguaje (Claude Code, Codex, Antigravity u OpenCode), mantiene la conversación y corre las herramientas locales.
+          <span class="glossary-analogy">En corto: la aplicación de terminal o IDE donde interactúas con el agente.</span>
         </div>
       </div>
 
       <div class="glossary-card">
-        <div class="glossary-term">Meta-Harness</div>
+        <div class="glossary-term">Meta-harness</div>
         <div class="glossary-desc">
-          Capa de abstracción superior (gomemory) que unifica el comportamiento de múltiples harnesses distintos, asegurando que las reglas, la memoria y la disciplina de ingeniería sean idénticas sin importar qué agente use el desarrollador.
-          <span class="glossary-analogy">Analogía: Un sistema operativo portátil que se ejecuta sobre diferentes marcas de hardware sin cambiar la experiencia.</span>
+          Capa común (gomemory) que conecta varios agentes distintos a la misma base de memoria, las mismas reglas de hooks y el mismo flujo HCD.
+          <span class="glossary-analogy">En corto: usar Claude Code, Codex, agy u OpenCode sobre el mismo proyecto manteniendo el mismo historial y las mismas reglas.</span>
         </div>
       </div>
 
       <div class="glossary-card">
-        <div class="glossary-term">Lifecycle Hook</div>
+        <div class="glossary-term">Lifecycle hook</div>
         <div class="glossary-desc">
-          Subcomando ejecutable que se dispara en un momento específico del ciclo de vida del agente para enriquecer el contexto (observabilidad) o impedir una operación no autorizada (guardia).
-          <span class="glossary-analogy">Analogía: Un middleware en una API web o un hook pre-commit de Git.</span>
+          Subcomando de <code>mem hook</code> que el agente ejecuta en puntos concretos de la sesión para añadir contexto, comprimir salidas o bloquear una acción.
+          <span class="glossary-analogy">Similar a un hook <code>pre-commit</code> de Git aplicado al ciclo de herramientas del agente.</span>
         </div>
       </div>
 
       <div class="glossary-card">
         <div class="glossary-term">MCP (Model Context Protocol)</div>
         <div class="glossary-desc">
-          Estándar abierto de la industria para que los LLMs invoquen herramientas y fuentes de datos externas utilizando mensajes estructurados en JSON-RPC.
-          <span class="glossary-analogy">Analogía: El puerto USB-C universal que permite conectar cualquier periférico a cualquier computadora.</span>
+          Protocolo basado en JSON-RPC mediante el cual el modelo descubre y llama herramientas externas o lee recursos de contexto.
+          <span class="glossary-analogy">Un contrato estándar para conectar herramientas al modelo sin escribir integraciones a medida para cada cliente.</span>
         </div>
       </div>
 
       <div class="glossary-card">
         <div class="glossary-term">stdio (Standard I/O)</div>
         <div class="glossary-desc">
-          Canal de comunicación interproceso (IPC) que transfiere datos a través de los descriptores estándar <code>stdin</code> y <code>stdout</code> sin utilizar redes ni puertos TCP.
-          <span class="glossary-analogy">Analogía: Hablar directamente por un tubo acústico privado de barco en vez de hacer una llamada telefónica por red pública.</span>
+          Comunicación entre procesos a través de la entrada y salida estándar (<code>stdin</code> y <code>stdout</code>), sin abrir sockets de red.
+          <span class="glossary-analogy">Comunicación directa entre el proceso padre (el agente) y su proceso hijo (<code>mem mcp</code>).</span>
         </div>
       </div>
 
       <div class="glossary-card">
         <div class="glossary-term">SSE (Server-Sent Events)</div>
         <div class="glossary-desc">
-          Protocolo sobre HTTP unidireccional persistente donde el servidor transmite un flujo constante de eventos (<em>stream push</em>) al cliente sin que este tenga que consultarlo reiteradamente.
-          <span class="glossary-analogy">Analogía: Un teletipo de noticias de bolsa que imprime continuamente datos a medida que ocurren.</span>
+          Canal HTTP persistente (<code>text/event-stream</code>) donde el servidor envía eventos al cliente sobre una conexión abierta.
+          <span class="glossary-analogy">Se usa en servidores MCP remotos que necesitan enviar mensajes por red.</span>
         </div>
       </div>
 
       <div class="glossary-card">
-        <div class="glossary-term">Token Budgeting</div>
+        <div class="glossary-term">Presupuesto de contexto</div>
         <div class="glossary-desc">
-          Estrategia algorítmica para limitar y seleccionar quirúrgicamente qué información se inyecta en el prompt del sistema, evitando saturar la ventana de atención y abaratando costos.
-          <span class="glossary-analogy">Analogía: Pesar cada gramo del equipaje antes de subir a un avión para no pagar sobrepeso.</span>
+          Límite de caracteres que gomemory aplica al armar el contexto inicial y las respuestas de memoria para controlar el uso de la ventana del modelo.
+          <span class="glossary-analogy">Incluir primero las reglas y las memorias de mayor peso, dejando el resto para consulta puntual.</span>
         </div>
       </div>
 
       <div class="glossary-card">
         <div class="glossary-term">FTS5 + BM25</div>
         <div class="glossary-desc">
-          Motor de indexación léxica de texto completo integrado en SQLite que calcula la relevancia probabilística de los términos para devolver memorias pertinentes en milisegundos.
-          <span class="glossary-analogy">Analogía: El índice alfabético al final de una enciclopedia técnica que te indica el párrafo exacto que buscas.</span>
+          Motor de búsqueda de texto completo integrado en SQLite que ordena los resultados según la frecuencia y especificidad de los términos buscados.
+          <span class="glossary-analogy">Permite buscar en miles de memorias locales en pocos milisegundos sin servidores adicionales.</span>
         </div>
       </div>
 
       <div class="glossary-card">
         <div class="glossary-term">HCD (Harness Continual Dev)</div>
         <div class="glossary-desc">
-          Metodología de ingeniería de gomemory que guía el ciclo de vida de cada tarea desde la intención en lenguaje natural hasta la verificación empírica con TDD obligatorio y evidencia registrada.
-          <span class="glossary-analogy">Analogía: El control de calidad aeronáutico donde cada pieza debe tener un certificado de prueba física antes de instalarse.</span>
+          Flujo de trabajo de gomemory que organiza un cambio en definición, aclaración, tareas con su prueba asociada, implementación y verificación con evidencia.
+          <span class="glossary-analogy">Cada tarea declara con qué comando se comprueba y el motor guarda el resultado de esa ejecución.</span>
         </div>
       </div>
 
       <div class="glossary-card">
         <div class="glossary-term">Subagente Splash</div>
         <div class="glossary-desc">
-          Agente revisor instanciado deliberadamente sin memoria previa ni contexto de gomemory para evaluar especificaciones y código en frío, garantizando una auditoría sin sesgos.
-          <span class="glossary-analogy">Analogía: Un auditor externo que no estuvo en la reunión de diseño para comprobar si los manuales se entienden de verdad.</span>
+          Subagente de solo lectura que se lanza sin memorias de gomemory ni herramientas MCP para revisar un documento o diseño contra el código del repositorio.
+          <span class="glossary-analogy">Revisa el documento como alguien que acaba de abrir el repositorio por primera vez.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">graph-before-grep</div>
+        <div class="glossary-desc">
+          Regla de pre-tool de <code>mem expand</code> que detiene búsquedas con <code>rg</code>, <code>grep</code> o <code>find</code> sobre código cuando el repositorio ya cuenta con un grafo indexado.
+          <span class="glossary-analogy">Dirige al agente hacia <code>codegraph_explore</code> o las herramientas del grafo en lugar de recorrer archivos texto por texto.</span>
+        </div>
+      </div>
+
+      <div class="glossary-card">
+        <div class="glossary-term">mem lang (es / en)</div>
+        <div class="glossary-desc">
+          Comando que cambia en <code>.memory/settings.json</code> el idioma del proyecto entre español e inglés para el contexto, las plantillas y los avisos de hooks.
+          <span class="glossary-analogy">Aplica el idioma elegido en la siguiente llamada sin reiniciar <code>mem mcp</code>.</span>
         </div>
       </div>
     </div>
@@ -850,135 +882,135 @@
       <div class="chapter-inner">
         <div class="dropnum">A1</div>
         <div>
-          <h2>Anexo: <span>Los Tres Grafos de Código y el Guardarraíl de Búsqueda</span></h2>
-          <p class="pg-sub">Diferenciación conceptual, propósito, convivencia y comportamiento determinista ante la regla <code>graph-before-grep</code>.</p>
+          <h2>Anexo: <span>Los tres grafos de código y la regla <code>graph-before-grep</code></span></h2>
+          <p class="pg-sub">Para qué sirve cada grafo, cómo se actualizan y por qué el hook bloquea <code>rg</code>/<code>grep</code> cuando el índice está activo.</p>
         </div>
       </div>
     </article>
 
     <p class="lead">
-      En el ecosistema de <strong>gomemory</strong> coexisten tres representaciones de grafo de código distintas. Lejos de competir, cada una responde a una necesidad arquitectónica precisa y con niveles de granularidad diferenciados: <strong>gomemory guarda el PORQUÉ</strong> (decisiones, lecciones, sinapsis), <strong>CodeGraph responde el CÓMO</strong> (código fuente y llamadores en 1 round-trip) y <strong>codebase-memory-mcp analiza la TOPOLOGÍA profunda</strong> (métricas relacionales y multi-hop).
+      En un proyecto con <strong>gomemory</strong> pueden convivir hasta tres índices de código. Cada uno cubre un plano distinto: <strong>el grafo propio de gomemory</strong> indexa símbolos y paquetes Go sin depender de binarios externos; <strong>CodeGraph</strong> devuelve en una llamada el código fuente junto con sus llamadores e impacto en más de 30 lenguajes; y <strong>codebase-memory-mcp</strong> ofrece consultas estructurales y recorridos multi-salto sobre el grafo del repositorio.
     </p>
 
     <div class="section-header">
-      <h3>Tabla Comparativa: Propósito, Alcance y Ciclo de Vida</h3>
-      <p>Matriz de decisión para comprender qué herramienta resuelve cada problema</p>
+      <h3>Comparativa de los tres grafos</h3>
+      <p>Qué indexa cada herramienta, cómo se consulta y cómo se mantiene al día</p>
     </div>
 
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th style="width: 18%;">Característica</th>
-            <th style="width: 27%;">Grafo Propio (gomemory)</th>
+            <th style="width: 18%;">Aspecto</th>
+            <th style="width: 27%;">Grafo propio (gomemory)</th>
             <th style="width: 28%;">CodeGraph (<code>codegraph</code>)</th>
             <th style="width: 27%;">codebase-memory-mcp</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Propósito Principal</strong></td>
-            <td><strong>Autosuficiencia en Go sin dependencias.</strong> Inteligencia de código nativa de serie sin requerir binarios externos de terceros.</td>
-            <td><strong>Sustituir la lectura y búsqueda manual (<em>Read-equivalent</em>).</strong> Reducir drásticamente el consumo de tokens y llamadas del LLM.</td>
-            <td><strong>Auditoría estructural y consultas relacionales formales.</strong> Grafo relacional profundo estilo base de datos de conocimiento.</td>
+            <td><strong>Función principal</strong></td>
+            <td><strong>Índice Go integrado en el binario.</strong> Funciona de serie sin instalar herramientas externas.</td>
+            <td><strong>Exploración de código en una llamada.</strong> Sustituye varias rondas de <code>grep</code> y lectura de archivos por una consulta.</td>
+            <td><strong>Consultas estructurales y de arquitectura.</strong> Recorridos de llamadas, acoplamiento y consultas tipo Cypher.</td>
           </tr>
           <tr>
-            <td><strong>¿Para qué sirve exactamente?</strong></td>
-            <td>Mapear paquetes, llamadas y dependencias Go en <code>.memory/gomemory.db</code>. Alimenta el resumen de código en <code>mem context</code>.</td>
-            <td>Entregar en <strong>una sola llamada</strong> (<code>codegraph_explore</code>) el código verbatim con números de línea, dynamic-dispatch y blast radius.</td>
-            <td>Inspeccionar métricas arquitectónicas (hotspots, clusters, fan-in/fan-out), trazar rutas paso a paso y ejecutar queries Cypher.</td>
+            <td><strong>Qué resuelve</strong></td>
+            <td>Registra paquetes, funciones y llamadas Go en la base local y alimenta el resumen estructural de <code>mem context</code>.</td>
+            <td>Con <code>codegraph_explore</code> entrega el código fuente con números de línea, llamadores e impacto de cambio.</td>
+            <td>Analiza puntos calientes, rutas entre funciones (<code>trace_path</code>), esquemas y consultas con <code>search_graph</code> o <code>query_graph</code>.</td>
           </tr>
           <tr>
-            <td><strong>Cobertura de Lenguajes</strong></td>
+            <td><strong>Lenguajes</strong></td>
             <td><span class="badge b-amber">Solo Go (.go)</span></td>
-            <td><span class="badge b-mint">30+ Lenguajes</span> (Go, TS, JS, Python, Rust, Java, C#, C/C++, PHP, Swift…)</td>
-            <td><span class="badge b-azure">Multi-lenguaje</span> (según parsers instalados en el runtime)</td>
+            <td><span class="badge b-mint">30+ lenguajes</span> (Go, TS, JS, Python, Rust, Java, C#, C/C++, PHP, Swift…)</td>
+            <td><span class="badge b-azure">Multilenguaje</span> (según las gramáticas del binario)</td>
           </tr>
           <tr>
-            <td><strong>Herramientas MCP / CLI</strong></td>
+            <td><strong>Tools MCP / CLI</strong></td>
             <td><code>search_code</code>, <code>get_symbol</code>, <code>list_dependencies</code>, <code>graph_status</code>.</td>
-            <td><strong><code>codegraph_explore</code></strong> <em>(herramienta única omni-comprensiva)</em>.</td>
+            <td><strong><code>codegraph_explore</code></strong>.</td>
             <td><code>search_graph</code>, <code>trace_path</code>, <code>get_code_snippet</code>, <code>query_graph</code>, <code>get_architecture</code>.</td>
           </tr>
           <tr>
-            <td><strong>Filosofía y Salida</strong></td>
-            <td>Consultas específicas de firmas, dependencias y relaciones de paquetes.</td>
-            <td><strong>Todo en 1 llamada:</strong> fuente exacto listo para editar + quién lo llama + qué afecta.</td>
-            <td>Navegación granular y exploratoria por etapas sucesivas (buscar → trazar → leer snippet).</td>
+            <td><strong>Forma de consulta</strong></td>
+            <td>Búsqueda puntual de símbolos, firmas y dependencias entre paquetes Go.</td>
+            <td><strong>Una sola llamada:</strong> devuelve código fuente, quién lo invoca y qué archivos afecta.</td>
+            <td>Consultas por pasos: buscar nodos, trazar caminos y leer fragmentos concretos.</td>
           </tr>
           <tr>
-            <td><strong>Sincronización y Frescura</strong></td>
-            <td><strong>Incremental turno a turno:</strong> en el hook <code>turn-end</code> reindexa solo los archivos <code>.go</code> tocados.</td>
-            <td><strong>File-watcher en tiempo real</strong> (~1s) con MCP activo + sincronización desacoplada (<code>codegraph sync</code>).</td>
-            <td>Sondeos periódicos y refresco en segundo plano (debounce 60s).</td>
+            <td><strong>Actualización</strong></td>
+            <td><strong>Incremental al cerrar el turno:</strong> el hook <code>turn-end</code> reindexa los archivos <code>.go</code> modificados.</td>
+            <td><strong>Watcher en vivo</strong> (~1 s) con el servidor MCP activo y sincronización con <code>codegraph sync</code>.</td>
+            <td>Refresco en segundo plano con ventana de espera (~60 s) o indexado manual.</td>
           </tr>
           <tr>
-            <td><strong>Reindexado Completo</strong></td>
-            <td><code>mem index</code> (explícito).</td>
-            <td><code>codegraph index</code> o <code>mem index</code> (explícito).</td>
-            <td><code>cli index_repository</code> o <code>mem index</code> (explícito).</td>
+            <td><strong>Reindexado manual</strong></td>
+            <td><code>mem index</code>.</td>
+            <td><code>codegraph index</code> o <code>mem index</code>.</td>
+            <td><code>codebase-memory-mcp cli index_repository</code> o <code>mem index</code>.</td>
           </tr>
           <tr>
-            <td><strong>Caso de Uso Típico</strong></td>
-            <td>Proyectos Go sin dependencias externas, o para consultar dependencias y firmas nativas.</td>
-            <td><strong>Opción primaria siempre que esté disponible.</strong> Entender código, ver impacto y leer archivos antes de editar.</td>
-            <td>Auditorías de calidad, refactorizaciones complejas, detección de código muerto o dependencias multi-hop.</td>
+            <td><strong>Cuándo elegirlo</strong></td>
+            <td>Proyectos en Go sin proveedores externos o para consultar dependencias de paquetes Go.</td>
+            <td><strong>Primera opción cuando está instalado</strong> para localizar símbolos, leer su implementación y ver quién los llama.</td>
+            <td>Auditorías de arquitectura, búsqueda de código sin llamadores o análisis de cadenas largas de dependencias.</td>
           </tr>
         </tbody>
       </table>
     </div>
 
     <div class="section-header">
-      <h3>El Guardarraíl <code>graph-before-grep</code>: ¿Qué ocurre ante un bloqueo?</h3>
-      <p>Entendiendo el evento <code>locked by hook</code> y por qué no requiere ninguna intervención manual</p>
+      <h3>La regla <code>graph-before-grep</code>: qué significa el bloqueo del hook</h3>
+      <p>Por qué aparece <code>locked by hook</code> y qué hace el agente a continuación</p>
     </div>
 
     <div class="infobox mint">
-      <span class="lbl">Comportamiento Verificado del Guardarraíl</span>
+      <span class="lbl">Funcionamiento de la regla</span>
       <p>
-        Cuando el agente intenta ejecutar <code>rg</code>, <code>grep</code> o <code>find</code> sobre código y recibe un bloqueo del hook:
+        Cuando el agente intenta correr <code>rg</code>, <code>grep</code> o <code>find</code> sobre archivos de código y el hook devuelve:
         <br>
         <code>locked by hook: gomemory expand · regla graph-before-grep: buscar código .go con rg cuando el grafo ya lo indexa; usa codegraph_explore...</code>
         <br>
-        <strong>Esto NO es un error de índice ni un síntoma de desincronización.</strong> Significa exactamente lo contrario: el guardarraíl comprobó que el proyecto ya está indexado y le impide al agente usar fuerza bruta textual, obligándolo a usar las herramientas de grafo especializadas.
+        <strong>El índice está activo y disponible.</strong> La regla detecta que el repositorio ya tiene un grafo indexado y detiene la búsqueda por texto plano para que el agente consulte directamente las herramientas del grafo.
       </p>
     </div>
 
     <div class="grid g3">
       <div class="card azure">
-        <div class="card-title">1. Cero Reindexado en Hook</div>
+        <div class="card-title">1. Los hooks no reindexan</div>
         <div class="card-body">
-          <p>El hook de expand dispone de un presupuesto estricto de <strong>150 ms</strong>. Un reindexado completo (<code>codegraph index</code>) puede tardar minutos; el contrato <code>ports.CodeGraphIndexer</code> prohíbe taxativamente ejecutar indexaciones pesadas en el camino caliente de los hooks.</p>
+          <p>El hook de pre-tool tiene un presupuesto de <strong>150 ms</strong>. Como un reindexado completo puede tardar varios segundos o minutos, el contrato <code>ports.CodeGraphIndexer</code> impide lanzar indexaciones desde los hooks.</p>
         </div>
       </div>
       <div class="card violet">
-        <div class="card-title">2. Frescura Autónoma</div>
+        <div class="card-title">2. Cómo se actualiza el índice</div>
         <div class="card-body">
-          <p>Los índices se mantienen actualizados por sí mismos: CodeGraph mediante su <em>file-watcher</em> en vivo mientras el servidor MCP está conectado (y sincronizaciones de fondo con <code>codegraph sync</code>), y gomemory actualizando archivos <code>.go</code> modificados al final de cada turno.</p>
+          <p>Cada índice se actualiza por su cuenta: CodeGraph mediante su watcher mientras el servidor MCP está activo (o con <code>codegraph sync</code>), y el grafo Go de gomemory al final de cada turno sobre los archivos <code>.go</code> editados.</p>
         </div>
       </div>
       <div class="card amber">
-        <div class="card-title">3. Acción del Desarrollador</div>
+        <div class="card-title">3. Qué hacer cuando aparece</div>
         <div class="card-body">
-          <p><strong>En conclusión: no debes hacer nada.</strong> El agente debe emplear <code>codegraph_explore</code>. Si como desarrollador deseas ejecutar un <code>rg</code> en tu shell o desactivar la regla temporalmente para el agente, puedes hacerlo con <code>mem expand off rules</code>.</p>
+          <p><strong>No hace falta reindexar a mano.</strong> Al recibir el aviso, el agente pasa a usar <code>codegraph_explore</code> o las tools del grafo. Si necesitas desactivar las reglas de expand temporalmente, ejecuta <code>mem expand off rules</code>.</p>
         </div>
       </div>
     </div>
 
     <div class="speech">
-      <div class="speech-lbl">Analogía para Developers: La Biblioteca y la Linterna</div>
+      <div class="speech-lbl">Ejemplo para explicarlo: buscar por catálogo en lugar de revisar estante por estante</div>
       <p class="speech-text">
-        "Buscar código con <code>grep</code> en un repositorio grande es como entrar a oscuras en la Biblioteca Nacional con una linterna pequeña, leyendo estante por estante a ver si encuentras una palabra clave. Toma tiempo, cansa al investigador y quema combustible inútilmente. El grafo de código es el sistema computarizado del bibliotecario: le dices qué buscas y en un segundo te entrega el libro abierto en la página exacta, mostrándote quién citó ese párrafo y qué otros libros se verán afectados si se modifica. La regla <code>graph-before-grep</code> es el guardia de la biblioteca que te quita la linterna de la mano y te conduce cortésmente al mostrador de consulta."
+        "Lanzar varios <code>grep</code> seguidos en un repositorio grande llena la ventana del agente con decenas de líneas que no vienen al caso. Si el proyecto ya tiene el índice del grafo construido, una llamada a <code>codegraph_explore</code> le devuelve la función exacta y todos sus llamadores de una vez. La regla <code>graph-before-grep</code> simplemente le recuerda al agente que use ese índice antes de ponerse a buscar texto línea por línea."
       </p>
-      <span class="speech-tip">Argumento clave: Los LLMs recurren a grep por inercia; gomemory impone el uso de herramientas estructuradas para preservar el contexto.</span>
+      <span class="speech-tip">Nota: Los modelos tienden a usar <code>grep</code> por costumbre; el hook redirige esa llamada hacia el grafo cuando el proyecto ya está indexado.</span>
     </div>
   </div>
 </main>
 
 <footer>
   <div class="wrap">
-    <div><strong>gomemory</strong> · Memoria persistente, local y portátil para coding agents.</div>
-    <div>Documento oficial de referencia técnica y guía pedagógica para equipos de ingeniería.</div>
+    <div><strong>gomemory</strong> · Memoria persistente, local y portátil para agentes de código.</div>
+    <div>Manual de referencia técnica para equipos de desarrollo.</div>
   </div>
 </footer>
 

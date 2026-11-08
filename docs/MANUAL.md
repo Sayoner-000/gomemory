@@ -1946,10 +1946,10 @@ byte a byte, sin logos ni colores.
   (temas × anchos × comandos) y la instalación real en un HOME aislado.
 
 
-## Soporte bilingüe y cambio de idioma en caliente (v2.52.0)
+## Idioma del proyecto y `mem lang` (v2.52.0)
 
-gomemory descubre los idiomas disponibles desde `infrastructure/templates/locales/<código>/` (`es` para español neutral, por defecto, y `en` para inglés) y guarda la preferencia del proyecto en `.memory/settings.json` (`language`):
+gomemory carga los idiomas disponibles desde `infrastructure/templates/locales/<código>/` (`es` por defecto y `en` para inglés) y guarda la preferencia de cada proyecto en `.memory/settings.json` (`language`).
 
-- **Durante la instalación:** `mem install .` incluye un paso de selección de idioma en terminales interactivas y acepta `--lang es|en` en ejecuciones no interactivas (`mem install . --yes --lang en`).
-- **En caliente con `mem lang`:** ejecuta `mem lang en` o `mem lang es` para cambiar el idioma al instante, o `mem lang` sin argumentos en una terminal interactiva para elegirlo de una lista numerada. También puedes usar `mem settings --lang en`.
-- **Efecto inmediato:** `get_context`, `get_plan_context`, el recurso MCP `mem://context`, `mem context` y los recordatorios de los hooks (`nudge` y entrada a modo plan) entregan el título del documento, las directivas del protocolo de memoria y la guía de descomposición atómica en el idioma activo sin necesidad de reiniciar el servidor MCP ni la sesión del agente.
+- `mem install .` pregunta el idioma en terminales interactivas y acepta `--lang es|en` en modo no interactivo (`mem install . --yes --lang en`).
+- `mem lang en` o `mem lang es` cambian el idioma al instante; sin argumentos, `mem lang` abre un selector numerado en la terminal. También funciona `mem settings --lang en`.
+- El cambio se aplica en la siguiente llamada a `get_context`, `get_plan_context`, `mem://context`, `mem context` y en los avisos de los hooks (`nudge` y modo plan), sin reiniciar el servidor MCP ni la sesión del agente.

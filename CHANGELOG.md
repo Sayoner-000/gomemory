@@ -9,24 +9,21 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Soporte bilingüe desacoplado (`es` / `en`) con descubrimiento dinámico de locales embebidos en `infrastructure/templates/locales/<código>/` (`meta.json`, `messages.json`, `get_context.md.tmpl` y `atomic_plan.md.tmpl`), puerto `ports.LocaleCatalog` (`application/ports/i18n.go`), entidades `domain/i18n` y catálogo `adapters/secondary/i18n` (HCD-056).
-- Comando `mem lang [es|en]` para cambiar el idioma del proyecto en caliente desde terminal (de forma directa con código de idioma o mediante selector interactivo numerado) sin reiniciar procesos (HCD-056).
-- Paso interactivo de selección de idioma en `mem install`, flag `--lang <código>` en `mem install` y `mem settings`, y persistencia validada del campo `language` en `.memory/settings.json` (HCD-056).
-- Entrega localizada de contexto de memoria y plantillas de protocolo en `get_context`, `get_plan_context`, recurso MCP `mem://context`, `mem context` y hooks de ciclo de vida (`nudge` y `planEntryDocument`) según el idioma activo del proyecto (HCD-056).
-- Diagnóstico y retiro del cableado de `agy` (Antigravity CLI) en `mem expand status`, `mem expand status --json` (`wiring.agy`) y `mem expand off` leyendo `~/.gemini/settings.json` (HCD-055).
-- Nuevas guías HTML interactivas para desarrolladores en `docs/`: `Guia-Explicacion-Developers-GOMEMORY.html` (introducción visual a la arquitectura y flujo de trabajo) y `Manual-Referencia-Developers-GOMEMORY.html` (manual de referencia con comparativa de los tres grafos de código y el guardarraíl `graph-before-grep`).
-- Informe de auditoría ACR + ADM `docs/audits/2026-11-08-acr-adm-v2.52.0.md` (`acr_01ed3c29-8b10-4fec-aaa4-90c3bfcc5fde` → `acr_a702b671-bc8e-4d40-a7c4-dae21e64ee02`, veredicto `APPROVED`).
+- Idioma del proyecto configurable entre español (`es`, por defecto) e inglés (`en`), con cambio en caliente mediante `mem lang [es|en]` o `mem settings --lang <código>` y selección durante `mem install` (HCD-056). Los paquetes de idioma viven en `infrastructure/templates/locales/<código>/` (`meta.json`, `messages.json`, `get_context.md.tmpl` y `atomic_plan.md.tmpl`) y el adaptador `adapters/secondary/i18n` los descubre desde el `embed.FS` a través del puerto `ports.LocaleCatalog` (`application/ports/i18n.go`). `get_context`, `get_plan_context`, `mem://context`, `mem context` y los avisos de los hooks leen el idioma activo en cada llamada sin reiniciar el servidor MCP.
+- `mem expand status` y `mem expand off` comprueban y retiran también los hooks de `agy` en `~/.gemini/settings.json` (HCD-055). La salida de texto muestra `agy ✓/✗` y `--json` incluye el campo `wiring.agy`.
+- Dos guías HTML para equipos de desarrollo en `docs/`: `Guia-Explicacion-Developers-GOMEMORY.html` y `Manual-Referencia-Developers-GOMEMORY.html` (con comparativa de los tres grafos de código y explicación de la regla `graph-before-grep`).
+- Informe de auditoría ACR + ADM en `docs/audits/2026-11-08-acr-adm-v2.52.0.md` (`acr_01ed3c29-8b10-4fec-aaa4-90c3bfcc5fde` y `acr_a702b671-bc8e-4d40-a7c4-dae21e64ee02`, `APPROVED`).
 
 ### Changed
 
-- Guías HTML de referencia actualizadas a la edición vigente `v2.52` (`Guia-Rapida-HCD_GOMEMORY-v2.52.html`, `Guia-SDD_HCD_GOMEMORY-v2.52.html` y `Guia-Tecnica_GOMEMORY-v2.52.html`), junto con la documentación de `README.md`, `docs/README.md`, `docs/ARQUITECTURA.md`, `docs/CONFIGURATION.md`, `docs/MANUAL.md` y `docs/expand.md`.
+- Guías HTML actualizadas a la edición `v2.52` (`Guia-Rapida-HCD_GOMEMORY-v2.52.html`, `Guia-SDD_HCD_GOMEMORY-v2.52.html` y `Guia-Tecnica_GOMEMORY-v2.52.html`), junto con `README.md`, `docs/README.md`, `docs/ARQUITECTURA.md`, `docs/CONFIGURATION.md`, `docs/MANUAL.md` y `docs/expand.md`.
 
 ### Fixed
 
-- Cierre de condición de carrera (`data race`) en llamadas concurrentes a `get_context` y `get_plan_context` mediante `(*usecases.Builder).WithLanguage` y `contextBuilderForLang`, evitando mutar el singleton compartido `deps.ContextBuilder` (ACR `acr_01ed3c29` H-01 / C-004).
-- Paridad de plantillas `get_context.md.tmpl` (`es`/`en`) con el contrato compacto `memoryProtocolReminder` (HCD-040), preservando `JUEZ IMPARCIAL`/`IMPARTIAL JUDGE`, `PRIVACIDAD`/`PRIVACY`, la desambiguación de `MEMORY.md` y `CodeRetrievalPolicyShort` dentro del presupuesto de 2200 bytes del primer prompt (ACR `acr_01ed3c29` H-02 / C-002).
-- Deduplicación de cabeceras de contexto multi-idioma (`isContextDocumentHeader`) en `get_plan_context` y normalización defensiva de códigos de idioma no soportados o con caracteres de ruta en `persistence.SettingsRepository` (ACR `acr_01ed3c29` M-01 / M-02).
-- Extensión de las guardas de entorno sandbox (`skipIfNoLoopback` y `skipIfNoProcessInspection`) a `tests/contract` y `tests/integration` para entornos que restringen loopback TCP o inspección de procesos con `ps`/`pgrep` (ADM L-04).
+- `get_context` y `get_plan_context` ya no modifican en sitio el `Builder` compartido de `deps.ContextBuilder` al resolver el idioma de la llamada (ACR `acr_01ed3c29` H-01 / C-004). `(*usecases.Builder).WithLanguage` y `contextBuilderForLang` devuelven una copia superficial por invocación, evitando condiciones de carrera cuando concurren varias llamadas MCP.
+- Las plantillas `get_context.md.tmpl` (`es` y `en`) usan el recordatorio corto `memoryProtocolReminder` de HCD-040 en lugar del bloque antiguo de 43 líneas, manteniendo `JUEZ IMPARCIAL`/`IMPARTIAL JUDGE`, `PRIVACIDAD`/`PRIVACY`, el aviso sobre `MEMORY.md` y `CodeRetrievalPolicyShort` dentro del tope de 2.200 bytes del primer prompt (ACR `acr_01ed3c29` H-02 / C-002).
+- `get_plan_context` reconoce las cabeceras de contexto en todos los idiomas registrados (`isContextDocumentHeader`) para no duplicarlas, y `persistence.SettingsRepository` normaliza a `"es"` cualquier código de idioma no soportado o con separadores de ruta (ACR `acr_01ed3c29` M-01 / M-02).
+- Las pruebas de `tests/contract` y `tests/integration` que abren sockets en loopback o invocan `ps`/`pgrep` se saltan con `skipIfNoLoopback` y `skipIfNoProcessInspection` cuando corren en un sandbox que restringe esas operaciones (ADM L-04).
 
 ## [v2.51.2] - 2026-11-07
 

@@ -33,13 +33,11 @@ Documentos en formato HTML preparados para lectura en pantalla o impresión dire
 - [Guía de explicación para desarrolladores (Guia-Explicacion-Developers-GOMEMORY.html)](Guia-Explicacion-Developers-GOMEMORY.html): guía visual e introductoria para equipos de ingeniería sobre el funcionamiento, arquitectura y adopción de gomemory.
 - [Manual de referencia para desarrolladores (Manual-Referencia-Developers-GOMEMORY.html)](Manual-Referencia-Developers-GOMEMORY.html): referencia detallada de protocolos, flujos de hooks/MCP, glosario y Anexo A1 con la comparativa de los tres grafos de código (`gomemory`, `CodeGraph` y `codebase-memory-mcp`) y el guardarraíl `graph-before-grep`.
 
-## Soporte bilingüe en caliente (`es` / `en`)
+## Idioma del proyecto (`es` / `en`)
 
-Desde la v2.52.0 (HCD-056), gomemory soporta español neutral (`es`) e inglés (`en`) mediante paquetes de plantillas desacoplados en `infrastructure/templates/locales/<código>/`:
+Desde la v2.52.0 (HCD-056), gomemory incluye plantillas y avisos en español (`es`, por defecto) e inglés (`en`), empaquetados en `infrastructure/templates/locales/<código>/`.
 
-- **En instalación:** `mem install` incluye la selección de idioma en su asistente interactivo y admite `--lang es|en` en modo no interactivo.
-- **Cambio en caliente:** `mem lang [es|en]` cambia inmediatamente el idioma en `.memory/settings.json` (de forma directa o con selector interactivo) sin reiniciar el servidor MCP ni la sesión del agente.
-- **Propagación:** `get_context`, `get_plan_context`, `mem://context`, `mem context` y los hooks de ciclo de vida leen dinámicamente el idioma del proyecto en cada invocación.
+Durante la instalación, `mem install` pregunta qué idioma usar o recibe `--lang es|en` en modo no interactivo. Para cambiarlo más adelante basta con ejecutar `mem lang en` o `mem lang es` (o `mem lang` sin argumentos para elegirlo en una lista). El ajuste se guarda en `.memory/settings.json` (`language`) y surte efecto en la siguiente llamada a `get_context`, `get_plan_context`, `mem://context`, `mem context` y los hooks de ciclo de vida, sin reiniciar el servidor MCP ni la sesión del agente.
 
 ## Subagente splash: revisor sin contexto
 

@@ -266,7 +266,7 @@ documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 </details>
 
 <details>
-<summary><b>MCP tools</b> (31, plus 4 with Octopus AAR)</summary>
+<summary><b>MCP tools</b> (32, plus 4 with Octopus AAR)</summary>
 
 The source of truth is [`domain/mcp_tools.go`](domain/mcp_tools.go).
 
