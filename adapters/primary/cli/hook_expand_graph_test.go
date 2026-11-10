@@ -113,10 +113,13 @@ func TestGraphCoverage_RutaFueraDeLaSesion(t *testing.T) {
 		t.Errorf("una ruta inexistente no está cubierta: %v", got)
 	}
 
+	// En un comando de shell la barra invertida es un escape: en Windows los
+	// agentes escriben las rutas con barras normales (C:/…), como aquí.
+	shellOther := filepath.ToSlash(other)
 	cases := []struct{ cmd, rule string }{
-		{"grep -rn graph_status " + other + "/adapters", domain.GraphBeforeGrepRule},
-		{"cd " + other + "; grep -rn graph_status adapters", domain.GraphBeforeGrepRule},
-		{"sed -n '1,9p' " + other + "/adapters/cli/tools.go", domain.NativeReadOverShellRule},
+		{"grep -rn graph_status " + shellOther + "/adapters", domain.GraphBeforeGrepRule},
+		{"cd " + shellOther + "; grep -rn graph_status adapters", domain.GraphBeforeGrepRule},
+		{"sed -n '1,9p' " + shellOther + "/adapters/cli/tools.go", domain.NativeReadOverShellRule},
 	}
 	for _, c := range cases {
 		var rec []recorded

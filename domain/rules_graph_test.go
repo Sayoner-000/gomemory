@@ -154,6 +154,34 @@ func TestGraphBeforeGrep_RemediacionADM(t *testing.T) {
 	}
 }
 
+// En Windows las rutas absolutas llevan letra de unidad (Git Bash acepta
+// C:/…): son externas y no se resuelven contra un cd previo.
+func TestGraphBeforeGrep_RutasWindows(t *testing.T) {
+	cov := coverageOf("C:/x/gomemory")
+	for _, c := range []struct {
+		cmd    string
+		action RuleAction
+	}{
+		{`grep -rn graph_status C:/x/gomemory/adapters`, RuleBlock},
+		{`cd C:/x/gomemory; grep -rn graph_status adapters`, RuleBlock},
+		{`cd /tmp; grep -rn Foo C:/x/gomemory`, RuleBlock},
+		{`grep -rn Foo --include=*.go C:/x/otro`, RuleAllow},
+	} {
+		v := EvaluateRules(RuleEventBash, RuleInput{Command: c.cmd, Agent: "claude", IndexedExtensions: goIndexed, GraphCoverage: cov}, BuiltinRules())
+		if v.Action != c.action {
+			t.Errorf("%q → %+v; esperaba %s", c.cmd, v, c.action)
+		}
+	}
+	for _, p := range []string{"C:/x", `C:\x`, "c:/", `\\srv\share`} {
+		if !externalPath(p) {
+			t.Errorf("externalPath(%q) = false; es absoluta en Windows", p)
+		}
+	}
+	if got := joinShellPath("/tmp", "D:/repo"); got != "D:/repo" {
+		t.Errorf("joinShellPath con unidad = %q; una ruta absoluta no se une al cd", got)
+	}
+}
+
 func TestSearchPaths(t *testing.T) {
 	casos := []struct {
 		name string

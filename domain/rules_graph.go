@@ -126,16 +126,26 @@ func evalGraphBeforeGrep(in RuleInput) (RuleAction, string) {
 // línea. Sin cd, o con p absoluta o con ~, p queda igual.
 func joinShellPath(dir, p string) string {
 	p = strings.Trim(p, `'"`)
-	if dir == "" || p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, "~") {
+	if dir == "" || p == "" || absolutePath(p) || strings.HasPrefix(p, "~") {
 		return p
 	}
 	return path.Join(dir, p)
 }
 
+// absolutePath reconoce rutas absolutas de Unix y de Windows: con letra de
+// unidad (`C:/x`, `C:\x`) o UNC (`\\srv\share`).
+func absolutePath(p string) bool {
+	if strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\\`) {
+		return true
+	}
+	return len(p) >= 3 && p[1] == ':' && (p[2] == '/' || p[2] == '\\') &&
+		((p[0] >= 'a' && p[0] <= 'z') || (p[0] >= 'A' && p[0] <= 'Z'))
+}
+
 // externalPath dice si una ruta ya resuelta apunta fuera del directorio de la
-// sesión: absoluta, del home o que sube por encima de él.
+// sesión: absoluta (también de Windows), del home o que sube por encima de él.
 func externalPath(p string) bool {
-	return strings.HasPrefix(p, "/") || strings.HasPrefix(p, "~") || p == ".." || strings.HasPrefix(p, "../")
+	return absolutePath(p) || strings.HasPrefix(p, "~") || p == ".." || strings.HasPrefix(p, "../")
 }
 
 // gitCDir aplica las opciones `-C dir` de git (acumulables, como en git) al
