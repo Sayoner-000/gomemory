@@ -1,6 +1,6 @@
 # Documentación de gomemory
 
-Índice y referencias técnicas de gomemory (versión 2.53.0).
+Índice y referencias técnicas de gomemory (versión 2.54.0).
 
 gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, OpenCode, Codex y Antigravity CLI). Cada proyecto almacena sus datos en una base SQLite local fuera del árbol de Git y se comunica con el modelo mediante el protocolo MCP (Model Context Protocol).
 
@@ -27,9 +27,9 @@ gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, O
 
 Documentos en formato HTML preparados para lectura en pantalla o impresión directa a PDF:
 
-- [Guía rápida HCD (Guia-Rapida-HCD_GOMEMORY-v2.53.html)](Guia-Rapida-HCD_GOMEMORY-v2.53.html): resumen del flujo de trabajo con unidades HCD, diferencias entre la vía rápida y la ceremonia completa, y comandos de verificación.
-- [Guía SDD y HCD (Guia-SDD_HCD_GOMEMORY-v2.53.html)](Guia-SDD_HCD_GOMEMORY-v2.53.html): coordinación entre especificaciones formales con Spec Kit y el ciclo de comprobación de HCD.
-- [Guía técnica (Guia-Tecnica_GOMEMORY-v2.53.html)](Guia-Tecnica_GOMEMORY-v2.53.html): desglose de arquitectura del proyecto en 14 secciones, desde persistencia hasta compresión de respuestas.
+- [Guía rápida HCD (Guia-Rapida-HCD_GOMEMORY-v2.54.html)](Guia-Rapida-HCD_GOMEMORY-v2.54.html): resumen del flujo de trabajo con unidades HCD, diferencias entre la vía rápida y la ceremonia completa, y comandos de verificación.
+- [Guía SDD y HCD (Guia-SDD_HCD_GOMEMORY-v2.54.html)](Guia-SDD_HCD_GOMEMORY-v2.54.html): coordinación entre especificaciones formales con Spec Kit y el ciclo de comprobación de HCD.
+- [Guía técnica (Guia-Tecnica_GOMEMORY-v2.54.html)](Guia-Tecnica_GOMEMORY-v2.54.html): desglose de arquitectura del proyecto en 14 secciones, desde persistencia hasta compresión de respuestas.
 - [Guía de explicación para desarrolladores (Guia-Explicacion-Developers-GOMEMORY.html)](Guia-Explicacion-Developers-GOMEMORY.html): guía visual e introductoria para equipos de ingeniería sobre el funcionamiento, arquitectura y adopción de gomemory.
 - [Manual de referencia para desarrolladores (Manual-Referencia-Developers-GOMEMORY.html)](Manual-Referencia-Developers-GOMEMORY.html): referencia detallada de protocolos, flujos de hooks/MCP, glosario y Anexo A1 con la comparativa de los tres grafos de código (`gomemory`, `CodeGraph` y `codebase-memory-mcp`) y el guardarraíl `graph-before-grep`.
 
@@ -38,6 +38,12 @@ Documentos en formato HTML preparados para lectura en pantalla o impresión dire
 Desde la v2.52.0 (HCD-056), gomemory incluye plantillas y avisos en español (`es`, por defecto) e inglés (`en`), empaquetados en `infrastructure/templates/locales/<código>/`.
 
 Durante la instalación, `mem install` pregunta qué idioma usar o recibe `--lang es|en` en modo no interactivo. Para cambiarlo más adelante basta con ejecutar `mem lang en` o `mem lang es` (o `mem lang` sin argumentos para elegirlo en una lista). El ajuste se guarda en `.memory/settings.json` (`language`) y surte efecto en la siguiente llamada a `get_context`, `get_plan_context`, `mem://context`, `mem context` y los hooks de ciclo de vida, sin reiniciar el servidor MCP ni la sesión del agente.
+
+## Herramientas nativas y reglas de trabajo v3 (v2.54.0)
+
+En cualquier proyecto con gomemory, el hook de pre-tool bloquea leer, buscar o editar código por consola y pide usar las herramientas del harness o el grafo de código. Cubre también las rutas de otros repositorios. En Codex, que no tiene lectura nativa, solo avisa. La referencia de las cuatro reglas de serie está en [expand.md](expand.md#reglas-de-herramientas-nativas).
+
+Las reglas de trabajo que gomemory siembra por defecto pasan a la v3: cuatro bloques (evidencia, proceso, herramientas y memoria) y un glosario con las siglas ACR, ADM y HCD. Los proyectos con las reglas v2 sin editar se actualizan solos con `mem update`. Ver [MANUAL.md](MANUAL.md), sección 7bis.
 
 ## Subagente splash: revisor sin contexto
 

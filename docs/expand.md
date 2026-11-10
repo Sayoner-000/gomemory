@@ -45,6 +45,22 @@ Es un guardarraíl ante comandos que propone el agente, no un sandbox: no interp
 
 Para anular la regla de serie, añade una regla válida con `overrides: destructive-shell` y `enabled: false`, o ejecuta `mem expand off rules`.
 
+### Reglas de herramientas nativas
+
+Tres reglas de serie más piden al agente que trabaje el código con las herramientas de su harness y con el grafo, no con la consola. Actúan en todos los proyectos que tienen gomemory instalado y también cuando el comando apunta a otro repositorio.
+
+| Regla | Qué detecta | Qué propone |
+|---|---|---|
+| `graph-before-grep` | Buscar código con `grep`, `egrep`, `fgrep`, `rg`, `ag`, `ack`, `git grep` o `find` | `codegraph_explore`, o `search_code`/`get_symbol` de gomemory; para texto que el grafo no cubre, la búsqueda nativa del harness |
+| `native-read-over-shell` | Leer un archivo de código con `cat`, `bat`, `less`, `more`, `head`, `tail`, `nl`, `sed`, `awk`, o con un intérprete inline (`python -c`, `node -e`, `ruby -e`, `perl -ne`, `python3 -`) que recibe la ruta como argumento | La herramienta nativa de lectura del harness, o el grafo para entender un símbolo |
+| `native-edit-over-scripts` | Escribir en un archivo de código con `sed -i`, `perl -i`, `tee`, redirecciones o scripts inline | La herramienta nativa de edición del harness |
+
+`graph-before-grep` solo actúa sobre código que un grafo indexa. Para cada ruta del comando busca el `.codegraph/` más cercano hacia arriba o el índice propio del proyecto, y tiene en cuenta un `cd` previo de la misma línea y las opciones `git -C`. Bloquea cuando el filtro apunta a una extensión indexada (`--include=*.go`, `-g '*.ts'`, `-t py`) y cuando una búsqueda recursiva sin filtro recorre un directorio que contiene código indexado. Deja pasar la búsqueda de texto en archivos que el grafo no cubre (`rg TODO -g '*.md'`), el filtrado de una tubería (`git log | grep fix`) y las rutas externas sin grafo, aunque el proyecto de la sesión sí lo tenga.
+
+Un heredoc o un here-string no exime a un comando que también nombra rutas: `cat main.go <<EOF` cuenta como lectura. Ejecutar un script guardado en un archivo (`python3 tool.py main.go`) no se considera lectura inline.
+
+En los harness con lectura y búsqueda nativas (Claude Code y OpenCode), `graph-before-grep` y `native-read-over-shell` bloquean. Codex no tiene esas herramientas y la consola es su única vía, así que allí solo avisan, salvo `graph-before-grep` cuando el filtro de extensión apunta a código indexado, que bloquea en todos. El mensaje del bloqueo nombra la herramienta que corresponde a cada harness. Se anulan igual que `destructive-shell`, con `overrides: <nombre>`.
+
 ```sh
 mem expand rules --json
 git diff | mem expand rules --check

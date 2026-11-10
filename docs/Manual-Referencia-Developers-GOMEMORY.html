@@ -311,7 +311,7 @@
 <header class="printbar">
   <a href="#inicio" class="brand">
     <div class="brand-logo"></div>
-    <span class="brand-name">gomemory <span>v2.53</span></span>
+    <span class="brand-name">gomemory <span>v2.54</span></span>
   </a>
   <nav class="toc" aria-label="Capítulos">
     <a href="#cap-1"><span>01</span> Puntos Clave</a>
@@ -413,7 +413,8 @@
         <div class="card-title">Supertool <code>expand</code> en los cuatro agentes</div>
         <div class="card-body">
           <p>El estado y los interruptores de <code>mem expand</code> (<code>status</code>, <code>on</code>, <code>off</code>) cubren Claude Code, OpenAI Codex, Antigravity CLI (<code>agy</code>) y OpenCode (HCD-055).</p>
-          <p>Las reglas de pre-tool (<code>destructive-shell</code>, <code>inline-Workaround</code>, <code>graph-before-grep</code>) y la compactación de salidas operan bajo un presupuesto de 150 ms.</p>
+          <p>Las reglas de pre-tool (<code>destructive-shell</code>, <code>graph-before-grep</code>, <code>native-read-over-shell</code> y <code>native-edit-over-scripts</code>) y la compactación de salidas operan bajo un presupuesto de 150 ms.</p>
+          <p>Desde la v2.54, <code>graph-before-grep</code> calcula la cobertura del grafo para la ruta que busca el comando, también en otros repositorios, y <code>native-read-over-shell</code> bloquea leer código por consola. En Codex, sin lectura nativa, las dos avisan en lugar de bloquear.</p>
         </div>
       </div>
     </div>

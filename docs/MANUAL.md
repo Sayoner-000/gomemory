@@ -673,6 +673,15 @@ mem docs reset rules                           # volver al de por defecto
 `mem docs list` distingue tres estados, derivados comparando con la plantilla
 embebida: `sin sembrar`, `por defecto` y `personalizado` (con su fecha).
 
+Desde la 2.54 las reglas por defecto (`workrules-v3`) tienen cuatro bloques:
+evidencia antes que cambios, proceso, herramientas nativas y grafo, y memoria y
+contexto. Cierran con un glosario de siglas (ACR, ADM, HCD) para que el agente
+invoque la skill correspondiente sin preguntar qué significa cada una. Son
+genéricas para cualquier harness: hablan de "la herramienta nativa de lectura
+del harness" y dejan que el mensaje del hook nombre la concreta. Como gomemory
+entrega reglas, baseline y protocolo en cada sesión, no hacen falta `AGENTS.md`
+ni `CLAUDE.md`.
+
 Lo mismo desde la TUI: `mem` → pantalla de configuración → `Actualizar Reglas IA`
 o `Actualizar Constitución`, con **ver, exportar, importar y restaurar**. Las
 mismas cuatro operaciones por las dos superficies.
@@ -1709,6 +1718,13 @@ mem doctor --shield                     # 2 con hallazgos critical, 1 con high
 mem expand instincts list|confirm|reject|evolve <slug>
 ```
 
+Además de `destructive-shell`, tres reglas de serie piden trabajar el código
+con las herramientas del harness y con el grafo: `graph-before-grep` (buscar),
+`native-read-over-shell` (leer) y `native-edit-over-scripts` (editar). Actúan
+en todos los proyectos con gomemory y también sobre rutas de otros
+repositorios. En Codex, que no tiene lectura nativa, avisan en lugar de
+bloquear.
+
 Las reglas propias viven en `.gomemory/rules/*.md` y se versionan con el
 proyecto. Un bloqueo de `destructive-shell` es una pausa: si el comando era
 intencionado, ejecútalo en tu terminal o desactiva la regla. Es un guardarraíl,
@@ -1718,7 +1734,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.53.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.54.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 

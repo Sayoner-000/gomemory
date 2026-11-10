@@ -5,6 +5,32 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.54.0] - 2026-11-10
+
+### Added
+
+- Regla de serie `native-read-over-shell` (`domain/rules_read.go`). Bloquea leer un archivo de código con `cat`, `bat`, `less`, `more`, `head`, `tail`, `nl`, `sed`, `awk` o con un intérprete inline (`python -c`, `node -e`, `ruby -e`, `perl -ne`, `python3 -`) que recibe la ruta como argumento, y pide la lectura nativa del harness o el grafo de código. En Codex, que no tiene lectura nativa, solo avisa.
+- `RuleInput.Agent` y `RuleInput.GraphCoverage`: las reglas conocen el runtime que ejecuta el comando y la cobertura del grafo de cada ruta que toca. El adaptador (`newGraphCoverage` en `adapters/primary/cli/hook_expand_graph.go`) busca el `.codegraph/` más cercano a la ruta y, para un directorio, comprueba con un recorrido acotado que contenga código indexado.
+- Reglas de trabajo `workrules-v3` (`infrastructure/templates/agent-preamble.md`), organizadas en cuatro bloques: evidencia antes que cambios, proceso, herramientas nativas y grafo, y memoria y contexto. Incluyen un glosario de siglas (ACR, ADM, HCD) para que el agente invoque la skill en lugar de preguntar qué significan. Son genéricas para cualquier harness y declaran gomemory como única memoria y fuente de instrucciones, sin `AGENTS.md` ni `CLAUDE.md`.
+- Informe de auditoría ACR + ADM en `docs/audits/2026-11-10-acr-adm-v2.54.0.md` (`acr_8ee6f431-8db6-4a61-81b3-19741ab0674c`, `APPROVED`).
+
+### Changed
+
+- `graph-before-grep` actúa en cualquier proyecto con gomemory y sobre rutas de otros repositorios, porque calcula la cobertura para la ruta buscada y no solo para el proyecto de la sesión. Resuelve `cd` y `git -C`, y bloquea `grep -r`, `rg` y `git grep` sin filtro sobre directorios con código indexado. Una búsqueda con un filtro no indexado (`-g '*.md'`) sigue permitida.
+- El recordatorio de arranque (`locales/es|en/get_context.md.tmpl`) y el protocolo del plugin de OpenCode explican la regla de herramientas nativas.
+- La descripción de las skills `adversarial-consensus-review` y `defensive-qa-audit` menciona sus siglas (ACR y ADM), que es lo que el harness usa para activarlas.
+- Las semillas de reglas v2 sin editar se actualizan solas a la v3 con `mem update`; las personalizadas no se tocan.
+- Guías HTML en la edición `v2.54` (`Guia-Rapida-HCD_GOMEMORY-v2.54.html`, `Guia-SDD_HCD_GOMEMORY-v2.54.html` y `Guia-Tecnica_GOMEMORY-v2.54.html`), y actualización de `README.md`, `docs/README.md`, `docs/ARQUITECTURA.md`, `docs/MANUAL.md`, `docs/expand.md` y las guías para desarrolladores.
+
+### Fixed
+
+- Esquemas MCP rechazados por clientes estrictos: `graph_status`, `start_session`, `pack_savings` y `octopus_status` publicaban un `object` sin `properties`, y `socratica_flow.preparation.value` el esquema `true`. Algunos clientes descartaban entonces la lista de tools entera y el agente recurría a la consola. `clikit.AddTool` publica ahora `properties` en todo objeto y los campos `any` como `object`.
+- `graph-before-grep` ya no bloquea búsquedas en rutas externas sin grafo por aplicarles las extensiones del proyecto de la sesión (ADM 1).
+- `native-read-over-shell` detecta la lectura con un intérprete inline que recibe la ruta como argumento aparte (ADM 2).
+- Un heredoc o here-string ya no hace que se omitan las comprobaciones de un comando que también nombra rutas (ADM 3).
+- `graph-before-grep` resuelve `git -C` y evalúa la cobertura del repositorio correcto (ADM 4).
+- El manual de referencia para desarrolladores nombraba una regla inexistente (`inline-Workaround`); ahora lista las cuatro reglas de serie reales.
+
 ## [v2.53.0] - 2026-11-10
 
 ### Added

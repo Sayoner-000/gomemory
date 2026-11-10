@@ -169,7 +169,7 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-
 <header class="printbar">
   <a href="#inicio" class="brand">
     <div class="brand-drop"></div>
-    <span class="brand-title">gomemory <span class="grad">v2.53</span></span>
+    <span class="brand-title">gomemory <span class="grad">v2.54</span></span>
   </a>
   <nav class="toc" aria-label="Secciones">
     <a href="#prologo"><span>00</span> Apertura</a>
@@ -520,6 +520,21 @@ footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-
             <div class="glossary-def">
               Regla de pre-tool de <code>mem expand</code> que redirige las búsquedas con <code>rg</code>, <code>grep</code> o <code>find</code> hacia <code>codegraph_explore</code> o las herramientas del grafo cuando el proyecto ya está indexado.
               <span class="glossary-analogy">Evita recorrer archivos texto por texto cuando existe un índice de símbolos y llamadores.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">native-read-over-shell</div>
+            <div class="glossary-def">
+              Regla de pre-tool (v2.54) que bloquea leer código con <code>cat</code>, <code>sed -n</code>, <code>head</code>, <code>awk</code> o un intérprete inline como <code>python -c</code>, y pide la lectura nativa del harness. En Codex, que no la tiene, solo avisa.
+              <span class="glossary-analogy">La lectura nativa deja rastro en la sesión y no llena el contexto con volcados de consola.</span>
+            </div>
+          </div>
+
+          <div class="glossary-item">
+            <div class="glossary-term">ACR y ADM</div>
+            <div class="glossary-def">
+              ACR es la Revisión Adversarial por Consenso (skill <code>adversarial-consensus-review</code>, tools <code>review_*</code>). ADM es la Auditoría Defensiva Multilenguaje (skill <code>defensive-qa-audit</code>). Desde la v2.54 las reglas de trabajo incluyen estas siglas, y el agente invoca la skill sin preguntar qué significan.
             </div>
           </div>
 

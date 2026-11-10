@@ -2,7 +2,7 @@
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.53.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.53.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y el [manual de referencia para desarrolladores](Manual-Referencia-Developers-GOMEMORY.html) junto con la [guía de explicación](Guia-Explicacion-Developers-GOMEMORY.html) detallan la convivencia de los tres grafos de código y los protocolos operativos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.54.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.54.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y el [manual de referencia para desarrolladores](Manual-Referencia-Developers-GOMEMORY.html) junto con la [guía de explicación](Guia-Explicacion-Developers-GOMEMORY.html) detallan la convivencia de los tres grafos de código y los protocolos operativos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
@@ -49,7 +49,7 @@ Este bloque extiende el ciclo de vida de los hooks de gomemory en los cuatro run
   - Al crearse un subagente o proceso delegado, el harness inyecta únicamente un recordatorio conciso de solo lectura en vez del volcado completo de memorias del proyecto, preservando el presupuesto de tokens del contexto hijo.
 
 - **Regla del core `graph-before-grep` (HCD-027)**:
-  - Dominio (`domain/rules_graph.go`): define la detección de comandos `grep` o `git grep` dirigidos a código fuente cuando el proyecto cuenta con índice de grafo disponible.
+  - Dominio (`domain/rules_graph.go`): define la detección de comandos `grep` o `git grep` dirigidos a código fuente cuando un índice de grafo cubre la ruta buscada (desde la 2.54, también fuera del proyecto de la sesión; ver la sección de la 2.54).
   - Adaptador `hook expand pre-tool`: bloquea la ejecución de búsquedas por texto plano sobre código indexado e instruye al agente a consultar el grafo (`codegraph_explore`, `search_graph`, `search_code`, `get_symbol`). No interfiere en búsquedas sobre documentación ni archivos fuera del grafo.
 
 - **Contexto de grafo en edición de código (HCD-028)**:
@@ -74,6 +74,16 @@ Este bloque incorpora salvaguardas de edición de código y coherencia en la num
   - Puertos (`application/ports/hcd.go`): método `MaxUnitNumber()` en `HCDWorkspace`.
   - Adaptadores (`adapters/secondary/hcdfiles/workspace.go`): escanea `hcd/HCD-*.md` para extraer el prefijo numérico más alto en disco.
   - Casos de uso (`application/usecases/hcd.go`): `HCD.Start` calcula `MAX(sqlite_max, disk_max) + 1`, garantizando que en clones frescos de repositorios con base de datos SQLite recién inicializada se continúe la numeración correlativa sin reiniciar en `HCD-001` ni colisionar con unidades históricas.
+
+## Herramientas nativas en todo proyecto, esquemas MCP y reglas de trabajo v3 (2.54)
+
+**Lectura nativa.** `domain/rules_read.go` añade la regla de serie `native-read-over-shell`. Detecta la lectura de un archivo de código con lectores de consola (`cat`, `sed`, `head`, `awk`…) y con intérpretes inline que reciben la ruta como argumento. El veredicto depende del runtime: `RuleInput.Agent`, que el adaptador deriva del dialecto del hook con `agentOfDialect`, bloquea en Claude Code y OpenCode y solo avisa en Codex, que no tiene lectura nativa.
+
+**Cobertura del grafo por ruta.** `RuleInput.GraphCoverage(path)` devuelve las extensiones que indexa el grafo que cubre una ruta concreta. La implementa el adaptador (`newGraphCoverage` en `adapters/primary/cli/hook_expand_graph.go`), que es quien puede mirar el disco: dentro de la raíz usa el grafo del proyecto, fuera sube hasta el `.codegraph/` más cercano y, para un directorio, exige que contenga código indexado con un recorrido acotado a 4.000 entradas. El dominio resuelve antes `cd` y `git -C`, y solo aplica las extensiones del proyecto de la sesión a rutas relativas a él.
+
+**Esquemas MCP.** `clikit.AddTool` publica todo objeto con `properties` y los campos `any` como `object`. Sin eso, algunos clientes rechazaban la lista de tools entera y el agente se quedaba sin las tools de gomemory.
+
+**Reglas de trabajo v3.** La semilla `infrastructure/templates/agent-preamble.md` agrupa las reglas en cuatro bloques e incluye un glosario de siglas (ACR, ADM, HCD). Su huella vigente está en `domain/seed.go`; la de la v2 queda en `PreviousDefaultSHA256`, así que `UpgradePristineSeeds` actualiza las semillas que nadie editó. El recordatorio de arranque (`locales/*/get_context.md.tmpl`) y el protocolo del plugin de OpenCode repiten la regla de herramientas nativas.
 
 ## Revisión de seguimiento, avisos de analyze y una sesión por agente (HCD-032 a HCD-036)
 
