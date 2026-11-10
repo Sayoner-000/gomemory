@@ -60,10 +60,11 @@ func getCatalog() *secI18n.Catalog {
 		}
 	}
 
-	// Vacío por defecto
+	// Vacío, sin cachear: un catálogo vacío en caché dejaría sin idiomas a
+	// todas las llamadas siguientes aunque las plantillas ya estén a la vista
+	// (en producción TemplatesFS siempre está definido y no se llega aquí).
 	cat, _ := secI18n.NewCatalog(nil, "")
-	appCatalog = cat
-	return appCatalog
+	return cat
 }
 
 // contextBuilderForLang devuelve un ContextBuilder aislado para esta llamada
