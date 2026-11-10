@@ -24,9 +24,38 @@ func AddTool[In, Out any](server *mcp.Server, tool *mcp.Tool, handler mcp.ToolHa
 			panic(fmt.Sprintf("AddTool: tool %q: %v", tool.Name, err)) // mismo contrato que mcp.AddTool
 		}
 		dropNullUnions(schema)
+		typeForStrictClients(schema)
 		tool.InputSchema = schema
 	}
 	mcp.AddTool(server, tool, handler)
+}
+
+// typeForStrictClients deja cada subesquema con un tipo explícito y cada
+// objeto con properties. El SDK infiere `struct{}` como un object sin
+// properties y `any` como el esquema `true`, y hay clientes y proveedores que
+// rechazan entonces el tools/list ENTERO: el agente se queda sin ninguna tool de
+// gomemory y recurre al shell. Un `any` de entrada se publica como object:
+// el único que existe (socratica_flow.preparation.value) exige un objeto y el
+// dominio lo valida igual.
+func typeForStrictClients(s *jsonschema.Schema) {
+	if s == nil {
+		return
+	}
+	if s.Type == "" && len(s.Types) == 0 && s.Ref == "" &&
+		len(s.AllOf) == 0 && len(s.AnyOf) == 0 && len(s.OneOf) == 0 && s.Not == nil {
+		s.Type = "object"
+	}
+	if s.Type == "object" && s.Properties == nil {
+		s.Properties = map[string]*jsonschema.Schema{}
+	}
+	for _, prop := range s.Properties {
+		typeForStrictClients(prop)
+	}
+	typeForStrictClients(s.Items)
+	typeForStrictClients(s.AdditionalProperties)
+	for _, def := range s.Defs {
+		typeForStrictClients(def)
+	}
 }
 
 // dropNullUnions reemplaza recursivamente ["null", X] por el tipo simple X.

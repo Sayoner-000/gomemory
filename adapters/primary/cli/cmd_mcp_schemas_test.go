@@ -166,6 +166,78 @@ func TestPublishedSchemasHaveNoNullUnions(t *testing.T) {
 	}
 }
 
+// TestPublishedSchemasAreClientSafe: hay clientes y proveedores (OpenCode con
+// modelos de validación estricta) que rechazan el tools/list entero si un
+// objeto no declara `properties` o si un subesquema es `true`/`{}` (sin tipo).
+// Entonces el agente se queda sin NINGUNA tool de gomemory y recurre al shell.
+// Recorre lo que publica el servidor real.
+func TestPublishedSchemasAreClientSafe(t *testing.T) {
+	deps := &Deps{Project: "proj"}
+	server := mcp.NewServer(&mcp.Implementation{Name: "gomemory-schema-probe", Version: "internal"}, nil)
+	registerTools(server, deps, "proj")
+	registerCodeTools(server, deps, "", "proj")
+	registerOctopusTools(server, deps)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar servidor MCP: %v", err)
+	}
+	defer func() { _ = serverSession.Close() }()
+	client := mcp.NewClient(&mcp.Implementation{Name: "gomemory-schema-probe-client", Version: "internal"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("conectar cliente MCP: %v", err)
+	}
+	defer func() { _ = clientSession.Close() }()
+	tools, err := clientSession.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("listar tools MCP: %v", err)
+	}
+	for _, tool := range tools.Tools {
+		data, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatalf("serializar esquema de %s: %v", tool.Name, err)
+		}
+		var schema any
+		if err := json.Unmarshal(data, &schema); err != nil {
+			t.Fatalf("decodificar esquema de %s: %v", tool.Name, err)
+		}
+		assertClientSafeSchema(t, tool.Name, schema)
+	}
+}
+
+// assertClientSafeSchema exige que cada subesquema sea un objeto con tipo y
+// que todo objeto declare properties.
+func assertClientSafeSchema(t *testing.T, path string, node any) {
+	t.Helper()
+	m, ok := node.(map[string]any)
+	if !ok {
+		t.Errorf("%s es el subesquema %v; los clientes estrictos esperan un objeto con tipo", path, node)
+		return
+	}
+	if _, typed := m["type"]; !typed {
+		t.Errorf("%s no declara type: %v", path, m)
+	}
+	if m["type"] == "object" {
+		if _, has := m["properties"]; !has {
+			t.Errorf("%s es un object sin properties", path)
+		}
+	}
+	if props, ok := m["properties"].(map[string]any); ok {
+		for name, child := range props {
+			assertClientSafeSchema(t, path+"."+name, child)
+		}
+	}
+	if items, ok := m["items"]; ok {
+		assertClientSafeSchema(t, path+"[]", items)
+	}
+	if ap, ok := m["additionalProperties"]; ok {
+		if _, isBool := ap.(bool); !isBool {
+			assertClientSafeSchema(t, path+"{}", ap)
+		}
+	}
+}
+
 func assertNoNullUnion(t *testing.T, path string, node any) {
 	t.Helper()
 	switch v := node.(type) {
