@@ -117,6 +117,9 @@ type ExpandSignals struct {
 	CompactThreshold int
 	ConfigHash       string
 	LastShieldHash   string
+	// Agent es el runtime detrás del evento (claude, opencode, codex u otro),
+	// derivado del dialecto del hook.
+	Agent string
 }
 
 // ExpandSwitches refleja el interruptor de emergencia (FR-011/FR-012).

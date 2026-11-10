@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"maps"
 	"path"
 	"strings"
 )
@@ -23,20 +24,80 @@ var searchTypeExtensions = map[string]string{
 // (HCD-027, Q1 y Q2). Decide sobre tokens del lexer, como destructive-shell:
 // `echo "grep …"` no es un grep. Un comando que lee de una tubería filtra
 // salida, no busca código, y se deja pasar.
+//
+// La cobertura sale de dos fuentes: el grafo del proyecto de la sesión
+// (IndexedExtensions) y el que cubre cada ruta que el comando busca
+// (GraphCoverage), para que un agente en el proyecto A no lea por shell el
+// código indexado del proyecto B. Una búsqueda recursiva sin filtro sobre un
+// directorio con código indexado también cuenta: en los runtimes con búsqueda
+// nativa se bloquea; en los demás, se avisa.
 func evalGraphBeforeGrep(in RuleInput) (RuleAction, string) {
-	if len(in.IndexedExtensions) == 0 {
+	base := map[string]bool{}
+	for _, e := range in.IndexedExtensions {
+		base[strings.ToLower(e)] = true
+	}
+	if len(base) == 0 && in.GraphCoverage == nil {
 		return RuleAllow, ""
 	}
-	indexed := map[string]bool{}
-	for _, e := range in.IndexedExtensions {
-		indexed[strings.ToLower(e)] = true
-	}
+	dir := ""
 	for _, c := range splitShell(in.Command, 0) {
-		if c.Nested || c.PipeBack > 0 || len(c.Stdin) > 0 {
+		if c.Nested {
 			continue
 		}
 		toks := unwrapCommand(stripEnvAssignments(c.Tokens))
 		if len(toks) == 0 {
+			continue
+		}
+		// `cd X; grep -rn foo adapters`: las rutas relativas siguientes se
+		// resuelven contra X.
+		if toks[0] == "cd" {
+			if len(toks) > 1 {
+				dir = joinShellPath(dir, toks[1])
+			}
+			continue
+		}
+		if c.PipeBack > 0 {
+			continue
+		}
+		name := path.Base(toks[0])
+		paths, implicit := searchPaths(name, toks[1:])
+		// Un heredoc o here-string solo convierte la búsqueda en un filtro
+		// de esa entrada si no hay rutas explícitas (ADM 3).
+		if len(c.Stdin) > 0 && (len(paths) == 0 || implicit) {
+			continue
+		}
+		// `git -C repo grep …` resuelve sus rutas contra repo (ADM 4).
+		from := dir
+		if name == "git" {
+			from = gitCDir(dir, toks[1:])
+		}
+		// Las extensiones del proyecto de la sesión solo valen si alguna ruta
+		// es relativa a él; para rutas externas manda su propia cobertura
+		// (ADM 1). Sin GraphCoverage no hay otra fuente y se usa la base.
+		indexed := map[string]bool{}
+		useBase := in.GraphCoverage == nil || len(paths) == 0
+		var covered []string
+		for _, p := range paths {
+			full := joinShellPath(from, p)
+			if !externalPath(full) {
+				useBase = true
+			}
+			if in.GraphCoverage == nil {
+				continue
+			}
+			exts := in.GraphCoverage(full)
+			if len(exts) == 0 {
+				continue
+			}
+			covered = append(covered, full)
+			for _, e := range exts {
+				indexed[strings.ToLower(e)] = true
+			}
+		}
+		if useBase {
+			maps.Copy(indexed, base)
+		}
+		if len(indexed) == 0 {
 			continue
 		}
 		if tool, ext, ok := codeSearchTarget(toks, indexed); ok {
@@ -44,8 +105,176 @@ func evalGraphBeforeGrep(in RuleInput) (RuleAction, string) {
 				"usa codegraph_explore (o search_graph de codebase-memory-mcp, o search_code/get_symbol de gomemory), " +
 				"que devuelve el código con sus llamadores y su radio de impacto"
 		}
+		if len(covered) > 0 && recursiveSearch(name, toks[1:]) && !hasFileFilter(toks[1:]) {
+			tool := name
+			if name == "git" {
+				tool = "git grep"
+			}
+			if !in.HasNativeReadTools() {
+				return RuleWarn, "buscar con " + tool + " en " + covered[0] + ", que un grafo de código indexa; " +
+					"para código usa codegraph_explore o search_code/get_symbol de gomemory"
+			}
+			return RuleBlock, "buscar con " + tool + " en " + covered[0] + ", que un grafo de código indexa; " +
+				"usa codegraph_explore (o search_code/get_symbol de gomemory) para el código, " +
+				"o la herramienta nativa " + in.nativeGrepTool() + " para texto"
+		}
 	}
 	return RuleAllow, ""
+}
+
+// joinShellPath resuelve p contra el directorio de un `cd` previo de la misma
+// línea. Sin cd, o con p absoluta o con ~, p queda igual.
+func joinShellPath(dir, p string) string {
+	p = strings.Trim(p, `'"`)
+	if dir == "" || p == "" || strings.HasPrefix(p, "/") || strings.HasPrefix(p, "~") {
+		return p
+	}
+	return path.Join(dir, p)
+}
+
+// externalPath dice si una ruta ya resuelta apunta fuera del directorio de la
+// sesión: absoluta, del home o que sube por encima de él.
+func externalPath(p string) bool {
+	return strings.HasPrefix(p, "/") || strings.HasPrefix(p, "~") || p == ".." || strings.HasPrefix(p, "../")
+}
+
+// gitCDir aplica las opciones `-C dir` de git (acumulables, como en git) al
+// directorio de partida.
+func gitCDir(dir string, args []string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "-C" && i+1 < len(args) {
+			dir = joinShellPath(dir, args[i+1])
+			i++
+			continue
+		}
+		if a == "-c" || a == "--git-dir" || a == "--work-tree" || a == "--namespace" || a == "--super-prefix" || a == "--config-env" {
+			i++
+			continue
+		}
+		if !strings.HasPrefix(a, "-") {
+			break // el subcomando
+		}
+	}
+	return dir
+}
+
+// searchValueFlags son las opciones de grep/rg/ag/ack/git grep que llevan su
+// valor en el token siguiente: ese valor no es ni el patrón ni una ruta.
+var searchValueFlags = map[string]bool{
+	"-A": true, "-B": true, "-C": true, "-m": true, "-g": true, "-t": true, "-T": true,
+	"-G": true, "-d": true, "-D": true, "-M": true, "-j": true,
+	"--glob": true, "--iglob": true, "--type": true, "--type-not": true, "--max-count": true,
+	"--include": true, "--exclude": true, "--exclude-dir": true, "--context": true,
+	"--after-context": true, "--before-context": true, "--max-depth": true, "--threads": true,
+	"--file-search-regex": true, "--ignore-dir": true,
+}
+
+// searchPaths devuelve las rutas que busca un comando de búsqueda: los
+// argumentos posicionales tras el patrón. Sin ruta, rg/ag/ack/git grep y un
+// grep recursivo buscan en el directorio actual, y implicit lo indica. find
+// busca en sus rutas iniciales, antes de la primera expresión.
+func searchPaths(name string, args []string) (paths []string, implicit bool) {
+	switch name {
+	case "grep", "egrep", "fgrep", "rg", "ag", "ack":
+	case "git":
+		sub, rest := gitSubcommandArgs(args)
+		if sub != "grep" {
+			return nil, false
+		}
+		args = rest
+	case "find":
+		var out []string
+		for _, a := range args {
+			if strings.HasPrefix(a, "-") || a == "(" || a == "!" {
+				break
+			}
+			out = append(out, a)
+		}
+		if len(out) == 0 {
+			return []string{"."}, true
+		}
+		return out, false
+	default:
+		return nil, false
+	}
+	patternPending := true
+	afterDashDash := false
+	var out []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if afterDashDash || !strings.HasPrefix(a, "-") || a == "-" {
+			if patternPending && !afterDashDash {
+				patternPending = false
+				continue
+			}
+			if a != "-" {
+				out = append(out, a)
+			}
+			continue
+		}
+		switch {
+		case a == "--":
+			afterDashDash, patternPending = true, false
+		case a == "-e" || a == "-f" || a == "--regexp" || a == "--file":
+			patternPending = false
+			i++
+		case strings.HasPrefix(a, "--regexp=") || strings.HasPrefix(a, "--file="):
+			patternPending = false
+		case searchValueFlags[a]:
+			i++
+		}
+	}
+	if len(out) == 0 && recursiveSearch(name, args) {
+		return []string{"."}, true
+	}
+	return out, false
+}
+
+// hasFileFilter dice si la búsqueda declara qué archivos mira (`--include`,
+// `-g`, `-t`, `--md`…). Si el filtro apuntara a código indexado,
+// codeSearchTarget ya habría bloqueado: lo que queda es una búsqueda de texto
+// en archivos que el grafo no cubre, y se deja pasar.
+func hasFileFilter(args []string) bool {
+	for i, a := range args {
+		if a == "--" {
+			return false
+		}
+		for _, f := range []string{"--include", "-g", "--glob", "--iglob", "-t", "--type", "-G", "--file-search-regex"} {
+			if v, matched, _ := flagValue(args, i, []string{f}); matched && v != "" {
+				return true
+			}
+		}
+		if t, ok := strings.CutPrefix(a, "--"); ok {
+			if _, known := searchTypeExtensions[strings.ToLower(t)]; known {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// recursiveSearch dice si el buscador recorre directorios: rg, ag, ack y git
+// grep siempre; grep solo con -r/-R/--recursive/-d recurse.
+func recursiveSearch(name string, args []string) bool {
+	switch name {
+	case "rg", "ag", "ack", "git":
+		return true
+	case "grep", "egrep", "fgrep":
+		for i, a := range args {
+			switch {
+			case a == "--":
+				return false
+			case a == "--recursive" || a == "--dereference-recursive" || a == "--directories=recurse":
+				return true
+			case a == "-d" && i+1 < len(args) && args[i+1] == "recurse":
+				return true
+			case strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--") && strings.ContainsAny(a, "rR"):
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // codeSearchTarget reconoce grep/egrep/fgrep, rg, ag, ack, git grep y find, y

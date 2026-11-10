@@ -59,8 +59,11 @@ EOF`,
 		`python3 -c "print('reading docs/Guia.html')"`,
 		`python3 -c "print('reading style.css')"`,
 	} {
+		// Leer código (cat, head) ya no es libre: lo decide
+		// native-read-over-shell. Aquí solo importa que la regla de edición no
+		// confunda una lectura con una escritura.
 		v := editVerdict(cmd)
-		if v.Action != RuleAllow {
+		if v.Action != RuleAllow && v.Rule != NativeReadOverShellRule {
 			t.Errorf("%q: veredicto %+v; esperaba allow en comando no destructivo o fuera de código", cmd, v)
 		}
 	}

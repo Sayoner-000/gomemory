@@ -204,10 +204,11 @@ func TestExpandRulesListAndCheck(t *testing.T) {
 		Rules  []map[string]any `json:"rules"`
 		Errors []map[string]any `json:"errors"`
 	}
-	// Tres reglas de serie (destructive-shell, graph-before-grep, native-edit-over-scripts) y
-	// la propia env.md.
-	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Rules) != 4 || len(listed.Errors) != 1 ||
-		listed.Rules[1]["name"] != domain.GraphBeforeGrepRule || listed.Rules[2]["name"] != domain.NativeEditOverScriptsRule {
+	// Cuatro reglas de serie (destructive-shell, graph-before-grep,
+	// native-edit-over-scripts, native-read-over-shell) y la propia env.md.
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Rules) != 5 || len(listed.Errors) != 1 ||
+		listed.Rules[1]["name"] != domain.GraphBeforeGrepRule || listed.Rules[2]["name"] != domain.NativeEditOverScriptsRule ||
+		listed.Rules[3]["name"] != domain.NativeReadOverShellRule {
 		t.Fatalf("rules --json: %d %s", code, out)
 	}
 

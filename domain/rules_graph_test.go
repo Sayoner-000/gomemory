@@ -77,3 +77,104 @@ func TestGraphBeforeGrep_Override(t *testing.T) {
 		t.Fatalf("destructive-shell debe seguir bloqueando: %+v", v)
 	}
 }
+
+// Un agente que trabaja en otro proyecto (sin grafo propio) y busca en el
+// código de un repositorio indexado: la cobertura la da la ruta buscada, no la
+// raíz de la sesión. Es el caso real visto en OpenCode 2.2.5.
+func coverageOf(covered ...string) func(string) []string {
+	return func(p string) []string {
+		for _, c := range covered {
+			if p == c || strings.HasPrefix(p, c+"/") {
+				return codeExtsForTest
+			}
+		}
+		return nil
+	}
+}
+
+var codeExtsForTest = []string{".go", ".py", ".ts"}
+
+func TestGraphBeforeGrep_CoberturaPorRuta(t *testing.T) {
+	cov := coverageOf("/home/x/gomemory")
+	casos := []struct {
+		cmd    string
+		agent  string
+		action RuleAction
+	}{
+		{`grep -rln "graph_status" /home/x/gomemory --include=*.py | head`, "opencode", RuleBlock},
+		{`grep -rn "def graph_status" /home/x/gomemory/adapters /home/x/gomemory/application`, "opencode", RuleBlock},
+		{`cd /home/x/gomemory; grep -rn additionalProperties adapters/primary/cli`, "claude", RuleBlock},
+		{`rg graph_status /home/x/gomemory`, "claude", RuleBlock},
+		{`git grep -n Foo`, "claude", RuleAllow},            // cwd sin cobertura
+		{`grep -rn TODO /home/x/otro`, "claude", RuleAllow}, // ruta sin grafo
+		{`grep -rn Foo /home/x/gomemory`, "codex", RuleWarn},
+		{`rg TODO -g '*.md' /home/x/gomemory`, "claude", RuleAllow}, // filtro no indexado
+		{`grep -n Foo /home/x/gomemory/README.md`, "claude", RuleAllow},
+		{`git log | grep -r fix`, "claude", RuleAllow}, // tubería
+	}
+	for _, c := range casos {
+		v := EvaluateRules(RuleEventBash, RuleInput{Command: c.cmd, Agent: c.agent, GraphCoverage: cov}, BuiltinRules())
+		if v.Action != c.action {
+			t.Errorf("%s %q: veredicto %+v; esperaba %s", c.agent, c.cmd, v, c.action)
+			continue
+		}
+		if c.action != RuleAllow && v.Rule != GraphBeforeGrepRule {
+			t.Errorf("%q: regla %q; esperaba %s", c.cmd, v.Rule, GraphBeforeGrepRule)
+		}
+	}
+}
+
+// ADM 1: las extensiones del proyecto de la sesión no cubren rutas externas.
+// ADM 3: un heredoc no exime a un buscador que también recibe rutas.
+// ADM 4: git -C cambia el repositorio contra el que se resuelven las rutas.
+func TestGraphBeforeGrep_RemediacionADM(t *testing.T) {
+	cov := coverageOf("/home/x/gomemory")
+	casos := []struct {
+		name   string
+		cmd    string
+		base   []string
+		action RuleAction
+	}{
+		{"externa sin grafo con extensiones base", `grep -rn Foo --include=*.go /home/x/otro`, goIndexed, RuleAllow},
+		{"externa sin grafo, archivo indexable", `grep -n Foo /home/x/otro/main.go`, goIndexed, RuleAllow},
+		{"relativa sigue usando la base", `grep -rn Foo --include=*.go src`, goIndexed, RuleBlock},
+		{"externa cubierta sigue bloqueando", `grep -rn Foo --include=*.go /home/x/gomemory`, nil, RuleBlock},
+		{"heredoc con ruta explícita", "grep -rn graph_status /home/x/gomemory <<EOF\nx\nEOF", nil, RuleBlock},
+		{"here-string con ruta explícita", `grep -rn graph_status /home/x/gomemory/adapters <<< "x"`, nil, RuleBlock},
+		{"heredoc sin rutas filtra la entrada", "grep -n Foo <<EOF\nFoo\nEOF", goIndexed, RuleAllow},
+		{"git -C hacia repo cubierto", `git -C /home/x/gomemory grep -n Foo`, nil, RuleBlock},
+		{"git -C con ruta relativa al repo", `git -C /home/x/gomemory grep -n Foo -- adapters`, nil, RuleBlock},
+		{"git -C hacia repo sin grafo", `git -C /home/x/otro grep -n Foo`, goIndexed, RuleAllow},
+	}
+	for _, c := range casos {
+		v := EvaluateRules(RuleEventBash, RuleInput{Command: c.cmd, Agent: "claude", IndexedExtensions: c.base, GraphCoverage: cov}, BuiltinRules())
+		if v.Action != c.action {
+			t.Errorf("%s: %q → %+v; esperaba %s", c.name, c.cmd, v, c.action)
+		}
+	}
+}
+
+func TestSearchPaths(t *testing.T) {
+	casos := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"grep", []string{"-rn", "Foo", "a", "b"}, []string{"a", "b"}},
+		{"grep", []string{"-n", "Foo"}, nil},
+		{"grep", []string{"-rn", "Foo"}, []string{"."}},
+		{"grep", []string{"-A", "3", "-rn", "Foo", "src"}, []string{"src"}},
+		{"grep", []string{"-e", "Foo", "-r", "src"}, []string{"src"}},
+		{"rg", []string{"Foo", "-g", "*.go"}, []string{"."}},
+		{"git", []string{"grep", "-n", "Foo", "--", "dir"}, []string{"dir"}},
+		{"find", []string{"src", "-name", "*.go"}, []string{"src"}},
+		{"find", []string{"-name", "*.go"}, []string{"."}},
+		{"ls", []string{"src"}, nil},
+	}
+	for _, c := range casos {
+		got, _ := searchPaths(c.name, c.args)
+		if strings.Join(got, "|") != strings.Join(c.want, "|") {
+			t.Errorf("searchPaths(%s %v) = %v; esperaba %v", c.name, c.args, got, c.want)
+		}
+	}
+}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -76,6 +77,60 @@ func TestGraphBeforeGrep_CuatroRuntimes(t *testing.T) {
 			if !off && !strings.Contains(out.stdout+out.stderr, domain.GraphBeforeGrepRule) {
 				t.Errorf("%s: el motivo debe nombrar la regla: %+v", c.name, out)
 			}
+		}
+	}
+}
+
+// El caso real: OpenCode abierto en un proyecto SIN grafo lee y busca por
+// shell el código de otro repositorio que sí está indexado. La cobertura sale
+// de la ruta del comando, no de la raíz de la sesión.
+func TestGraphCoverage_RutaFueraDeLaSesion(t *testing.T) {
+	session := t.TempDir()
+	other := t.TempDir()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(os.Mkdir(filepath.Join(other, ".codegraph"), 0o700))
+	must(os.MkdirAll(filepath.Join(other, "adapters", "cli"), 0o700))
+	must(os.MkdirAll(filepath.Join(other, "docs"), 0o700))
+	must(os.WriteFile(filepath.Join(other, "adapters", "cli", "tools.go"), []byte("package cli\n"), 0o600))
+	must(os.WriteFile(filepath.Join(other, "docs", "guia.md"), []byte("# guía\n"), 0o600))
+
+	cov := newGraphCoverage(session, func() []string { return nil })
+	if got := cov(filepath.Join(other, "adapters")); !slices.Contains(got, ".go") {
+		t.Errorf("un directorio con código bajo .codegraph/ debe estar cubierto: %v", got)
+	}
+	if got := cov(filepath.Join(other, "docs")); len(got) != 0 {
+		t.Errorf("un directorio sin código no está cubierto: %v", got)
+	}
+	if got := cov(filepath.Join(other, "docs", "guia.md")); len(got) != 0 {
+		t.Errorf("un archivo no indexado no está cubierto: %v", got)
+	}
+	if got := cov(filepath.Join(other, "no-existe")); len(got) != 0 {
+		t.Errorf("una ruta inexistente no está cubierta: %v", got)
+	}
+
+	cases := []struct{ cmd, rule string }{
+		{"grep -rn graph_status " + other + "/adapters", domain.GraphBeforeGrepRule},
+		{"cd " + other + "; grep -rn graph_status adapters", domain.GraphBeforeGrepRule},
+		{"sed -n '1,9p' " + other + "/adapters/cli/tools.go", domain.NativeReadOverShellRule},
+	}
+	for _, c := range cases {
+		var rec []recorded
+		d := expandTestDeps(t, &rec)
+		d.root = session
+		d.hook = usecases.ExpandHookDeps{Rules: usecases.ExpandRules{
+			Source: expandStaticRules(domain.BuiltinRules()), Root: session,
+			IndexedExtensions: func() []string { return nil },
+			GraphCoverage:     cov,
+		}}
+		payload, _ := json.Marshal(map[string]any{"tool": "bash", "sessionID": "s", "args": map[string]any{"command": c.cmd}})
+		out := runHookExpand(context.Background(), d, "pre-tool", "text", payload)
+		if !strings.HasPrefix(out.stdout, "BLOCK: ") || !strings.Contains(out.stdout, c.rule) {
+			t.Errorf("%q: esperaba BLOCK de %s en OpenCode; salida %+v", c.cmd, c.rule, out)
 		}
 	}
 }

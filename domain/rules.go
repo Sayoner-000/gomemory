@@ -97,6 +97,39 @@ type RuleInput struct {
 	// código del proyecto. Las calcula el adaptador; vacío = sin grafo, y
 	// graph-before-grep no actúa (HCD-027).
 	IndexedExtensions []string
+	// GraphCoverage devuelve las extensiones que indexa el grafo que cubre
+	// una ruta concreta de un comando, aunque esté fuera del proyecto de la
+	// sesión (un agente en el proyecto A que lee el código de B). nil o vacío:
+	// ningún grafo cubre esa ruta, o es un directorio sin código indexado. La
+	// calcula el adaptador, que es quien puede mirar el disco.
+	GraphCoverage func(path string) []string
+	// Agent es el runtime que ejecuta el comando: claude, opencode, codex u
+	// otro. Las reglas que piden una herramienta nativa solo bloquean donde
+	// esa herramienta existe; Codex no tiene lectura ni búsqueda nativas.
+	Agent string
+}
+
+// HasNativeReadTools dice si el runtime tiene herramientas nativas para leer
+// y buscar archivos (Read/Grep/Glob en Claude Code; read/grep/glob en
+// OpenCode). En los demás el shell es la vía legítima y solo se avisa.
+func (in RuleInput) HasNativeReadTools() bool {
+	return in.Agent == "claude" || in.Agent == "opencode"
+}
+
+// nativeReadTool nombra la herramienta nativa de lectura del runtime.
+func (in RuleInput) nativeReadTool() string {
+	if in.Agent == "opencode" {
+		return "read"
+	}
+	return "Read"
+}
+
+// nativeGrepTool nombra la herramienta nativa de búsqueda del runtime.
+func (in RuleInput) nativeGrepTool() string {
+	if in.Agent == "opencode" {
+		return "grep/glob"
+	}
+	return "Grep/Glob"
 }
 
 // RuleVerdict es el resultado de evaluar las reglas para un evento.
@@ -287,7 +320,8 @@ func ruleTexts(target RuleEvent, in RuleInput) []string {
 }
 
 // BuiltinRules devuelve las reglas de serie: destructive-shell,
-// graph-before-grep (HCD-027) y native-edit-over-scripts (HCD-001).
+// graph-before-grep (HCD-027), native-edit-over-scripts (HCD-001) y
+// native-read-over-shell.
 func BuiltinRules() []Rule {
 	return []Rule{{
 		Name:    "destructive-shell",
@@ -311,6 +345,13 @@ func BuiltinRules() []Rule {
 		Enabled: true,
 		Origin:  RuleOriginBuiltin,
 		builtin: evalNativeEditOverScripts,
+	}, {
+		Name:    NativeReadOverShellRule,
+		Event:   RuleEventBash,
+		Action:  RuleBlock,
+		Enabled: true,
+		Origin:  RuleOriginBuiltin,
+		builtin: evalNativeReadOverShell,
 	}}
 }
 

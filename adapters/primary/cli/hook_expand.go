@@ -258,8 +258,10 @@ func (r *expandRecords) flush(record func(agent, kind, detail string), budget ti
 func expandEvaluators(deps *Deps, root string) usecases.ExpandHookDeps {
 	var h usecases.ExpandHookDeps
 	if deps.RuleSource != nil {
+		rootExts := func() []string { return graphIndexedExtensions(root, ownIndexFiles(deps)) }
 		h.Rules = usecases.ExpandRules{Source: deps.RuleSource, Root: root,
-			IndexedExtensions: func() []string { return graphIndexedExtensions(root, ownIndexFiles(deps)) }}
+			IndexedExtensions: rootExts,
+			GraphCoverage:     newGraphCoverage(root, rootExts)}
 	}
 	if deps.AgentConfig != nil {
 		h.Shield = usecases.ShieldScanner{Reader: deps.AgentConfig, State: deps.ShieldState}
@@ -374,6 +376,7 @@ func runHookExpand(ctx context.Context, d hookExpandDeps, event, emit string, st
 		CompactThreshold: d.settings.ExpandCompactThreshold,
 		Content:          in.content,
 		LastMessage:      in.lastMessage,
+		Agent:            agentOfDialect(dialect),
 	}
 	switch ev {
 	case domain.ExpandPreTool:

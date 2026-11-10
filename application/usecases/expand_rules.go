@@ -17,6 +17,10 @@ type ExpandRules struct {
 	// del proyecto (HCD-027). nil o vacío: sin grafo, graph-before-grep no
 	// actúa. Se consulta solo en el evento bash.
 	IndexedExtensions func() []string
+	// GraphCoverage devuelve las extensiones del grafo que cubre una ruta
+	// concreta del comando, aunque esté fuera de Root. nil: solo cuenta el
+	// grafo del proyecto de la sesión.
+	GraphCoverage func(path string) []string
 }
 
 func (e ExpandRules) Evaluate(ctx context.Context, target string, sig domain.ExpandSignals) (RuleResult, error) {
@@ -24,9 +28,12 @@ func (e ExpandRules) Evaluate(ctx context.Context, target string, sig domain.Exp
 	if err := ctx.Err(); err != nil {
 		return RuleResult{}, err
 	}
-	in := domain.RuleInput{Command: sig.Command, Content: sig.Content, Prompt: sig.Prompt, LastMessage: sig.LastMessage}
-	if target == domain.RuleTargetBash && e.IndexedExtensions != nil {
-		in.IndexedExtensions = e.IndexedExtensions()
+	in := domain.RuleInput{Command: sig.Command, Content: sig.Content, Prompt: sig.Prompt, LastMessage: sig.LastMessage, Agent: sig.Agent}
+	if target == domain.RuleTargetBash {
+		if e.IndexedExtensions != nil {
+			in.IndexedExtensions = e.IndexedExtensions()
+		}
+		in.GraphCoverage = e.GraphCoverage
 	}
 	if target == domain.RuleTargetFile {
 		if sig.FilePath != "" {
