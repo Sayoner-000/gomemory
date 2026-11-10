@@ -1,18 +1,21 @@
 package hcd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mem/adapters/primary/cli/clikit"
 	"mem/application/usecases"
 	"mem/domain"
+	"os"
 	"strings"
 )
 
 var (
-	commands = map[string]bool{"start": true, "show": true, "next": true, "clarify": true, "approve": true, "verify": true, "analyze": true, "close": true, "cancel": true, "promote": true, "index": true, "history": true}
+	commands = map[string]bool{"start": true, "show": true, "next": true, "clarify": true, "review": true, "approve": true, "verify": true, "analyze": true, "close": true, "cancel": true, "promote": true, "index": true, "history": true}
 	clients  = map[string]bool{"terminal": true, "claude": true, "codex": true, "opencode": true, "tui": true, "antigravity": true, "gemini": true}
 	// Flags que admite cada comando, además de --json y --client.
 	allowedFlags = map[string]map[string]bool{
@@ -20,6 +23,7 @@ var (
 		"show":    {},
 		"next":    {},
 		"clarify": {"ask": true, "id": true, "answer": true},
+		"review":  {"kind": true, "action": true, "revision": true, "operation-id": true, "input": true, "quote": true, "attempt": true, "attempt-id": true, "reason": true, "finding": true, "finding-id": true, "id": true},
 		"approve": {"quote": true},
 		"verify":  {"task": true, "expect-fail": true, "manual": true},
 		"analyze": {},
@@ -95,6 +99,32 @@ func parse(args []string) (parsed, error) {
 }
 
 func execute(deps *clikit.Deps, args []string, out, errOut io.Writer) int {
+	return executeWithStdin(deps, args, os.Stdin, out, errOut)
+}
+
+const maxReviewInputBytes = 1 << 20 // 1 MiB
+
+func decodeStrictReviewPayload(r io.Reader) (domain.HCDDefinitionReviewPayload, error) {
+	var payload domain.HCDDefinitionReviewPayload
+	raw, err := io.ReadAll(io.LimitReader(r, maxReviewInputBytes+1))
+	if err != nil {
+		return payload, err
+	}
+	if len(raw) > maxReviewInputBytes {
+		return payload, fmt.Errorf("el archivo de entrada supera el límite de %d bytes", maxReviewInputBytes)
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&payload); err != nil {
+		return payload, err
+	}
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return payload, fmt.Errorf("contenido adicional inesperado tras el objeto JSON")
+	}
+	return payload, nil
+}
+
+func executeWithStdin(deps *clikit.Deps, args []string, stdin io.Reader, out, errOut io.Writer) int {
 	p, err := parse(args)
 	if err != nil {
 		return emitError(out, errOut, p.json, "usage", err.Error())
@@ -118,6 +148,72 @@ func execute(deps *clikit.Deps, args []string, out, errOut io.Writer) int {
 		var qid string
 		view, qid, err = uc.Clarify(ctx, usecases.HCDClarifyInput{ID: p.id, Ask: p.flags["ask"], Question: p.flags["id"], Answer: p.flags["answer"]})
 		data["clarification"] = qid
+	case "review":
+		kind := p.flags["kind"]
+		action := p.flags["action"]
+		rev := p.flags["revision"]
+		opID := p.flags["operation-id"]
+		if kind == "" || action == "" || rev == "" || opID == "" {
+			return emitError(out, errOut, p.json, "usage", "review requiere --kind, --action, --revision y --operation-id")
+		}
+		var payload domain.HCDDefinitionReviewPayload
+		inputRef := p.flags["input"]
+		if inputRef != "" {
+			var r io.Reader
+			if inputRef == "-" {
+				r = stdin
+			} else {
+				f, err := os.Open(inputRef)
+				if err != nil {
+					return emitError(out, errOut, p.json, "validation", fmt.Sprintf("no se pudo leer el archivo de entrada: %v", err))
+				}
+				defer f.Close()
+				r = f
+			}
+			var decodeErr error
+			payload, decodeErr = decodeStrictReviewPayload(r)
+			if decodeErr != nil {
+				return emitError(out, errOut, p.json, "validation", fmt.Sprintf("entrada de examen inválida: %v", decodeErr))
+			}
+		}
+		if q := p.flags["quote"]; q != "" {
+			payload.Quote = q
+		}
+		if att := p.flags["attempt"]; att != "" {
+			payload.AttemptID = att
+		} else if att := p.flags["attempt-id"]; att != "" {
+			payload.AttemptID = att
+		}
+		if r := p.flags["reason"]; r != "" {
+			payload.Reason = r
+		}
+		if f := p.flags["finding"]; f != "" {
+			payload.FindingID = f
+		} else if f := p.flags["finding-id"]; f != "" {
+			payload.FindingID = f
+		} else if f := p.flags["id"]; f != "" {
+			payload.FindingID = f
+		}
+
+		var event domain.HCDDefinitionReviewEvent
+		view, event, err = uc.RecordDefinitionReview(ctx, usecases.HCDDefinitionReviewInput{
+			ID:          p.id,
+			Revision:    domain.HCDReviewRevision(rev),
+			OperationID: domain.HCDReviewOperationID(opID),
+			Kind:        kind,
+			Action:      action,
+			Client:      p.client,
+			Payload:     payload,
+		})
+		if err == nil {
+			data["event"] = map[string]any{
+				"operation_id": string(event.OperationID),
+				"revision":     string(event.Revision),
+				"kind":         event.Kind,
+				"action":       event.Action,
+				"client":       event.Client,
+			}
+		}
 	case "approve":
 		view, err = uc.Approve(ctx, usecases.HCDApproveInput{ID: p.id, Quote: p.flags["quote"], Client: p.client})
 	case "analyze":
@@ -165,6 +261,12 @@ func errorCode(err error) string {
 }
 
 func toResponse(v usecases.HCDView, findings []domain.HCDFinding, data map[string]any) Response {
+	if data == nil {
+		data = map[string]any{}
+	}
+	if _, ok := data["definition_review"]; !ok {
+		data["definition_review"] = v.State.DefinitionReviewSummary()
+	}
 	r := Response{ProtocolVersion: ProtocolVersion, OK: true, UnitID: v.Unit.ID, Kind: string(v.Unit.Kind), Lane: string(v.Unit.Lane), State: string(v.Unit.State), Stage: string(v.Stage), DocPath: v.Unit.DocPath, DefinitionRev: v.DefinitionRevision, WorkRev: v.WorkRevision, Approved: v.Approved, ConstitutionRev: v.State.ConstitutionRev, PlaybookRev: v.State.PlaybookRev, NormsChanged: v.State.NormsChanged(), Fingerprint: v.State.Fingerprint, RedMissing: v.RedMissing, NextAction: NextAction{Skill: v.Next.Skill, Command: v.Next.Command, Why: v.Next.Why}, Warnings: v.Warnings, Data: data}
 	for _, t := range v.Tasks {
 		r.Tasks = append(r.Tasks, Task{ID: t.ID, Text: t.Text, Check: t.Check, Status: string(t.Status)})

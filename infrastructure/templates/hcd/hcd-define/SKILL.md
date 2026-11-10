@@ -24,3 +24,12 @@ description: Paso define de HCD: redacta el documento de la unidad hasta que el 
    - **Historias** (solo carril `full`): `### US1. título`, una línea «Como…, quiero…, para…» y criterios `- C-01: Dado…, cuando…, entonces…`. Cada historia necesita al menos un criterio observable.
 2. Lo que no sepas no lo inventes: escribe `[NEEDS CLARIFICATION: pregunta]` en su lugar y el motor te llevará a `/hcd-clarify`.
 3. Vuelve a ejecutar `mem hcd show --json` hasta que el paso deje de ser `define`. El motor solo comprueba que el contenido esté presente; que sea correcto lo decides con la persona.
+4. **Examen socrático de la definición (solo carril `full`)**:
+   Antes de avanzar hacia la aprobación, la persona recibe el examen de supuestos, evidencia, alternativas y criterios.
+   - Formula entre cero y tres preguntas útiles a la persona (límite estricto de tres preguntas).
+   - Justificación de cero preguntas: formular cero preguntas es válido si el contexto ya es suficiente, pero debes justificar explícitamente en el resumen por qué basta el contexto.
+   - En modo plan (plan mode): mantén el examen en la conversación y difiere cualquier mutación hasta que el anfitrión permita comandos.
+   - Reanudación: si `data.definition_review.socratic` ya es `complete` para la revisión actual, retómalo sin repetir preguntas.
+   - Registro: registra el resultado mediante:
+     `mem hcd review --kind socratic --action complete --revision <rev> --operation-id <id> --input <archivo|-> --json --client <agente>`
+   - Las omisiones no pueden incluir respuestas supuestas. Los bloqueos (`blocking: true`) exigen referencia a una aclaración (`clarification_id`) y se resuelven con `mem hcd clarify`; registrar la omisión no los cierra.

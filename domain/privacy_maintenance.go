@@ -45,6 +45,8 @@ const (
 	SanitizeReviewFixVerification SanitizeCategory = "review_fix_verification"
 	// SanitizeReviewTargetScope: reviews.target_scope, lista libre del llamador.
 	SanitizeReviewTargetScope SanitizeCategory = "review_target_scope"
+	// SanitizeHCDDefinitionReview: hcd_definition_reviews.payload (H-04 / C-006).
+	SanitizeHCDDefinitionReview SanitizeCategory = "hcd_definition_review"
 )
 
 // sanitizeFields es la lista permitida categoría → campo. Nada fuera de ella
@@ -88,6 +90,7 @@ var sanitizeFields = map[SanitizeCategory]string{
 	SanitizeReviewRejudgment:      "evidence",
 	SanitizeReviewFixVerification: "verification",
 	SanitizeReviewTargetScope:     "target_scope",
+	SanitizeHCDDefinitionReview:   "payload",
 }
 
 // SanitizeCandidate es un registro que requiere saneamiento. Text vive solo

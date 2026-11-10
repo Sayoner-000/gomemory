@@ -135,7 +135,11 @@ func TestHCDBinaryFullCeremony(t *testing.T) {
 	doc := r.DocPath
 	h.edit(doc, append(hcdCommonFill, "### US1. pendiente\npendiente\n- C-01: pendiente", "### US1. Exportar\nComo analista, quiero CSV, para compartir\n- C-01: Dado un informe, cuando exporto, entonces obtengo CSV")...)
 	h.expect(h.run(true, "clarify", "--ask", "¿Separador coma o punto y coma?"), "clarify", "hcd-clarify")
-	h.expect(h.run(true, "clarify", "--id", "Q1", "--answer", "coma"), "approve", "hcd-approve")
+	rClarify := h.run(true, "clarify", "--id", "Q1", "--answer", "coma")
+	h.expect(rClarify, "define", "hcd-define")
+	h.write("socratic.json", `{"summary": "Examen socratico verificado", "questions": []}`)
+	h.expect(h.run(true, "review", "--kind", "socratic", "--action", "complete", "--revision", rClarify.DefinitionRev, "--operation-id", "op-soc-bin", "--input", "socratic.json"), "approve", "hcd-approve")
+	h.run(true, "review", "--kind", "splash", "--action", "skip", "--revision", rClarify.DefinitionRev, "--operation-id", "op-skip-bin", "--quote", "omito splash")
 	h.expect(h.run(true, "approve", "--quote", "apruebo"), "slice", "hcd-slice")
 	h.edit(doc, "## Slices\n", "## Slices\n### VS-01. Exportar\nTareas: 1\nCriterios: C-01\n")
 	h.expect(h.run(true, "show"), "tasks", "hcd-tasks")
@@ -154,6 +158,7 @@ func TestHCDBinaryFullCeremony(t *testing.T) {
 	after := hcdProjectSnapshot(t, h.root)
 	delete(before, "save.go")
 	delete(after, "save.go")
+	delete(after, "socratic.json")
 	if !reflect.DeepEqual(before, after) {
 		t.Fatalf("HCD changed files outside hcd/:\nbefore=%v\nafter=%v", before, after)
 	}

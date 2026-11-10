@@ -23,6 +23,21 @@ func red(s HCDState, fp string, at time.Time, tasks ...string) Evidence {
 	return Evidence{Tasks: tasks, Kind: EvidenceCommand, ExpectFail: true, ExitCode: 1, Revision: s.WorkRevision(), Fingerprint: fp, CreatedAt: at}
 }
 
+func socratic(s HCDState) HCDDefinitionReviewEvent {
+	return HCDDefinitionReviewEvent{
+		OperationID: HCDReviewOperationID("op-socratic-" + s.DefinitionRevision()),
+		UnitID:      s.Unit.ID,
+		Revision:    HCDReviewRevision(s.DefinitionRevision()),
+		Kind:        "socratic",
+		Action:      "complete",
+		Client:      "antigravity",
+		CreatedAt:   time.Now().UTC(),
+		Payload: HCDDefinitionReviewPayload{
+			Summary: "examen válido",
+		},
+	}
+}
+
 func approve(s HCDState) Approval {
 	return Approval{Action: ApprovalApprove, Revision: s.DefinitionRevision()}
 }
@@ -50,6 +65,8 @@ func TestFullLaneWalksTheWholeCeremony(t *testing.T) {
 	data, _ = AnswerClarification([]byte(doc), "Q1", "no")
 	doc = string(data)
 	s = stateOf(t, doc, KindFeature, LaneFull)
+	expect(StageDefine, "hcd-define")
+	s.ReviewEvents = []HCDDefinitionReviewEvent{socratic(s)}
 	expect(StageApprove, "hcd-approve")
 
 	approval := approve(s)
@@ -95,11 +112,15 @@ func TestEditingDefinitionAfterApprovalReturnsToApprove(t *testing.T) {
 	if !s.Approved() {
 		t.Fatal("adding a task invalidated the definition approval")
 	}
-	// Cambiar el alcance tras aprobar: vuelve a approve.
+	// Cambiar el alcance tras aprobar: sin nuevo examen vuelve a define; con examen vuelve a approve.
 	s = stateOf(t, strings.Replace(doc, "Incluido: guardado", "Incluido: guardado y carga", 1), KindFeature, LaneFull)
 	s.Approvals = []Approval{approval}
+	if s.Stage() != StageDefine || s.Approved() {
+		t.Fatalf("edited definition without exam: %s", s.Stage())
+	}
+	s.ReviewEvents = []HCDDefinitionReviewEvent{socratic(s)}
 	if s.Stage() != StageApprove || s.Approved() {
-		t.Fatalf("edited definition still approved: %s", s.Stage())
+		t.Fatalf("edited definition with exam: %s", s.Stage())
 	}
 }
 
@@ -299,8 +320,12 @@ func TestEditingAnyRequiredSectionInvalidatesApproval(t *testing.T) {
 	} {
 		e := stateOf(t, strings.Replace(doc, edit[0], edit[1], 1), KindFeature, LaneFull)
 		e.Approvals = []Approval{a}
-		if e.Approved() || e.Stage() != StageApprove {
+		if e.Approved() || e.Stage() != StageDefine {
 			t.Errorf("editing %q kept the approval (stage %s)", edit[0], e.Stage())
+		}
+		e.ReviewEvents = []HCDDefinitionReviewEvent{socratic(e)}
+		if e.Approved() || e.Stage() != StageApprove {
+			t.Errorf("editing %q with exam kept approval (stage %s)", edit[0], e.Stage())
 		}
 	}
 }

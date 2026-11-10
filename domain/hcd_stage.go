@@ -21,12 +21,13 @@ const (
 // HCDState reúne lo que el caso de uso lee de una unidad; de él se derivan
 // el paso, la siguiente acción y el análisis.
 type HCDState struct {
-	Unit        Unit
-	Doc         UnitDoc
-	Pending     []PendingCheck
-	Evidence    []Evidence
-	Approvals   []Approval
-	Fingerprint string
+	Unit         Unit
+	Doc          UnitDoc
+	Pending      []PendingCheck
+	Evidence     []Evidence
+	Approvals    []Approval
+	ReviewEvents []HCDDefinitionReviewEvent
+	Fingerprint  string
 	// ConstitutionRev y PlaybookRev son las huellas de las normas vigentes;
 	// vacías si el motor no las conoce.
 	ConstitutionRev string
@@ -49,6 +50,187 @@ func (s HCDState) Approved() bool {
 		}
 	}
 	return rev != "" && rev == s.DefinitionRevision()
+}
+
+// HasSocraticExam informa si la definición actual tiene un examen socrático completado y vigente.
+func (s HCDState) HasSocraticExam() bool {
+	rev := HCDReviewRevision(s.DefinitionRevision())
+	for _, e := range s.ReviewEvents {
+		if e.Revision == rev && e.Kind == "socratic" && e.Action == "complete" {
+			return true
+		}
+	}
+	return false
+}
+
+// SplashSatisfied informa si el requisito de splash está satisfecho para la definición actual (omitido o completado con blockers descartados).
+func (s HCDState) SplashSatisfied() (bool, string) {
+	rev := HCDReviewRevision(s.DefinitionRevision())
+	var splashEvents []HCDDefinitionReviewEvent
+	for _, e := range s.ReviewEvents {
+		if e.Revision == rev && e.Kind == "splash" {
+			splashEvents = append(splashEvents, e)
+		}
+	}
+	if len(splashEvents) == 0 {
+		return false, "splash decision required before approval: accept or skip"
+	}
+	var lastDecision string
+	var lastDecisionIdx int
+	for i, e := range splashEvents {
+		if e.Action == "accept" || e.Action == "skip" {
+			lastDecision = e.Action
+			lastDecisionIdx = i
+		}
+	}
+	if lastDecision == "" {
+		return false, "splash decision required before approval: accept or skip"
+	}
+	if lastDecision == "skip" {
+		return true, ""
+	}
+	postAccept := splashEvents[lastDecisionIdx+1:]
+	if len(postAccept) == 0 {
+		return false, "splash review in progress: completed report or explicit skip required"
+	}
+	lastLifecycleIdx := -1
+	for i := len(postAccept) - 1; i >= 0; i-- {
+		if postAccept[i].Action != "dismiss" {
+			lastLifecycleIdx = i
+			break
+		}
+	}
+	if lastLifecycleIdx == -1 {
+		return false, "splash review in progress: completed report or explicit skip required"
+	}
+	lastLifecycle := &postAccept[lastLifecycleIdx]
+	switch lastLifecycle.Action {
+	case "fail":
+		return false, "splash review failed: completed report or explicit skip required"
+	case "unavailable":
+		return false, "splash review unavailable: completed report or explicit skip required"
+	case "start":
+		return false, "splash review in progress: completed report or explicit skip required"
+	case "complete":
+		dismissed := map[string]bool{}
+		for _, e := range postAccept[lastLifecycleIdx+1:] {
+			if e.Action == "dismiss" && e.Payload.FindingID != "" {
+				dismissed[e.Payload.FindingID] = true
+			}
+		}
+		for _, f := range lastLifecycle.Payload.Findings {
+			if f.Severity == "Blocker" && !dismissed[f.ID] {
+				return false, "splash Blocker finding not dismissed: " + f.ID
+			}
+		}
+		return true, ""
+	default:
+		return false, "splash review in progress: completed report or explicit skip required"
+	}
+}
+
+// DefinitionReviewSummary devuelve un resumen estructurado del estado de revisión de la definición actual.
+func (s HCDState) DefinitionReviewSummary() map[string]any {
+	rev := HCDReviewRevision(s.DefinitionRevision())
+	socratic := "missing"
+	var hadSocratic bool
+	for _, e := range s.ReviewEvents {
+		if e.Kind == "socratic" {
+			if e.Revision == rev {
+				if e.Action == "complete" {
+					socratic = "complete"
+					break
+				}
+				socratic = "incomplete"
+			} else if e.Action == "complete" {
+				hadSocratic = true
+			}
+		}
+	}
+	if socratic == "missing" && hadSocratic {
+		socratic = "expired"
+	}
+
+	splash := "missing"
+	var hadSplash bool
+	var currentSplash []HCDDefinitionReviewEvent
+	for _, e := range s.ReviewEvents {
+		if e.Kind == "splash" {
+			if e.Revision == rev {
+				currentSplash = append(currentSplash, e)
+			} else {
+				hadSplash = true
+			}
+		}
+	}
+	if len(currentSplash) == 0 && hadSplash {
+		splash = "expired"
+	} else if len(currentSplash) > 0 {
+		var lastDecision string
+		var lastDecisionIdx int
+		for i, e := range currentSplash {
+			if e.Action == "accept" || e.Action == "skip" {
+				lastDecision = e.Action
+				lastDecisionIdx = i
+			}
+		}
+		if lastDecision == "skip" {
+			splash = "skipped"
+		} else if lastDecision == "accept" {
+			postAccept := currentSplash[lastDecisionIdx+1:]
+			if len(postAccept) == 0 {
+				splash = "in_progress"
+			} else {
+				lastLifecycleIdx := -1
+				for i := len(postAccept) - 1; i >= 0; i-- {
+					if postAccept[i].Action != "dismiss" {
+						lastLifecycleIdx = i
+						break
+					}
+				}
+				if lastLifecycleIdx == -1 {
+					splash = "in_progress"
+				} else {
+					lastLifecycle := &postAccept[lastLifecycleIdx]
+					switch lastLifecycle.Action {
+					case "fail":
+						splash = "failed"
+					case "unavailable":
+						splash = "unavailable"
+					case "start":
+						splash = "in_progress"
+					case "complete":
+						dismissed := map[string]bool{}
+						for _, e := range postAccept[lastLifecycleIdx+1:] {
+							if e.Action == "dismiss" && e.Payload.FindingID != "" {
+								dismissed[e.Payload.FindingID] = true
+							}
+						}
+						var hasBlocker bool
+						for _, f := range lastLifecycle.Payload.Findings {
+							if f.Severity == "Blocker" && !dismissed[f.ID] {
+								hasBlocker = true
+								break
+							}
+						}
+						if hasBlocker {
+							splash = "pending_blockers"
+						} else {
+							splash = "completed"
+						}
+					default:
+						splash = "in_progress"
+					}
+				}
+			}
+		}
+	}
+
+	return map[string]any{
+		"revision": string(rev),
+		"socratic": socratic,
+		"splash":   splash,
+	}
 }
 
 // NormsChanged: la definición aprobada (carril completo) se aprobó con otra
@@ -164,6 +346,8 @@ func (s HCDState) Stage() Stage {
 		return StageDefine
 	case len(s.Doc.OpenClarifications()) > 0:
 		return StageClarify
+	case full && !s.Approved() && !s.HasSocraticExam():
+		return StageDefine
 	case full && !s.Approved():
 		return StageApprove
 	case full && len(s.Doc.Slices) == 0:
@@ -190,7 +374,13 @@ func (s HCDState) Stage() Stage {
 func (s HCDState) NextAction() NextStep {
 	switch stage := s.Stage(); stage {
 	case StageDefine:
-		return NextStep{Skill: "hcd-define", Command: "show", Why: s.Pending[0].Message}
+		why := "completa la definición del documento"
+		if len(s.Pending) > 0 {
+			why = s.Pending[0].Message
+		} else if !s.HasSocraticExam() {
+			why = "la definición " + s.DefinitionRevision() + " requiere examen socrático antes de aprobar"
+		}
+		return NextStep{Skill: "hcd-define", Command: "show", Why: why}
 	case StageClarify:
 		return NextStep{Skill: "hcd-clarify", Command: "clarify", Why: "aclaración abierta: " + strings.Join(s.Doc.OpenClarifications(), ", ")}
 	case StageApprove:
@@ -246,6 +436,9 @@ func (s HCDState) Analyze() []HCDFinding {
 	}
 	if s.Unit.Lane == LaneFull {
 		if !s.Approved() {
+			if !s.HasSocraticExam() {
+				add(SeverityCritical, "SOCRATIC-MISSING", s.DefinitionRevision(), "la definición actual no tiene examen socrático vigente")
+			}
 			add(SeverityCritical, "APPROVAL-MISSING", s.DefinitionRevision(), "la definición actual no tiene aprobación vigente")
 		}
 		s.analyzeTraceability(add)

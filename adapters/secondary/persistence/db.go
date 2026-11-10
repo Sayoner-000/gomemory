@@ -191,7 +191,7 @@ func Init(root string) (*sql.DB, error) {
 }
 
 // 11: code_pending_calls (HCD-041). 12: memory_files (HCD-046).
-const schemaVersion = 12
+const schemaVersion = 13
 
 // esperaOcupadaMs es el busy_timeout de cada conexión.
 const esperaOcupadaMs = 5000

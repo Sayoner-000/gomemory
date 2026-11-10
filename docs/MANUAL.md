@@ -1718,7 +1718,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.52.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.53.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 
@@ -1788,6 +1788,17 @@ La terminal es la vía de respaldo. `mem hcd` sin argumentos muestra el uso. `--
 mem hcd start --kind fix --lane fast --title "Guardado pierde datos" --why "fix claro"
 mem hcd show --json                              # paso, tareas y siguiente skill
 mem hcd clarify --ask "¿Incluye borradores?"     # abre Q1; luego: --id Q1 --answer "no"
+# Examen socrático de la definición (carril full, antes de aprobar):
+mem hcd review --kind socratic --action complete --revision <rev> --operation-id op-soc-1 --input examen.json
+# Decisión splash (aceptar u omitir explícitamente):
+mem hcd review --kind splash --action accept --revision <rev> --operation-id op-acc-1 --quote "acepto splash"
+# Si se acepta, inicio y resultado de splash:
+mem hcd review --kind splash --action start --revision <rev> --operation-id op-start-1 --attempt att-1
+mem hcd review --kind splash --action complete --revision <rev> --operation-id op-comp-1 --input informe.json
+# Si hay un Blocker y se descarta con cita explícita:
+mem hcd review --kind splash --action dismiss --revision <rev> --operation-id op-dism-1 --finding B1 --quote "descarto B1 por bloqueo inmediato"
+# Omitir splash explícitamente (ej. tras intento fallido o indisponible):
+mem hcd review --kind splash --action skip --revision <rev> --operation-id op-skip-1 --quote "omito splash"
 mem hcd approve --quote "apruebo"                # solo carril full
 mem hcd verify --task 1 --expect-fail -- 'go test ./save -run TestGuardar'   # rojo
 mem hcd verify --task 1 -- 'go test ./save -run TestGuardar'                 # verde
@@ -1890,6 +1901,65 @@ comprobar, supuestos sin evidencia y contradicciones entre secciones.
 Conviene porque corregir antes de aprobar no cuesta nada. Después de aprobar,
 cambiar la definición obliga a aprobarla otra vez y a repetir todas las
 verificaciones.
+
+### Revisión de la definición: examen socrático y splash (HCD-057, v2.53.0)
+
+En la ceremonia completa (`lane: full`), el motor exige que la definición actual tenga un examen socrático registrado y vigente antes de permitir la aprobación, y una decisión explícita de `splash` (completada con blockers resueltos u omitida).
+
+#### Contrato de `mem hcd review`
+
+```bash
+mem hcd review [unidad] --kind socratic|splash --action <acción> --revision <revisión> --operation-id <id> [--input ARCHIVO|-] [--quote <cita>] [--attempt <attempt_id>] [--reason <motivo>] [--finding <id>] [--json] [--client <agente>]
+```
+
+#### 1. Examen socrático (`--kind socratic`)
+- **Acción**: `--action complete`.
+- **Entrada**: recibe JSON vía `--input <archivo>` o stdin (`--input -`) con `summary` (no vacío) y `questions` (de cero a tres preguntas).
+  - Cero preguntas es válido cuando el contexto basta, pero debe justificarse en `summary`.
+  - Cada pregunta incluye `text`, `status` (`answered` u `omitted`), y opcionalmente `answer` (requerida si `answered`), `blocking` y `clarification_id`.
+  - Registrar una omisión no cierra preguntas bloqueantes; los bloqueos se resuelven en el documento mediante `mem hcd clarify`.
+- **Ejemplo**:
+  ```bash
+  mem hcd review HCD-001 --kind socratic --action complete --revision a1fa639ae55a --operation-id op-soc-1 --input examen.json --client antigravity
+  ```
+
+#### 2. Revisión splash (`--kind splash`)
+- **Aceptación**: `--action accept --quote "<cita de aceptación>"`. Aceptar no equivale a completar.
+  ```bash
+  mem hcd review HCD-001 --kind splash --action accept --revision a1fa639ae55a --operation-id op-acc-1 --quote "acepto la revisión splash"
+  ```
+- **Omisión**: `--action skip --quote "<cita de omisión>"`.
+  ```bash
+  mem hcd review HCD-001 --kind splash --action skip --revision a1fa639ae55a --operation-id op-skip-1 --quote "omito splash por alcance acotado"
+  ```
+- **Intento en curso**: `--action start --attempt <id_intento>`. Registra que un revisor arrancó.
+  ```bash
+  mem hcd review HCD-001 --kind splash --action start --revision a1fa639ae55a --operation-id op-start-1 --attempt att-1
+  ```
+- **Resultado completado**: `--action complete --input informe.json`. El informe contiene `attempt_id`, `summary` y lista de `findings` con `id`, `severity` (`Blocker`, `Major` o `Nit`), `problem`, `quote` y `question`.
+  ```bash
+  mem hcd review HCD-001 --kind splash --action complete --revision a1fa639ae55a --operation-id op-comp-1 --input splash-report.json
+  ```
+- **Intento fallido o indisponible**: `--action fail` o `--action unavailable`, indicando `--attempt <id_intento> --reason "<motivo>"`.
+  ```bash
+  mem hcd review HCD-001 --kind splash --action fail --revision a1fa639ae55a --operation-id op-fail-1 --attempt att-1 --reason "timeout de ejecución"
+  mem hcd review HCD-001 --kind splash --action unavailable --revision a1fa639ae55a --operation-id op-unav-1 --attempt att-2 --reason "runtime sin soporte de subagentes"
+  ```
+  Un intento fallido o indisponible no autoriza la aprobación; la persona debe reintentar o registrar una omisión explícita (`--action skip`).
+- **Descarte de Blocker**: `--action dismiss --finding <id> --quote "<cita de descarte>"`. Un Blocker frena la aprobación hasta corregirse o descartarse; Major y Nit son puramente informativos.
+  ```bash
+  mem hcd review HCD-001 --kind splash --action dismiss --revision a1fa639ae55a --operation-id op-dism-1 --finding B1 --quote "descarto B1 porque la base usa bloqueo inmediato"
+  ```
+
+#### 3. Reanudación e invalidación de revisión
+- **Reanudación**: si se retoma una unidad con la misma revisión, reejecutar la misma operación es idempotente y devuelve el evento original sin abrir nuevas rondas.
+- **Caducidad**: cualquier cambio en el documento que altere `definition_revision` (incluso una corrección editorial) invalida automáticamente el examen socrático y la decisión splash previos, sin borrarlos del historial. Los cambios normalizados (como espacios o saltos de línea finales que no alteran la huella) conservan la vigencia.
+
+#### 4. Diferimiento en modo plan
+En modo plan (plan mode), las herramientas y skills HCD conducen el examen y la oferta en la conversación, absteniéndose de ejecutar comandos mutantes de `mem hcd review` hasta que el anfitrión autorice la ejecución.
+
+#### 5. Aislamiento por instrucciones
+En Codex, el lanzamiento mediante `spawn_agent(agent_type: "splash", fork_turns: "none")` confía en el aislamiento por instrucciones del prompt (el subagente recibe la orden de no consultar MCP), no en un aislamiento impuesto por el runtime. En agy, `inheritMcp: false` sí restringe el acceso a herramientas MCP.
 
 ## Temas de la terminal (v2.29.0)
 

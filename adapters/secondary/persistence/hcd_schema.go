@@ -51,6 +51,20 @@ CREATE TABLE IF NOT EXISTS hcd_approvals (
 	quote TEXT NOT NULL,
 	created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS hcd_definition_reviews (
+	sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+	project TEXT NOT NULL,
+	operation_id TEXT NOT NULL,
+	unit_id TEXT NOT NULL,
+	revision TEXT NOT NULL,
+	kind TEXT NOT NULL,
+	action TEXT NOT NULL,
+	client TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	payload TEXT NOT NULL,
+	UNIQUE(project, operation_id)
+);
+CREATE INDEX IF NOT EXISTS idx_hcd_definition_reviews_unit ON hcd_definition_reviews(project, unit_id, revision, sequence);
 `
 
 // addHCDNormColumns (v6) guarda en cada aprobación las huellas de la

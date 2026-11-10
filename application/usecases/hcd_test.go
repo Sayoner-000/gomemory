@@ -82,10 +82,56 @@ func newHCDEnv(t *testing.T) hcdEnv {
 		t.Fatal(err)
 	}
 	n := 0
-	uc := usecases.NewHCD(persistence.NewHCDStore(db, "p"), hcdfiles.Workspace{Root: root}, &hcdTickClock{t: time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)}, func() string { n++; return fmt.Sprintf("id-%d", n) }, string(tpl))
+	store := persistence.NewHCDStore(db, "p")
+	uc := usecases.NewHCD(store, hcdfiles.Workspace{Root: root}, &hcdTickClock{t: time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)}, func() string { n++; return fmt.Sprintf("id-%d", n) }, string(tpl))
+	uc.ConfigureDefinitionReviews(store)
 	d := &hcdDecisions{}
 	uc.ConfigureDecisions(d, "p")
 	return hcdEnv{uc: uc, db: db, root: root, decisions: d}
+}
+
+func completeSocraticExam(t *testing.T, env hcdEnv, view usecases.HCDView) usecases.HCDView {
+	t.Helper()
+	v, _, err := env.uc.RecordDefinitionReview(context.Background(), usecases.HCDDefinitionReviewInput{
+		ID:          view.Unit.ID,
+		Revision:    domain.HCDReviewRevision(view.DefinitionRevision),
+		OperationID: domain.HCDReviewOperationID("op-socratic-" + view.DefinitionRevision),
+		Kind:        "socratic",
+		Action:      "complete",
+		Client:      "antigravity",
+		Payload: domain.HCDDefinitionReviewPayload{
+			Summary: "Examen socrático completado sin objeciones",
+		},
+	})
+	if err != nil {
+		t.Fatalf("completeSocraticExam: %v", err)
+	}
+	return v
+}
+
+func skipSplash(t *testing.T, env hcdEnv, view usecases.HCDView) usecases.HCDView {
+	t.Helper()
+	v, _, err := env.uc.RecordDefinitionReview(context.Background(), usecases.HCDDefinitionReviewInput{
+		ID:          view.Unit.ID,
+		Revision:    domain.HCDReviewRevision(view.DefinitionRevision),
+		OperationID: domain.HCDReviewOperationID("op-splash-skip-" + view.DefinitionRevision),
+		Kind:        "splash",
+		Action:      "skip",
+		Client:      "antigravity",
+		Payload: domain.HCDDefinitionReviewPayload{
+			Quote: "omito splash para continuar",
+		},
+	})
+	if err != nil {
+		t.Fatalf("skipSplash: %v", err)
+	}
+	return v
+}
+
+func completeReviewForApproval(t *testing.T, env hcdEnv, view usecases.HCDView) usecases.HCDView {
+	t.Helper()
+	v := completeSocraticExam(t, env, view)
+	return skipSplash(t, env, v)
 }
 
 func gitIn(t *testing.T, dir string, args ...string) {
@@ -167,6 +213,8 @@ func TestHCDFullCeremonyStepByStep(t *testing.T) {
 	if _, _, err = env.uc.Clarify(ctx, usecases.HCDClarifyInput{Question: "Q1", Answer: "coma"}); err != nil {
 		t.Fatal(err)
 	}
+	view = stage(t, env, domain.StageDefine, "hcd-define")
+	view = completeReviewForApproval(t, env, view)
 	view = stage(t, env, domain.StageApprove, "hcd-approve")
 	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "vale"}); !errors.Is(err, domain.ErrInvalidQuote) {
 		t.Fatalf("approve with invalid quote = %v", err)
@@ -213,12 +261,16 @@ func TestHCDEditingApprovedDefinitionReturnsToApprove(t *testing.T) {
 	env, ctx := newHCDEnv(t), context.Background()
 	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "evolution", Lane: "full", Title: "Cambiar guardado", Why: "riesgo alto", Intent: "i"})
 	editDoc(t, env, view, append(commonFill, storyFill...)...)
+	view, _ = env.uc.Show(ctx, view.Unit.ID)
+	view = completeReviewForApproval(t, env, view)
 	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
 		t.Fatal(err)
 	}
 	editDoc(t, env, view, "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → git --version\n")
 	stage(t, env, domain.StageImplement, "hcd-implement")
 	editDoc(t, env, view, "Incluido: guardado", "Incluido: guardado y carga")
+	view = stage(t, env, domain.StageDefine, "hcd-define")
+	view = completeReviewForApproval(t, env, view)
 	stage(t, env, domain.StageApprove, "hcd-approve")
 }
 
@@ -343,6 +395,8 @@ func TestHCDPromoteKeepsEvidenceAndAddsCeremony(t *testing.T) {
 		t.Fatalf("second promote = %v", err)
 	}
 	editDoc(t, env, view, storyFill...)
+	view = stage(t, env, domain.StageDefine, "hcd-define")
+	view = completeReviewForApproval(t, env, view)
 	stage(t, env, domain.StageApprove, "hcd-approve")
 }
 
@@ -383,6 +437,8 @@ func TestHCDConstitutionChangeRequiresReapproval(t *testing.T) {
 	if view.State.ConstitutionRev == "" || view.State.PlaybookRev == "" {
 		t.Fatalf("norm revisions not resolved: %+v", view.State)
 	}
+	view, _ = env.uc.Show(ctx, view.Unit.ID)
+	view = completeReviewForApproval(t, env, view)
 	if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
 		t.Fatal(err)
 	}
@@ -432,6 +488,8 @@ func TestHCDNormsReapprovalRequiresCompleteDefinition(t *testing.T) {
 			env.uc.ConfigureNorms(topics, "p", "c", "pb")
 			view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "full", Title: "Reaprobar", Why: "riesgo alto", Intent: "i"})
 			editDoc(t, env, view, append(append(commonFill, storyFill...), "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → git --version\n")...)
+			view, _ = env.uc.Show(ctx, view.Unit.ID)
+			view = completeReviewForApproval(t, env, view)
 			if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
 				t.Fatal(err)
 			}
@@ -461,6 +519,8 @@ func TestHCDNormsReapprovalGuardWhileApprovalStillValid(t *testing.T) {
 			env.uc.ConfigureNorms(topics, "p", "c", "pb")
 			view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "full", Title: "Guard", Why: "riesgo alto", Intent: "i"})
 			editDoc(t, env, view, append(append(commonFill, storyFill...), "## Slices\n", "## Slices\n### VS-01. a\nTareas: 1\nCriterios: C-01\n", "## Checklist\n", "## Checklist\n- [ ] 1. a → git --version\n")...)
+			view, _ = env.uc.Show(ctx, view.Unit.ID)
+			view = completeReviewForApproval(t, env, view)
 			if _, err := env.uc.Approve(ctx, usecases.HCDApproveInput{Quote: "apruebo"}); err != nil {
 				t.Fatal(err)
 			}

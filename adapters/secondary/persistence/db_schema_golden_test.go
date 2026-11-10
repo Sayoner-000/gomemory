@@ -184,7 +184,7 @@ func assertMigratedToCurrent(t *testing.T, db *sql.DB) {
 	if err := db.QueryRow("SELECT content FROM memories WHERE project = ? AND title = ?", "p", "keep").Scan(&content); err != nil || content != "preserved" {
 		t.Fatalf("existing row content = %q, error %v", content, err)
 	}
-	if got := strings.Join(hcdTables(t, db), ","); got != "hcd_approvals,hcd_evidence,hcd_units" {
+	if got := strings.Join(hcdTables(t, db), ","); got != "hcd_approvals,hcd_definition_reviews,hcd_evidence,hcd_units" {
 		t.Fatalf("hcd tables = %s", got)
 	}
 	if _, err := db.Exec(`INSERT INTO hcd_units(project, id, number, title, slug, kind, lane, why, doc_path, created_at, updated_at) VALUES('p','HCD-001',1,'t','t','fix','fast','w','hcd/HCD-001-t.md','x','x')`); err != nil {

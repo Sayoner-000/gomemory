@@ -14,6 +14,7 @@ import (
 // guarda: se deriva de domain.HCDState en cada consulta.
 type HCD struct {
 	store    ports.HCDStore
+	reviews  ports.HCDDefinitionReviewRepository
 	ws       ports.HCDWorkspace
 	clock    ports.ClockPort
 	newID    func() string
@@ -150,6 +151,11 @@ func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
 	}
 	if s.Approvals, err = h.store.Approvals(ctx, unit.ID); err != nil {
 		return HCDView{}, err
+	}
+	if h.reviews != nil {
+		if s.ReviewEvents, err = h.reviews.DefinitionReviews(ctx, unit.ID); err != nil {
+			return HCDView{}, err
+		}
 	}
 	if s.ConstitutionRev, s.PlaybookRev, err = h.norms.revisions(); err != nil {
 		return HCDView{}, err
@@ -450,7 +456,29 @@ func (h *HCD) approve(ctx context.Context, view HCDView, action, revision, quote
 	if client == "" || client == "terminal" {
 		client, origin = "terminal", "terminal"
 	}
-	return h.store.AddApproval(ctx, domain.Approval{ID: h.newID(), UnitID: view.Unit.ID, Action: action, Revision: revision, Fingerprint: view.State.Fingerprint, Origin: origin, Client: client, Quote: domain.ProtectHCDField(quote), ConstitutionRev: view.State.ConstitutionRev, PlaybookRev: view.State.PlaybookRev, CreatedAt: h.clock.Now()})
+	approval := domain.Approval{ID: h.newID(), UnitID: view.Unit.ID, Action: action, Revision: revision, Fingerprint: view.State.Fingerprint, Origin: origin, Client: client, Quote: domain.ProtectHCDField(quote), ConstitutionRev: view.State.ConstitutionRev, PlaybookRev: view.State.PlaybookRev, CreatedAt: h.clock.Now()}
+	if action != domain.ApprovalApprove {
+		return h.store.AddApproval(ctx, approval)
+	}
+	if h.reviews == nil {
+		return fmt.Errorf("%w: definition review repository is unavailable", domain.ErrNotAllowed)
+	}
+	if !view.State.HasSocraticExam() {
+		return fmt.Errorf("%w: socratic examination required before approval", domain.ErrNotAllowed)
+	}
+	if satisfied, reason := view.State.SplashSatisfied(); !satisfied {
+		return fmt.Errorf("%w: %s", domain.ErrNotAllowed, reason)
+	}
+	var last domain.HCDReviewOperationID
+	for _, e := range view.State.ReviewEvents {
+		if string(e.Revision) == revision {
+			last = e.OperationID
+		}
+	}
+	if last == "" {
+		return fmt.Errorf("%w: socratic examination required before approval", domain.ErrNotAllowed)
+	}
+	return h.reviews.AddReviewedApproval(ctx, approval, last)
 }
 
 func (h *HCD) finish(ctx context.Context, view HCDView, next string) (HCDView, error) {

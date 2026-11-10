@@ -13,6 +13,7 @@ const usage = `Uso: mem hcd <comando> [unidad] [flags] [--json] [--client CLIENT
   show    [unidad]                 paso, tareas y siguiente skill (no escribe)
   next    [unidad]                 alias de show
   clarify [unidad] --ask 'pregunta' | --id Qn --answer 'respuesta'
+  review  [unidad] --kind socratic|splash --action complete... --revision REV --operation-id ID --input ARCHIVO|-
   approve [unidad] --quote 'cita'  aprueba la revisión de la definición (solo carril full)
   verify  [unidad] --task N[,M] [--expect-fail] -- 'comando'
   verify  [unidad] --task N --manual 'observación'
@@ -27,11 +28,15 @@ const usage = `Uso: mem hcd <comando> [unidad] [flags] [--json] [--client CLIENT
 func Run(deps *clikit.Deps, args []string) int { return run(deps, args, os.Stdout, os.Stderr) }
 
 func run(deps *clikit.Deps, args []string, stdout, stderr io.Writer) int {
+	return runWithStdin(deps, args, os.Stdin, stdout, stderr)
+}
+
+func runWithStdin(deps *clikit.Deps, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		_, _ = io.WriteString(stderr, usage)
 		return 2
 	}
-	return execute(deps, args, stdout, stderr)
+	return executeWithStdin(deps, args, stdin, stdout, stderr)
 }
 
 func emitError(stdout, stderr io.Writer, jsonMode bool, code, message string) int {

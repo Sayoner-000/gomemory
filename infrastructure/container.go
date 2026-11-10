@@ -167,6 +167,7 @@ func NewContainer(root, channel string) (*Container, error) {
 		return nil, err
 	}
 	hcdUC := usecases.NewHCD(persistence.NewHCDStore(db, project), hcdfiles.Workspace{Root: root}, clock.SystemClock{}, func() string { return uuid.Must(uuid.NewV7()).String() }, string(unitTemplate))
+	hcdUC.ConfigureDefinitionReviews(persistence.NewHCDStore(db, project))
 	historyRepo := persistence.NewDecisionHistoryRepository(db)
 	hcdUC.ConfigureDecisions(historyRepo, project)
 	// Historial de decisiones (HCD-046): backfill y consulta de las fichas.

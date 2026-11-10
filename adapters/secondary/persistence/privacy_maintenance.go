@@ -131,6 +131,9 @@ func readSanitizeCandidates(ctx context.Context, q queryer, project string) ([]d
 	if err := readSocraticaCandidates(ctx, q, project, add); err != nil {
 		return nil, err
 	}
+	if err := readHCDDefinitionReviewCandidates(ctx, q, project, add); err != nil {
+		return nil, err
+	}
 	if err := readLedgerCandidates(ctx, q, project, add); err != nil {
 		return nil, err
 	}
@@ -382,6 +385,18 @@ func (t *privacyTx) Apply(ctx context.Context, c domain.SanitizeCandidate, text 
 		// Un original prometía recuperación exacta: no se reescribe, se borra.
 		res, err = t.tx.ExecContext(ctx,
 			`DELETE FROM compression_originals WHERE ref = ? AND project = ?`, c.RecordID, c.Project)
+	case domain.SanitizeHCDDefinitionReview:
+		seq, perr := strconv.ParseInt(c.RecordID, 10, 64)
+		if perr != nil {
+			return false, fmt.Errorf("%w: secuencia de hcd_definition_reviews inválida", domain.ErrValidation)
+		}
+		safeText, serr := sanitizeHCDDefinitionReviewPayload(c.Text)
+		if serr != nil {
+			return false, serr
+		}
+		res, err = t.tx.ExecContext(ctx,
+			`UPDATE hcd_definition_reviews SET payload = ? WHERE sequence = ? AND project = ? AND payload = ?`,
+			safeText, seq, c.Project, c.Text)
 	default:
 		col, ok := ledgerColumnFor(c.Category)
 		if !ok {
@@ -473,4 +488,43 @@ func renameInstinctSlug(ctx context.Context, tx *sql.Tx, project, from, to strin
 	}
 	_, err = tx.ExecContext(ctx, `DELETE FROM instinct_stats WHERE project=? AND slug=?`, project, from)
 	return err == nil, err
+}
+
+func readHCDDefinitionReviewCandidates(ctx context.Context, q queryer, project string, add func(domain.SanitizeCategory, string, string, string)) error {
+	return scanRows(ctx, q, `SELECT sequence, payload FROM hcd_definition_reviews WHERE project = ?`, project, func(r *sql.Rows) error {
+		var seq int64
+		var raw string
+		if err := r.Scan(&seq, &raw); err != nil {
+			return err
+		}
+		safe, err := sanitizeHCDDefinitionReviewPayload(raw)
+		if err != nil {
+			return err
+		}
+		var tree any
+		if err := json.Unmarshal([]byte(raw), &tree); err != nil {
+			return err
+		}
+		canonical, err := json.Marshal(tree)
+		if err != nil {
+			return err
+		}
+		if safe != string(canonical) {
+			add(domain.SanitizeHCDDefinitionReview, "payload", strconv.FormatInt(seq, 10), raw)
+		}
+		return nil
+	})
+}
+
+func sanitizeHCDDefinitionReviewPayload(raw string) (string, error) {
+	var payload domain.HCDDefinitionReviewPayload
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return "", fmt.Errorf("invalid hcd review payload JSON: %w", domain.ErrValidation)
+	}
+	evt := domain.HCDDefinitionReviewEvent{Payload: payload}.Protected()
+	out, err := json.Marshal(evt.Payload)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }

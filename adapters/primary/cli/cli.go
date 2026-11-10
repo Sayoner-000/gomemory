@@ -82,7 +82,7 @@ var helpIndex = []struct {
 	}},
 	{"PROMPTS", []helpEntry{
 		{"socratica", "Refinar un prompt con aprobación: refine · pending · history · on/off"},
-		{"hcd", "Conducir una unidad de trabajo HCD: start · clarify · approve · verify · analyze · close"},
+		{"hcd", "Conducir una unidad de trabajo HCD: start · clarify · review · approve · verify · analyze · close"},
 	}},
 	{"CÓDIGO Y ARQUITECTURA", []helpEntry{
 		{"index", "Indexar el código y los grafos externos"},
@@ -252,6 +252,7 @@ COMMANDS
     start --kind fix|feature|evolution|technical --lane fast|full --title "…" --why "…" [--intent "…"]
     show · next [unidad]                            Paso y siguiente skill (no escriben)
     clarify --ask "…" · clarify --id Qn --answer "…"
+    review --kind socratic|splash --action <acción> --revision <rev> --operation-id <id> …
     approve --quote "…"                             Aprueba la definición (solo carril full)
     verify --task N[,M] [--expect-fail] -- '<comando>' · verify --task N --manual "…"
     analyze                                         Coherencia de la unidad (no escribe)

@@ -45,7 +45,7 @@ La versión 3 es aditiva (`addColumnIfMissing`, dentro de la misma transacción 
 
 **Saneamiento y retención.** `mem sanitize` añade las categorías `socratica_flow_preparation` y `socratica_history_preparation`. Si el saneamiento cambia la preparación de un flujo sin consumir (`review` o `approved` sin reclamo ni ack), se devuelve a `captured` con la revisión incrementada y se vacían propuesta, texto aprobado, huella y `dispatch_id`; si ya se consumió o está reclamado, solo se protegen los textos y se conservan las marcas de despacho. Una preparación de versión mayor se protege hoja a hoja sin reinterpretarla. `RedactFlow` también anula `preparation_json`. Borrar un flujo (retención, purga o `mem gc`) elimina su agregado completo y descarta su payload efímero.
 
-## HCD (feature 045, esquemas v5 y v6)
+## HCD (feature 045, esquemas v5, v6 y v13)
 
 El catálogo HCD guarda solo el control de las unidades; su contenido vive en el documento `hcd/HCD-NNN-<slug>.md`. Las decisiones se registran como memorias `decision`, sin tabla propia.
 
@@ -54,6 +54,7 @@ El catálogo HCD guarda solo el control de las unidades; su contenido vive en el
 | `hcd_units` | Unidad: `id`, `number`, `title`, `slug`, `kind`, `lane` (`fast`/`full`), `why`, `state` (`active`/`closed`/`cancelled`), `active` y `doc_path`. | PK `(project,id)`; única `(project,number)`; índice `(project,active)`. |
 | `hcd_evidence` | Evidencia: tareas, `kind` (`command`/`manual`), `expect_fail`, comando, código de salida, extracto, revisión de trabajo y huella del código. | PK `id`; índice `(project,unit_id,created_at)`. |
 | `hcd_approvals` | Aprobaciones `approve`, `close` y `cancel`: revisión, huella, origen (`conversation`/`terminal`), cliente, cita protegida y, desde la v6, `constitution_rev` y `playbook_rev` (huellas de las normas vigentes al aprobar). | PK `id`. |
+| `hcd_definition_reviews` | Eventos inmutables de examen socrático y revisión splash (HCD-057, esquema v13): `project`, `operation_id`, `unit_id`, `revision`, `kind` (`socratic`/`splash`), `action`, `client`, `created_at` y `payload` JSON con protección de texto privado. | PK `sequence` (autoincrement); única `(project, operation_id)`; índice `idx_hcd_definition_reviews_unit` sobre `(project, unit_id, revision, sequence)`. |
 
 El store usa consultas parametrizadas y aísla cada proyecto. `Activate` deja una sola unidad activa por proyecto en una transacción.
 
@@ -81,6 +82,8 @@ Desde el esquema 7, abrir una base existente intenta una sola vez `VACUUM` y che
 El esquema 11 (v2.49.2) añade `code_pending_calls`, las llamadas del grafo de código que aún no tienen destino. La tabla se crea vacía al abrir una base anterior, así que las llamadas pendientes de antes no están: un `mem index --force` por proyecto las recupera.
 
 El esquema 12 (v2.50.0) añade `memory_files`, que enlaza una memoria con los archivos que cita. Una ficha del historial HCD o de una auditoría cita varios archivos, y `memories.filepath` solo admite uno. El contexto de edición busca aquí las fichas del archivo que se va a tocar. Al abrir una base anterior la tabla nace vacía; `mem hcd index --apply` la llena con las unidades y auditorías que ya existían.
+
+El esquema 13 (HCD-057) añade `hcd_definition_reviews` mediante migración aditiva transaccional. Registra el historial append-only de eventos de examen socrático y revisiones splash de la definición, con CAS para concurrencia sobre el último evento registrado de cada revisión, orden estable por `sequence` y sanitización de texto privado antes de persistir. Las unidades, evidencias y aprobaciones anteriores se conservan intactas.
 
 ## Borrado de memorias
 

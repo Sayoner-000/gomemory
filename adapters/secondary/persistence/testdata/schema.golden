@@ -1,4 +1,4 @@
-user_version=12
+user_version=13
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_automatic_original_grants_ref|automatic_original_grants|CREATE INDEX idx_automatic_original_grants_ref ON automatic_original_grants(ref)
@@ -13,6 +13,7 @@ index|idx_code_pending_calls_src_file|code_pending_calls|CREATE INDEX idx_code_p
 index|idx_compression_originals_access|compression_originals|CREATE INDEX idx_compression_originals_access ON compression_originals(last_access_at)
 index|idx_compression_originals_expires|compression_originals|CREATE INDEX idx_compression_originals_expires ON compression_originals(expires_at)
 index|idx_consensus_review|consensus_findings|CREATE INDEX idx_consensus_review ON consensus_findings(review_id)
+index|idx_hcd_definition_reviews_unit|hcd_definition_reviews|CREATE INDEX idx_hcd_definition_reviews_unit ON hcd_definition_reviews(project, unit_id, revision, sequence)
 index|idx_hcd_evidence_unit|hcd_evidence|CREATE INDEX idx_hcd_evidence_unit ON hcd_evidence(project, unit_id, created_at)
 index|idx_hcd_units_active|hcd_units|CREATE INDEX idx_hcd_units_active ON hcd_units(project, active)
 index|idx_memories_created|memories|CREATE INDEX idx_memories_created ON memories(created_at DESC)
@@ -52,6 +53,7 @@ index|sqlite_autoindex_delivered_blocks_1|delivered_blocks|
 index|sqlite_autoindex_findings_1|findings|
 index|sqlite_autoindex_fix_rounds_1|fix_rounds|
 index|sqlite_autoindex_hcd_approvals_1|hcd_approvals|
+index|sqlite_autoindex_hcd_definition_reviews_1|hcd_definition_reviews|
 index|sqlite_autoindex_hcd_evidence_1|hcd_evidence|
 index|sqlite_autoindex_hcd_units_1|hcd_units|
 index|sqlite_autoindex_hcd_units_2|hcd_units|
@@ -256,6 +258,19 @@ table|hcd_approvals|hcd_approvals|CREATE TABLE hcd_approvals (
 	quote TEXT NOT NULL,
 	created_at TEXT NOT NULL
 , constitution_rev TEXT NOT NULL DEFAULT '', playbook_rev TEXT NOT NULL DEFAULT '')
+table|hcd_definition_reviews|hcd_definition_reviews|CREATE TABLE hcd_definition_reviews (
+	sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+	project TEXT NOT NULL,
+	operation_id TEXT NOT NULL,
+	unit_id TEXT NOT NULL,
+	revision TEXT NOT NULL,
+	kind TEXT NOT NULL,
+	action TEXT NOT NULL,
+	client TEXT NOT NULL,
+	created_at TEXT NOT NULL,
+	payload TEXT NOT NULL,
+	UNIQUE(project, operation_id)
+)
 table|hcd_evidence|hcd_evidence|CREATE TABLE hcd_evidence (
 	id TEXT PRIMARY KEY,
 	project TEXT NOT NULL,
@@ -633,6 +648,16 @@ col|hcd_approvals|8|quote|TEXT|1||0
 col|hcd_approvals|9|created_at|TEXT|1||0
 col|hcd_approvals|10|constitution_rev|TEXT|1|''|0
 col|hcd_approvals|11|playbook_rev|TEXT|1|''|0
+col|hcd_definition_reviews|0|sequence|INTEGER|0||1
+col|hcd_definition_reviews|1|project|TEXT|1||0
+col|hcd_definition_reviews|2|operation_id|TEXT|1||0
+col|hcd_definition_reviews|3|unit_id|TEXT|1||0
+col|hcd_definition_reviews|4|revision|TEXT|1||0
+col|hcd_definition_reviews|5|kind|TEXT|1||0
+col|hcd_definition_reviews|6|action|TEXT|1||0
+col|hcd_definition_reviews|7|client|TEXT|1||0
+col|hcd_definition_reviews|8|created_at|TEXT|1||0
+col|hcd_definition_reviews|9|payload|TEXT|1||0
 col|hcd_evidence|0|id|TEXT|0||1
 col|hcd_evidence|1|project|TEXT|1||0
 col|hcd_evidence|2|unit_id|TEXT|1||0

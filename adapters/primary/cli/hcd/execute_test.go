@@ -43,7 +43,9 @@ func newDeps(t *testing.T) (*clikit.Deps, string) {
 		t.Fatal(err)
 	}
 	n := 0
-	uc := usecases.NewHCD(persistence.NewHCDStore(db, "p"), hcdfiles.Workspace{Root: root}, &tick{t: time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)}, func() string { n++; return fmt.Sprint(n) }, string(tpl))
+	store := persistence.NewHCDStore(db, "p")
+	uc := usecases.NewHCD(store, hcdfiles.Workspace{Root: root}, &tick{t: time.Date(2026, 10, 29, 0, 0, 0, 0, time.UTC)}, func() string { n++; return fmt.Sprint(n) }, string(tpl))
+	uc.ConfigureDefinitionReviews(store)
 	return &clikit.Deps{HCD: uc}, root
 }
 
@@ -162,8 +164,17 @@ func TestEngineFullCeremony(t *testing.T) {
 	if code, r := call(t, deps, "clarify", "--ask", "¿Separador?"); code != 0 || r.Stage != "clarify" || r.Data["clarification"] != "Q1" || r.NextAction.Skill != "hcd-clarify" {
 		t.Fatalf("clarify ask = %d %+v", code, r)
 	}
-	if code, r := call(t, deps, "clarify", "--id", "Q1", "--answer", "coma"); code != 0 || r.Stage != "approve" || r.Approved {
+	code, r := call(t, deps, "clarify", "--id", "Q1", "--answer", "coma")
+	if code != 0 || r.Stage != "define" || r.Approved {
 		t.Fatalf("clarify answer = %d %+v", code, r)
+	}
+	socraticPayload := `{"summary": "Examen socratico verificado", "questions": []}`
+	code, r = callWithStdin(t, deps, socraticPayload, "review", "--kind", "socratic", "--action", "complete", "--revision", r.DefinitionRev, "--operation-id", "op-soc-full", "--input", "-")
+	if code != 0 || r.Stage != "approve" {
+		t.Fatalf("review socratic = %d %+v", code, r)
+	}
+	if code, r := call(t, deps, "review", "--kind", "splash", "--action", "skip", "--revision", r.DefinitionRev, "--operation-id", "op-skip-full", "--quote", "omito splash"); code != 0 {
+		t.Fatalf("review splash = %d %+v", code, r)
 	}
 	if code, r := call(t, deps, "analyze"); code != 0 || len(r.Findings) == 0 || r.Findings[0].Severity != "CRITICAL" {
 		t.Fatalf("analyze before approve = %d %+v", code, r.Findings)
