@@ -92,9 +92,11 @@ var PinnedDocs = []PinnedDoc{
 		Title:    "Reglas de trabajo del proyecto",
 		Label:    "Reglas IA",
 		Template: "agent-preamble.md",
-		// Huellas por commit de la plantilla: 8edbddd y d7b63ae.
-		DefaultSHA256: "9dc0258d753c3b77fc16ee69a654a9eb96513205e1b6c4797e1a22b048003b8a",
+		// workrules-v3: herramientas nativas y grafo, memoria única. Las
+		// anteriores son la v2 y, por commit, 8edbddd y d7b63ae.
+		DefaultSHA256: "1df6c4d17e30be814e41f4fdedfcf5f5a33f808c50f63aa3b8700c7e13991f59",
 		PreviousDefaultSHA256: []string{
+			"9dc0258d753c3b77fc16ee69a654a9eb96513205e1b6c4797e1a22b048003b8a",
 			"d742e66f6593cd7d60ac6b59cdc7e046371f6ab570f67742dc4f432aba78b669",
 			"aaf5312676b94b034a6923b0e01dddb9b091c7035eee54d6fd75b5f7298d807e",
 		},

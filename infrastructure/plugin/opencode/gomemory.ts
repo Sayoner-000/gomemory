@@ -683,6 +683,14 @@ explore; use the atomic task tree to deliver a plan. What you find with the
 graph feeds the tree's leaves. If it is not connected, this guidance does not
 apply.
 
+NATIVE TOOLS, NOT SHELL: do not read, search, or edit code through the shell
+(cat, sed, head, tail, awk, grep -r, rg, find, python -c). Read a file with the
+native read tool; understand or locate code with codegraph_explore (if the
+codegraph server is connected) or ${T_SEARCH_CODE}/${T_GET_SYMBOL}; search text
+the graph does not cover with the native grep/glob tools; edit with edit/write.
+This also applies to code in other repositories outside this project. The
+gomemory hook blocks those shell commands and names the tool to use instead.
+
 ADVERSARIAL REVIEW: when high-confidence validation is required for a concrete
 artifact (code, spec, plan, config, migration, contract), run the bounded
 consensus protocol instead of reviewing it yourself: ${T_REVIEW_START} freezes

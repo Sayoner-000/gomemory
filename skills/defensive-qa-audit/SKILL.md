@@ -6,7 +6,8 @@ description: >
   fugas (PII, credenciales, recursos, memoria, XSS, errores expuestos). Exige evidencia
   reproducible por hallazgo, propuesta de cierre y tabla de cobertura. Úsala cuando
   pidan una auditoría defensiva, QA de seguridad o calidad, revisión de fugas o
-  hardening de un diff, commit, directorio o repositorio.
+  hardening de un diff, commit, directorio o repositorio. También se invoca como
+  ADM (Auditoría Defensiva Multilenguaje).
 license: Apache-2.0
 metadata:
   version: "1.0.0"

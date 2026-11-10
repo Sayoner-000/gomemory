@@ -5,7 +5,8 @@ description: >
   consensus-based defect confirmation, bounded correction rounds, and independent
   re-verification. Use when high-confidence validation is required for code,
   specifications, plans, architecture, configurations, migrations, contracts,
-  or other concrete technical artifacts.
+  or other concrete technical artifacts. Also invoked as ACR (Adversarial
+  Consensus Review), "revisión adversarial" or "revisión por consenso".
 license: Apache-2.0
 metadata:
   version: "1.0.0"
