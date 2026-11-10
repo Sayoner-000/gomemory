@@ -5,6 +5,28 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.53.0] - 2026-11-10
+
+### Added
+
+- Examen socrático en `/hcd-define` (HCD-057): en carril `full`, el motor exige registrar el examen de supuestos, alternativas y criterios mediante `mem hcd review --kind socratic --action complete` antes de autorizar la aprobación. Soporta de cero a tres preguntas justificadas y preserva respuestas u omisiones sin cerrar bloqueos no resueltos.
+- Control explícito de la revisión splash en `/hcd-approve` (HCD-057): el motor exige registrar la decisión de aceptar (`--action accept`) u omitir (`--action skip`) la revisión splash. Al aceptarla, se registran su inicio (`--action start`) y resultado (`--action complete`); un hallazgo de severidad `Blocker` detiene la aprobación hasta subsanarse o descartarse con cita explícita (`--action dismiss`).
+- Subcomando CLI `mem hcd review`: interfaz para registrar eventos de examen socrático y revisión splash con parámetros `--kind`, `--action`, `--revision`, `--operation-id`, `--input` (archivo o stdin `-`), `--quote`, `--attempt`, `--reason`, `--finding`, `--client` y `--json`.
+- Esquema de persistencia v13: tabla inmutable `hcd_definition_reviews` con control de concurrencia optimista (CAS) sobre el último evento de la revisión, clave única idempotente por `operation_id` e índice `idx_hcd_definition_reviews_unit`.
+- Saneamiento de privacidad (`mem sanitize`): categoría `hcd_definition_reviews` en `domain/privacy_maintenance.go` y lector/aplicador en persistencia para limpiar etiquetas `<private>` y tokens en las revisiones de definición históricas.
+- Informe de auditoría ACR + ADM en `docs/audits/2026-11-09-acr-adm-worktree-hcd057.md` (`acr_cfdfdc49-3177-4be1-9bb8-d666cdfeb2f8`, veredicto `APPROVED`).
+
+### Changed
+
+- Actualización de las guías HTML de gomemory a la edición `v2.53` (`Guia-Rapida-HCD_GOMEMORY-v2.53.html`, `Guia-SDD_HCD_GOMEMORY-v2.53.html` y `Guia-Tecnica_GOMEMORY-v2.53.html`), junto con `README.md`, `docs/README.md`, `docs/ARQUITECTURA.md` y `docs/MANUAL.md`.
+- Plantillas de skills HCD en `infrastructure/templates/hcd/` (`hcd-define`, `hcd-approve` y `hcd`): incorporan el examen socrático y el flujo de aceptación u omisión de splash delegando todos los registros al motor.
+
+### Fixed
+
+- Máquina de estados en `ValidateTransition` (`domain/hcd_definition_review.go`): las transiciones `complete`, `fail`, `unavailable` y `dismiss` se evalúan contra la ventana activa posterior al último `accept`, permitiendo reintentos válidos tras un `skip` previo en la misma revisión (ACR H-02 / C-002).
+- Lectura segura de entrada en `mem hcd review` (`adapters/primary/cli/hcd/execute.go`): decodificación acotada a 1 MiB mediante `io.LimitReader`, `DisallowUnknownFields` y rechazo de tokens sobrantes tras el objeto JSON (ACR H-03 / C-005).
+- Ayuda detallada en CLI (`adapters/primary/cli/cli.go`): `helpReference` incorpora el subcomando `review` en la sección de `mem hcd` (ACR H-05 / C-004).
+
 ## [v2.52.0] - 2026-11-08
 
 ### Added

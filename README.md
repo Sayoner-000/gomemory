@@ -8,7 +8,7 @@
 <h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
 
 <p align="center">
-  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.52.0"><img src="https://img.shields.io/badge/version-2.52.0-blue" alt="Version 2.52.0"></a>
+  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.53.0"><img src="https://img.shields.io/badge/version-2.53.0-blue" alt="Version 2.53.0"></a>
   <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
   <a href="https://github.com/Sayoner-000/gomemory/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sayoner-000/gomemory/test.yml?branch=main&label=CI" alt="CI status"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
@@ -237,7 +237,7 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
 | OpenCode | `/hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending |
 
 `mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.52.html) walks through the
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.53.html) walks through the
 ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
@@ -311,7 +311,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Rapida-HCD_GOMEMORY-v2.52.html`](docs/Guia-Rapida-HCD_GOMEMORY-v2.52.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.52.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.52.html) · [`docs/Guia-Tecnica_GOMEMORY-v2.52.html`](docs/Guia-Tecnica_GOMEMORY-v2.52.html) | Printable visual guides (HCD Quick Guide, SDD_HCD Guide, Technical Guide) |
+| [`docs/Guia-Rapida-HCD_GOMEMORY-v2.53.html`](docs/Guia-Rapida-HCD_GOMEMORY-v2.53.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.53.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.53.html) · [`docs/Guia-Tecnica_GOMEMORY-v2.53.html`](docs/Guia-Tecnica_GOMEMORY-v2.53.html) | Printable visual guides (HCD Quick Guide, SDD_HCD Guide, Technical Guide) |
 | [`docs/Guia-Explicacion-Developers-GOMEMORY.html`](docs/Guia-Explicacion-Developers-GOMEMORY.html) · [`docs/Manual-Referencia-Developers-GOMEMORY.html`](docs/Manual-Referencia-Developers-GOMEMORY.html) | Developer visual guides (Architecture overview, 3 code graphs comparison, and `graph-before-grep` guardrail) |
 
 ## Contributing
