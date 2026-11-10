@@ -29,6 +29,8 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 - `native-read-over-shell` detecta la lectura con un intérprete inline que recibe la ruta como argumento aparte (ADM 2).
 - Un heredoc o here-string ya no hace que se omitan las comprobaciones de un comando que también nombra rutas (ADM 3).
 - `graph-before-grep` resuelve `git -C` y evalúa la cobertura del repositorio correcto (ADM 4).
+- Las reglas reconocen las rutas absolutas de Windows (`C:/…`, `C:\…` y UNC): son externas y no se resuelven contra un `cd` previo.
+- `getCatalog` ya no guarda en caché un catálogo de idiomas vacío. En los tests, una primera llamada sin plantillas a la vista dejaba sin idiomas a las siguientes, y la consola de `mem install` dejaba de preguntar el idioma según el orden de ejecución.
 - El manual de referencia para desarrolladores nombraba una regla inexistente (`inline-Workaround`); ahora lista las cuatro reglas de serie reales.
 
 ## [v2.53.0] - 2026-11-10
