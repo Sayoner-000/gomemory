@@ -28,9 +28,10 @@ func TestSeedsAparecenSinInstall(t *testing.T) {
 	if !strings.Contains(ctxOut, "## Reglas de trabajo (memoria fijada)") {
 		t.Errorf("las reglas no llegaron al contexto sin instalación previa.\nSalida:\n%s", ctxOut)
 	}
-	// La última regla operativa demuestra que el documento fijado llegó entero,
-	// sin quedar recortado a 200 caracteres.
-	if !strings.Contains(ctxOut, "Delega de forma intencional") {
+	// La última línea del preámbulo (el cierre del glosario de siglas de
+	// workrules-v3) demuestra que el documento fijado llegó entero, sin quedar
+	// recortado a 200 caracteres.
+	if !strings.Contains(ctxOut, "no preguntes qué significa") {
 		t.Error("las reglas llegaron recortadas: falta el final del preámbulo")
 	}
 
