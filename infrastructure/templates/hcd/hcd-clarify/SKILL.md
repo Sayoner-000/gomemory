@@ -1,6 +1,6 @@
 ---
 name: hcd-clarify
-description: Paso clarify de HCD: resuelve con la persona las aclaraciones abiertas, una pregunta a la vez.
+description: "Paso clarify de HCD: resuelve con la persona las aclaraciones abiertas, una pregunta a la vez."
 ---
 
 # HCD — aclarar

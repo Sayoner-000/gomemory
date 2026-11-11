@@ -1,6 +1,6 @@
 ---
 name: hcd-close
-description: Paso close de HCD: cierra o cancela la unidad con la aprobación citada de la persona.
+description: "Paso close de HCD: cierra o cancela la unidad con la aprobación citada de la persona."
 ---
 
 # HCD — cerrar

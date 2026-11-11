@@ -1,6 +1,6 @@
 ---
 name: hcd-slice
-description: Paso slice de HCD (solo ceremonia completa): divide la definición aprobada en incrementos entregables.
+description: "Paso slice de HCD (solo ceremonia completa): divide la definición aprobada en incrementos entregables."
 ---
 
 # HCD — slices

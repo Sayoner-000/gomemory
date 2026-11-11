@@ -1,6 +1,6 @@
 ---
 name: hcd-approve
-description: Paso approve de HCD (solo ceremonia completa): la persona aprueba la revisión exacta de la definición.
+description: "Paso approve de HCD (solo ceremonia completa): la persona aprueba la revisión exacta de la definición."
 ---
 
 # HCD — aprobar la definición

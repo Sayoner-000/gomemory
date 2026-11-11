@@ -1,6 +1,6 @@
 ---
 name: hcd-define
-description: Paso define de HCD: redacta el documento de la unidad hasta que el motor no liste faltantes.
+description: "Paso define de HCD: redacta el documento de la unidad hasta que el motor no liste faltantes."
 ---
 
 # HCD — definir

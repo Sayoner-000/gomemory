@@ -1,6 +1,6 @@
 ---
 name: hcd-tasks
-description: Paso tasks de HCD: escribe tareas atómicas, cada una con la comprobación que la demuestra.
+description: "Paso tasks de HCD: escribe tareas atómicas, cada una con la comprobación que la demuestra."
 ---
 
 # HCD — tareas

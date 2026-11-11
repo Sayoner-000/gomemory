@@ -1,6 +1,6 @@
 ---
 name: hcd-verify
-description: Paso verify de HCD: registra la evidencia de cada tarea ejecutando su comprobación con el motor.
+description: "Paso verify de HCD: registra la evidencia de cada tarea ejecutando su comprobación con el motor."
 ---
 
 # HCD — verificar

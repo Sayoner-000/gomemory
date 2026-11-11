@@ -1,6 +1,6 @@
 ---
 name: hcd-implement
-description: Paso implement de HCD: implementa las tareas con TDD, observando el rojo antes del cambio.
+description: "Paso implement de HCD: implementa las tareas con TDD, observando el rojo antes del cambio."
 ---
 
 # HCD — implementar

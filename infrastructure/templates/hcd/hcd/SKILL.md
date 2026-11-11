@@ -1,6 +1,6 @@
 ---
 name: hcd
-description: Entrada de HCD: elige el carril (Vía rápida o ceremonia completa), crea o retoma la unidad y dice el siguiente paso, mediante el motor mem hcd.
+description: "Entrada de HCD: elige el carril (Vía rápida o ceremonia completa), crea o retoma la unidad y dice el siguiente paso, mediante el motor mem hcd."
 ---
 
 # HCD — entrada y decisor de carril
