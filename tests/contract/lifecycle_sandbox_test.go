@@ -87,6 +87,7 @@ func newLifecycleSandbox(t *testing.T) *lifecycleSandbox {
 		BinDir: filepath.Join(root, "home", ".local", "bin"),
 		extraEnv: map[string]string{
 			"GOMEMORY_NO_UPDATE_CHECK": "1",
+			"GOMEMORY_NO_CODE_REFRESH": "1",
 			"GOMEMORY_HOOK_BUDGET_MS":  "2000",
 		},
 	}

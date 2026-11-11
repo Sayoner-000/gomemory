@@ -19,6 +19,7 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Informe de auditoría ACR + ADM del delta posterior a v2.54.0 en `docs/audits/2026-11-10-acr-adm-delta-v2.54.0.md`.
+- El sandbox de las pruebas de contrato del ciclo de vida activa `GOMEMORY_NO_CODE_REFRESH=1`: el refresco del grafo en segundo plano escribía en `.memory` mientras se borraba el directorio temporal y hacía fallar `TestSessionStart_SinAvisosTextoPlano` en CI de forma intermitente.
 
 ## [v2.54.0] - 2026-11-10
 
