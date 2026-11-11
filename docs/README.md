@@ -1,6 +1,6 @@
 # Documentación de gomemory
 
-Índice y referencias técnicas de gomemory (versión 2.54.0).
+Índice y referencias técnicas de gomemory (versión 2.54.1).
 
 gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, OpenCode, Codex y Antigravity CLI). Cada proyecto almacena sus datos en una base SQLite local fuera del árbol de Git y se comunica con el modelo mediante el protocolo MCP (Model Context Protocol).
 

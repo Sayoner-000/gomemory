@@ -5,6 +5,21 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.54.1] - 2026-11-11
+
+### Fixed
+
+- Las descripciones de las skills HCD se escriben entrecomilladas en el frontmatter YAML, para que los harness con parser estricto no las rechacen.
+
+### Security
+
+- Toolchain de Go fijado en `go1.27.4` (parche de seguridad); los binarios publicados se compilan con él.
+- Dependencias actualizadas para reducir superficie de ataque: `modelcontextprotocol/go-sdk` v1.8.0, `modernc.org/sqlite` v1.62.0 (`libc` v1.80.1), `golang.org/x/sys` v0.50.0, `x/sync` v0.25.0, `x/time` v0.16.0, `x/oauth2` v0.38.0, `bubbletea` v2.1.1, `lipgloss` v2.1.0 y `x/ansi` v0.11.9. `govulncheck` no reporta vulnerabilidades.
+
+### Changed
+
+- Informe de auditoría ACR + ADM del delta posterior a v2.54.0 en `docs/audits/2026-11-10-acr-adm-delta-v2.54.0.md`.
+
 ## [v2.54.0] - 2026-11-10
 
 ### Added
