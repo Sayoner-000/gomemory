@@ -18,7 +18,8 @@ description: "Paso implement de HCD: implementa las tareas con TDD, observando e
 9. **La Constitución y el Playbook mandan.** Antes de definir, aprobar, implementar y cerrar, lee `mem constitution` y `mem playbook` y cita las secciones que aplican. Si `norms_changed` es `true`, las normas cambiaron desde la aprobación: revisa la definición con las reglas nuevas y vuelve a aprobarla con `/hcd-approve`.
 
 1. Aplica la Constitución y el Playbook (Arquitectura Limpia, SOLID): capas, estilo y pruebas.
-2. **Rojo antes del cambio.** En un `fix` es obligatorio para la tarea 1; en los demás tipos, úsalo en las tareas con un test natural:
-   `mem hcd verify --task N --expect-fail --json --client <agente> -- '<comprobación>'`. Debe salir `red_observed: true`; si no, la comprobación no demuestra el fallo y hay que corregirla.
+2. **Rojo antes del cambio en toda tarea con un test automatizable** (en un `fix`, siempre en la tarea 1). Escribe o ajusta primero el test y ejecútalo antes de tocar el código:
+   `mem hcd verify --task N --expect-fail --json --client <agente> -- '<comprobación>'`. Debe salir `red_observed: true`; si no, la comprobación no demuestra el fallo y hay que corregirla. Una tarea no automatizable (observación manual, regresión final) declara en su línea por qué no tiene rojo.
+   - Itera con la comprobación acotada de la tarea, no con la suite completa. En Pi, la tool `run_test_suite` con `filter` ejecuta solo ese test en cualquier lenguaje soportado.
 3. Implementa **una tarea a la vez**, dentro del alcance aprobado. Una ampliación de alcance pasa por `/hcd-clarify`.
 4. Verifica cada tarea con `/hcd-verify` antes de pasar a la siguiente.

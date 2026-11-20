@@ -19,6 +19,8 @@ description: "Paso tasks de HCD: escribe tareas atómicas, cada una con la compr
 
 1. En la sección **Checklist** de `doc_path`, una línea por tarea: `- [ ] N. verbo + objeto → comprobación que la demuestra`.
 2. **Test de atomicidad**: un verbo y un objeto concretos, un único resultado inspeccionable, sin «cómo» por decidir y ejecutable de una vez. Si una tarea falla el test, divídela.
-3. La comprobación es lo que ejecutará `/hcd-verify`: preferiblemente un comando (`go test ./… -run …`); si no es automatizable, di qué se observará.
+3. La comprobación es lo que ejecutará `/hcd-verify`: preferiblemente un comando; si no es automatizable, di qué se observará.
+   - **Una comprobación acotada por tarea**: solo el test que demuestra esa tarea, para que el rojo y el verde tarden segundos. Por ejemplo `go test ./pkg/x -run '^TestY$'`, `pytest tests/test_x.py -k test_y`, `npx vitest run -t "y"`, `vendor/bin/phpunit --filter testY`, `mvn -Dtest=YTest test` o `gradle test --tests YTest`.
+   - **Una única tarea final de regresión completa** (toda la suite, linters y análisis estático, como `go vet ./... && go test -race ./...`). No repitas la suite completa en cada tarea.
 4. En un `fix`, la tarea 1 ya existe: «La reproducción ya no falla → re-ejecutar la reproducción».
 5. En la ceremonia completa, cita cada tarea en un slice (`Tareas:`).

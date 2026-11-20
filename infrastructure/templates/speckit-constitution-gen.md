@@ -1,8 +1,8 @@
 # Constitución Técnica
 
-**Versión:** 2.1.1
+**Versión:** 2.2.0
 **Fecha de corte:** 2026-09-24
-**Última enmienda:** 2026-10-29 (§18: artefacto HCD único, feature 045 v2)
+**Última enmienda:** 2026-11-11 (§3.1: principios SOLID)
 
 > Esta constitución aplica a todo proyecto nuevo. Codifica lecciones aprendidas en proyectos anteriores y define valores predeterminados técnicos, arquitectónicos, operativos y de seguridad. Un proyecto puede extender estas reglas, pero no relajarlas sin una excepción explícita, fechada y justificada en su propio `constitution.md`.
 
@@ -272,6 +272,18 @@ Reglas:
 - Para ausencia esperada se usa `None`, `nil`, `Optional` o un tipo resultado explícito. No se lanza una excepción de infraestructura.
 - Las reglas se verifican en CI con import-linter en Python, ArchUnit en Java y reglas de paquetes en Go.
 - Pydantic, Jakarta Validation y schemas HTTP pertenecen al borde, no al dominio.
+
+### 3.1 Principios SOLID
+
+SOLID se aplica sobre esta arquitectura mediante reglas verificables:
+
+- **S (responsabilidad única):** un caso de uso por intención. Los adaptadores primarios (CLI, HTTP, MCP u otros bordes) no contienen lógica de negocio.
+- **O (abierto/cerrado):** las extensiones se añaden por registro o plantilla, no con `switch` sobre tipos, idiomas, proveedores o clientes.
+- **L (sustitución de Liskov):** toda implementación de un port (por ejemplo, la persistencia) cumple el mismo contrato y pasa los mismos tests de contrato.
+- **I (segregación de interfaces):** los ports son pequeños y los define quien los consume, no quien los implementa.
+- **D (inversión de dependencias):** `domain` y `application` no importan `adapters` ni `infrastructure`. Se verifica con un test de arquitectura o de imports en CI.
+
+SOLID guía, no es ritual: no se introduce una abstracción sin un segundo consumidor real o una necesidad de prueba concreta.
 
 ---
 

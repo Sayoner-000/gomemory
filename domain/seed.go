@@ -117,11 +117,13 @@ var PinnedDocs = []PinnedDoc{
 		Title:    "Constitución del proyecto (spec-kit)",
 		Label:    "Constitución",
 		Template: "speckit-constitution-gen.md",
-		// Constitución técnica 2.1.1 (§18: artefacto HCD único). Las
-		// anteriores son la 2.1.0 (§18 por enfoque Spec Kit/HCD), la 2.0.0 y,
+		// Constitución técnica 2.2.0 (§3.1: principios SOLID). Las
+		// anteriores son la 2.1.1 (§18: artefacto HCD único), la 2.1.0 (§18
+		// por enfoque Spec Kit/HCD), la 2.0.0 y,
 		// por commit, 8edbddd, a873463, 77a1a11 y 4514061.
-		DefaultSHA256: "6a8f82da75b80de481922392980921f1b0f9e04205755b877c7823a9e60866ef",
+		DefaultSHA256: "e4a52d5ce2e06a32391815f59e6ac0607b0eb38c24b93502d2e88c6ddeb3c839",
 		PreviousDefaultSHA256: []string{
+			"6a8f82da75b80de481922392980921f1b0f9e04205755b877c7823a9e60866ef",
 			"f2444b759902f13c92ab2c65b9584fc0ad4933147b5998e305bec122654aeedc",
 			"6903740dcb4f1f631c14954b7f54a337dac37da62169bbd0d5a8cf719bdcc3f7",
 			"7acc79bc12fe8351afcc8a02e0aa933996b0606b439f4710fcafafa0c6e50a79",
