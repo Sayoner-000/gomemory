@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mem/application/ports"
 	"mem/domain"
+	"os"
 	"strings"
 )
 
@@ -115,7 +116,7 @@ func (h *HCD) Start(ctx context.Context, in HCDStartInput) (HCDView, error) {
 		}
 		id := fmt.Sprintf("HCD-%03d", n)
 		slug := domain.Slugify(title)
-		return domain.Unit{ID: id, Number: n, Title: title, Slug: slug, Kind: kind, Lane: lane, Why: why, State: domain.UnitActive, DocPath: "hcd/" + id + "-" + slug + ".md", CreatedAt: now, UpdatedAt: now}
+		return domain.Unit{ID: id, Number: n, Title: title, Slug: slug, Kind: kind, Lane: lane, Why: why, State: domain.UnitActive, DocPath: domain.UnitDocPath(id, slug), CreatedAt: now, UpdatedAt: now}
 	}, func(u domain.Unit) error {
 		return h.ws.WriteDoc(u.DocPath, []byte(domain.RenderUnitTemplate(h.template, u, in.Intent)))
 	})
@@ -127,15 +128,28 @@ func (h *HCD) Start(ctx context.Context, in HCDStartInput) (HCDView, error) {
 
 // Show es una consulta: no escribe estado, documento ni evidencia. Sin id usa
 // la unidad activa.
+//
+// Excepción (HCD-058): si el documento se movió o se editó su título a
+// mano, Show adopta la ruta y el título del documento y actualiza la ficha;
+// sin divergencia no escribe nada.
 func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
 	unit, err := h.unit(ctx, id)
 	if err != nil {
 		return HCDView{}, err
 	}
-	data, err := h.ws.ReadDoc(unit.DocPath)
+	unit, data, reconciled, err := h.loadDoc(ctx, unit)
 	if err != nil {
 		return HCDView{}, err
 	}
+	view, err := h.show(ctx, unit, data)
+	if reconciled {
+		return h.recorded(view, err)
+	}
+	return view, err
+}
+
+func (h *HCD) show(ctx context.Context, unit domain.Unit, data []byte) (HCDView, error) {
+	var err error
 	s := domain.HCDState{Unit: unit}
 	s.Doc, s.Pending = domain.ParseUnitDoc(data, unit.Kind, unit.Lane)
 	for _, p := range domain.CitedPaths(s.Doc) {
@@ -417,6 +431,139 @@ func (h *HCD) ActiveHCDContext(ctx context.Context) (domain.HCDActiveContext, bo
 		return domain.HCDActiveContext{}, false, err
 	}
 	return domain.HCDActiveContext{Unit: view.Unit, Stage: view.Stage, NextAction: view.Next, Unverified: view.Unverified}, true, nil
+}
+
+type HCDRenameInput struct {
+	ID, Title string
+}
+
+// Rename cambia el título de una unidad en cualquier estado (HCD-058): título,
+// slug, ruta y nombre del documento y su línea `# título`. No cambia el foco,
+// el estado, la evidencia ni las aprobaciones (el título no forma parte de
+// las revisiones). La ficha del historial y las memorias que citaban la ruta
+// vieja quedan apuntando a la nueva.
+func (h *HCD) Rename(ctx context.Context, in HCDRenameInput) (HCDView, error) {
+	single := strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ").Replace(in.Title)
+	title := strings.Join(strings.Fields(domain.ProtectHCDField(single)), " ")
+	if title == "" {
+		return HCDView{}, fmt.Errorf("%w: el nuevo título no puede estar vacío", domain.ErrValidation)
+	}
+	view, err := h.Show(ctx, in.ID)
+	if err != nil {
+		return HCDView{}, err
+	}
+	unit, oldPath := view.Unit, view.Unit.DocPath
+	slug := domain.Slugify(title)
+	newPath := domain.UnitDocPath(unit.ID, slug)
+	if title == unit.Title && newPath == oldPath {
+		return view, nil
+	}
+	original, err := h.ws.ReadDoc(oldPath)
+	if err != nil {
+		return view, err
+	}
+	if newPath != oldPath {
+		if err = h.ws.MoveDoc(oldPath, newPath); err != nil {
+			return view, err
+		}
+	}
+	undo := func() {
+		if newPath != oldPath {
+			_ = h.ws.MoveDoc(newPath, oldPath)
+		}
+		_ = h.ws.WriteDoc(oldPath, original)
+	}
+	if err = h.ws.WriteDoc(newPath, domain.ReplaceUnitTitle(original, title)); err != nil {
+		undo()
+		return view, err
+	}
+	unit.Title, unit.Slug, unit.DocPath, unit.UpdatedAt = title, slug, newPath, h.clock.Now()
+	if err = h.store.Save(ctx, unit); err != nil {
+		undo()
+		return view, err
+	}
+	if err = h.retarget(oldPath, newPath); err != nil {
+		return view, fmt.Errorf("unidad renombrada a %s, pero falló el reapunte de memorias: %w", newPath, err)
+	}
+	return h.recorded(h.Show(ctx, unit.ID))
+}
+
+// loadDoc lee el documento de la unidad y reconcilia lo hecho a mano
+// (HCD-058): si no está en DocPath lo busca por su ID, y si la línea
+// `# título` cambió adopta el título del documento. Persiste solo si hubo
+// divergencia.
+func (h *HCD) loadDoc(ctx context.Context, unit domain.Unit) (domain.Unit, []byte, bool, error) {
+	oldPath, changed := unit.DocPath, false
+	data, err := h.ws.ReadDoc(unit.DocPath)
+	if errors.Is(err, os.ErrNotExist) {
+		found, ferr := h.findDoc(unit.ID)
+		if ferr != nil {
+			return unit, nil, false, ferr
+		}
+		if found == "" {
+			return unit, nil, false, err
+		}
+		if data, err = h.ws.ReadDoc(found); err != nil {
+			return unit, nil, false, err
+		}
+		unit.DocPath, changed = found, true
+		if slug := domain.SlugFromDocPath(unit.ID, found); slug != "" {
+			unit.Slug = slug
+		}
+	}
+	if err != nil {
+		return unit, nil, false, err
+	}
+	doc, _ := domain.ParseUnitDoc(data, unit.Kind, unit.Lane)
+	if t := domain.ProtectHCDField(doc.Title); t != "" && t != unit.Title {
+		unit.Title, changed = t, true
+	}
+	if !changed {
+		return unit, data, false, nil
+	}
+	unit.UpdatedAt = h.clock.Now()
+	if err = h.store.Save(ctx, unit); err != nil {
+		return unit, nil, false, err
+	}
+	if err = h.retarget(oldPath, unit.DocPath); err != nil {
+		return unit, data, true, fmt.Errorf("documento reconciliado en %s, pero falló el reapunte de memorias: %w", unit.DocPath, err)
+	}
+	return unit, data, true, nil
+}
+
+// findDoc busca hcd/<ID>-*.md. Sin candidatos devuelve ""; con varios no
+// adivina y lo informa.
+func (h *HCD) findDoc(id string) (string, error) {
+	paths, err := h.ws.UnitDocs()
+	if err != nil {
+		return "", err
+	}
+	var found []string
+	for _, p := range paths {
+		if strings.HasPrefix(p, "hcd/"+id+"-") && strings.HasSuffix(p, ".md") {
+			found = append(found, p)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return "", nil
+	case 1:
+		return found[0], nil
+	}
+	return "", fmt.Errorf("%w: la unidad %s tiene varios documentos (%s); deja uno solo", domain.ErrNotAllowed, id, strings.Join(found, ", "))
+}
+
+// retarget reapunta las memorias que citaban la ruta vieja, si el historial
+// lo admite. Un fallo no revierte el renombre porque el documento ya se movió,
+// pero se propaga para evitar desincronización silenciosa.
+func (h *HCD) retarget(from, to string) error {
+	if from == to || h.history == nil {
+		return nil
+	}
+	if r, ok := h.history.(ports.PathRetargeter); ok {
+		return r.RetargetPath(h.project, from, to)
+	}
+	return nil
 }
 
 func (h *HCD) unit(ctx context.Context, id string) (domain.Unit, error) {

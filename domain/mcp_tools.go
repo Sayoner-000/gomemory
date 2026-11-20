@@ -29,6 +29,8 @@ const (
 	// ToolHCDHistory (HCD-046): historial de decisiones (fichas de unidades
 	// HCD y auditorías). Solo lectura.
 	ToolHCDHistory = "hcd_history"
+	// ToolHCDRename (HCD-058): renombra una unidad HCD (título y archivo).
+	ToolHCDRename = "hcd_rename"
 
 	ToolIndexProject     = "index_project"
 	ToolGraphStatus      = "graph_status"
@@ -78,6 +80,7 @@ var MCPMemoryTools = []string{
 	ToolEndSession,
 	ToolSaveSessionSummary,
 	ToolHCDHistory,
+	ToolHCDRename,
 }
 
 // MCPCodeTools son las tools del grafo de código PROPIO de gomemory (Go, vía

@@ -12,6 +12,12 @@ type DecisionHistory interface {
 	UpsertDigest(m *domain.Memory, files []string, inert bool) (int64, error)
 }
 
+// PathRetargeter es opcional en un DecisionHistory: reapunta las memorias y
+// los enlaces que citaban una ruta renombrada (HCD-058).
+type PathRetargeter interface {
+	RetargetPath(project, from, to string) error
+}
+
 // HistoryReader lee las fichas del historial para mem hcd history y la tool
 // MCP hcd_history.
 type HistoryReader interface {

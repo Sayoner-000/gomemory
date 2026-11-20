@@ -555,6 +555,7 @@ const [
   T_END_SESSION,
   T_SAVE_SESSION_SUMMARY,
   T_HCD_HISTORY,
+  T_HCD_RENAME,
 ] = [
   "gomemory_get_context",
   "gomemory_get_plan_context",
@@ -568,6 +569,7 @@ const [
   "gomemory_end_session",
   "gomemory_save_session_summary",
   "gomemory_hcd_history",
+  "gomemory_hcd_rename",
 ];
 
 const [T_SEARCH_CODE, T_GET_SYMBOL, T_LIST_DEPENDENCIES, T_GRAPH_STATUS, T_INDEX_PROJECT] = [
@@ -635,7 +637,7 @@ const MEMORY_PROTOCOL = `## Memory Protocol — gomemory (MANDATORY, ALWAYS ACTI
 You have a persistent memory system for this project via MCP tools
 (${T_GET_CONTEXT}, ${T_GET_PLAN_CONTEXT}, ${T_SAVE_MEMORY}, ${T_SEARCH_MEMORIES},
 ${T_LIST_MEMORIES}, ${T_GET_MEMORY}, ${T_FORGET_MEMORY}, ${T_JUDGE_MEMORIES},
-${T_START_SESSION}, ${T_END_SESSION}, ${T_SAVE_SESSION_SUMMARY}, ${T_HCD_HISTORY}). The project's own code graph is
+${T_START_SESSION}, ${T_END_SESSION}, ${T_SAVE_SESSION_SUMMARY}, ${T_HCD_HISTORY}, ${T_HCD_RENAME}). The project's own code graph is
 available too (${T_SEARCH_CODE}, ${T_GET_SYMBOL}, ${T_LIST_DEPENDENCIES},
 ${T_GRAPH_STATUS}, ${T_INDEX_PROJECT}). Do NOT wait for the user to ask.
 

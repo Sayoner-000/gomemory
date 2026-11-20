@@ -106,3 +106,37 @@ func TestListMemoriesByFilepath_IncluyeEnlaces(t *testing.T) {
 		t.Fatalf("memorias del archivo = %v", titles)
 	}
 }
+
+// HCD-058: renombrar una unidad reapunta las memorias y los enlaces que
+// citaban la ruta vieja, solo en el proyecto indicado.
+func TestRetargetPath(t *testing.T) {
+	db := openTestDB(t)
+	repo := NewDecisionHistoryRepository(db)
+	old, nuevo := "hcd/HCD-044-metadatos.md", "hcd/HCD-044-nuevo.md"
+	id, err := repo.UpsertDigest(digestMemory("proj", "v1"), []string{old, "a.go"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := digestMemory("otro", "v1")
+	otherID, err := repo.UpsertDigest(other, []string{old}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Una memoria que ya enlaza ambas rutas no debe duplicar la clave.
+	if _, err := db.Exec(`INSERT INTO memory_files (project, memory_id, path) VALUES ('proj', ?, ?)`, id, nuevo); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RetargetPath("proj", old, nuevo); err != nil {
+		t.Fatal(err)
+	}
+	if got := linkedFiles(t, db, id); got != "a.go,"+nuevo {
+		t.Fatalf("enlaces = %q", got)
+	}
+	var fp string
+	if err := db.QueryRow(`SELECT filepath FROM memories WHERE id = ?`, id).Scan(&fp); err != nil || fp != nuevo {
+		t.Fatalf("filepath = %q %v", fp, err)
+	}
+	if got := linkedFiles(t, db, otherID); got != old {
+		t.Fatalf("otro proyecto tocado: %q", got)
+	}
+}

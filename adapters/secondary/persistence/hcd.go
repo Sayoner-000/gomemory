@@ -107,8 +107,8 @@ func (s *HCDStore) Activate(ctx context.Context, id string) error {
 }
 
 func (s *HCDStore) Save(ctx context.Context, u domain.Unit) error {
-	res, err := s.db.ExecContext(ctx, `UPDATE hcd_units SET title = ?, lane = ?, why = ?, state = ?, active = ?, doc_path = ?, updated_at = ? WHERE project = ? AND id = ?`,
-		u.Title, string(u.Lane), u.Why, string(u.State), boolToInt(u.Active), u.DocPath, u.UpdatedAt.UTC().Format(hcdTime), s.project, u.ID)
+	res, err := s.db.ExecContext(ctx, `UPDATE hcd_units SET title = ?, slug = ?, lane = ?, why = ?, state = ?, active = ?, doc_path = ?, updated_at = ? WHERE project = ? AND id = ?`,
+		u.Title, u.Slug, string(u.Lane), u.Why, string(u.State), boolToInt(u.Active), u.DocPath, u.UpdatedAt.UTC().Format(hcdTime), s.project, u.ID)
 	if err != nil {
 		return err
 	}

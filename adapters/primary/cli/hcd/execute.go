@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	commands = map[string]bool{"start": true, "show": true, "next": true, "clarify": true, "review": true, "approve": true, "verify": true, "analyze": true, "close": true, "cancel": true, "promote": true, "index": true, "history": true}
+	commands = map[string]bool{"start": true, "show": true, "next": true, "clarify": true, "review": true, "approve": true, "verify": true, "analyze": true, "close": true, "cancel": true, "promote": true, "rename": true, "index": true, "history": true}
 	clients  = map[string]bool{"terminal": true, "claude": true, "codex": true, "opencode": true, "tui": true, "antigravity": true, "gemini": true}
 	// Flags que admite cada comando, además de --json y --client.
 	allowedFlags = map[string]map[string]bool{
@@ -30,6 +30,7 @@ var (
 		"close":   {"quote": true},
 		"cancel":  {"quote": true},
 		"promote": {},
+		"rename":  {"title": true},
 		"index":   {"apply": true},
 		"history": {"file": true},
 	}
@@ -230,6 +231,11 @@ func executeWithStdin(deps *clikit.Deps, args []string, stdin io.Reader, out, er
 		view, err = uc.Cancel(ctx, usecases.HCDCloseInput{ID: p.id, Quote: p.flags["quote"], Client: p.client})
 	case "promote":
 		view, err = uc.Promote(ctx, p.id)
+	case "rename":
+		view, err = uc.Rename(ctx, usecases.HCDRenameInput{ID: p.id, Title: p.flags["title"]})
+		if err == nil {
+			data["title"] = view.Unit.Title
+		}
 	}
 	if err != nil {
 		return emitError(out, errOut, p.json, errorCode(err), err.Error())

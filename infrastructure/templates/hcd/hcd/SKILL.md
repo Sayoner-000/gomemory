@@ -39,6 +39,10 @@ Anuncia el carril y el motivo, por ejemplo: «Carril: Vía rápida — fix con r
 
 Si en una unidad `fast` aparecen decisiones interdependientes, `mem hcd promote --json`: el documento gana Historias y Slices, la evidencia se conserva y la unidad entra en la ceremonia completa.
 
-## 4. Edición sin unidad activa
+## 4. Renombrar una unidad
+
+Si la persona pide cambiar el nombre de una unidad (activa, cerrada o cancelada), ejecuta `mem hcd rename [unidad] --title "…" --json --client <agente>` (tool MCP `hcd_rename`). El motor renombra el título, el archivo `hcd/<ID>-<slug>.md` y su línea `# título`, conserva evidencia, aprobaciones y foco, y actualiza la ficha del historial. No muevas el archivo a mano; si alguien ya lo hizo o editó el `# título`, `mem hcd show` lo reconcilia.
+
+## 5. Edición sin unidad activa
 
 En Codex y OpenCode no hay hook que avise: antes de editar código para un cambio, comprueba que hay una unidad activa (`mem hcd show --json`). Si no la hay, empieza por el paso 1.

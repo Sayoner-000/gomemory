@@ -406,6 +406,36 @@ func isPending(value string) bool {
 
 var slugFold = map[rune]rune{'á': 'a', 'à': 'a', 'ä': 'a', 'â': 'a', 'é': 'e', 'è': 'e', 'ë': 'e', 'ê': 'e', 'í': 'i', 'ì': 'i', 'ï': 'i', 'î': 'i', 'ó': 'o', 'ò': 'o', 'ö': 'o', 'ô': 'o', 'ú': 'u', 'ù': 'u', 'ü': 'u', 'û': 'u', 'ñ': 'n', 'ç': 'c'}
 
+// UnitDocPath es la ruta del documento de una unidad: hcd/<ID>-<slug>.md.
+func UnitDocPath(id, slug string) string { return "hcd/" + id + "-" + slug + ".md" }
+
+// SlugFromDocPath recupera el slug de una ruta hcd/<ID>-<slug>.md; si la ruta
+// no sigue ese patrón devuelve "" (HCD-058).
+func SlugFromDocPath(id, docPath string) string {
+	name, ok := strings.CutPrefix(docPath, "hcd/"+id+"-")
+	if !ok || !strings.HasSuffix(name, ".md") {
+		return ""
+	}
+	return strings.TrimSuffix(name, ".md")
+}
+
+// ReplaceUnitTitle sustituye la línea `# título` de la cabecera (antes de la
+// primera sección); si no hay ninguna, la antepone (HCD-058).
+func ReplaceUnitTitle(data []byte, title string) []byte {
+	cleanTitle := strings.Join(strings.Fields(strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ").Replace(title)), " ")
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "## ") {
+			break
+		}
+		if strings.HasPrefix(line, "# ") {
+			lines[i] = "# " + cleanTitle
+			return []byte(strings.Join(lines, "\n"))
+		}
+	}
+	return []byte("# " + cleanTitle + "\n\n" + string(data))
+}
+
 // Slugify deriva el nombre de archivo de un título: minúsculas ASCII y guiones.
 func Slugify(title string) string {
 	var b strings.Builder

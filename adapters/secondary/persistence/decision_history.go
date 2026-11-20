@@ -50,6 +50,32 @@ func NewDecisionHistoryRepository(db *sql.DB) *DecisionHistoryRepository {
 	return &DecisionHistoryRepository{db: db}
 }
 
+// RetargetPath reapunta a `to` las memorias (filepath) y los enlaces
+// (memory_files) del proyecto que citaban `from` (HCD-058). Un enlace que ya
+// existía con la ruta nueva no se duplica.
+func (r *DecisionHistoryRepository) RetargetPath(project, from, to string) error {
+	if from == "" || to == "" || from == to {
+		return nil
+	}
+	tx, err := beginMemoryTx(r.db)
+	if err != nil {
+		return fmt.Errorf("reapuntar ruta: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, q := range []string{
+		`UPDATE memories SET filepath = ? WHERE project = ? AND filepath = ?`,
+		`UPDATE OR IGNORE memory_files SET path = ? WHERE project = ? AND path = ?`,
+	} {
+		if _, err := tx.Exec(q, to, project, from); err != nil {
+			return fmt.Errorf("reapuntar ruta: %w", err)
+		}
+	}
+	if _, err := tx.Exec(`DELETE FROM memory_files WHERE project = ? AND path = ?`, project, from); err != nil {
+		return fmt.Errorf("reapuntar ruta: %w", err)
+	}
+	return tx.Commit()
+}
+
 // UpsertDigest guarda la ficha por la misma vía que cualquier memoria (upsert
 // por topic_key, protección de texto) y después reemplaza sus enlaces. Una
 // ruta con texto protegido no se enlaza.

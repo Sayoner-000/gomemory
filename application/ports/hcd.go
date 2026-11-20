@@ -33,6 +33,9 @@ type HCDWorkspace interface {
 	ReadDoc(path string) ([]byte, error)
 	// WriteDoc solo escribe bajo hcd/.
 	WriteDoc(path string, data []byte) error
+	// MoveDoc renombra un documento dentro de hcd/; falla si el destino ya
+	// existe (HCD-058).
+	MoveDoc(from, to string) error
 	// Fingerprint identifica el código evaluado, excluyendo hcd/.
 	Fingerprint(ctx context.Context) (string, error)
 	// Run ejecuta el comando y devuelve el código de salida y un extracto acotado.

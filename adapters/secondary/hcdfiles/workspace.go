@@ -67,6 +67,24 @@ func (w Workspace) WriteDoc(rel string, data []byte) error {
 	return os.Rename(tmp.Name(), full)
 }
 
+// MoveDoc renombra un documento dentro de hcd/ sin pisar otro (HCD-058).
+func (w Workspace) MoveDoc(from, to string) error {
+	src, err := w.resolve(from, "hcd/")
+	if err != nil {
+		return err
+	}
+	dst, err := w.resolve(to, "hcd/")
+	if err != nil {
+		return err
+	}
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%w: ya existe %s", domain.ErrNotAllowed, to)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return os.Rename(src, dst)
+}
+
 // resolve admite solo rutas relativas limpias bajo prefix y rechaza cualquier
 // componente que sea un symlink.
 func (w Workspace) resolve(rel, prefix string) (string, error) {
