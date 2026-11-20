@@ -5,6 +5,28 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.55.0] - 2026-11-20
+
+### Added
+
+- Subcomando `mem hcd rename [unidad] --title <título>` y herramienta MCP `hcd_rename` (HCD-058). Cambia título, slug, `doc_path`, el archivo `hcd/<ID>-<slug>.md` y su cabecera `# título` en unidades activas, cerradas o canceladas, conservando evidencia, aprobaciones y foco.
+- Reconciliación automática en `mem hcd show` cuando el archivo se mueve dentro de `hcd/<ID>-*.md` o se edita su `# título` a mano. Si existen varios archivos candidatos para un mismo ID, detiene la lectura con la lista de rutas encontradas.
+- `DecisionHistoryRepository.RetargetPath` actualiza en una transacción `memories.filepath` y `memory_files.path` del proyecto al cambiar la ruta de una unidad.
+- Subsección `§3.1 Principios SOLID` en la Constitución Técnica `2.2.0` (`infrastructure/templates/speckit-constitution-gen.md`), con huella previa conservada en `domain/seed.go` para migrar copias sin editar.
+
+### Changed
+
+- Las skills `hcd` y `hcd-define` documentan `mem hcd rename` y `hcd_rename` para evitar renombrados manuales de archivo.
+- `hcd-tasks` y `hcd-implement` separan las comprobaciones acotadas por tarea de la tarea final de regresión completa y exigen observar el fallo antes del cambio en toda tarea con test automatizable.
+- `README.md` pasa a usar los logos SVG adaptativos (`assets/gomemory_dark.svg` y `assets/gomemory_light.svg`).
+- Documentación y guías HTML actualizadas a la `v2.55.0` (superficie MCP de 33 herramientas base, 37 con Octopus AAR).
+- Informe de auditoría ACR + ADM en `docs/audits/2026-11-20-acr-adm-worktree-hcd058.md` (`APPROVED`, con cierres verificados).
+
+### Fixed
+
+- `HCD.Rename` y `domain.ReplaceUnitTitle` colapsan saltos de línea (`\r`, `\n`) y normalizan `\r\n` antes de escribir `# título`, evitando inyecciones de secciones Markdown y desincronizaciones con `ParseUnitDoc` (`H-01`).
+- `HCD.retarget` devuelve el error de `RetargetPath` cuando falla el reapunte en SQLite tras mover el documento, en lugar de descartarlo en silencio (`H-02`).
+
 ## [v2.54.1] - 2026-11-11
 
 ### Fixed

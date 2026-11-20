@@ -474,7 +474,7 @@ Wrapper interactivo que envuelve cualquier comando:
 
 Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial [`github.com/modelcontextprotocol/go-sdk`](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk). Usa las interfaces `MemoryRepository` + `SessionRepository` en lugar de depender directamente de `*sql.DB`.
 
-**Herramientas de memoria (12):**
+**Herramientas de memoria (13):**
 
 | Tool | Input | Descripción |
 |---|---|---|
@@ -490,6 +490,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 | `get_context` | — | Contexto markdown completo del proyecto |
 | `get_plan_context` | — | Método de descomposición atómica + contexto, para modo plan |
 | `hcd_history` | text?, file? | Historial de decisiones: fichas de unidades HCD y de auditorías en orden cronológico, filtradas por texto o por archivo citado (HCD-046). Solo lectura |
+| `hcd_rename` | unit?, title | Renombra una unidad HCD en cualquier estado (título, slug, archivo y encabezado), conservando evidencia y aprobaciones, y reapunta las memorias que citaban la ruta anterior (HCD-058) |
 
 > Los nombres viven en `domain/mcp_tools.go` (fuente única). El bootstrap de
 > ToolSearch, las listas de auto-aprobación y el bloque de protocolo derivan de
@@ -520,7 +521,7 @@ Servidor MCP (Model Context Protocol) sobre transporte stdio. Usa la SDK oficial
 El servidor registra además ocho tools de revisión adversarial y la tool única
 de Socratica (`socratica_flow`, ver la sección Socratica). Cuando
 `octopus_enabled` está activo, agrega cuatro tools de enrutamiento y telemetría
-local. La superficie es de 32 tools base o 36 con Octopus AAR; las listas se
+local. La superficie es de 33 tools base o 37 con Octopus AAR; las listas se
 derivan de `domain/mcp_tools.go`.
 
 **Recursos:**

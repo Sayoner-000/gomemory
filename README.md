@@ -1,14 +1,14 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/gomemory-readme-dark.png">
-    <img src="assets/gomemory-readme-light.png" alt="gomemory" width="240">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/gomemory_dark.svg">
+    <img src="assets/gomemory_light.svg" alt="gomemory" width="240">
   </picture>
 </p>
 
 <h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
 
 <p align="center">
-  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.54.1"><img src="https://img.shields.io/badge/version-2.54.1-blue" alt="Version 2.54.1"></a>
+  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.55.0"><img src="https://img.shields.io/badge/version-2.55.0-blue" alt="Version 2.55.0"></a>
   <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
   <a href="https://github.com/Sayoner-000/gomemory/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sayoner-000/gomemory/test.yml?branch=main&label=CI" alt="CI status"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
@@ -221,11 +221,15 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
   `CRITICAL` finding.
 - **Editing without a unit.** In Claude Code, editing code with no active unit
   shows a one-time warning per session. It never blocks.
-- **Decision history.** Each unit, and each report in `docs/audits/`, keeps one
+- **Decision history and renaming.** Each unit, and each report in `docs/audits/`, keeps one
   record in memory that the engine updates as the unit moves. When the agent is
   about to edit a file, the records that cite it show up first. Query them with
   `mem hcd history [text] [--file <path>]` or the `hcd_history` MCP tool;
-  `mem hcd index --apply` builds them for units that predate v2.50.0.
+  `mem hcd index --apply` builds them for units that predate v2.50.0. To rename
+  a unit in any state without losing evidence or approvals, run
+  `mem hcd rename [unit] --title <title>` or `hcd_rename`; `mem hcd show`
+  also reconciles manual file moves or `# title` edits and retargets linked
+  memories.
 - **A reviewer with no memory.** The `splash` subagent starts without
   gomemory's context, tools or instructions, so it reviews the work without
   knowing the reasoning behind it. `mem setup` installs it for Claude Code,
@@ -243,7 +247,7 @@ closed with your approval. It runs next to Spec Kit and never writes to `specs/`
 | OpenCode | `/hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending |
 
 `mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.54.html) walks through the
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.55.html) walks through the
 ceremony step by step. See
 [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
 
@@ -272,13 +276,13 @@ documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 </details>
 
 <details>
-<summary><b>MCP tools</b> (32, plus 4 with Octopus AAR)</summary>
+<summary><b>MCP tools</b> (33, plus 4 with Octopus AAR)</summary>
 
 The source of truth is [`domain/mcp_tools.go`](domain/mcp_tools.go).
 
 | Group | Tools |
 | :--- | :--- |
-| Memory | `save_memory` `search_memories` `list_memories` `get_memory` `get_context` `get_plan_context` `start_session` `end_session` `save_session_summary` `forget_memory` `judge_memories` `hcd_history` |
+| Memory | `save_memory` `search_memories` `list_memories` `get_memory` `get_context` `get_plan_context` `start_session` `end_session` `save_session_summary` `forget_memory` `judge_memories` `hcd_history` `hcd_rename` |
 | Code graph | `index_project` `graph_status` `search_code` `get_symbol` `list_dependencies` |
 | Context packs | `pack_build` `pack_show` `pack_stats` `pack_compress` `pack_retrieve` `pack_savings` |
 | Consensus review | `review_start` `review_submit` `review_consensus` `review_status` `review_fix_record` `review_rejudge` `review_finalize` `review_promote_memory` |
@@ -317,7 +321,7 @@ it is open can be inconsistent. Use `mem export` instead. The
 | [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
 | [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
 | [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Rapida-HCD_GOMEMORY-v2.54.html`](docs/Guia-Rapida-HCD_GOMEMORY-v2.54.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.54.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.54.html) · [`docs/Guia-Tecnica_GOMEMORY-v2.54.html`](docs/Guia-Tecnica_GOMEMORY-v2.54.html) | Printable visual guides (HCD Quick Guide, SDD_HCD Guide, Technical Guide) |
+| [`docs/Guia-Rapida-HCD_GOMEMORY-v2.55.html`](docs/Guia-Rapida-HCD_GOMEMORY-v2.55.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.55.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.55.html) · [`docs/Guia-Tecnica_GOMEMORY-v2.55.html`](docs/Guia-Tecnica_GOMEMORY-v2.55.html) | Printable visual guides (HCD Quick Guide, SDD_HCD Guide, Technical Guide) |
 | [`docs/Guia-Explicacion-Developers-GOMEMORY.html`](docs/Guia-Explicacion-Developers-GOMEMORY.html) · [`docs/Manual-Referencia-Developers-GOMEMORY.html`](docs/Manual-Referencia-Developers-GOMEMORY.html) | Developer visual guides (Architecture overview, 3 code graphs comparison, and `graph-before-grep` guardrail) |
 
 ## Contributing

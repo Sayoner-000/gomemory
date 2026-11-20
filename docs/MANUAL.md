@@ -1156,7 +1156,7 @@ la entrada global vive en `~/.claude.json` → `mcpServers.gomemory`:
 
 Para scope de proyecto en vez de global, la misma entrada va en `.mcp.json`
 en la raíz del repo. Reiniciar el agente. Verificar con `/mcp`: gomemory expone
-32 tools base y cuatro adicionales cuando Octopus AAR está activado (36).
+33 tools base y cuatro adicionales cuando Octopus AAR está activado (37).
 
 > Nota: si existen **ambos** (un `.mcp.json` de proyecto y una entrada global
 > con la misma clave `gomemory`), el de proyecto tiene precedencia — confirmado
@@ -1734,7 +1734,7 @@ no un sandbox. Formatos, límites, privacidad y compatibilidad por agente:
 
 ## 22. HCD: Harness Continual Development (`mem hcd`)
 
-HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.54.html) cuenta el recorrido con ejemplos.
+HCD lleva una unidad de trabajo (`fix`, `feature`, `evolution` o `technical`) desde la intención hasta una entrega verificada y cerrada con tu aprobación. Tiene dos carriles: la **ceremonia completa** y la **Vía rápida**, un atajo para el trabajo ordinario. Spec Kit convive aparte y HCD nunca escribe en `specs/`. La [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.55.html) cuenta el recorrido con ejemplos.
 
 ### Cómo se usa
 
@@ -1819,6 +1819,7 @@ mem hcd approve --quote "apruebo"                # solo carril full
 mem hcd verify --task 1 --expect-fail -- 'go test ./save -run TestGuardar'   # rojo
 mem hcd verify --task 1 -- 'go test ./save -run TestGuardar'                 # verde
 mem hcd analyze --json
+mem hcd rename [unidad] --title "Nuevo título"   # renombra título y archivo (cualquier estado)
 mem hcd close --quote "apruebo"
 ```
 
@@ -1868,7 +1869,11 @@ aprobada», «… cerrada», «… cancelada», «… promovida a la ceremonia c
 Nunca toca bugfix, discovery ni otras memorias que mencionan una unidad. También
 indexa los documentos `hcd/HCD-*.md` que no tienen fila en el motor (por
 ejemplo, creados en otro worktree). Desde un agente, la tool MCP `hcd_history`
-(`text`, `file`) devuelve el mismo listado que la CLI.
+(`text`, `file`) devuelve el mismo listado que la CLI, y `hcd_rename` (`unit`,
+`title`) permite renombrar una unidad en cualquier estado actualizando su ficha
+y reapuntando en SQLite las memorias que citaban la ruta anterior. Si el
+archivo se movió o se editó el `# título` a mano, `mem hcd show` reconcilia el
+cambio de forma automática.
 
 ### Subagente splash: revisor sin contexto (HCD-047, HCD-051)
 
