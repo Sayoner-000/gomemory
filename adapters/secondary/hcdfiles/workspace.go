@@ -77,12 +77,19 @@ func (w Workspace) MoveDoc(from, to string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Lstat(dst); err == nil {
+	if src == dst {
+		if _, err := os.Lstat(src); err != nil {
+			return err
+		}
 		return fmt.Errorf("%w: ya existe %s", domain.ErrNotAllowed, to)
-	} else if !errors.Is(err, os.ErrNotExist) {
+	}
+	if err := renameNoReplace(src, dst); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("%w: ya existe %s", domain.ErrNotAllowed, to)
+		}
 		return err
 	}
-	return os.Rename(src, dst)
+	return nil
 }
 
 // resolve admite solo rutas relativas limpias bajo prefix y rechaza cualquier
