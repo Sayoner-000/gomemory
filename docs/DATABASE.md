@@ -55,6 +55,7 @@ El catálogo HCD guarda solo el control de las unidades; su contenido vive en el
 | `hcd_evidence` | Evidencia: tareas, `kind` (`command`/`manual`), `expect_fail`, comando, código de salida, extracto, revisión de trabajo y huella del código. | PK `id`; índice `(project,unit_id,created_at)`. |
 | `hcd_approvals` | Aprobaciones `approve`, `close` y `cancel`: revisión, huella, origen (`conversation`/`terminal`), cliente, cita protegida y, desde la v6, `constitution_rev` y `playbook_rev` (huellas de las normas vigentes al aprobar). | PK `id`. |
 | `hcd_definition_reviews` | Eventos inmutables de examen socrático y revisión splash (HCD-057, esquema v13): `project`, `operation_id`, `unit_id`, `revision`, `kind` (`socratic`/`splash`), `action`, `client`, `created_at` y `payload` JSON con protección de texto privado. | PK `sequence` (autoincrement); única `(project, operation_id)`; índice `idx_hcd_definition_reviews_unit` sobre `(project, unit_id, revision, sequence)`. |
+| `hcd_pending_retargets` | Intenciones de reapunte de ruta pendientes tras un renombre o reconciliación HCD (esquema v14): `project`, `unit_id`, `from_path` y `to_path`. Se escribe en la misma transacción que actualiza metadatos y se elimina solo tras completar `RetargetPath`. | PK `(project, unit_id)`. |
 
 El store usa consultas parametrizadas y aísla cada proyecto. `Activate` deja una sola unidad activa por proyecto en una transacción.
 
@@ -84,6 +85,8 @@ El esquema 11 (v2.49.2) añade `code_pending_calls`, las llamadas del grafo de c
 El esquema 12 (v2.50.0) añade `memory_files`, que enlaza una memoria con los archivos que cita. Una ficha del historial HCD o de una auditoría cita varios archivos, y `memories.filepath` solo admite uno. El contexto de edición busca aquí las fichas del archivo que se va a tocar. Al abrir una base anterior la tabla nace vacía; `mem hcd index --apply` la llena con las unidades y auditorías que ya existían.
 
 El esquema 13 (HCD-057) añade `hcd_definition_reviews` mediante migración aditiva transaccional. Registra el historial append-only de eventos de examen socrático y revisiones splash de la definición, con CAS para concurrencia sobre el último evento registrado de cada revisión, orden estable por `sequence` y sanitización de texto privado antes de persistir. Las unidades, evidencias y aprobaciones anteriores se conservan intactas.
+
+El esquema 14 (v2.55.1) añade `hcd_pending_retargets` para conservar de forma durable los reapuntes de ruta que queden pendientes si falla la actualización de memorias o enlaces tras renombrar o reconciliar una unidad. `Show` reintenta y limpia el pendiente antes de cargar el documento, incluso después de reiniciar el proceso.
 
 ## Borrado de memorias
 

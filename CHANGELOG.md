@@ -5,6 +5,23 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.55.1] - 2026-11-21
+
+### Security
+
+- `HCD.loadDoc`, `HCD.findDoc`, `HCD.recoverRetarget`, `HCD.HistoryEntries` y las fronteras de persistencia (`HCDStore.CreateActive`, `Save`, `SaveMetadata` y `DecisionHistoryRepository.RetargetPath`) validan rutas y slugs con `domain.ValidateMemoryMetadata` antes de leer, listar ambigüedades o escribir en SQLite. Un documento renombrado a mano con credenciales en el nombre se rechaza con `domain.ErrValidation` sin exponer la ruta en el error ni propagarla a `hcd_units`, `memories`, `memory_files` o `hcd_pending_retargets`.
+
+### Fixed
+
+- **Recuperación durable de reapuntes HCD (esquema SQLite v14):** `HCDStore.SaveMetadata` registra la intención de reapunte en `hcd_pending_retargets` dentro de la misma transacción que actualiza metadatos de la unidad. Si falla `RetargetPath` o el acuse de cierre, `Show` reintenta el reapunte idempotente en la siguiente ejecución —incluso tras reiniciar el proceso— en lugar de devolver éxito dejando enlaces antiguos.
+- **Concurrencia en reconciliación HCD:** `loadDoc` y `Rename` usan `SaveMetadata` (solo `title`, `slug`, `doc_path`, `updated_at` condicionado a `doc_path = from`) en lugar de sobrescribir la fila completa con `Save`, evitando que una reconciliación concurrente restaure el estado activo de una unidad recién cancelada o cerrada.
+- **Renombre atómico sin sobrescritura en `hcdfiles.Workspace.MoveDoc`:** sustituye la comprobación separada `os.Lstat` + `os.Rename` por llamadas atómicas no-replace por plataforma (`unix.RenamexNp` con `RENAME_EXCL` en macOS, `unix.Renameat2` con `RENAME_NOREPLACE` en Linux, `windows.MoveFileEx` sin `MOVEFILE_REPLACE_EXISTING` en Windows y fallback `os.Link` + `os.Remove` con verificación `os.SameFile` en otros Unix). Rechaza también `from == to` de forma explícita.
+
+### Changed
+
+- Informe de auditoría ACR + ADM con cierres verificados en `docs/audits/2026-11-21-acr-adm-bugs.md`.
+- Documentación de arquitectura, esquema SQLite (`docs/DATABASE.md`) y guías HTML actualizadas a `v2.55.1`.
+
 ## [v2.55.0] - 2026-11-20
 
 ### Added

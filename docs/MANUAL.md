@@ -1782,7 +1782,7 @@ O, para una sesión: `codex --add-dir ~/.local/share/gomemory`.
 | Qué | Dónde |
 |---|---|
 | Intención, alcance, historias, aclaraciones, slices, tareas y evidencia (la escribe el motor) | `hcd/HCD-NNN-<slug>.md`, un solo documento por unidad |
-| Unidad activa, evidencia y aprobaciones | Tablas `hcd_units`, `hcd_evidence` y `hcd_approvals` de la base del proyecto |
+| Unidad activa, evidencia, aprobaciones, revisiones y reapuntes pendientes | Tablas `hcd_units`, `hcd_evidence`, `hcd_approvals`, `hcd_definition_reviews` y `hcd_pending_retargets` de la base del proyecto |
 | Decisiones (carril, aclaraciones, aprobación, promoción, cierre) | Memorias `type=decision` enlazadas al documento |
 | Unidad activa | Una por proyecto; aparece como «HCD activo» en el contexto de arranque |
 

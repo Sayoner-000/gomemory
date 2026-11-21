@@ -1,6 +1,6 @@
 # Documentación de gomemory
 
-Índice y referencias técnicas de gomemory (versión 2.55.0).
+Índice y referencias técnicas de gomemory (versión 2.55.1).
 
 gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, OpenCode, Codex y Antigravity CLI). Cada proyecto almacena sus datos en una base SQLite local fuera del árbol de Git y se comunica con el modelo mediante el protocolo MCP (Model Context Protocol).
 
@@ -12,7 +12,7 @@ gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, O
 | [ARQUITECTURA.md](ARQUITECTURA.md) | Resumen de diseño: separación por capas, SQLite, resolución de identidad de procesos con hostbind y ciclo de vida. |
 | [architecture.md](architecture.md) | Especificación técnica interna: ciclo de eventos de hooks, compresión de contexto y estructura del grafo. |
 | [CONFIGURATION.md](CONFIGURATION.md) | Variables de entorno del sistema (`GOMEMORY_*`), límites de almacenamiento y tiempos de espera. |
-| [DATABASE.md](DATABASE.md) | Estructura de tablas e índices en SQLite (migraciones del esquema 1 al 12). |
+| [DATABASE.md](DATABASE.md) | Estructura de tablas e índices en SQLite (migraciones del esquema 1 al 14). |
 | [AGENT-INTEGRATION.md](AGENT-INTEGRATION.md) | Guía de integración para arneses y agentes nuevos (niveles 1, 2 y 3). |
 | [MEMORY-PROTOCOL.md](MEMORY-PROTOCOL.md) | Formato de mensajes MCP, bloques de contexto y guardado de decisiones o aprendizajes. |
 | [socratica.md](socratica.md) | Herramienta de clarificación socrática para refinar tareas antes de codificar. |
