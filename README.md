@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/gomemory_dark.svg">
-    <img src="assets/gomemory_light.svg" alt="gomemory" width="240">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/gomemory-readme-dark.png">
+    <img src="assets/gomemory-readme-light.png" alt="gomemory" width="240">
   </picture>
 </p>
 

@@ -18,7 +18,6 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 - Las skills `hcd` y `hcd-define` documentan `mem hcd rename` y `hcd_rename` para evitar renombrados manuales de archivo.
 - `hcd-tasks` y `hcd-implement` separan las comprobaciones acotadas por tarea de la tarea final de regresión completa y exigen observar el fallo antes del cambio en toda tarea con test automatizable.
-- `README.md` pasa a usar los logos SVG adaptativos (`assets/gomemory_dark.svg` y `assets/gomemory_light.svg`).
 - Documentación y guías HTML actualizadas a la `v2.55.0` (superficie MCP de 33 herramientas base, 37 con Octopus AAR).
 - Informe de auditoría ACR + ADM en `docs/audits/2026-11-20-acr-adm-worktree-hcd058.md` (`APPROVED`, con cierres verificados).
 
