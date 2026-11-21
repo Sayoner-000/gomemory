@@ -1,4 +1,4 @@
-user_version=13
+user_version=14
 index|idx_adr_sync_block|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_block ON adr_sync_records(project, provider, block_key)
 index|idx_adr_sync_memory|adr_sync_records|CREATE UNIQUE INDEX idx_adr_sync_memory ON adr_sync_records(project, memory_id) WHERE memory_id IS NOT NULL
 index|idx_automatic_original_grants_ref|automatic_original_grants|CREATE INDEX idx_automatic_original_grants_ref ON automatic_original_grants(ref)
@@ -55,6 +55,7 @@ index|sqlite_autoindex_fix_rounds_1|fix_rounds|
 index|sqlite_autoindex_hcd_approvals_1|hcd_approvals|
 index|sqlite_autoindex_hcd_definition_reviews_1|hcd_definition_reviews|
 index|sqlite_autoindex_hcd_evidence_1|hcd_evidence|
+index|sqlite_autoindex_hcd_pending_retargets_1|hcd_pending_retargets|
 index|sqlite_autoindex_hcd_units_1|hcd_units|
 index|sqlite_autoindex_hcd_units_2|hcd_units|
 index|sqlite_autoindex_hook_guard_events_1|hook_guard_events|
@@ -285,6 +286,13 @@ table|hcd_evidence|hcd_evidence|CREATE TABLE hcd_evidence (
 	fingerprint TEXT NOT NULL,
 	created_at TEXT NOT NULL
 )
+table|hcd_pending_retargets|hcd_pending_retargets|CREATE TABLE hcd_pending_retargets (
+		project TEXT NOT NULL,
+		unit_id TEXT NOT NULL,
+		from_path TEXT NOT NULL,
+		to_path TEXT NOT NULL,
+		PRIMARY KEY (project, unit_id)
+	)
 table|hcd_units|hcd_units|CREATE TABLE hcd_units (
 	project TEXT NOT NULL,
 	id TEXT NOT NULL,
@@ -670,6 +678,10 @@ col|hcd_evidence|8|excerpt|TEXT|1|''|0
 col|hcd_evidence|9|revision|TEXT|1||0
 col|hcd_evidence|10|fingerprint|TEXT|1||0
 col|hcd_evidence|11|created_at|TEXT|1||0
+col|hcd_pending_retargets|0|project|TEXT|1||1
+col|hcd_pending_retargets|1|unit_id|TEXT|1||2
+col|hcd_pending_retargets|2|from_path|TEXT|1||0
+col|hcd_pending_retargets|3|to_path|TEXT|1||0
 col|hcd_units|0|project|TEXT|1||1
 col|hcd_units|1|id|TEXT|1||2
 col|hcd_units|2|number|INTEGER|1||0

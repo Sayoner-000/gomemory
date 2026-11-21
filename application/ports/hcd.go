@@ -19,6 +19,11 @@ type HCDStore interface {
 	// Activate deja id como única unidad activa del proyecto.
 	Activate(ctx context.Context, id string) error
 	Save(ctx context.Context, unit domain.Unit) error
+	// SaveMetadata conserva el ciclo de vida y guarda atómicamente el reapunte
+	// pendiente si hay historial que reapuntar. No reemplaza pendientes previos.
+	SaveMetadata(ctx context.Context, unit domain.Unit, from string, queueRetarget bool) error
+	PendingRetarget(ctx context.Context, unitID string) (from, to string, err error)
+	CompleteRetarget(ctx context.Context, unitID, from, to string) error
 	AddEvidence(ctx context.Context, evidence domain.Evidence) error
 	Evidence(ctx context.Context, unitID string) ([]domain.Evidence, error)
 	AddApproval(ctx context.Context, approval domain.Approval) error

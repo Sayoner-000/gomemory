@@ -54,6 +54,9 @@ func NewDecisionHistoryRepository(db *sql.DB) *DecisionHistoryRepository {
 // (memory_files) del proyecto que citaban `from` (HCD-058). Un enlace que ya
 // existía con la ruta nueva no se duplica.
 func (r *DecisionHistoryRepository) RetargetPath(project, from, to string) error {
+	if err := domain.ValidateMemoryMetadata(from, to); err != nil {
+		return err
+	}
 	if from == "" || to == "" || from == to {
 		return nil
 	}

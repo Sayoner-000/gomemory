@@ -131,9 +131,13 @@ func (h *HCD) Start(ctx context.Context, in HCDStartInput) (HCDView, error) {
 //
 // Excepción (HCD-058): si el documento se movió o se editó su título a
 // mano, Show adopta la ruta y el título del documento y actualiza la ficha;
-// sin divergencia no escribe nada.
+// sin divergencia ni reapuntes pendientes no escribe nada.
 func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
 	unit, err := h.unit(ctx, id)
+	if err != nil {
+		return HCDView{}, err
+	}
+	recovered, err := h.recoverRetarget(ctx, unit.ID)
 	if err != nil {
 		return HCDView{}, err
 	}
@@ -142,7 +146,7 @@ func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
 		return HCDView{}, err
 	}
 	view, err := h.show(ctx, unit, data)
-	if reconciled {
+	if reconciled || recovered {
 		return h.recorded(view, err)
 	}
 	return view, err
@@ -478,11 +482,12 @@ func (h *HCD) Rename(ctx context.Context, in HCDRenameInput) (HCDView, error) {
 		return view, err
 	}
 	unit.Title, unit.Slug, unit.DocPath, unit.UpdatedAt = title, slug, newPath, h.clock.Now()
-	if err = h.store.Save(ctx, unit); err != nil {
+	_, queueRetarget := h.history.(ports.PathRetargeter)
+	if err = h.store.SaveMetadata(ctx, unit, oldPath, queueRetarget); err != nil {
 		undo()
 		return view, err
 	}
-	if err = h.retarget(oldPath, newPath); err != nil {
+	if _, err = h.recoverRetarget(ctx, unit.ID); err != nil {
 		return view, fmt.Errorf("unidad renombrada a %s, pero falló el reapunte de memorias: %w", newPath, err)
 	}
 	return h.recorded(h.Show(ctx, unit.ID))
@@ -493,6 +498,9 @@ func (h *HCD) Rename(ctx context.Context, in HCDRenameInput) (HCDView, error) {
 // `# título` cambió adopta el título del documento. Persiste solo si hubo
 // divergencia.
 func (h *HCD) loadDoc(ctx context.Context, unit domain.Unit) (domain.Unit, []byte, bool, error) {
+	if err := domain.ValidateMemoryMetadata(unit.DocPath, unit.Slug); err != nil {
+		return domain.Unit{}, nil, false, err
+	}
 	oldPath, changed := unit.DocPath, false
 	data, err := h.ws.ReadDoc(unit.DocPath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -522,10 +530,11 @@ func (h *HCD) loadDoc(ctx context.Context, unit domain.Unit) (domain.Unit, []byt
 		return unit, data, false, nil
 	}
 	unit.UpdatedAt = h.clock.Now()
-	if err = h.store.Save(ctx, unit); err != nil {
+	_, queueRetarget := h.history.(ports.PathRetargeter)
+	if err = h.store.SaveMetadata(ctx, unit, oldPath, queueRetarget); err != nil {
 		return unit, nil, false, err
 	}
-	if err = h.retarget(oldPath, unit.DocPath); err != nil {
+	if _, err = h.recoverRetarget(ctx, unit.ID); err != nil {
 		return unit, data, true, fmt.Errorf("documento reconciliado en %s, pero falló el reapunte de memorias: %w", unit.DocPath, err)
 	}
 	return unit, data, true, nil
@@ -541,6 +550,9 @@ func (h *HCD) findDoc(id string) (string, error) {
 	var found []string
 	for _, p := range paths {
 		if strings.HasPrefix(p, "hcd/"+id+"-") && strings.HasSuffix(p, ".md") {
+			if err := domain.ValidateMemoryMetadata(p, ""); err != nil {
+				return "", err
+			}
 			found = append(found, p)
 		}
 	}
@@ -553,17 +565,24 @@ func (h *HCD) findDoc(id string) (string, error) {
 	return "", fmt.Errorf("%w: la unidad %s tiene varios documentos (%s); deja uno solo", domain.ErrNotAllowed, id, strings.Join(found, ", "))
 }
 
-// retarget reapunta las memorias que citaban la ruta vieja, si el historial
-// lo admite. Un fallo no revierte el renombre porque el documento ya se movió,
-// pero se propaga para evitar desincronización silenciosa.
-func (h *HCD) retarget(from, to string) error {
-	if from == to || h.history == nil {
-		return nil
+// El pendiente se elimina solo después de completar el reapunte idempotente.
+// Un fallo al borrarlo también se propaga: el próximo proceso lo repetirá.
+func (h *HCD) recoverRetarget(ctx context.Context, id string) (bool, error) {
+	from, to, err := h.store.PendingRetarget(ctx, id)
+	if err != nil || from == "" {
+		return false, err
 	}
-	if r, ok := h.history.(ports.PathRetargeter); ok {
-		return r.RetargetPath(h.project, from, to)
+	if err := domain.ValidateMemoryMetadata(from, to); err != nil {
+		return false, err
 	}
-	return nil
+	retargeter, ok := h.history.(ports.PathRetargeter)
+	if !ok {
+		return false, fmt.Errorf("%w: historial no disponible para reapuntar %s", domain.ErrNotAllowed, id)
+	}
+	if err = retargeter.RetargetPath(h.project, from, to); err != nil {
+		return false, err
+	}
+	return true, h.store.CompleteRetarget(ctx, id, from, to)
 }
 
 func (h *HCD) unit(ctx context.Context, id string) (domain.Unit, error) {
@@ -678,6 +697,9 @@ func (h *HCD) HistoryEntries(ctx context.Context) ([]HistoryEntry, error) {
 	out := make([]HistoryEntry, 0, len(units))
 	known := map[string]bool{}
 	for _, u := range units {
+		if err := domain.ValidateMemoryMetadata(u.DocPath, u.Slug); err != nil {
+			return nil, err
+		}
 		known[u.ID] = true
 		var doc domain.UnitDoc
 		if data, err := h.ws.ReadDoc(u.DocPath); err == nil {
@@ -696,6 +718,9 @@ func (h *HCD) HistoryEntries(ctx context.Context) ([]HistoryEntry, error) {
 		return nil, err
 	}
 	for _, p := range paths {
+		if err := domain.ValidateMemoryMetadata(p, ""); err != nil {
+			return nil, err
+		}
 		data, err := h.ws.ReadDoc(p)
 		if err != nil {
 			return nil, err

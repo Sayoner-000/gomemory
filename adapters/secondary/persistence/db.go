@@ -191,7 +191,8 @@ func Init(root string) (*sql.DB, error) {
 }
 
 // 11: code_pending_calls (HCD-041). 12: memory_files (HCD-046).
-const schemaVersion = 13
+// 14: reapuntes HCD pendientes, recuperables tras reiniciar el proceso.
+const schemaVersion = 14
 
 // esperaOcupadaMs es el busy_timeout de cada conexión.
 const esperaOcupadaMs = 5000
@@ -289,6 +290,15 @@ func limpiezaUnica(db *sql.DB) {
 // versionar el bundle de export (ver domain.ExportVersion), no reescribir el
 // esquema de mem.db en el lugar.
 func migrateSchema(ex schemaExecer) error {
+	if _, err := ex.Exec(`CREATE TABLE IF NOT EXISTS hcd_pending_retargets (
+		project TEXT NOT NULL,
+		unit_id TEXT NOT NULL,
+		from_path TEXT NOT NULL,
+		to_path TEXT NOT NULL,
+		PRIMARY KEY (project, unit_id)
+	)`); err != nil {
+		return fmt.Errorf("migrate hcd pending retargets: %w", err)
+	}
 	if _, err := ex.Exec(hcdSchema); err != nil {
 		return fmt.Errorf("migrate hcd: %w", err)
 	}

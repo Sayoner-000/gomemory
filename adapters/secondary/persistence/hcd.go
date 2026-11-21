@@ -35,6 +35,9 @@ func (s *HCDStore) CreateActive(ctx context.Context, build func(number int) doma
 		return domain.Unit{}, err
 	}
 	u := build(n)
+	if err := domain.ValidateMemoryMetadata(u.DocPath, u.Slug); err != nil {
+		return domain.Unit{}, err
+	}
 	if _, err = tx.ExecContext(ctx, "UPDATE hcd_units SET active = 0 WHERE project = ? AND active = 1", s.project); err != nil {
 		return domain.Unit{}, err
 	}
@@ -107,6 +110,9 @@ func (s *HCDStore) Activate(ctx context.Context, id string) error {
 }
 
 func (s *HCDStore) Save(ctx context.Context, u domain.Unit) error {
+	if err := domain.ValidateMemoryMetadata(u.DocPath, u.Slug); err != nil {
+		return err
+	}
 	res, err := s.db.ExecContext(ctx, `UPDATE hcd_units SET title = ?, slug = ?, lane = ?, why = ?, state = ?, active = ?, doc_path = ?, updated_at = ? WHERE project = ? AND id = ?`,
 		u.Title, u.Slug, string(u.Lane), u.Why, string(u.State), boolToInt(u.Active), u.DocPath, u.UpdatedAt.UTC().Format(hcdTime), s.project, u.ID)
 	if err != nil {
