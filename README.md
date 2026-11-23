@@ -8,7 +8,7 @@
 <h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
 
 <p align="center">
-  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.55.2"><img src="https://img.shields.io/badge/version-2.55.2-blue" alt="Version 2.55.2"></a>
+  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.55.3"><img src="https://img.shields.io/badge/version-2.55.3-blue" alt="Version 2.55.3"></a>
   <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
   <a href="https://github.com/Sayoner-000/gomemory/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sayoner-000/gomemory/test.yml?branch=main&label=CI" alt="CI status"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
@@ -41,6 +41,13 @@ It is a single Go binary. There is no cloud service, no API key and no database
 server. Memory lives outside your repository; the project only gets a
 `.memory/` folder for settings and hook state, which `mem install` adds to
 `.gitignore`.
+
+## Verificación HCD en v2.55.3
+
+Las skills comprueban cada tarea al implementarla y reservan la revalidación de
+la evidencia caducada para el cierre, cuando el código está estable. `verify`
+ejecuta y registra el resultado sin una segunda llamada por CLI o MCP.
+Consulta el [flujo y sus límites](docs/HCD-VERIFICATION.md).
 
 ## Performance in v2.55.2
 

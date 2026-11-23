@@ -5,6 +5,14 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.55.3] - 2026-11-23
+
+### Changed
+
+- Las skills HCD verifican la tarea actual sin repetir las comprobaciones anteriores después de cada edición. La evidencia caducada se vuelve a comprobar al terminar los cambios, antes del cierre.
+- `verify` ejecuta y registra la comprobación en una sola llamada. Las instrucciones evitan duplicarla entre CLI y MCP y consultar `show` inmediatamente cuando la respuesta ya contiene el estado actualizado.
+- Se conserva el rojo antes del cambio, la vigencia de la evidencia y la aprobación humana del cierre. No cambia el motor ni el esquema de datos. [Flujo, comparación y límites](docs/HCD-VERIFICATION.md).
+
 ## [v2.55.2] - 2026-11-22
 
 ### Changed

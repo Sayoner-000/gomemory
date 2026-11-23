@@ -1,6 +1,8 @@
 # Documentación de gomemory
 
-Índice y referencias técnicas de gomemory (versión 2.55.2).
+En v2.55.3, las skills HCD evitan revalidaciones acumuladas durante la implementación. [Flujo de verificación, comparación y límites](HCD-VERIFICATION.md).
+
+Índice y referencias técnicas de gomemory (versión 2.55.3).
 
 Consulta [Rendimiento](PERFORMANCE.md) para los cambios en duplicados y contexto, sus mediciones y sus límites.
 

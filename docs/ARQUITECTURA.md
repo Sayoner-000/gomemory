@@ -1,5 +1,7 @@
 # Arquitectura de gomemory
 
+En v2.55.3, las skills HCD evitan revalidaciones acumuladas durante la implementación. [Flujo de verificación, comparación y límites](HCD-VERIFICATION.md).
+
 ## Lectura del historial y duplicados (v2.55.2)
 
 `ContextMemorySummaryLister` es un puerto opcional: entrega ID, tipo, sesión, título visible y ruta sin los cuerpos del historial. `Builder` conserva la ventana reciente y degrada a `ListAll` si la proyección falla. La detección de duplicados usa candidatos de un índice invertido y mantiene Jaccard exacto. Véase [rendimiento y compromisos de memoria](PERFORMANCE.md).

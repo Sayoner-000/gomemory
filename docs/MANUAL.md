@@ -1,5 +1,7 @@
 # Manual de usuario
 
+En v2.55.3, las skills HCD evitan revalidaciones acumuladas durante la implementación. [Flujo de verificación, comparación y límites](HCD-VERIFICATION.md).
+
 Guía para instalar, configurar y usar gomemory con los agentes compatibles.
 
 En v2.55.2, duplicados y construcción del contexto usan rutas de lectura optimizadas sin cambiar comandos ni configuración. [Resultados, límites y reproducción](PERFORMANCE.md). Para actualizar, ejecuta `mem update` y reinicia los servidores MCP que sigan activos con la versión anterior.
