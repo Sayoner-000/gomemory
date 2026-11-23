@@ -20,6 +20,6 @@ description: "Paso implement de HCD: implementa las tareas con TDD, observando e
 1. Aplica la Constitución y el Playbook (Arquitectura Limpia, SOLID): capas, estilo y pruebas.
 2. **Rojo antes del cambio en toda tarea con un test automatizable** (en un `fix`, siempre en la tarea 1). Escribe o ajusta primero el test y ejecútalo antes de tocar el código:
    `mem hcd verify --task N --expect-fail --json --client <agente> -- '<comprobación>'`. Debe salir `red_observed: true`; si no, la comprobación no demuestra el fallo y hay que corregirla. Una tarea no automatizable (observación manual, regresión final) declara en su línea por qué no tiene rojo.
-   - Itera con la comprobación acotada de la tarea, no con la suite completa. En Pi, la tool `run_test_suite` con `filter` ejecuta solo ese test en cualquier lenguaje soportado.
+   - Itera con la comprobación acotada de la tarea a través de `mem hcd verify`, no con la suite completa. No ejecutes la misma comprobación fuera y dentro del motor: `verify` ejecuta y registra en una sola operación; elige CLI o MCP, no ambos. No revalides tareas anteriores solo por caducidad mientras queden cambios por implementar; conserva su evidencia histórica y atiende inmediatamente cualquier fallo real. Antes del cierre, con el código estable, revalida toda evidencia caducada y comprueba que el motor permita cerrar.
 3. Implementa **una tarea a la vez**, dentro del alcance aprobado. Una ampliación de alcance pasa por `/hcd-clarify`.
-4. Verifica cada tarea con `/hcd-verify` antes de pasar a la siguiente.
+4. Verifica el verde de la tarea actual con `/hcd-verify` antes de pasar a la siguiente. La caducidad de tareas anteriores no exige revalidarlas en este paso. No confundas evidencia histórica con verificación vigente.

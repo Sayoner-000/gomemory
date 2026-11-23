@@ -17,12 +17,13 @@ description: "Paso verify de HCD: registra la evidencia de cada tarea ejecutando
 8. **Privacidad.** No pongas secretos en el documento, las evidencias ni las citas.
 9. **La Constitución y el Playbook mandan.** Antes de definir, aprobar, implementar y cerrar, lee `mem constitution` y `mem playbook` y cita las secciones que aplican. Si `norms_changed` es `true`, las normas cambiaron desde la aprobación: revisa la definición con las reglas nuevas y vuelve a aprobarla con `/hcd-approve`.
 
-1. Elige una tarea con estado `pending`, `unverified` o `failed`.
+1. Durante implementación, comprueba la tarea actual; no recorras todas las tareas caducadas después de cada edición. No ejecutes la misma comprobación fuera y dentro del motor: `verify` ejecuta y registra en una sola operación; elige CLI o MCP, no ambos. No revalides tareas anteriores solo por caducidad mientras queden cambios por implementar; conserva su evidencia histórica y atiende inmediatamente cualquier fallo real. Antes del cierre, con el código estable, revalida toda evidencia caducada y comprueba que el motor permita cerrar.
 2. Ejecuta su comprobación a través del motor:
    - **Verde**: `mem hcd verify --task N --json --client <agente> -- '<comando>'`
    - **Rojo** (antes del cambio): añade `--expect-fail`.
    - **Manual** (no automatizable): `mem hcd verify --task N --manual '<qué observaste>' --json`. Queda marcada como manual.
-   - Una evidencia puede cubrir varias tareas: `--task 2,3`.
+   - Una evidencia puede cubrir varias tareas: `--task 2,3`, solo si el comando comprueba todas ellas. Agrupa comprobaciones finales sobre código estable; no atribuyas cobertura a tareas que el comando no prueba.
 3. `--json` y `--client` van **antes** de `--`: todo lo que sigue es el comando.
 4. Lee `data.evidence`: `passed`, `red_observed`, `exit_code` y `excerpt`. Si falló, corrige y vuelve a verificar. No reinterpretes un fallo como éxito.
-5. Cuando el paso sea `close`, sigue con `/hcd-analyze` y `/hcd-close`.
+5. Lee el estado devuelto por `verify`: no repitas `show` inmediatamente si no hubo cambios, interrupciones ni otro agente trabajando. Una llamada basta para ejecutar y registrar; Codemode no requiere repetirla por CLI. Mantén una verificación por llamada para permitir intervención entre comprobaciones.
+6. Cuando el paso sea `close`, sigue con `/hcd-analyze` y `/hcd-close`. Nunca omitas los gates ni la aprobación humana.
