@@ -2,6 +2,8 @@
 
 Guía para instalar, configurar y usar gomemory con los agentes compatibles.
 
+En v2.55.2, duplicados y construcción del contexto usan rutas de lectura optimizadas sin cambiar comandos ni configuración. [Resultados, límites y reproducción](PERFORMANCE.md). Para actualizar, ejecuta `mem update` y reinicia los servidores MCP que sigan activos con la versión anterior.
+
 ## Índice
 
 1. [Instalación Rápida](#1-instalación-rápida)

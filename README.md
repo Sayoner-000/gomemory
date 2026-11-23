@@ -8,7 +8,7 @@
 <h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
 
 <p align="center">
-  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.55.1"><img src="https://img.shields.io/badge/version-2.55.1-blue" alt="Version 2.55.1"></a>
+  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.55.2"><img src="https://img.shields.io/badge/version-2.55.2-blue" alt="Version 2.55.2"></a>
   <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
   <a href="https://github.com/Sayoner-000/gomemory/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sayoner-000/gomemory/test.yml?branch=main&label=CI" alt="CI status"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
@@ -41,6 +41,15 @@ It is a single Go binary. There is no cloud service, no API key and no database
 server. Memory lives outside your repository; the project only gets a
 `.memory/` folder for settings and hook state, which `mem install` adds to
 `.gitignore`.
+
+## Performance in v2.55.2
+
+Duplicate detection skips pairs with no shared tokens; context construction reads
+history metadata without loading every memory body. In the 10,000-memory test,
+sparse duplicate detection fell from 21.63 s to 119 ms, while context allocations
+fell by 60.1%. The duplicate index uses more memory and does not speed up dense
+corpora. See [measurements and reproduction](docs/PERFORMANCE.md) for the fixtures
+and limits.
 
 ## Quick start
 

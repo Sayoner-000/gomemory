@@ -1,5 +1,9 @@
 # Arquitectura de gomemory
 
+## Historial ligero y detección de duplicados
+
+Desde v2.55.2, `Builder` consulta `ContextMemorySummaryLister` para los metadatos globales y mantiene `List(100)` para el contenido reciente. Los títulos vacíos se resuelven después del saneamiento; ante un error se conserva la lectura completa. El índice invertido de duplicados descarta candidatos sin intersección, sin modificar Jaccard ni los grupos. [Mediciones y límites](PERFORMANCE.md).
+
 ## Visión General
 
 `gomemory` es un CLI + TUI + MCP server en Go que persiste contexto de agentes AI por proyecto. Usa SQLite embebido (sin CGO) como almacenamiento y expone la memoria como herramientas nativas vía MCP (Model Context Protocol) para múltiples agentes.

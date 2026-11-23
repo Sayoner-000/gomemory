@@ -5,6 +5,14 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.55.2] - 2026-11-22
+
+### Changed
+
+- La detección de duplicados evita comparar memorias sin tokens compartidos y conserva la similitud exacta, los grupos transitivos y la separación por tipo. Con 10.000 memorias sintéticas de vocabulario disperso, la mediana pasó de 21,63 s a 119 ms. El índice aumenta las asignaciones de memoria y no mejora el caso denso.
+- La construcción del contexto lee metadatos del historial en lugar de cargar todos sus cuerpos. Conserva títulos, conflictos y anclas antiguos, y vuelve a la lectura completa cuando el repositorio no admite la proyección. En el corpus con título, las asignaciones bajaron de 27,87 MB a 11,11 MB por operación (60,1%).
+- Benchmarks con referencias, pruebas diferenciales y aceptación de rendimiento optativa. [Resultados, límites y reproducción](docs/PERFORMANCE.md). No requiere migrar datos ni cambiar la configuración.
+
 ## [v2.55.1] - 2026-11-21
 
 ### Security
