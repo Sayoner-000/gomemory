@@ -147,13 +147,11 @@ func clusterBySimilarity(mems []domain.Memory, threshold float64) [][]domain.Mem
 		}
 	}
 
-	for i := 0; i < n; i++ {
-		for j := i + 1; j < n; j++ {
-			if jaccardSimilarity(tokens[i], tokens[j]) >= threshold {
-				union(i, j)
-			}
+	forEachDuplicateCandidate(tokens, threshold, func(i, j int) {
+		if jaccardSimilarity(tokens[i], tokens[j]) >= threshold {
+			union(i, j)
 		}
-	}
+	})
 
 	clusters := make(map[int][]domain.Memory)
 	for i, m := range mems {
@@ -166,6 +164,57 @@ func clusterBySimilarity(mems []domain.Memory, threshold float64) [][]domain.Mem
 		result = append(result, c)
 	}
 	return result
+}
+
+// forEachDuplicateCandidate omits only pairs with zero intersection when the
+// threshold is positive. Jaccard still makes the final decision. Non-positive
+// thresholds (and NaN) retain the exhaustive path and its historical semantics.
+// The per-memory marks use O(n) space: dense corpora never accumulate O(n²) pairs.
+func forEachDuplicateCandidate(tokens []map[string]struct{}, threshold float64, visit func(int, int)) {
+	if !(threshold > 0) {
+		for i := range tokens {
+			for j := i + 1; j < len(tokens); j++ {
+				visit(i, j)
+			}
+		}
+		return
+	}
+	postings := make(map[string][]int)
+	for i, set := range tokens {
+		for token := range set {
+			postings[token] = append(postings[token], i)
+		}
+	}
+	marks := make([]int, len(tokens))
+	for i, set := range tokens {
+		// Dense posting lists would revisit each candidate for many tokens.
+		// An exhaustive row is cheaper once the posting work reaches its size.
+		work := 0
+		for token := range set {
+			list := postings[token]
+			work += len(list) - sort.SearchInts(list, i+1)
+			if work >= len(tokens)-i-1 {
+				break
+			}
+		}
+		if work >= len(tokens)-i-1 {
+			for j := i + 1; j < len(tokens); j++ {
+				visit(i, j)
+			}
+			continue
+		}
+		stamp := i + 1
+		for token := range set {
+			// Posting lists are sorted by construction; skip earlier IDs.
+			list := postings[token]
+			for _, j := range list[sort.SearchInts(list, i+1):] {
+				if marks[j] != stamp {
+					marks[j] = stamp
+					visit(i, j)
+				}
+			}
+		}
+	}
 }
 
 // tokenize normaliza texto a un set de palabras en minúscula, sin stemming

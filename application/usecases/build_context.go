@@ -419,9 +419,22 @@ func (b *Builder) build() (string, error) {
 		return "", err
 	}
 	allMems := mems
-	if full, ok := b.Lister.(ports.MemoryFullLister); ok {
-		if listed, listErr := full.ListAll(b.Project); listErr == nil {
-			allMems = listed
+	loadedSummaries := false
+	if summaries, ok := b.Lister.(ports.ContextMemorySummaryLister); ok {
+		if listed, listErr := summaries.ListContextSummaries(b.Project); listErr == nil {
+			// Global consumers need metadata only, never recent-body content.
+			allMems = make([]domain.Memory, 0, len(listed))
+			for _, s := range listed {
+				allMems = append(allMems, domain.Memory{ID: s.ID, Type: s.Type, SessionID: s.SessionID, Title: s.DisplayTitle, Filepath: s.Filepath})
+			}
+			loadedSummaries = true
+		}
+	}
+	if !loadedSummaries {
+		if full, ok := b.Lister.(ports.MemoryFullLister); ok {
+			if listed, listErr := full.ListAll(b.Project); listErr == nil {
+				allMems = listed
+			}
 		}
 	}
 
