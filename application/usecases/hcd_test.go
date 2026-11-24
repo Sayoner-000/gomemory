@@ -390,6 +390,81 @@ func TestHCDVerifyStaleRevalidatesAllStaleInOneCall(t *testing.T) {
 	}
 }
 
+// HCD-064: --stale sin comando reejecuta el último comando verde de cada
+// tarea caducada; las que comparten comando se agrupan en una evidencia.
+func TestHCDVerifyStaleSinComandoReejecutaElDeCadaTarea(t *testing.T) {
+	env, ctx := newHCDEnv(t), context.Background()
+	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "technical", Lane: "fast", Title: "Stale propio", Why: "w", Intent: "i"})
+	editDoc(t, env, view, append(commonFill, "## Checklist\n", "## Checklist\n- [ ] 1. Primera → git --version\n- [ ] 2. Segunda → git status --short\n- [ ] 3. Tercera → git --version\n- [ ] 4. Cuarta → git --version\n")...)
+
+	for id, cmd := range map[string]string{"1": "git --version", "2": "git status --short", "3": "git --version"} {
+		if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{id}, Command: cmd}); err != nil {
+			t.Fatalf("verify %s: %v", id, err)
+		}
+	}
+	// Un rojo posterior no es el comando a repetir: se reejecuta el último verde.
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, ExpectFail: true, Command: "git grep -q no-existe -- save.go"}); err != nil {
+		t.Fatalf("rojo: %v", err)
+	}
+	writeIn(t, env.root, "save.go", "package save // cambio\n")
+
+	view, _ = env.uc.Show(ctx, "")
+	if got := view.State.Stale(); strings.Join(got, ",") != "1,2,3" {
+		t.Fatalf("stale = %v, want 1,2,3", got)
+	}
+	before := len(view.State.Evidence)
+
+	view, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Stale: true})
+	if err != nil {
+		t.Fatalf("verify --stale sin comando: %v", err)
+	}
+	added := view.State.Evidence[before:]
+	if len(added) != 2 {
+		t.Fatalf("se esperaba una evidencia por comando distinto (2), hay %d: %+v", len(added), added)
+	}
+	byCmd := map[string]string{}
+	for _, e := range added {
+		if !e.Passed() {
+			t.Fatalf("evidencia fallida: %+v", e)
+		}
+		byCmd[e.Command] = strings.Join(e.Tasks, ",")
+	}
+	if byCmd["git --version"] != "1,3" || byCmd["git status --short"] != "2" {
+		t.Fatalf("agrupación = %v", byCmd)
+	}
+	for _, task := range view.Tasks[:3] {
+		if task.Status != domain.TaskVerified {
+			t.Fatalf("tarea %s = %s tras --stale", task.ID, task.Status)
+		}
+	}
+	if view.Tasks[3].Status != domain.TaskPending {
+		t.Fatalf("la tarea 4 nunca verificada no se toca: %s", view.Tasks[3].Status)
+	}
+
+	// Con comando explícito se conserva el comportamiento anterior.
+	writeIn(t, env.root, "save.go", "package save // otro\n")
+	_, ev, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Stale: true, Command: "git --version"})
+	if err != nil || strings.Join(ev.Tasks, ",") != "1,2,3" {
+		t.Fatalf("--stale con comando = %v %v", ev.Tasks, err)
+	}
+}
+
+// Una tarea cuya última evidencia verde fue manual no se puede reejecutar:
+// sin ninguna reejecutable, --stale sin comando lo explica.
+func TestHCDVerifyStaleSinComandoSoloManual(t *testing.T) {
+	env, ctx := newHCDEnv(t), context.Background()
+	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "technical", Lane: "fast", Title: "Manual", Why: "w", Intent: "i"})
+	editDoc(t, env, view, append(commonFill, "## Checklist\n", "## Checklist\n- [ ] 1. Mirar → observar\n")...)
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Manual: "lo vi"}); err != nil {
+		t.Fatal(err)
+	}
+	writeIn(t, env.root, "save.go", "package save // cambio\n")
+	_, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Stale: true})
+	if !errors.Is(err, domain.ErrValidation) || !strings.Contains(err.Error(), "--manual") {
+		t.Fatalf("err = %v, want validación que sugiera --manual", err)
+	}
+}
+
 func TestHCDQueriesDoNotWrite(t *testing.T) {
 	env, ctx := newHCDEnv(t), context.Background()
 	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "feature", Lane: "full", Title: "Consulta", Why: "w", Intent: "i"})

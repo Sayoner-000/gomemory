@@ -116,56 +116,105 @@ func (w Workspace) resolve(rel, prefix string) (string, error) {
 	return filepath.Join(w.Root, filepath.FromSlash(clean)), nil
 }
 
-// Fingerprint identifica el código evaluado: HEAD más el contenido de los
-// archivos cambiados y sin rastrear, excluyendo hcd/ para que reescribir el
-// documento no caduque la evidencia. Fuera de git devuelve "nogit".
+// Fingerprint identifica el código evaluado por su contenido: el id de blob
+// de git de cada archivo no ignorado del árbol de trabajo, excluyendo hcd/
+// para que reescribir el documento no caduque la evidencia. No depende de
+// HEAD: hacer commit sin cambiar contenido no altera la huella (HCD-064).
+// Fuera de git devuelve "nogit".
+//
+// Los archivos sin cambios toman su id del índice (`ls-files --stage`); solo
+// los modificados respecto al índice y los sin rastrear se hashean, con
+// `hash-object --stdin-paths`, que aplica los mismos filtros que `git add`.
+// Así el id de un archivo coincide antes y después de prepararlo o
+// commitearlo.
 func (w Workspace) Fingerprint(ctx context.Context) (string, error) {
 	if _, err := w.git(ctx, "rev-parse", "--is-inside-work-tree"); err != nil {
 		return domain.FingerprintNoGit, nil
 	}
-	head, headErr := w.git(ctx, "rev-parse", "HEAD")
-	var files []string
-	if headErr == nil {
-		changed, err := w.git(ctx, "diff", "HEAD", "--name-only", "-z")
-		if err != nil {
-			return "", err
-		}
-		files = append(files, splitZ(changed)...)
-		untracked, err := w.git(ctx, "ls-files", "--others", "--exclude-standard", "-z")
-		if err != nil {
-			return "", err
-		}
-		files = append(files, splitZ(untracked)...)
-	} else {
-		// Repositorio sin commits: todo el árbol no ignorado es el sujeto.
-		all, err := w.git(ctx, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
-		if err != nil {
-			return "", err
-		}
-		head, files = []byte("nohead"), splitZ(all)
+	skip := func(p string) bool { return p == "hcd" || strings.HasPrefix(p, "hcd/") }
+
+	staged, err := w.git(ctx, "ls-files", "--stage", "-z")
+	if err != nil {
+		return "", err
 	}
-	sort.Strings(files)
-	sum := sha256.New()
-	seen := map[string]bool{}
-	for _, f := range files {
-		if seen[f] || f == "hcd" || strings.HasPrefix(f, "hcd/") {
+	ids := map[string]string{}
+	for _, rec := range splitZ(staged) {
+		// "<modo> <id> <etapa>\t<ruta>"
+		meta, p, ok := strings.Cut(rec, "\t")
+		if fields := strings.Fields(meta); ok && len(fields) >= 2 && !skip(p) {
+			ids[p] = fields[1]
+		}
+	}
+
+	changed, err := w.git(ctx, "diff", "--name-only", "-z")
+	if err != nil {
+		return "", err
+	}
+	untracked, err := w.git(ctx, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return "", err
+	}
+	var dirty []string
+	for _, p := range append(splitZ(changed), splitZ(untracked)...) {
+		if skip(p) || strings.HasSuffix(p, "/") {
 			continue
 		}
-		seen[f] = true
-		data, err := os.ReadFile(filepath.Join(w.Root, filepath.FromSlash(f)))
-		if errors.Is(err, os.ErrNotExist) {
-			data = []byte("\x00deleted")
-		} else if err != nil {
+		info, err := os.Lstat(filepath.Join(w.Root, filepath.FromSlash(p)))
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			// Borrado en el árbol: ausente, igual que tras commitear el borrado.
+			delete(ids, p)
+		case err != nil:
+			return "", err
+		case info.Mode().IsRegular() && !strings.ContainsAny(p, "\n\r"):
+			dirty = append(dirty, p)
+		default:
+			// Enlaces, rutas con saltos de línea u otros tipos: se
+			// identifican por su contenido leído, sin pasar por git.
+			data, err := readForFingerprint(filepath.Join(w.Root, filepath.FromSlash(p)), info)
+			if err != nil {
+				return "", err
+			}
+			h := sha256.Sum256(data)
+			ids[p] = "raw:" + hex.EncodeToString(h[:])
+		}
+	}
+	if len(dirty) > 0 {
+		out, err := w.gitIn(ctx, strings.Join(dirty, "\n")+"\n", "hash-object", "--stdin-paths")
+		if err != nil {
 			return "", err
 		}
-		fmt.Fprintf(sum, "%s\x00%d\x00", f, len(data))
-		sum.Write(data)
+		hashes := strings.Fields(string(out))
+		if len(hashes) != len(dirty) {
+			return "", fmt.Errorf("git hash-object devolvió %d ids para %d archivos", len(hashes), len(dirty))
+		}
+		for i, p := range dirty {
+			ids[p] = hashes[i]
+		}
 	}
-	short := strings.TrimSpace(string(head))
-	if len(short) > 12 {
-		short = short[:12]
+
+	paths := make([]string, 0, len(ids))
+	for p := range ids {
+		paths = append(paths, p)
 	}
-	return short + "+" + hex.EncodeToString(sum.Sum(nil))[:12], nil
+	sort.Strings(paths)
+	sum := sha256.New()
+	for _, p := range paths {
+		fmt.Fprintf(sum, "%s\x00%s\n", p, ids[p])
+	}
+	return "tree+" + hex.EncodeToString(sum.Sum(nil))[:12], nil
+}
+
+// readForFingerprint lee el destino de un enlace o el contenido de un archivo.
+func readForFingerprint(abs string, info os.FileInfo) ([]byte, error) {
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(abs)
+		return []byte(target), err
+	}
+	if !info.Mode().IsRegular() {
+		return []byte(info.Mode().String()), nil
+	}
+	return os.ReadFile(abs)
 }
 
 // Run ejecuta el comando en la raíz con tiempo límite. Devuelve el código de
@@ -209,6 +258,14 @@ func (w Workspace) Run(ctx context.Context, command string) (int, string, error)
 func (w Workspace) git(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = w.Root
+	return cmd.Output()
+}
+
+// gitIn es git con entrada estándar.
+func (w Workspace) gitIn(ctx context.Context, stdin string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = w.Root
+	cmd.Stdin = strings.NewReader(stdin)
 	return cmd.Output()
 }
 

@@ -70,6 +70,60 @@ func TestFingerprintTracksCodeButNotHCDDocs(t *testing.T) {
 	}
 }
 
+// HCD-064: la huella identifica el contenido evaluado, no la historia. Hacer
+// commit (o borrarlo y recrearlo) sin cambiar el contenido del árbol no
+// caduca la evidencia.
+func TestFingerprintIgnoraCommitsSinCambioDeContenido(t *testing.T) {
+	root := gitRepo(t)
+	w, ctx := Workspace{Root: root}, context.Background()
+	write(t, root, "a.go", "package a // cambio\n")
+	write(t, root, "nuevo.go", "package a\n")
+	before, err := w.Fingerprint(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run(t, root, "git", "add", ".")
+	if staged, _ := w.Fingerprint(ctx); staged != before {
+		t.Fatalf("git add cambió la huella: %s → %s", before, staged)
+	}
+	run(t, root, "git", "commit", "-qm", "mitad de la unidad")
+	if after, _ := w.Fingerprint(ctx); after != before {
+		t.Fatalf("un commit sin cambiar contenido cambió la huella: %s → %s", before, after)
+	}
+	// Borrar un archivo rastreado y hacer commit del borrado: mismo contenido.
+	if err := os.Remove(filepath.Join(root, "nuevo.go")); err != nil {
+		t.Fatal(err)
+	}
+	deleted, _ := w.Fingerprint(ctx)
+	if deleted == before {
+		t.Fatal("borrar un archivo no cambió la huella")
+	}
+	run(t, root, "git", "commit", "-qam", "borra")
+	if got, _ := w.Fingerprint(ctx); got != deleted {
+		t.Fatalf("commit del borrado cambió la huella: %s → %s", deleted, got)
+	}
+}
+
+// En un repositorio sin commits la huella también sigue al contenido.
+func TestFingerprintSinCommitsSigueAlContenido(t *testing.T) {
+	root := t.TempDir()
+	run(t, root, "git", "init", "-q")
+	write(t, root, "a.go", "package a\n")
+	w, ctx := Workspace{Root: root}, context.Background()
+	base, err := w.Fingerprint(ctx)
+	if err != nil || base == "nogit" {
+		t.Fatalf("fingerprint = %q, %v", base, err)
+	}
+	write(t, root, "hcd/HCD-001-x.md", "# x\n")
+	if got, _ := w.Fingerprint(ctx); got != base {
+		t.Fatal("hcd/ cambió la huella sin commits")
+	}
+	write(t, root, "a.go", "package a // x\n")
+	if got, _ := w.Fingerprint(ctx); got == base {
+		t.Fatal("cambiar contenido sin commits no cambió la huella")
+	}
+}
+
 func TestPathsStayInsideAndRejectSymlinks(t *testing.T) {
 	root := gitRepo(t)
 	w := Workspace{Root: root}

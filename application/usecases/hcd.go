@@ -328,6 +328,9 @@ func (h *HCD) Verify(ctx context.Context, in HCDVerifyInput) (HCDView, domain.Ev
 		if len(in.Tasks) == 0 {
 			return view, domain.Evidence{}, fmt.Errorf("%w: no hay tareas caducadas que revalidar", domain.ErrValidation)
 		}
+		if strings.TrimSpace(in.Command) == "" && strings.TrimSpace(in.Manual) == "" {
+			return h.verifyStaleEach(ctx, in, view)
+		}
 	}
 	if len(in.Tasks) == 0 {
 		return view, domain.Evidence{}, fmt.Errorf("%w: indica la tarea con --task o usa --stale", domain.ErrValidation)
@@ -372,6 +375,50 @@ func (h *HCD) Verify(ctx context.Context, in HCDVerifyInput) (HCDView, domain.Ev
 	}
 	next, err := h.Show(ctx, view.Unit.ID)
 	return next, ev, err
+}
+
+// verifyStaleEach reejecuta, para cada tarea caducada, el último comando con
+// el que pasó (HCD-064). Las tareas que comparten comando se agrupan en una
+// sola evidencia. Las que solo pasaron con evidencia manual quedan caducadas:
+// hay que volver a observarlas con --manual. Devuelve la última evidencia.
+func (h *HCD) verifyStaleEach(ctx context.Context, in HCDVerifyInput, view HCDView) (HCDView, domain.Evidence, error) {
+	lastGreen := map[string]domain.Evidence{}
+	for _, e := range view.State.Evidence {
+		if e.ExpectFail || !e.Passed() {
+			continue
+		}
+		for _, id := range e.Tasks {
+			if prev, ok := lastGreen[id]; !ok || !e.CreatedAt.Before(prev.CreatedAt) {
+				lastGreen[id] = e
+			}
+		}
+	}
+	var order []string
+	groups := map[string][]string{}
+	var manual []string
+	for _, id := range in.Tasks {
+		e, ok := lastGreen[id]
+		if !ok || e.Kind != domain.EvidenceCommand || strings.TrimSpace(e.Command) == "" {
+			manual = append(manual, id)
+			continue
+		}
+		if _, seen := groups[e.Command]; !seen {
+			order = append(order, e.Command)
+		}
+		groups[e.Command] = append(groups[e.Command], id)
+	}
+	if len(order) == 0 {
+		return view, domain.Evidence{}, fmt.Errorf("%w: las tareas caducadas %s solo pasaron con evidencia manual: vuelve a observarlas con --task N --manual", domain.ErrValidation, strings.Join(manual, ", "))
+	}
+	var last domain.Evidence
+	for _, command := range order {
+		next, ev, err := h.Verify(ctx, HCDVerifyInput{ID: in.ID, Tasks: groups[command], Command: command})
+		if err != nil {
+			return next, ev, err
+		}
+		view, last = next, ev
+	}
+	return view, last, nil
 }
 
 type HCDCloseInput struct {

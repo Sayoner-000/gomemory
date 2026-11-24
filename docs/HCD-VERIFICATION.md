@@ -6,11 +6,11 @@ Desde v2.55.3, las skills `hcd-implement` y `hcd-verify` separan la comprobació
 
 Ejecuta el test focalizado mediante `mem hcd verify`: primero el rojo, después el cambio y el verde. El comando ejecuta la prueba y registra su resultado; no hace falta correrla antes con otra herramienta ni repetirla por MCP. Atiende cualquier fallo real antes de seguir.
 
-Cambiar código puede invalidar la evidencia de tareas anteriores porque la huella abarca el repositorio. Conserva esos resultados como historial y continúa con la tarea siguiente; no recorras toda la lista caducada después de cada edición.
+Cambiar código invalida la evidencia de tareas anteriores porque la huella abarca el repositorio. Mientras queden tareas pendientes, esas tareas caducadas cuentan como progreso: el motor sigue en `implement`, no las lista como no verificadas y `analyze` no las señala. Continúa con la tarea siguiente; no recorras la lista caducada después de cada edición. Hacer commit sin cambiar contenido no caduca nada (v2.59.0).
 
 ## Antes del cierre
 
-Con el código estable, vuelve a comprobar las tareas sin evidencia vigente. Un comando puede cubrir varias tareas con `--task 2,3` si realmente prueba ambas. El estado devuelto por `verify` evita un `show` inmediato cuando no hubo cambios, interrupciones ni trabajo concurrente. El cierre sigue exigiendo evidencia vigente y aprobación humana.
+Con el código estable y sin tareas pendientes, revalida las caducadas con `mem hcd verify --stale --json --client <agente>`, que reejecuta el comando propio de cada una. Un comando puede cubrir varias tareas con `--task 2,3` si realmente prueba ambas. El estado devuelto por `verify` evita un `show` inmediato cuando no hubo cambios, interrupciones ni trabajo concurrente. El cierre sigue exigiendo evidencia vigente y aprobación humana.
 
 ## Comparación reproducible
 
@@ -57,6 +57,24 @@ mem hcd verify --stale --json --client pi -- 'go test ./...'
 ```
 
 `--stale` resuelve las tareas en estado `stale`, ejecuta el comando una vez y registra una única evidencia vigente sobre la huella actual. Rechaza combinarse con `--task` o `--expect-fail`, y devuelve error de validación si no hay tareas caducadas.
+
+## Huella por contenido y `--stale` sin comando (v2.59.0)
+
+La huella ya no incluye `HEAD`. Identifica el contenido del árbol de trabajo: el id de blob de git de cada archivo no ignorado, sin contar `hcd/`. Los archivos sin cambios toman su id del índice y solo se hashean los modificados y los sin seguimiento, con `git hash-object --stdin-paths`, que aplica los mismos filtros que `git add`. Así el id de un archivo es el mismo antes y después de prepararlo o commitearlo, y un commit a mitad de la unidad deja la evidencia vigente. Borrar un archivo cambia la huella; commitear ese borrado, no. La huella pasa a tener la forma `tree+<12 hex>`; al actualizar, la evidencia de las unidades activas caduca una sola vez.
+
+```bash
+mem hcd verify --stale --json --client pi
+```
+
+Sin comando, `--stale` busca para cada tarea caducada el último comando con el que pasó y lo vuelve a ejecutar. Las tareas que comparten comando se agrupan en una evidencia. Una tarea que solo pasó con evidencia manual se queda caducada y se vuelve a observar con `--task N --manual`; si todas son manuales, el motor lo indica con un error de validación. Con un comando tras `--`, `--stale` se comporta como en v2.57.0.
+
+```bash
+go test ./adapters/secondary/hcdfiles -run TestFingerprint -count=1 -v
+go test ./application/usecases -run TestHCDVerifyStale -count=1 -v
+go test ./domain -run TestHCD064 -count=1 -v
+```
+
+`WorkRevision` no cambia: editar el texto del checklist o de la definición sigue caducando toda la evidencia.
 
 ## Actualización
 

@@ -310,15 +310,30 @@ func (s HCDState) Stale() []string {
 }
 
 // Unverified lista las tareas que aún no pasan el gate de evidencia.
+// Mientras queden tareas pendientes, una tarea caducada cuenta como progreso
+// y no figura aquí (HCD-064, Q1 → A): se reverifica una sola vez al final.
 func (s HCDState) Unverified() []string {
 	status := s.TaskStatuses()
+	progress := staleIsProgress(status)
 	var ids []string
 	for _, t := range s.Doc.Tasks {
-		if status[t.ID] != TaskVerified {
+		if st := status[t.ID]; st != TaskVerified && !(progress && st == TaskStale) {
 			ids = append(ids, t.ID)
 		}
 	}
 	return ids
+}
+
+// staleIsProgress: con alguna tarea pendiente, la unidad sigue en
+// implementación y cada edición caduca la evidencia anterior sin que eso
+// indique un fallo. La frescura se exige cuando ya no quedan pendientes.
+func staleIsProgress(status map[string]TaskStatus) bool {
+	for _, st := range status {
+		if st == TaskPending {
+			return true
+		}
+	}
+	return false
 }
 
 // RedMissing aplica el gate TDD: en un fix, la tarea 1 exige un rojo
@@ -486,12 +501,15 @@ func (s HCDState) Analyze() []HCDFinding {
 		sev = SeverityCritical
 	}
 	status := s.TaskStatuses()
+	progress := staleIsProgress(status)
 	for _, t := range s.Doc.Tasks {
 		switch status[t.ID] {
 		case TaskFailed:
 			add(sev, "TASK-FAILED", t.ID, "la última comprobación vigente de la tarea "+t.ID+" falló")
 		case TaskStale:
-			add(sev, "TASK-UNVERIFIED", t.ID, "la evidencia de la tarea "+t.ID+" caducó")
+			if !progress {
+				add(sev, "TASK-UNVERIFIED", t.ID, "la evidencia de la tarea "+t.ID+" caducó")
+			}
 		case TaskPending, TaskUnverified:
 			add(sev, "TASK-UNVERIFIED", t.ID, "la tarea "+t.ID+" no tiene evidencia vigente")
 		}

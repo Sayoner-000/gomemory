@@ -17,6 +17,7 @@ const usage = `Uso: mem hcd <comando> [unidad] [flags] [--json] [--client CLIENT
   approve [unidad] --quote 'cita'  aprueba la revisión de la definición (solo carril full)
   verify  [unidad] --task N[,M] [--expect-fail] -- 'comando'
   verify  [unidad] --task N --manual 'observación'
+  verify  [unidad] --stale [-- 'comando']  revalida las caducadas: sin comando, reejecuta el de cada tarea
   analyze [unidad]                 coherencia de la unidad (no escribe)
   close   [unidad] --quote 'cita del Implementador'
   cancel  [unidad] --quote 'motivo'

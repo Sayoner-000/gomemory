@@ -10,9 +10,11 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 ### Added
 
 - `mem doctor --fix` aplica las correcciones que el informe ya proponía para lo que gestiona gomemory: canales rotos (`mem install . --yes` o `mem setup-mcp --scope global`), plugin de OpenCode incompatible, hooks de Claude duplicados, almacén de originales al 90 % y servidor MCP de CodeGraph sin conectar. Confirma una vez las acciones de proyecto y una por una las que afectan a toda la máquina; `--yes` aplica sin preguntar y `--dry-run` solo muestra el plan. Al terminar repite el diagnóstico y resume los problemas antes y después. `--json` añade la clave `fixes`. [Detalles](docs/MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar).
+- `mem hcd verify --stale` sin comando reejecuta, para cada tarea caducada, el último comando con el que pasó; las tareas que comparten comando se agrupan en una evidencia. Con un comando tras `--` se conserva el comportamiento anterior. [Detalles](docs/HCD-VERIFICATION.md).
 
 ### Fixed
 
+- Las tareas HCD caducaban durante la implementación y desviaban el motor a `verify`. La huella ya no incluye `HEAD`: se calcula sobre el contenido del árbol de trabajo (ids de blob de git, sin `hcd/`), así que un commit sin cambios de contenido no caduca la evidencia. Mientras queden tareas pendientes, una tarea caducada cuenta como progreso: no figura entre las no verificadas y `analyze` no la señala. El cierre sigue exigiendo evidencia vigente. Al actualizar, la evidencia de las unidades activas caduca una vez por el cambio de formato de la huella (`tree+…`); `mem hcd verify --stale` la renueva.
 - `mem doctor` marcaba `missing` los canales `plan_entry` y `plan_guard` de Claude en ámbito proyecto cuando el hook estaba en `~/.claude/settings.json`. `mem install .` los omite allí a propósito desde la feature 035, así que el remedio propuesto nunca resolvía el aviso. Ahora cuentan como cubiertos por el global.
 
 ### Changed
