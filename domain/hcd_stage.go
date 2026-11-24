@@ -14,6 +14,7 @@ type TaskStatus string
 const (
 	TaskPending    TaskStatus = "pending"
 	TaskUnverified TaskStatus = "unverified"
+	TaskStale      TaskStatus = "stale"
 	TaskFailed     TaskStatus = "failed"
 	TaskVerified   TaskStatus = "verified"
 )
@@ -251,12 +252,23 @@ func (s HCDState) NormsChanged() bool {
 
 // TaskStatuses aplica el gate de evidencia: una tarea solo está verificada si
 // su evidencia más reciente vigente (misma revisión de trabajo y huella)
-// pasó. La evidencia caducada se ignora, no se borra.
+// pasó. Si tuvo una evidencia aprobada previa que caducó al cambiar el código
+// o la revisión, se clasifica como TaskStale para distinguirla de TaskUnverified
+// (casilla marcada sin evidencia) y permitir revalidación conjunta (--stale).
 func (s HCDState) TaskStatuses() map[string]TaskStatus {
 	rev := s.WorkRevision()
 	latest := map[string]Evidence{}
+	hadPassed := map[string]bool{}
 	for _, e := range s.Evidence {
-		if e.ExpectFail || !e.Fresh(rev, s.Fingerprint) {
+		if e.ExpectFail {
+			continue
+		}
+		if e.Passed() {
+			for _, id := range e.Tasks {
+				hadPassed[id] = true
+			}
+		}
+		if !e.Fresh(rev, s.Fingerprint) {
 			continue
 		}
 		for _, id := range e.Tasks {
@@ -273,6 +285,8 @@ func (s HCDState) TaskStatuses() map[string]TaskStatus {
 			out[t.ID] = TaskVerified
 		case ok:
 			out[t.ID] = TaskFailed
+		case hadPassed[t.ID]:
+			out[t.ID] = TaskStale
 		case t.Done:
 			out[t.ID] = TaskUnverified
 		default:
@@ -280,6 +294,19 @@ func (s HCDState) TaskStatuses() map[string]TaskStatus {
 		}
 	}
 	return out
+}
+
+// Stale lista las tareas cuya evidencia previa pasó pero caducó por cambios
+// posteriores de código o revisión de trabajo.
+func (s HCDState) Stale() []string {
+	status := s.TaskStatuses()
+	var ids []string
+	for _, t := range s.Doc.Tasks {
+		if status[t.ID] == TaskStale {
+			ids = append(ids, t.ID)
+		}
+	}
+	return ids
 }
 
 // Unverified lista las tareas que aún no pasan el gate de evidencia.
@@ -360,7 +387,7 @@ func (s HCDState) Stage() Stage {
 		switch status {
 		case TaskPending:
 			return StageImplement
-		case TaskUnverified, TaskFailed:
+		case TaskUnverified, TaskStale, TaskFailed:
 			stage = StageVerify
 		}
 	}
@@ -397,6 +424,9 @@ func (s HCDState) NextAction() NextStep {
 		return NextStep{Skill: "hcd-implement", Command: "verify", Why: why}
 	case StageVerify:
 		if unverified := s.Unverified(); len(unverified) > 0 {
+			if stale := s.Stale(); len(stale) > 0 && len(stale) == len(unverified) {
+				return NextStep{Skill: "hcd-verify", Command: "verify", Why: "evidencia caducada de la tarea " + strings.Join(stale, ", ") + ": revalida en una sola llamada con --stale"}
+			}
 			return NextStep{Skill: "hcd-verify", Command: "verify", Why: "falta evidencia vigente de la tarea " + strings.Join(unverified, ", ")}
 		}
 		return NextStep{Skill: "hcd-verify", Command: "verify", Why: "falta el rojo observado de la tarea " + strings.Join(s.RedMissing(), ", ") + ": ejecútala con --expect-fail sobre el código sin el cambio"}
@@ -460,6 +490,8 @@ func (s HCDState) Analyze() []HCDFinding {
 		switch status[t.ID] {
 		case TaskFailed:
 			add(sev, "TASK-FAILED", t.ID, "la última comprobación vigente de la tarea "+t.ID+" falló")
+		case TaskStale:
+			add(sev, "TASK-UNVERIFIED", t.ID, "la evidencia de la tarea "+t.ID+" caducó")
 		case TaskPending, TaskUnverified:
 			add(sev, "TASK-UNVERIFIED", t.ID, "la tarea "+t.ID+" no tiene evidencia vigente")
 		}

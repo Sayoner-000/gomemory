@@ -41,6 +41,23 @@ El test cuenta las huellas con un workspace instrumentado. En el escenario, las 
 
 Desde esta versión, `--client pi` es un cliente válido de `mem hcd`. Antes el motor lo rechazaba y Pi registraba sus aprobaciones como `terminal`.
 
+## Revalidación única de caducadas con `--stale` (v2.57.0)
+
+Hasta v2.56.0, una tarea que ya había pasado y caducaba al editar otro archivo volvía al estado `unverified`, igual que una casilla marcada a mano sin evidencia. Al cerrar con varias tareas caducadas, los agentes terminaban revalidándolas una por una en secuencia.
+
+Desde v2.57.0 el motor separa los dos casos:
+
+- `stale`: la tarea tuvo una evidencia aprobada anterior, pero la huella del repositorio o la revisión de trabajo cambió después.
+- `unverified`: la casilla está marcada como hecha sin ninguna evidencia aprobada previa.
+
+El cierre sigue exigiendo evidencia vigente, pero ahora basta una llamada para revalidar todas las caducadas cuando una suite de regresión cubre los cambios:
+
+```bash
+mem hcd verify --stale --json --client pi -- 'go test ./...'
+```
+
+`--stale` resuelve las tareas en estado `stale`, ejecuta el comando una vez y registra una única evidencia vigente sobre la huella actual. Rechaza combinarse con `--task` o `--expect-fail`, y devuelve error de validación si no hay tareas caducadas.
+
 ## Actualización
 
 Las instrucciones se distribuyen con las plantillas de gomemory. Actualiza el binario con `mem update` y comprueba que tu integración cargue las skills nuevas. Si un instalador externo mantiene su propia copia, también deberá actualizarla; cambiar el binario por sí solo no demuestra que Pi esté leyendo las nuevas instrucciones.

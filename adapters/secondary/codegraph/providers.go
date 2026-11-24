@@ -13,16 +13,14 @@ import (
 )
 
 // NewProviders conserva el orden de prioridad configurado. Sin candidatos
-// explícitos mantiene la autodetección histórica de codebase-memory-mcp y
-// suma CodeGraph cuando su binario está en PATH, para que cualquier máquina
-// lo vea sin editar settings.json a mano.
+// explícitos autodetecta únicamente CodeGraph cuando su binario está en PATH,
+// evitando fricción con codebase-memory-mcp salvo configuración explícita.
 func NewProviders(root, memDir string, commands []string) []ports.CodeGraphProvider {
 	if len(commands) == 0 {
-		providers := []ports.CodeGraphProvider{codebasememory.New(root, memDir, "")}
 		if _, err := exec.LookPath(codegraphcli.ProviderName); err == nil {
-			providers = append(providers, codegraphcli.New(root, memDir, ""))
+			return []ports.CodeGraphProvider{codegraphcli.New(root, memDir, "")}
 		}
-		return providers
+		return nil
 	}
 	providers := make([]ports.CodeGraphProvider, 0, len(commands))
 	for _, command := range commands {
@@ -37,10 +35,15 @@ func NewProviders(root, memDir string, commands []string) []ports.CodeGraphProvi
 	return providers
 }
 
-// RefreshAll se usa únicamente en el proceso detached `mem code-refresh`.
-// El lock del SO evita que hooks concurrentes sincronicen el mismo proyecto a
-// la vez; se libera incluso si el proceso muere abruptamente.
+// RefreshAll se usa en el proceso detached `mem code-refresh`.
 func RefreshAll(ctx context.Context, memDir string, providers []ports.CodeGraphProvider) {
+	RefreshAllWithInternal(ctx, memDir, providers, nil)
+}
+
+// RefreshAllWithInternal ejecuta bajo el mismo lock del SO el refresco de los
+// proveedores externos (CodeGraph) y el refresco incremental del grafo interno
+// de gomemory, evitando sincronizaciones simultáneas desde hooks o heartbeats.
+func RefreshAllWithInternal(ctx context.Context, memDir string, providers []ports.CodeGraphProvider, internal func(context.Context)) {
 	if err := os.MkdirAll(memDir, 0o700); err != nil {
 		return
 	}
@@ -58,5 +61,8 @@ func RefreshAll(ctx context.Context, memDir string, providers []ports.CodeGraphP
 		if refresher, ok := provider.(interface{ Refresh(context.Context) }); ok {
 			refresher.Refresh(ctx)
 		}
+	}
+	if internal != nil {
+		internal(ctx)
 	}
 }

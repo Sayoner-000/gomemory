@@ -293,6 +293,7 @@ func (h *HCD) Approve(ctx context.Context, in HCDApproveInput) (HCDView, error) 
 type HCDVerifyInput struct {
 	ID         string
 	Tasks      []string
+	Stale      bool
 	Command    string
 	Manual     string
 	ExpectFail bool
@@ -316,8 +317,20 @@ func (h *HCD) Verify(ctx context.Context, in HCDVerifyInput) (HCDView, domain.Ev
 	for _, t := range view.Tasks {
 		known[t.ID] = true
 	}
+	if in.Stale {
+		if len(in.Tasks) > 0 {
+			return view, domain.Evidence{}, fmt.Errorf("%w: usa --task o --stale, no ambos", domain.ErrValidation)
+		}
+		if in.ExpectFail {
+			return view, domain.Evidence{}, fmt.Errorf("%w: --stale solo aplica a revalidación en verde, no a --expect-fail", domain.ErrValidation)
+		}
+		in.Tasks = view.State.Stale()
+		if len(in.Tasks) == 0 {
+			return view, domain.Evidence{}, fmt.Errorf("%w: no hay tareas caducadas que revalidar", domain.ErrValidation)
+		}
+	}
 	if len(in.Tasks) == 0 {
-		return view, domain.Evidence{}, fmt.Errorf("%w: indica la tarea con --task", domain.ErrValidation)
+		return view, domain.Evidence{}, fmt.Errorf("%w: indica la tarea con --task o usa --stale", domain.ErrValidation)
 	}
 	for _, id := range in.Tasks {
 		if !known[id] {

@@ -341,12 +341,52 @@ func TestHCDEvidenceGoesStaleWhenCodeChanges(t *testing.T) {
 		t.Fatalf("verify = %s %v", view.Stage, err)
 	}
 	writeIn(t, env.root, "save.go", "package save // otro cambio\n")
-	if view, _ = env.uc.Show(ctx, ""); view.Stage != domain.StageVerify || view.Tasks[0].Status != domain.TaskUnverified {
+	if view, _ = env.uc.Show(ctx, ""); view.Stage != domain.StageVerify || view.Tasks[0].Status != domain.TaskStale {
 		t.Fatalf("stale evidence still counts: %s %+v", view.Stage, view.Tasks)
 	}
 	view, _, _ = env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git grep -q no-existe -- save.go"})
 	if view.Tasks[0].Status != domain.TaskFailed {
 		t.Fatalf("failed check = %+v", view.Tasks)
+	}
+}
+
+func TestHCDVerifyStaleRevalidatesAllStaleInOneCall(t *testing.T) {
+	env, ctx := newHCDEnv(t), context.Background()
+	view, _ := env.uc.Start(ctx, usecases.HCDStartInput{Kind: "technical", Lane: "fast", Title: "Revalidar stale", Why: "w", Intent: "i"})
+	editDoc(t, env, view, append(commonFill, "## Checklist\n", "## Checklist\n- [ ] 1. Primera → git --version\n- [ ] 2. Segunda → git --version\n- [ ] 3. Tercera → git --version\n")...)
+
+	// Verificar tarea 1 y 2 en huellas previas.
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"1"}, Command: "git --version"}); err != nil {
+		t.Fatalf("verify 1: %v", err)
+	}
+	writeIn(t, env.root, "save.go", "package save // cambio 2\n")
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"2"}, Command: "git --version"}); err != nil {
+		t.Fatalf("verify 2: %v", err)
+	}
+	writeIn(t, env.root, "save.go", "package save // cambio 3\n")
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Tasks: []string{"3"}, Command: "git --version"}); err != nil {
+		t.Fatalf("verify 3: %v", err)
+	}
+
+	view, _ = env.uc.Show(ctx, "")
+	if view.Tasks[0].Status != domain.TaskStale || view.Tasks[1].Status != domain.TaskStale || view.Tasks[2].Status != domain.TaskVerified {
+		t.Fatalf("statuses = %+v, want stale/stale/verified", view.Tasks)
+	}
+
+	// Una sola llamada con Stale: true revalida 1 y 2 juntas.
+	view, ev, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Stale: true, Command: "git --version"})
+	if err != nil {
+		t.Fatalf("verify --stale: %v", err)
+	}
+	if len(ev.Tasks) != 2 || ev.Tasks[0] != "1" || ev.Tasks[1] != "2" {
+		t.Fatalf("ev.Tasks = %v, want [1 2]", ev.Tasks)
+	}
+	if view.Stage != domain.StageClose {
+		t.Fatalf("stage after --stale = %s, want close", view.Stage)
+	}
+	// Repetir --stale sin tareas caducadas falla con validación.
+	if _, _, err := env.uc.Verify(ctx, usecases.HCDVerifyInput{Stale: true, Command: "git --version"}); !errors.Is(err, domain.ErrValidation) {
+		t.Fatalf("expected validation error when no stale tasks, got %v", err)
 	}
 }
 

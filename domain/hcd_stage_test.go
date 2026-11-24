@@ -147,8 +147,11 @@ func TestEvidenceGoesStaleAndFailedChecksFail(t *testing.T) {
 		t.Fatalf("stage = %s", s.Stage())
 	}
 	s.Fingerprint = "f2"
-	if s.TaskStatuses()["1"] != TaskPending || s.Stage() != StageImplement {
-		t.Fatalf("stale evidence still counts: %s", s.Stage())
+	if s.TaskStatuses()["1"] != TaskStale || s.Stage() != StageVerify {
+		t.Fatalf("stale evidence = %s, stage = %s; want stale/verify", s.TaskStatuses()["1"], s.Stage())
+	}
+	if stale := s.Stale(); len(stale) != 1 || stale[0] != "1" {
+		t.Fatalf("Stale() = %v, want [1]", stale)
 	}
 	s.Fingerprint = "f1"
 	failed := green(s, "f1", t0.Add(time.Second), "1")
@@ -156,6 +159,30 @@ func TestEvidenceGoesStaleAndFailedChecksFail(t *testing.T) {
 	s.Evidence = append(s.Evidence, failed)
 	if s.TaskStatuses()["1"] != TaskFailed || s.Stage() != StageVerify {
 		t.Fatalf("later failure ignored: %s", s.Stage())
+	}
+}
+
+func TestStaleVsUnverifiedDistinction(t *testing.T) {
+	doc := fill(render(t, KindFeature, LaneFast), LaneFast)
+	doc = strings.Replace(doc, "## Checklist\n", "## Checklist\n- [x] 1. Con verde previo → go test ./a\n- [x] 2. Marcada a mano sin verde → go test ./b\n- [ ] 3. Pendiente → go test ./c\n", 1)
+	s := stateOf(t, doc, KindFeature, LaneFast)
+	s.Evidence = []Evidence{green(s, "f1", t0, "1")}
+	s.Fingerprint = "f2"
+	st := s.TaskStatuses()
+	if st["1"] != TaskStale {
+		t.Fatalf("task 1 = %s, want stale", st["1"])
+	}
+	if st["2"] != TaskUnverified {
+		t.Fatalf("task 2 = %s, want unverified", st["2"])
+	}
+	if st["3"] != TaskPending {
+		t.Fatalf("task 3 = %s, want pending", st["3"])
+	}
+	if stale := s.Stale(); !slices.Equal(stale, []string{"1"}) {
+		t.Fatalf("Stale() = %v, want [1]", stale)
+	}
+	if s.Stage() != StageImplement {
+		t.Fatalf("stage with pending task 3 = %s, want implement", s.Stage())
 	}
 }
 

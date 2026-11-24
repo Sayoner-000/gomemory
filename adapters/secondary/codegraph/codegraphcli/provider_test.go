@@ -68,6 +68,40 @@ func TestIndexRepository_SinBinario(t *testing.T) {
 	}
 }
 
+func TestRefresh_InicializaAutonomamenteProyectoNuevo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("el ejecutable simulado es un script de shell")
+	}
+	root := t.TempDir()
+	memDir := filepath.Join(root, ".memory")
+	initial := fmt.Sprintf(`{"initialized":false,"projectPath":%q}`, root)
+	complete := fmt.Sprintf(`{"initialized":true,"projectPath":%q,"nodeCount":12,"edgeCount":18,"languages":["go"],"index":{"state":"complete"},"pendingChanges":{"added":0,"modified":0,"removed":0}}`, root)
+	script := fmt.Sprintf(`#!/bin/sh
+cd '%s' || exit 1
+if [ "$1" = status ]; then
+  if [ -f initialized ]; then printf '%%s\n' '%s'; else printf '%%s\n' '%s'; fi
+  exit 0
+fi
+printf '%%s\n' "$@" > refresh_args
+touch initialized
+`, root, complete, initial)
+	bin := filepath.Join(root, "fake-codegraph")
+	if err := os.WriteFile(bin, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p := New(root, memDir, bin)
+	p.Refresh(context.Background())
+
+	args, err := os.ReadFile(filepath.Join(root, "refresh_args"))
+	if err != nil || string(args) != "init\n--yes\n"+root+"\n" {
+		t.Fatalf("Refresh en proyecto nuevo debe ejecutar init --yes: got %q, err=%v", args, err)
+	}
+	snap := p.Snapshot()
+	if !snap.Available || snap.Architecture == nil || snap.Architecture.TotalNodes != 12 {
+		t.Fatalf("snapshot tras init autónomo = %#v", snap)
+	}
+}
+
 func TestParseStatus_ExigeIndiceActualDelProyecto(t *testing.T) {
 	root := "/tmp/project"
 	valid := fmt.Sprintf(`{"initialized":true,"projectPath":%q,"nodeCount":8297,"edgeCount":22677,"languages":["go","typescript"],"index":{"state":"complete"},"pendingChanges":{"added":0,"modified":0,"removed":0}}`, root)

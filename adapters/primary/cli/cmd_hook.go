@@ -1213,6 +1213,11 @@ func recordActivityCheckpointWithPayload(deps *Deps, title string, payload map[s
 	_, _ = deps.MemoryRepo.Insert(&mem)
 
 	reindexTouchedGoFiles(deps, root, project, activity.Files)
+	if len(activity.Files) > 0 {
+		for _, p := range deps.CodeProviders {
+			p.MaybeRefresh()
+		}
+	}
 }
 
 // reindexTouchedGoFiles mantiene el grafo de código fresco automáticamente:

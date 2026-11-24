@@ -25,17 +25,13 @@ func TestNewProviders_SeleccionaAdaptadorPorComando(t *testing.T) {
 		t.Fatalf("codegraph debe usar su propio adaptador, recibido %T", providers[0])
 	}
 	if _, ok := providers[1].(*codebasememory.Provider); !ok {
-		t.Fatalf("codebase-memory-mcp debe conservar su adaptador, recibido %T", providers[1])
-	}
-	if _, ok := NewProviders(root, memDir, nil)[0].(*codebasememory.Provider); !ok {
-		t.Fatal("la autodetección por defecto debe seguir siendo codebase-memory-mcp")
+		t.Fatalf("codebase-memory-mcp explícito debe conservar su adaptador, recibido %T", providers[1])
 	}
 }
 
-// Sin lista configurada, CodeGraph instalado en PATH debe sumarse tras
-// codebase-memory-mcp: antes solo aparecía si el settings.json local lo
-// listaba a mano, así que otras máquinas nunca lo veían.
-func TestNewProviders_AutodetectaCodeGraphEnPath(t *testing.T) {
+// Sin lista configurada, solo se autodetecta CodeGraph cuando está en PATH
+// (sin codebase-memory-mcp por defecto para evitar fricción entre dos grafos).
+func TestNewProviders_AutodetectaSoloCodeGraphEnPath(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("el ejecutable simulado es un script de shell")
 	}
@@ -47,19 +43,16 @@ func TestNewProviders_AutodetectaCodeGraphEnPath(t *testing.T) {
 	}
 	t.Setenv("PATH", bin)
 	providers := NewProviders(root, memDir, nil)
-	if len(providers) != 2 {
-		t.Fatalf("proveedores = %d, se esperaba codebase-memory-mcp + codegraph", len(providers))
+	if len(providers) != 1 {
+		t.Fatalf("proveedores = %d, se esperaba solo codegraph", len(providers))
 	}
-	if _, ok := providers[0].(*codebasememory.Provider); !ok {
-		t.Fatalf("codebase-memory-mcp conserva la prioridad, recibido %T", providers[0])
-	}
-	if _, ok := providers[1].(*codegraphcli.Provider); !ok {
-		t.Fatalf("codegraph autodetectado debe usar su adaptador, recibido %T", providers[1])
+	if _, ok := providers[0].(*codegraphcli.Provider); !ok {
+		t.Fatalf("codegraph autodetectado debe usar su adaptador, recibido %T", providers[0])
 	}
 
 	t.Setenv("PATH", t.TempDir())
-	if got := len(NewProviders(root, memDir, nil)); got != 1 {
-		t.Fatalf("sin codegraph en PATH: proveedores = %d", got)
+	if got := len(NewProviders(root, memDir, nil)); got != 0 {
+		t.Fatalf("sin codegraph en PATH: proveedores = %d, want 0", got)
 	}
 	if got := len(NewProviders(root, memDir, []string{"codebase-memory-mcp"})); got != 1 {
 		t.Fatalf("una lista explícita se respeta tal cual: proveedores = %d", got)

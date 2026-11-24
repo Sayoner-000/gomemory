@@ -5,6 +5,20 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.57.0] - 2026-11-24
+
+### Added
+
+- Estado `stale` (`domain.TaskStale`) para distinguir tareas cuya evidencia anterior pasó y caducó por cambios posteriores de código, frente a `unverified` (casilla marcada sin evidencia). `HCDState.Stale()` devuelve los IDs caducados.
+- `mem hcd verify --stale -- '<comando>'` revalida todas las tareas en estado `stale` en una sola ejecución cuando una regresión final cubre los cambios, evitando revalidaciones secuenciales 1..N. [Detalles](docs/HCD-VERIFICATION.md).
+- Inicialización autónoma de CodeGraph en `codegraphcli.Provider.Refresh`: si un proyecto aún no tiene `.codegraph/`, ejecuta `codegraph init --yes` en segundo plano sin pedir `codegraph init .` a mano; si recomienda reindexado corre `codegraph index --quiet`, y si hay cambios pendientes corre `codegraph sync`.
+- `mem code-refresh` refresca ahora bajo `.code-refresh.lock` tanto CodeGraph como el índice interno incremental de gomemory (`Indexer.IndexProject(false)`). El hook `turn-end` dispara `MaybeRefresh()` tras cada turno con archivos modificados.
+
+### Changed
+
+- `codegraph.NewProviders` autodetecta solo `codegraph` cuando no hay lista explícita en `settings.json`, retirando `codebase-memory-mcp` de la autodetección por defecto para evitar fricción entre dos grafos. Las configuraciones explícitas en `settings.json` se siguen respetando.
+- Las plantillas de skills `hcd-verify` y `hcd-implement` documentan la revalidación final con `mem hcd verify --stale`.
+
 ## [v2.56.0] - 2026-11-23
 
 ### Added

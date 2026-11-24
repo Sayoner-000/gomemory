@@ -90,6 +90,10 @@ func TestParseRejectsUnknownFlagsAndCommands(t *testing.T) {
 	if err != nil || p.id != "HCD-001" || p.flags["task"] != "1,2" || p.flags["expect-fail"] != "true" || p.run != "go test ./x -run 'A B'" {
 		t.Fatalf("parse verify = %+v %v", p, err)
 	}
+	ps, err := parse([]string{"verify", "--stale", "--json", "--", "go test ./..."})
+	if err != nil || ps.flags["stale"] != "true" || !ps.json || ps.run != "go test ./..." {
+		t.Fatalf("parse verify --stale = %+v %v", ps, err)
+	}
 }
 
 func TestEngineJSONFlowAndExitCodes(t *testing.T) {

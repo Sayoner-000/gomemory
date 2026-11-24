@@ -25,7 +25,7 @@ var (
 		"clarify": {"ask": true, "id": true, "answer": true},
 		"review":  {"kind": true, "action": true, "revision": true, "operation-id": true, "input": true, "quote": true, "attempt": true, "attempt-id": true, "reason": true, "finding": true, "finding-id": true, "id": true},
 		"approve": {"quote": true},
-		"verify":  {"task": true, "expect-fail": true, "manual": true},
+		"verify":  {"task": true, "stale": true, "expect-fail": true, "manual": true},
 		"analyze": {},
 		"close":   {"quote": true},
 		"cancel":  {"quote": true},
@@ -34,7 +34,7 @@ var (
 		"index":   {"apply": true},
 		"history": {"file": true},
 	}
-	boolFlags = map[string]bool{"json": true, "expect-fail": true, "apply": true}
+	boolFlags = map[string]bool{"json": true, "expect-fail": true, "apply": true, "stale": true}
 )
 
 type parsed struct {
@@ -221,7 +221,7 @@ func executeWithStdin(deps *clikit.Deps, args []string, stdin io.Reader, out, er
 		view, findings, err = uc.Analyze(ctx, p.id)
 	case "verify":
 		var ev domain.Evidence
-		view, ev, err = uc.Verify(ctx, usecases.HCDVerifyInput{ID: p.id, Tasks: splitList(p.flags["task"]), Command: p.run, Manual: p.flags["manual"], ExpectFail: p.flags["expect-fail"] == "true"})
+		view, ev, err = uc.Verify(ctx, usecases.HCDVerifyInput{ID: p.id, Tasks: splitList(p.flags["task"]), Stale: p.flags["stale"] == "true", Command: p.run, Manual: p.flags["manual"], ExpectFail: p.flags["expect-fail"] == "true"})
 		if err == nil {
 			data["evidence"] = map[string]any{"id": ev.ID, "tasks": ev.Tasks, "kind": ev.Kind, "expect_fail": ev.ExpectFail, "exit_code": ev.ExitCode, "passed": ev.Passed(), "red_observed": ev.RedObserved(), "excerpt": ev.Excerpt}
 		}

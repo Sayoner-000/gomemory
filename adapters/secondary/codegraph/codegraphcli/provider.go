@@ -152,10 +152,37 @@ func (p *Provider) Refresh(ctx context.Context) {
 		return
 	}
 	var current status
-	if json.Unmarshal(data, &current) != nil || !current.Initialized || current.ProjectPath != p.root {
+	if json.Unmarshal(data, &current) != nil || current.ProjectPath != p.root {
 		return
 	}
-	if current.pending() > 0 {
+	if !current.Initialized {
+		// Inicialización autónoma: prepara .codegraph/ en un proyecto nuevo sin
+		// obligar a ejecutar `codegraph init .` a mano.
+		cctx, cancel := context.WithTimeout(ctx, indexTimeout)
+		_, err = exec.CommandContext(cctx, p.binPath, "init", "--yes", p.root).Output()
+		cancel()
+		if err != nil {
+			return
+		}
+		data, err = p.status(ctx)
+		if err != nil {
+			return
+		}
+		if json.Unmarshal(data, &current) != nil || !current.Initialized || current.ProjectPath != p.root {
+			return
+		}
+	} else if current.Index.ReindexRecommended {
+		cctx, cancel := context.WithTimeout(ctx, indexTimeout)
+		_, err = exec.CommandContext(cctx, p.binPath, "index", "--quiet", p.root).Output()
+		cancel()
+		if err != nil {
+			return
+		}
+		data, err = p.status(ctx)
+		if err != nil {
+			return
+		}
+	} else if current.pending() > 0 {
 		// El watcher solo corre cuando un agente mantiene abierto el MCP de
 		// CodeGraph. Fuera de él, la sincronización incremental ocurre aquí,
 		// en el proceso detached, antes de publicar un snapshot utilizable.

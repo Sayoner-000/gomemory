@@ -17,6 +17,8 @@ import (
 	"mem/adapters/secondary/expandstate"
 	"mem/adapters/secondary/persistence"
 	"mem/adapters/secondary/rulesfs"
+	"mem/application/ports"
+	"mem/application/usecases"
 	"mem/domain"
 )
 
@@ -97,22 +99,28 @@ func main() {
 	if noMotion {
 		_ = os.Setenv("GOMEMORY_NO_MOTION", "1")
 	}
-	// code-refresh: proceso de fondo (detached) que refresca el snapshot del
-	// grafo externo FUERA del hot path. No abre la DB; resuelve el root y sondea
-	// al proveedor con su propio timeout. Best-effort: cualquier fallo → exit 0.
+	// code-refresh: proceso de fondo (detached) que mantiene al día tanto el
+	// grafo externo (CodeGraph: init autónomo si es proyecto nuevo, sync/index
+	// si ya existe) como el índice interno incremental de gomemory (`mem index`),
+	// serializados bajo .code-refresh.lock. Best-effort: cualquier fallo → exit 0.
 	if len(os.Args) >= 2 && os.Args[1] == "code-refresh" {
 		if root, err := persistence.FindRoot(); err == nil {
-			if s := persistence.ReadSettings(root); !s.CodeGraphDisabled {
-				// Historia 3 (feature 010): refresca CADA candidato configurado
-				// (ReadSettings ya normaliza el legado CodeGraphCommand a una
-				// lista de 1 si CodeGraphProviders viene vacía) — cada uno tiene
-				// su propio archivo de snapshot (ver snapshotPath), así que no se
-				// pisan entre sí. Sin candidatos configurados, NewProviders
-				// autodetecta en PATH los proveedores conocidos.
-				memDir := filepath.Join(root, persistence.MemDir)
-				ctx := context.Background()
-				codegraph.RefreshAll(ctx, memDir, codegraph.NewProviders(root, memDir, s.CodeGraphProviders))
+			s := persistence.ReadSettings(root)
+			memDir := filepath.Join(root, persistence.MemDir)
+			ctx := context.Background()
+			var providers []ports.CodeGraphProvider
+			if !s.CodeGraphDisabled {
+				providers = codegraph.NewProviders(root, memDir, s.CodeGraphProviders)
 			}
+			codegraph.RefreshAllWithInternal(ctx, memDir, providers, func(context.Context) {
+				db, err := persistence.Open(root)
+				if err != nil {
+					return
+				}
+				defer db.Close()
+				ix := usecases.NewIndexer(persistence.NewCodeGraphRepository(db), root, persistence.ProjectKey(root))
+				_, _ = ix.IndexProject(false)
+			})
 		}
 		os.Exit(0)
 	}
