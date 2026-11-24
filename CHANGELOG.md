@@ -7,6 +7,8 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.59.0] - 2026-11-24
+
 ### Added
 
 - `mem doctor --fix` aplica las correcciones que el informe ya proponía para lo que gestiona gomemory: canales rotos (`mem install . --yes` o `mem setup-mcp --scope global`), plugin de OpenCode incompatible, hooks de Claude duplicados, almacén de originales al 90 % y servidor MCP de CodeGraph sin conectar. Confirma una vez las acciones de proyecto y una por una las que afectan a toda la máquina; `--yes` aplica sin preguntar y `--dry-run` solo muestra el plan. Al terminar repite el diagnóstico y resume los problemas antes y después. `--json` añade la clave `fixes`. [Detalles](docs/MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar).

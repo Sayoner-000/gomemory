@@ -1,8 +1,8 @@
 # Documentación de gomemory
 
-En v2.58.0 se retira `codebase-memory-mcp` y CodeGraph queda como único proveedor externo de grafo de código en el bootstrap MCP, hooks, plugin de OpenCode, `graph-before-grep` y `mem doctor`. En v2.57.0 se añadió `mem hcd verify --stale` y el auto-refresh autónomo de grafos. [Verificación HCD y sus límites](HCD-VERIFICATION.md).
+En v2.59.0 llega `mem doctor --fix` ([manual](MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar)), la huella HCD pasa a depender solo del contenido y `mem hcd verify --stale` sin comando reejecuta el comando de cada tarea ([Verificación HCD y sus límites](HCD-VERIFICATION.md)). En v2.58.0 CodeGraph quedó como único proveedor externo de grafo de código.
 
-Índice y referencias técnicas de gomemory (versión 2.58.0).
+Índice y referencias técnicas de gomemory (versión 2.59.0).
 
 Consulta [Rendimiento](PERFORMANCE.md) para los cambios en duplicados y contexto, sus mediciones y sus límites.
 
