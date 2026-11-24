@@ -8,7 +8,7 @@
 <h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
 
 <p align="center">
-  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.57.0"><img src="https://img.shields.io/badge/version-2.57.0-blue" alt="Version 2.57.0"></a>
+  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.58.0"><img src="https://img.shields.io/badge/version-2.58.0-blue" alt="Version 2.58.0"></a>
   <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
   <a href="https://github.com/Sayoner-000/gomemory/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sayoner-000/gomemory/test.yml?branch=main&label=CI" alt="CI status"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
@@ -41,6 +41,15 @@ It is a single Go binary. There is no cloud service, no API key and no database
 server. Memory lives outside your repository; the project only gets a
 `.memory/` folder for settings and hook state, which `mem install` adds to
 `.gitignore`.
+
+## CodeGraph as single external graph in v2.58.0
+
+The legacy `codebase-memory-mcp` adapter has been removed. gomemory now uses
+[CodeGraph](https://github.com/colbymchenry/codegraph) as its only external
+code graph across MCP tool discovery, subagent notices, OpenCode's plugin,
+`graph-before-grep` and `mem doctor`. Existing `settings.json` files that still
+list `codebase-memory-mcp` keep working: unknown legacy commands are ignored
+without error.
 
 ## HCD in v2.56.0
 
@@ -129,7 +138,7 @@ flowchart LR
     core --> db[("mem.db<br/>one SQLite store per project<br/>in your user data directory")]
     core --> instincts[("instincts.db<br/>patterns shared across projects")]
     core --> local["project/.memory/<br/>settings and hook state<br/>(gitignored)"]
-    core -.-> codegraph["Code graph<br/>built-in Go graph<br/>codebase-memory-mcp · CodeGraph"]
+    core -.-> codegraph["Code graph<br/>built-in Go graph<br/>CodeGraph"]
 ```
 
 gomemory reaches your agent through two channels. Every supported agent
@@ -193,8 +202,8 @@ On top of memory, gomemory ships tools for the work agents do with it:
   the files that changed, and it tells you roughly how many tokens that saved.
 - A built-in Go symbol graph answers code-structure questions. It reindexes
   only what changed, and a call to a function you write later still shows up
-  once the function exists. External graph providers are optional: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
-  and [CodeGraph](https://github.com/colbymchenry/codegraph).
+  once the function exists. [CodeGraph](https://github.com/colbymchenry/codegraph)
+  is supported as an optional multi-language external graph.
 - `mem install` and `mem update` keep a set of skills and guardrails current:
   `defensive-qa-audit`, `socratica` (prompt refinement, and `/socratica-hu`
   to prepare a checked, approved input for Spec Kit's `speckit-specify`) and

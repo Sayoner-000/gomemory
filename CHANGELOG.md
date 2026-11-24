@@ -5,6 +5,19 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.58.0] - 2026-11-24
+
+### Removed
+
+- Eliminado el adaptador `adapters/secondary/codegraph/codebasememory/` y el diagnóstico `agyCodebaseMemoryWarning` de `mem doctor`. CodeGraph (`codegraphcli`) pasa a ser el único proveedor externo de grafo de código.
+
+### Changed
+
+- `codegraph.NewProviders` instancia únicamente `codegraphcli.Provider` e ignora sin error entradas heredadas como `codebase-memory-mcp` en `settings.json`, manteniendo compatibilidad con proyectos ya configurados.
+- El bootstrap de herramientas MCP (`domain/mcp_tools.go`, `cmd_hook.go`, `cmd_install.go`) y el plugin de OpenCode (`infrastructure/plugin/opencode/gomemory.ts`) materializan `codegraph_explore` en lugar de las herramientas de `codebase-memory-mcp`.
+- La regla `graph-before-grep` (`domain/rules_graph.go`), los valores por defecto de `formatCodeArchitecture` (`application/usecases/build_context.go`) y la ayuda de `mem settings` apuntan únicamente a CodeGraph (`projectPath`, `codegraph_explore`).
+- `ports.ADRSyncProvider`, la tabla `adr_sync_records` y `mem adr-sync` se mantienen inertes para no alterar el esquema SQLite ni configuraciones existentes.
+
 ## [v2.57.0] - 2026-11-24
 
 ### Added

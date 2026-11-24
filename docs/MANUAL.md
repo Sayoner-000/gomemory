@@ -909,12 +909,10 @@ mem index --skip-graph     # Solo el grafo propio — no reindexa proveedores ex
 `mem index` construye el grafo de símbolos **propio** de gomemory (Go puro, vía
 `go/parser`, sin dependencias externas), que alimentan las tools MCP
 `search_code`/`get_symbol`/`list_dependencies`/`graph_status`. Tras el indexado
-nativo, reindexa cada proveedor **externo** de grafo de código configurado
-(`codebase-memory-mcp`, `codegraph` u otro, multi-lenguaje — ver abajo), en el
-orden de `code_graph_providers`, salvo que se pase `--skip-graph`. Si uno no está
-instalado o falla, informa el resultado y continúa con el siguiente; el exit
-code permanece `0` (el indexado nativo, que sí
-importa para el resto de gomemory, ya tuvo éxito).
+nativo, reindexa el proveedor **externo** de grafo de código ([CodeGraph](https://github.com/colbymchenry/codegraph),
+multi-lenguaje) si está instalado, salvo que se pase `--skip-graph`. Si no está
+instalado o falla, informa el resultado y continúa; el exit code permanece `0`
+(el indexado nativo ya tuvo éxito).
 
 El indexado es incremental: solo vuelve a leer los archivos cuyo contenido
 cambió. Desde la v2.49.2, una llamada a una función que todavía no existe queda
@@ -941,44 +939,26 @@ Ajustes relevantes (`mem settings` o `.memory/settings.json`):
 
 | Ajuste | Default | Qué hace |
 | :--- | :--- | :--- |
-| `code_graph_disabled` | `false` | Desactiva el proveedor externo por completo |
-| `code_graph_providers` | *(ninguno: autodetección)* | Lista ordenada de comandos de proveedor; acepta `codebase-memory-mcp` y `codegraph`. Vacía, usa codebase-memory-mcp y suma CodeGraph si está en el PATH |
-| `code_impact_annotation_disabled` | `false` | Desactiva la anotación de impacto (`[impacto: X es hotspot...]`) al guardar una memoria con `--filepath` |
-| `adr_sync_enabled` | `false` | Sincronización bidireccional (opt-in) de memorias de arquitectura con el documento ADR del proveedor — ver `mem adr-sync status` |
+| `code_graph_disabled` | `false` | Desactiva CodeGraph como proveedor externo |
+| `code_graph_providers` | *(ninguno: autodetección)* | Lista de comandos de proveedor (`codegraph`). Vacía, autodetecta `codegraph` en el PATH; los comandos heredados ajenos a CodeGraph se ignoran sin error |
+| `code_impact_annotation_disabled` | `false` | Desactiva la anotación de impacto al guardar una memoria con `--filepath` |
+| `adr_sync_enabled` | `false` | Sincronización de ADR (se conserva el puerto inerte por compatibilidad — ver `mem adr-sync status`) |
 
-Para usar **CodeGraph junto con codebase-memory-mcp** basta con instalar ambos
-CLI: con `code_graph_providers` vacío, gomemory detecta CodeGraph en el PATH en
-cualquier proyecto y máquina. Fijar la lista solo hace falta para cambiar el
-orden o excluir un proveedor, por ejemplo:
+Con `code_graph_providers` vacío, gomemory detecta `codegraph` en el PATH en
+cualquier proyecto y máquina. Si el proyecto aún no tiene `.codegraph/`, el
+refresco en segundo plano (`mem code-refresh`) lo inicializa automáticamente con
+`codegraph init --yes`; si tiene cambios pendientes ejecuta `codegraph sync`, y
+si necesita reconstrucción ejecuta `codegraph index --quiet`.
 
-```json
-{
-  "code_graph_providers": ["codebase-memory-mcp", "codegraph"]
-}
-```
-
-En cada proyecto, ejecuta `mem index` para crear o reconstruir el índice de
-CodeGraph y compruébalo con `codegraph status`. Con CodeGraph activo, `mem
-install` (y `mem update`, que lo ejecuta) conecta su servidor MCP a los agentes
-que gestiona (Claude, Codex, OpenCode y Antigravity) que aún no lo tengan, con
-`codegraph install --target <faltantes> --location global --yes` (Antigravity
-es el target `antigravity`), para que lo usen por su cuenta igual que
-codebase-memory-mcp. No usa `--target auto`, que también conectaría Gemini CLI
-y crearía `~/.gemini/GEMINI.md`. `mem doctor` muestra en qué agentes está
-conectado y avisa si codebase-memory-mcp falta en Antigravity; ese registro no
-lo hace gomemory, sino `codebase-memory-mcp install --clients=antigravity`, que
-también escribe `~/.gemini/GEMINI.md`. `init` crea el índice local. Gomemory consulta `codegraph status --json` durante
-su refresco desacoplado y, si hay archivos pendientes, ejecuta `codegraph sync`
-fuera del camino de los hooks. `mem context` muestra cada proveedor configurado
-que esté disponible.
-CodeGraph aporta totales de nodos y relaciones, acceso a `codegraph_explore`
-y el comando `codegraph affected` para buscar pruebas relacionadas con cambios;
-la anotación de hotspots y la sincronización ADR siguen usando
-codebase-memory-mcp cuando está disponible. `mem index` reindexa todos los
-proveedores configurados. CodeGraph también mantiene su índice actualizado
-mediante su servidor MCP cuando está activo y gomemory sincroniza los cambios
-pendientes al refrescar su snapshot. El directorio local `.codegraph/` se ignora
-en este repositorio.
+En cada proyecto también puedes ejecutar `mem index` para crear o reconstruir el
+índice de CodeGraph y comprobarlo con `codegraph status`. Con CodeGraph activo,
+`mem install` (y `mem update`) conecta su servidor MCP a los agentes presentes
+(Claude, Codex, OpenCode y Antigravity) con
+`codegraph install --target <faltantes> --location global --yes`, sin usar
+`--target auto` (que crearía `~/.gemini/GEMINI.md`). `mem doctor` muestra en qué
+agentes está conectado. CodeGraph aporta totales de nodos y relaciones, acceso a
+`codegraph_explore` y `codegraph affected`. El directorio local `.codegraph/` se
+ignora en este repositorio.
 
 ## 10. Optimización de Contexto (mem pack)
 
@@ -1040,13 +1020,10 @@ conversación, sin pasar por la terminal. La tool `pack_build` expone el
 mismo apagador como `no_code_graph` (booleano, no `include_code_graph` — el
 default siempre es "activado" salvo que el cliente lo desactive explícito).
 
-Si hay un proveedor de grafo de código externo configurado (`codebase-memory-mcp`
-u otro), `mem pack build` también lo consulta, con el mismo criterio
-de solo-snapshot-cacheado y degradación silenciosa que ya usa `mem context`:
-una memoria candidata cuyo archivo es un hotspot vigente sube de prioridad
-Optional a Relevant, y si sobra presupuesto puede aparecer un ítem compacto
-de arquitectura (mismos totales/clusters/hotspots que `mem context` ya
-muestra). Sin proveedor configurado, o con `--no-code-graph`/`no_code_graph`,
+Si CodeGraph está disponible como proveedor externo, `mem pack build` también lo
+consulta con el mismo criterio de snapshot cacheado y degradación silenciosa que
+usa `mem context`: si sobra presupuesto puede incluir un ítem compacto de
+arquitectura. Sin proveedor configurado, o con `--no-code-graph`/`no_code_graph`,
 el comportamiento es exactamente el de antes de esta señal.
 
 > `.memory/settings.json` ya reserva claves para esta feature

@@ -318,10 +318,10 @@ Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `compact_age
 
 #### Grafo de código externo (brazo extensor, opcional)
 
-`build_context.go` puede enriquecer el contexto con uno o varios grafos de código **externos** ya indexados, como [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp) y [CodeGraph](https://github.com/colbymchenry/codegraph), **sin acoplar el núcleo** a sus esquemas. El grafo propio de gomemory (`index_project`/`search_code`/…) se mantiene intacto; esta capa es aditiva y opcional.
+`build_context.go` puede enriquecer el contexto con [CodeGraph](https://github.com/colbymchenry/codegraph) como grafo de código **externo**, **sin acoplar el núcleo** a su esquema. El grafo propio de gomemory (`index_project`/`search_code`/…) se mantiene intacto; esta capa es aditiva y opcional.
 
 - **Puerto provider-agnóstico** `application/ports/code_graph_provider.go` (`CodeGraphProvider`): `Name()`, `Snapshot()` y `MaybeRefresh()`. El núcleo no menciona ningún proveedor concreto.
-- **Adaptadores**: `adapters/secondary/codegraph/codebasememory/` habla por el CLI de `codebase-memory-mcp` (`codebase-memory-mcp cli <tool> <json>`, JSON por stdout), no por su SQLite; casa el proyecto por `root_path` (vía `list_projects`). `adapters/secondary/codegraph/codegraphcli/` usa el CLI de CodeGraph para consultar su estado, sincronizar cambios e indexar el repositorio. Cada adaptador mantiene aisladas las diferencias de proveedor.
+- **Adaptador**: `adapters/secondary/codegraph/codegraphcli/` usa el CLI de CodeGraph para consultar su estado (`status --json`), inicializar proyectos nuevos (`init --yes`), sincronizar cambios pendientes (`sync`) e indexar el repositorio (`index --quiet`). En v2.58.0 se retiró el adaptador heredado `codebasememory/`.
 - **No-bloqueo (patrón engram):** el hot path (`Build`) solo **lee** snapshots cacheados bajo `.memory/` — uno por proveedor, con nombre derivado de su identidad — instantáneos, nunca invoca al proveedor en línea. Si un snapshot está viejo (TTL 60s), `MaybeRefresh()` lanza un proceso **detached** (`mem code-refresh`, fast-path en `main.go` sin abrir la BD; detach vía `setsid` en `proc_unix.go` / no-op en `proc_windows.go`) que sondea con timeout corto (~2s) y reescribe el snapshot de forma atómica para la **próxima** llamada. Enriquecimiento eventual.
 - **Refresco fuera del camino de hooks.** Los hooks y `get_context` leen snapshots y pueden pedir un refresco desacoplado; no esperan a que termine una indexación. En CodeGraph, el refresco consulta `status --json` y ejecuta `sync` si hay cambios pendientes. Un lock del sistema operativo por proyecto serializa esos refrescos entre procesos.
 - **Indexado explícito.** `mem index` sí solicita el indexado completo de cada proveedor configurado, en orden. `--skip-graph` limita la operación al grafo propio. Si un proveedor falla o no está instalado, informa el resultado y continúa con los demás.
@@ -1555,11 +1555,7 @@ gomemory/
 │           ├── maintenance.go       #       Purge/Compact/GC (no expuesto vía MCP)
 │           ├── settings.go          #       Config local (auto-approve + toggle grafo externo)
 │           └── repositories.go     #       Wrappers ports.*Repository
-│       └── codegraph/               #     Proveedores externos y coordinación de refresco
-│           ├── codebasememory/      #     Adaptador CLI de codebase-memory-mcp
-│           │   ├── provider.go      #       Snapshot() hot path + Refresh() background
-│           │   ├── proc_unix.go     #       detach (setsid) del refresco
-│           │   └── proc_windows.go  #       detach no-op en Windows
+│       └── codegraph/               #     Proveedor externo y coordinación de refresco
 │           ├── codegraphcli/        #     Adaptador CLI de CodeGraph
 │           ├── refresh_lock_unix.go #     Lock de refresco entre procesos (Unix)
 │           └── refresh_lock_windows.go #  Lock de refresco entre procesos (Windows)

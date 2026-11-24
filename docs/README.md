@@ -1,8 +1,8 @@
 # Documentación de gomemory
 
-En v2.56.0, los comandos HCD que modifican una unidad calculan la huella del código una vez en lugar de dos, y `mem hcd` acepta `--client pi`. [Verificación HCD y sus límites](HCD-VERIFICATION.md).
+En v2.58.0 se retira `codebase-memory-mcp` y CodeGraph queda como único proveedor externo de grafo de código en el bootstrap MCP, hooks, plugin de OpenCode, `graph-before-grep` y `mem doctor`. En v2.57.0 se añadió `mem hcd verify --stale` y el auto-refresh autónomo de grafos. [Verificación HCD y sus límites](HCD-VERIFICATION.md).
 
-Índice y referencias técnicas de gomemory (versión 2.56.0).
+Índice y referencias técnicas de gomemory (versión 2.58.0).
 
 Consulta [Rendimiento](PERFORMANCE.md) para los cambios en duplicados y contexto, sus mediciones y sus límites.
 
@@ -35,7 +35,7 @@ Documentos en formato HTML preparados para lectura en pantalla o impresión dire
 - [Guía SDD y HCD (Guia-SDD_HCD_GOMEMORY-v2.56.html)](Guia-SDD_HCD_GOMEMORY-v2.56.html): coordinación entre especificaciones formales con Spec Kit y el ciclo de comprobación de HCD.
 - [Guía técnica (Guia-Tecnica_GOMEMORY-v2.56.html)](Guia-Tecnica_GOMEMORY-v2.56.html): desglose de arquitectura del proyecto en 14 secciones, desde persistencia hasta compresión de respuestas.
 - [Guía de explicación para desarrolladores (Guia-Explicacion-Developers-GOMEMORY.html)](Guia-Explicacion-Developers-GOMEMORY.html): guía visual e introductoria para equipos de ingeniería sobre el funcionamiento, arquitectura y adopción de gomemory.
-- [Manual de referencia para desarrolladores (Manual-Referencia-Developers-GOMEMORY.html)](Manual-Referencia-Developers-GOMEMORY.html): referencia detallada de protocolos, flujos de hooks/MCP, glosario y Anexo A1 con la comparativa de los tres grafos de código (`gomemory`, `CodeGraph` y `codebase-memory-mcp`) y el guardarraíl `graph-before-grep`.
+- [Manual de referencia para desarrolladores (Manual-Referencia-Developers-GOMEMORY.html)](Manual-Referencia-Developers-GOMEMORY.html): referencia detallada de protocolos, flujos de hooks/MCP, glosario y anexo sobre los grafos de código (`gomemory` y `CodeGraph`) y el guardarraíl `graph-before-grep`.
 
 ## Idioma del proyecto (`es` / `en`)
 
