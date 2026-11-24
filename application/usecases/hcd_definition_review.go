@@ -77,6 +77,6 @@ func (h *HCD) RecordDefinitionReview(ctx context.Context, in HCDDefinitionReview
 	if err != nil {
 		return view, event, err
 	}
-	next, err := h.Show(ctx, view.Unit.ID)
+	next, err := h.reshow(ctx, view)
 	return next, event, err
 }

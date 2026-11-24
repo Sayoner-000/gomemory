@@ -133,6 +133,19 @@ func (h *HCD) Start(ctx context.Context, in HCDStartInput) (HCDView, error) {
 // mano, Show adopta la ruta y el título del documento y actualiza la ficha;
 // sin divergencia ni reapuntes pendientes no escribe nada.
 func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
+	return h.showWith(ctx, id, "")
+}
+
+// reshow vuelve a mostrar la unidad tras una mutación que solo escribió en
+// hcd/ o en la base de datos: reutiliza la huella ya calculada, porque la
+// huella excluye hcd/ y nada más cambió el código (HCD-061). Verify no la usa:
+// su comando puede cambiar el código.
+func (h *HCD) reshow(ctx context.Context, prev HCDView) (HCDView, error) {
+	return h.showWith(ctx, prev.Unit.ID, prev.State.Fingerprint)
+}
+
+// showWith es Show con una huella ya conocida; vacía, la calcula.
+func (h *HCD) showWith(ctx context.Context, id, fingerprint string) (HCDView, error) {
 	unit, err := h.unit(ctx, id)
 	if err != nil {
 		return HCDView{}, err
@@ -145,14 +158,14 @@ func (h *HCD) Show(ctx context.Context, id string) (HCDView, error) {
 	if err != nil {
 		return HCDView{}, err
 	}
-	view, err := h.show(ctx, unit, data)
+	view, err := h.show(ctx, unit, data, fingerprint)
 	if reconciled || recovered {
 		return h.recorded(view, err)
 	}
 	return view, err
 }
 
-func (h *HCD) show(ctx context.Context, unit domain.Unit, data []byte) (HCDView, error) {
+func (h *HCD) show(ctx context.Context, unit domain.Unit, data []byte, fingerprint string) (HCDView, error) {
 	var err error
 	s := domain.HCDState{Unit: unit}
 	s.Doc, s.Pending = domain.ParseUnitDoc(data, unit.Kind, unit.Lane)
@@ -161,8 +174,10 @@ func (h *HCD) show(ctx context.Context, unit domain.Unit, data []byte) (HCDView,
 			s.MissingPaths = append(s.MissingPaths, p)
 		}
 	}
-	if s.Fingerprint, err = h.ws.Fingerprint(ctx); err != nil {
-		return HCDView{}, err
+	if s.Fingerprint = fingerprint; s.Fingerprint == "" {
+		if s.Fingerprint, err = h.ws.Fingerprint(ctx); err != nil {
+			return HCDView{}, err
+		}
 	}
 	if s.Evidence, err = h.store.Evidence(ctx, unit.ID); err != nil {
 		return HCDView{}, err
@@ -236,7 +251,7 @@ func (h *HCD) Clarify(ctx context.Context, in HCDClarifyInput) (HCDView, string,
 	if err = h.ws.WriteDoc(view.Unit.DocPath, data); err != nil {
 		return view, "", err
 	}
-	next, err := h.Show(ctx, view.Unit.ID)
+	next, err := h.reshow(ctx, view)
 	if answer != "" {
 		next, err = h.recorded(next, err)
 	}
@@ -272,7 +287,7 @@ func (h *HCD) Approve(ctx context.Context, in HCDApproveInput) (HCDView, error) 
 	if err = h.approve(ctx, view, domain.ApprovalApprove, view.DefinitionRevision, in.Quote, in.Client); err != nil {
 		return view, err
 	}
-	return h.recorded(h.Show(ctx, view.Unit.ID))
+	return h.recorded(h.reshow(ctx, view))
 }
 
 type HCDVerifyInput struct {
@@ -415,7 +430,7 @@ func (h *HCD) Promote(ctx context.Context, id string) (HCDView, error) {
 	if err = h.store.Save(ctx, view.Unit); err != nil {
 		return view, err
 	}
-	return h.recorded(h.Show(ctx, view.Unit.ID))
+	return h.recorded(h.reshow(ctx, view))
 }
 
 // HasActive es la consulta ligera del hook pre-edición: solo lee la tabla,
@@ -490,7 +505,7 @@ func (h *HCD) Rename(ctx context.Context, in HCDRenameInput) (HCDView, error) {
 	if _, err = h.recoverRetarget(ctx, unit.ID); err != nil {
 		return view, fmt.Errorf("unidad renombrada a %s, pero falló el reapunte de memorias: %w", newPath, err)
 	}
-	return h.recorded(h.Show(ctx, unit.ID))
+	return h.recorded(h.reshow(ctx, view))
 }
 
 // loadDoc lee el documento de la unidad y reconcilia lo hecho a mano
@@ -655,7 +670,7 @@ func (h *HCD) finish(ctx context.Context, view HCDView, next string) (HCDView, e
 	if data, err := h.ws.ReadDoc(view.Unit.DocPath); err == nil {
 		_ = h.ws.WriteDoc(view.Unit.DocPath, domain.ReplaceSection(data, domain.SectionNext, next, ""))
 	}
-	return h.recorded(h.Show(ctx, view.Unit.ID))
+	return h.recorded(h.reshow(ctx, view))
 }
 
 // recorded actualiza la ficha de la unidad con la vista recién leída y la
