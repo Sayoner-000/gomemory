@@ -27,6 +27,20 @@ El escenario incorpora diez tareas, cambiando la huella en cada paso. Usa el pre
 
 Son 36 comprobaciones menos (65,5 %) en este escenario. El test modela la planificación: no ejecuta los comandos de cada tarea ni mide duración, tokens o llamadas MCP de una sesión de Pi. Los registros agrupados incluso aumentan de diez a once. No debe interpretarse como un ahorro medido de transporte.
 
+## Una huella por comando (v2.56.0)
+
+La huella identifica el código evaluado: `HEAD` más el contenido de los archivos cambiados y sin seguimiento, sin contar `hcd/`. Calcularla lanza cuatro procesos git y lee cada archivo cambiado, así que su coste crece con el tamaño del cambio en curso.
+
+Hasta v2.55.3, `clarify`, `approve`, `close`, `cancel`, `promote`, `rename` y `review` leían la unidad dos veces y calculaban la huella en cada lectura. Entre una lectura y otra solo escriben en `hcd/` o en la base de datos, y la segunda lectura reutiliza ahora la huella de la primera. `verify` la sigue calculando dos veces: el comando que ejecuta puede generar archivos o cambiar el código, y la evidencia tiene que reflejarlo.
+
+```bash
+go test ./application/usecases -run TestHCD061FingerprintPorComando -count=1 -v
+```
+
+El test cuenta las huellas con un workspace instrumentado. En el escenario, las nueve llamadas de esos siete comandos pasan de dos huellas a una y `verify` se mantiene en dos. Cuenta llamadas; no mide tiempo.
+
+Desde esta versión, `--client pi` es un cliente válido de `mem hcd`. Antes el motor lo rechazaba y Pi registraba sus aprobaciones como `terminal`.
+
 ## Actualización
 
 Las instrucciones se distribuyen con las plantillas de gomemory. Actualiza el binario con `mem update` y comprueba que tu integración cargue las skills nuevas. Si un instalador externo mantiene su propia copia, también deberá actualizarla; cambiar el binario por sí solo no demuestra que Pi esté leyendo las nuevas instrucciones.

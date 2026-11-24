@@ -5,6 +5,21 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [v2.56.0] - 2026-11-23
+
+### Added
+
+- `mem hcd` acepta `--client pi`. Antes el motor rechazaba ese cliente y Pi registraba sus aprobaciones como `terminal`. La ayuda de la CLI lista ahora todos los clientes admitidos.
+
+### Changed
+
+- Los comandos HCD que modifican una unidad (`clarify`, `approve`, `close`, `cancel`, `promote`, `rename` y `review`) calculan la huella del código una vez en lugar de dos. Cada cálculo lanza cuatro procesos git y lee los archivos cambiados. `verify` la sigue recalculando después de ejecutar la comprobación, porque el comando puede cambiar el código. [Detalles y prueba](docs/HCD-VERIFICATION.md).
+- Las guías HTML pasan a la edición v2.56.
+
+### Fixed
+
+- Las dos copias de la skill `adversarial-consensus-review` mezclaban finales de línea CRLF y LF. Ahora usan LF como el resto del repositorio, sin cambios en el texto, y `.gitattributes` ya no las excluye de la normalización. Un test de contrato falla si una plantilla o skill vuelve a contener CR. La próxima `mem setup` reescribe las copias instaladas.
+
 ## [v2.55.3] - 2026-11-23
 
 ### Changed

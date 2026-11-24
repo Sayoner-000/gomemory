@@ -1,8 +1,8 @@
 # Documentación de gomemory
 
-En v2.55.3, las skills HCD evitan revalidaciones acumuladas durante la implementación. [Flujo de verificación, comparación y límites](HCD-VERIFICATION.md).
+En v2.56.0, los comandos HCD que modifican una unidad calculan la huella del código una vez en lugar de dos, y `mem hcd` acepta `--client pi`. [Verificación HCD y sus límites](HCD-VERIFICATION.md).
 
-Índice y referencias técnicas de gomemory (versión 2.55.3).
+Índice y referencias técnicas de gomemory (versión 2.56.0).
 
 Consulta [Rendimiento](PERFORMANCE.md) para los cambios en duplicados y contexto, sus mediciones y sus límites.
 
@@ -31,9 +31,9 @@ gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, O
 
 Documentos en formato HTML preparados para lectura en pantalla o impresión directa a PDF:
 
-- [Guía rápida HCD (Guia-Rapida-HCD_GOMEMORY-v2.55.html)](Guia-Rapida-HCD_GOMEMORY-v2.55.html): resumen del flujo de trabajo con unidades HCD, diferencias entre la vía rápida y la ceremonia completa, y comandos de verificación.
-- [Guía SDD y HCD (Guia-SDD_HCD_GOMEMORY-v2.55.html)](Guia-SDD_HCD_GOMEMORY-v2.55.html): coordinación entre especificaciones formales con Spec Kit y el ciclo de comprobación de HCD.
-- [Guía técnica (Guia-Tecnica_GOMEMORY-v2.55.html)](Guia-Tecnica_GOMEMORY-v2.55.html): desglose de arquitectura del proyecto en 14 secciones, desde persistencia hasta compresión de respuestas.
+- [Guía rápida HCD (Guia-Rapida-HCD_GOMEMORY-v2.56.html)](Guia-Rapida-HCD_GOMEMORY-v2.56.html): resumen del flujo de trabajo con unidades HCD, diferencias entre la vía rápida y la ceremonia completa, y comandos de verificación.
+- [Guía SDD y HCD (Guia-SDD_HCD_GOMEMORY-v2.56.html)](Guia-SDD_HCD_GOMEMORY-v2.56.html): coordinación entre especificaciones formales con Spec Kit y el ciclo de comprobación de HCD.
+- [Guía técnica (Guia-Tecnica_GOMEMORY-v2.56.html)](Guia-Tecnica_GOMEMORY-v2.56.html): desglose de arquitectura del proyecto en 14 secciones, desde persistencia hasta compresión de respuestas.
 - [Guía de explicación para desarrolladores (Guia-Explicacion-Developers-GOMEMORY.html)](Guia-Explicacion-Developers-GOMEMORY.html): guía visual e introductoria para equipos de ingeniería sobre el funcionamiento, arquitectura y adopción de gomemory.
 - [Manual de referencia para desarrolladores (Manual-Referencia-Developers-GOMEMORY.html)](Manual-Referencia-Developers-GOMEMORY.html): referencia detallada de protocolos, flujos de hooks/MCP, glosario y Anexo A1 con la comparativa de los tres grafos de código (`gomemory`, `CodeGraph` y `codebase-memory-mcp`) y el guardarraíl `graph-before-grep`.
 

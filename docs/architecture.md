@@ -1,6 +1,6 @@
 # Arquitectura de gomemory
 
-En v2.55.3, las skills HCD evitan revalidaciones acumuladas durante la implementación. [Flujo de verificación, comparación y límites](HCD-VERIFICATION.md).
+En v2.56.0, los comandos HCD que modifican una unidad calculan la huella del código una vez en lugar de dos, y `mem hcd` acepta `--client pi`. [Verificación HCD y sus límites](HCD-VERIFICATION.md).
 
 ## Historial ligero y detección de duplicados
 

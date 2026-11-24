@@ -1,6 +1,6 @@
 # Arquitectura de gomemory
 
-En v2.55.3, las skills HCD evitan revalidaciones acumuladas durante la implementación. [Flujo de verificación, comparación y límites](HCD-VERIFICATION.md).
+En v2.56.0, los comandos HCD que modifican una unidad calculan la huella del código una vez en lugar de dos, y `mem hcd` acepta `--client pi`. [Verificación HCD y sus límites](HCD-VERIFICATION.md).
 
 ## Lectura del historial y duplicados (v2.55.2)
 
@@ -8,7 +8,7 @@ En v2.55.3, las skills HCD evitan revalidaciones acumuladas durante la implement
 
 La descripción de capas, adaptadores, flujos de instalación y contratos de agentes está en [architecture.md](architecture.md). Se conserva esa ruta porque ya la enlazan otras guías del repositorio.
 
-La [guía técnica](Guia-Tecnica_GOMEMORY-v2.55.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.55.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y el [manual de referencia para desarrolladores](Manual-Referencia-Developers-GOMEMORY.html) junto con la [guía de explicación](Guia-Explicacion-Developers-GOMEMORY.html) detallan la convivencia de los tres grafos de código y los protocolos operativos. El repositorio conserva solo las guías vigentes.
+La [guía técnica](Guia-Tecnica_GOMEMORY-v2.56.html) resume la arquitectura completa en una sola página (HTML imprimible a PDF), la [guía SDD_HCD](Guia-SDD_HCD_GOMEMORY-v2.56.html) explica cómo usar gomemory en un harness con Spec Kit y con HCD, y el [manual de referencia para desarrolladores](Manual-Referencia-Developers-GOMEMORY.html) junto con la [guía de explicación](Guia-Explicacion-Developers-GOMEMORY.html) detallan la convivencia de los tres grafos de código y los protocolos operativos. El repositorio conserva solo las guías vigentes.
 
 
 ## Expand (040)
