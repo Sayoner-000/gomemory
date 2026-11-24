@@ -8,29 +8,24 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"mem/adapters/secondary/codegraph/codebasememory"
 	"mem/adapters/secondary/codegraph/codegraphcli"
 	"mem/application/ports"
 	"mem/domain"
 )
 
-func TestNewProviders_SeleccionaAdaptadorPorComando(t *testing.T) {
+func TestNewProviders_SeleccionaSoloCodeGraphEIgnoraLegados(t *testing.T) {
 	root := t.TempDir()
 	memDir := filepath.Join(root, ".memory")
 	providers := NewProviders(root, memDir, []string{"codegraph", "codebase-memory-mcp"})
-	if len(providers) != 2 {
-		t.Fatalf("proveedores = %d", len(providers))
+	if len(providers) != 1 {
+		t.Fatalf("proveedores = %d, se esperaba solo codegraph", len(providers))
 	}
 	if _, ok := providers[0].(*codegraphcli.Provider); !ok {
 		t.Fatalf("codegraph debe usar su propio adaptador, recibido %T", providers[0])
 	}
-	if _, ok := providers[1].(*codebasememory.Provider); !ok {
-		t.Fatalf("codebase-memory-mcp explícito debe conservar su adaptador, recibido %T", providers[1])
-	}
 }
 
-// Sin lista configurada, solo se autodetecta CodeGraph cuando está en PATH
-// (sin codebase-memory-mcp por defecto para evitar fricción entre dos grafos).
+// Sin lista configurada, autodetecta CodeGraph cuando está en PATH.
 func TestNewProviders_AutodetectaSoloCodeGraphEnPath(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("el ejecutable simulado es un script de shell")
@@ -54,8 +49,8 @@ func TestNewProviders_AutodetectaSoloCodeGraphEnPath(t *testing.T) {
 	if got := len(NewProviders(root, memDir, nil)); got != 0 {
 		t.Fatalf("sin codegraph en PATH: proveedores = %d, want 0", got)
 	}
-	if got := len(NewProviders(root, memDir, []string{"codebase-memory-mcp"})); got != 1 {
-		t.Fatalf("una lista explícita se respeta tal cual: proveedores = %d", got)
+	if got := len(NewProviders(root, memDir, []string{"codebase-memory-mcp"})); got != 0 {
+		t.Fatalf("comandos legados ajenos a codegraph deben ignorarse: proveedores = %d, want 0", got)
 	}
 }
 

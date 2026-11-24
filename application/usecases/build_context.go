@@ -45,7 +45,7 @@ func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 	if snap.Project != "" {
 		arg := snap.ProjectArg
 		if arg == "" {
-			arg = "project"
+			arg = "projectPath"
 		}
 		fmt.Fprintf(&sb, "Proyecto indexado: `%s` — pásalo tal cual en el parámetro `%s` de sus tools.\n\n", snap.Project, arg)
 	}
@@ -81,7 +81,7 @@ func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 	}
 	hint := snap.ToolsHint
 	if hint == "" {
-		hint = "search_graph, trace_path, query_graph, get_architecture, detect_changes"
+		hint = "codegraph_explore"
 	}
 	sb.WriteString("> Para consultas estructurales profundas (quién llama a qué, trazas de " +
 		"llamadas, impacto de un diff) usa las tools del proveedor externo: " + hint +

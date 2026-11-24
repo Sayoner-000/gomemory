@@ -24,7 +24,7 @@ import (
 func TestBuildMemoryToolBootstrap_SinProveedorSoloGomemory(t *testing.T) {
 	got := buildMemoryToolBootstrap(false, false)
 
-	if strings.Contains(got, domain.CodebaseMemoryMCPPrefix) {
+	if strings.Contains(got, domain.CodeGraphMCPPrefix) {
 		t.Error("sin el proveedor habilitado, el bootstrap no debe nombrar sus tools")
 	}
 	for _, tool := range domain.MCPAllTools() {
@@ -34,19 +34,20 @@ func TestBuildMemoryToolBootstrap_SinProveedorSoloGomemory(t *testing.T) {
 	}
 }
 
-// TestBuildMemoryToolBootstrap_ConProveedorIncluyeDescubrimiento cubre la
-// corrección: con el proveedor habilitado, sus 6 tools de descubrimiento
-// (search_graph, trace_path, get_code_snippet, query_graph, get_architecture,
-// search_code) deben quedar en el MISMO select:, y las de gomemory se
-// conservan — una sola llamada de ToolSearch cubre ambos servidores.
+// TestBuildMemoryToolBootstrap_ConProveedorIncluyeDescubrimiento cubre que con
+// el proveedor habilitado, la tool de descubrimiento de CodeGraph
+// (codegraph_explore) quede en el MISMO select: junto con las tools de gomemory.
 func TestBuildMemoryToolBootstrap_ConProveedorIncluyeDescubrimiento(t *testing.T) {
 	got := buildMemoryToolBootstrap(true, false)
 
-	for _, tool := range domain.CodebaseMemoryMCPDiscoveryTools {
-		prefijada := domain.CodebaseMemoryMCPPrefix + tool
+	for _, tool := range domain.CodeGraphMCPDiscoveryTools {
+		prefijada := domain.CodeGraphMCPPrefix + tool
 		if !strings.Contains(got, prefijada) {
 			t.Errorf("falta %q en el bootstrap con el proveedor habilitado", prefijada)
 		}
+	}
+	if strings.Contains(got, "codebase-memory-mcp") {
+		t.Error("el bootstrap no debe referenciar codebase-memory-mcp")
 	}
 	for _, tool := range domain.MCPAllTools() {
 		if !strings.Contains(got, "mcp__gomemory__"+tool) {
@@ -60,12 +61,12 @@ func TestBuildMemoryToolBootstrap_ConProveedorIncluyeDescubrimiento(t *testing.T
 
 // TestBuildMemoryToolBootstrap_NoIncluyeOperacionesDeAdministracion protege el
 // alcance deliberadamente acotado: forzar materialización no debe extenderse a
-// las operaciones de escritura/administración de otro servidor.
+// operaciones de escritura/administración de otro servidor.
 func TestBuildMemoryToolBootstrap_NoIncluyeOperacionesDeAdministracion(t *testing.T) {
 	got := buildMemoryToolBootstrap(true, false)
 
 	for _, admin := range []string{"index_repository", "delete_project", "manage_adr", "ingest_traces"} {
-		if strings.Contains(got, domain.CodebaseMemoryMCPPrefix+admin) {
+		if strings.Contains(got, domain.CodeGraphMCPPrefix+admin) {
 			t.Errorf("el bootstrap no debe forzar la operación de administración %q", admin)
 		}
 	}

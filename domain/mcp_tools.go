@@ -225,7 +225,7 @@ func MCPPrefixed(prefix string, names []string) []string {
 	return out
 }
 
-// --- Proveedor externo de grafo de código (codebase-memory-mcp) ---
+// --- Proveedor externo de grafo de código (CodeGraph) ---
 //
 // Es un servidor MCP DISTINTO, no registrado por gomemory — por eso vive
 // separado de MCPAllTools() y no puede formar parte de ella: el test de
@@ -239,20 +239,10 @@ func MCPPrefixed(prefix string, names []string) []string {
 // el mismo bootstrap, siempre, no solo cuando la tarea "parece" necesitar
 // código. Si el proveedor no está conectado, ToolSearch simplemente no
 // encuentra esos nombres — degradación silenciosa, sin caso especial.
-const CodebaseMemoryMCPPrefix = "mcp__codebase-memory-mcp__"
+const CodeGraphMCPPrefix = "mcp__codegraph__"
 
-// CodebaseMemoryMCPDiscoveryTools son las tools de solo lectura que el propio
-// hook de arranque del proveedor externo ya declara como uso obligatorio para
-// exploración de código. Deliberadamente NO incluye sus operaciones de
-// administración (index_repository, delete_project, manage_adr, ingest_traces,
-// list_projects, detect_changes, get_graph_schema, index_status): forzar la
-// materialización no debe extenderse a operaciones de escritura/administración
-// de otro servidor.
-var CodebaseMemoryMCPDiscoveryTools = []string{
-	"search_graph",
-	"trace_path",
-	"get_code_snippet",
-	"query_graph",
-	"get_architecture",
-	"search_code",
+// CodeGraphMCPDiscoveryTools son las tools de solo lectura de CodeGraph que se
+// materializan junto con las tools de gomemory.
+var CodeGraphMCPDiscoveryTools = []string{
+	"codegraph_explore",
 }

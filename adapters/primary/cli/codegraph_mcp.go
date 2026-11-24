@@ -224,15 +224,11 @@ func lastLine(s string) string {
 }
 
 // printDoctorCodeGraphMCP informa, cuando CodeGraph está en uso, en qué
-// agentes está conectado su servidor MCP y cómo conectarlo donde falte. Antes
-// avisa si codebase-memory-mcp no está conectado a agy (solo diagnóstico).
+// agentes está conectado su servidor MCP y cómo conectarlo donde falte.
 func printDoctorCodeGraphMCP(s ports.SettingsData, root string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return
-	}
-	if msg, warn := agyCodebaseMemoryWarning(home); warn {
-		humanln("\ncodebase-memory-mcp:\n  ⚠ " + msg)
 	}
 	if !codeGraphOn(s) {
 		return
@@ -252,21 +248,4 @@ func printDoctorCodeGraphMCP(s ports.SettingsData, root string) {
 			humanf("  ✗ %s: sin conectar → %s\n", agent, codeGraphManual([]string{agent}))
 		}
 	}
-}
-
-// codebaseMemoryAgyManual es el comando del proveedor para conectarse a agy.
-// gomemory no lo ejecuta: también escribe ~/.gemini/GEMINI.md (HCD-020).
-const codebaseMemoryAgyManual = "codebase-memory-mcp install --clients=antigravity"
-
-// agyCodebaseMemoryWarning avisa cuando codebase-memory-mcp está instalado
-// pero no conectado a agy. Sin configuración de agy o sin binario no aplica.
-func agyCodebaseMemoryWarning(home string) (string, bool) {
-	if _, err := exec.LookPath("codebase-memory-mcp"); err != nil {
-		return "", false
-	}
-	registered, ok := agyMCPServer(home, "codebase-memory-mcp")
-	if !ok || registered {
-		return "", false
-	}
-	return "agy sin codebase-memory-mcp → " + codebaseMemoryAgyManual + " (ese instalador también escribe ~/.gemini/GEMINI.md)", true
 }

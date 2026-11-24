@@ -14,7 +14,7 @@ import (
 // constante siguiente apunta a otra tool sin que nada falle (ya pasó: un valor
 // huérfano en el bloque principal). TestOpenCodeProtocolNombraTodasLasToolsPrefijadas
 // solo comprueba que cada string exista; este test fija el emparejamiento:
-// T_<X> ↔ "gomemory_<x>" y T_EXT_<X> ↔ "codebase-memory-mcp_<x>".
+// T_<X> ↔ "gomemory_<x>" y T_EXT_<X> ↔ "codegraph_<x>".
 func TestOpenCodeToolConstantsEmparejanNombreYValor(t *testing.T) {
 	ruta := filepath.Join(repoRootContract(t), "infrastructure", "plugin", "opencode", "gomemory.ts")
 	contenido, err := os.ReadFile(ruta)
@@ -46,7 +46,7 @@ func TestOpenCodeToolConstantsEmparejanNombreYValor(t *testing.T) {
 		for i, nombre := range nombres {
 			esperado := "gomemory_" + strings.ToLower(strings.TrimPrefix(nombre, "T_"))
 			if ext, ok := strings.CutPrefix(nombre, "T_EXT_"); ok {
-				esperado = "codebase-memory-mcp_" + strings.ToLower(ext)
+				esperado = "codegraph_" + strings.ToLower(ext)
 			}
 			if valores[i] != esperado {
 				t.Errorf("%s = %q, esperaba %q", nombre, valores[i], esperado)

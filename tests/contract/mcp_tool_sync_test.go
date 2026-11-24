@@ -208,8 +208,8 @@ func TestOpenCodeProtocolNombraTodasLasToolsPrefijadas(t *testing.T) {
 			t.Errorf("gomemory.ts no declara %q: el protocolo puede mencionar esa tool sin el prefijo real de OpenCode, y el agente no podrá invocarla", prefijada)
 		}
 	}
-	for _, tool := range domain.CodebaseMemoryMCPDiscoveryTools {
-		prefijada := "codebase-memory-mcp_" + tool
+	for _, tool := range domain.CodeGraphMCPDiscoveryTools {
+		prefijada := "codegraph_" + tool
 		if !strings.Contains(texto, `"`+prefijada+`"`) {
 			t.Errorf("gomemory.ts no declara %q: el protocolo del grafo de código externo puede mencionar esa tool sin el prefijo real de OpenCode", prefijada)
 		}

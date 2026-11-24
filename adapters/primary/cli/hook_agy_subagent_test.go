@@ -149,7 +149,7 @@ func TestSubagentNoticeFor_AgyTextoPlanoSoloLectura(t *testing.T) {
 	if strings.Contains(n, "select:") || strings.Contains(n, "ToolSearch") {
 		t.Errorf("agy no usa ToolSearch: %q", n)
 	}
-	for _, want := range []string{"search_memories", "get_memory", "search_code", "search_graph"} {
+	for _, want := range []string{"search_memories", "get_memory", "search_code", "codegraph_explore"} {
 		if !strings.Contains(n, want) {
 			t.Errorf("el aviso de agy debe nombrar %s: %q", want, n)
 		}

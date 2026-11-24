@@ -240,8 +240,9 @@ func NewContainer(root, channel string) (*Container, error) {
 		persistence.SetCodeImpactProvider(nil)
 	}
 
-	// ADR se elige por capacidad: CodeGraph aporta estructura, pero no expone
-	// manage_adr. Si está primero, codebase-memory-mcp aún puede sincronizar ADR.
+	// ADR se elige por capacidad: si algún proveedor externo implementa
+	// ports.ADRSyncProvider, se conecta automáticamente; CodeGraph no expone
+	// manage_adr, por lo que queda inerte sin romper compatibilidad.
 	adrSyncRepo := persistence.NewADRSyncRepository(db)
 	var adrSyncProvider ports.ADRSyncProvider
 	for _, provider := range codeProviders {

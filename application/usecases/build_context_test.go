@@ -169,8 +169,8 @@ func TestBuild_ExternalGraphSection(t *testing.T) {
 
 	builder := usecases.New(persistence.NewMemoryRepository(db), persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 	fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{
-		Provider:  "codebase-memory-mcp",
-		Project:   "Users-x-proj",
+		Provider:  "codegraph",
+		Project:   "/repo/proj",
 		Available: true,
 		Architecture: &domain.CodeArchitecture{
 			TotalNodes: 2121,
@@ -188,14 +188,14 @@ func TestBuild_ExternalGraphSection(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"## Grafo de código externo (codebase-memory-mcp)",
-		"Proyecto indexado: `Users-x-proj`", // nombre real para el parámetro project
+		"## Grafo de código externo (codegraph)",
+		"Proyecto indexado: `/repo/proj`", // valor real para el parámetro projectPath
 		"Grafo estructural indexado: 2121 nodos, 4462 relaciones",
 		"Go (95)",
 		"**adapters**",
 		"IndexProject",
 		"FindRoot (fan-in 10)",
-		"trace_path", // nota de protocolo / división de trabajo
+		"codegraph_explore", // nota de protocolo / división de trabajo
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("esperaba %q en el contexto, got:\n%s", want, out)

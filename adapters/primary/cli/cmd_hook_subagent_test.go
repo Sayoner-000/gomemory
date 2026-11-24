@@ -47,7 +47,7 @@ func TestSubagentNotice_PrecargaSoloLectura(t *testing.T) {
 			t.Errorf("el aviso debe precargar %s:\n%s", tool, notice)
 		}
 	}
-	for _, name := range domain.MCPPrefixed(domain.CodebaseMemoryMCPPrefix, domain.CodebaseMemoryMCPDiscoveryTools) {
+	for _, name := range domain.MCPPrefixed(domain.CodeGraphMCPPrefix, domain.CodeGraphMCPDiscoveryTools) {
 		if !strings.Contains(notice, name) {
 			t.Errorf("con proveedor activo el aviso debe precargar %s:\n%s", name, notice)
 		}
@@ -57,8 +57,8 @@ func TestSubagentNotice_PrecargaSoloLectura(t *testing.T) {
 			t.Errorf("runtime %q: el aviso debe exigir el grafo antes que grep:\n%s", rt, n)
 		}
 	}
-	if sin := subagentNotice(false); strings.Contains(sin, domain.CodebaseMemoryMCPPrefix) {
-		t.Errorf("sin proveedor el aviso no debe nombrar codebase-memory-mcp:\n%s", sin)
+	if sin := subagentNotice(false); strings.Contains(sin, domain.CodeGraphMCPPrefix) {
+		t.Errorf("sin proveedor el aviso no debe nombrar codegraph:\n%s", sin)
 	}
 }
 

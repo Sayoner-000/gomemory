@@ -541,7 +541,7 @@ export const GomemoryPlugin: Plugin = async ({ $, directory, client }) => {
 // el bug ya visto del lado de Claude Code (get_plan_context quedó mencionada
 // con un nombre que el agente no podía invocar porque no coincidía con el
 // real). tests/contract/mcp_tool_sync_test.go verifica que esta lista siga
-// cubriendo domain.MCPAllTools() / domain.CodebaseMemoryMCPDiscoveryTools.
+// cubriendo domain.MCPAllTools() / domain.CodeGraphMCPDiscoveryTools.
 const [
   T_GET_CONTEXT,
   T_GET_PLAN_CONTEXT,
@@ -616,21 +616,7 @@ const [
 const T_SOCRATICA_FLOW = "gomemory_socratica_flow";
 void T_SOCRATICA_FLOW;
 
-const [
-  T_EXT_SEARCH_GRAPH,
-  T_EXT_TRACE_PATH,
-  T_EXT_GET_CODE_SNIPPET,
-  T_EXT_QUERY_GRAPH,
-  T_EXT_GET_ARCHITECTURE,
-  T_EXT_SEARCH_CODE,
-] = [
-  "codebase-memory-mcp_search_graph",
-  "codebase-memory-mcp_trace_path",
-  "codebase-memory-mcp_get_code_snippet",
-  "codebase-memory-mcp_query_graph",
-  "codebase-memory-mcp_get_architecture",
-  "codebase-memory-mcp_search_code",
-];
+const [T_EXT_CODEGRAPH_EXPLORE] = ["codegraph_codegraph_explore"];
 
 const MEMORY_PROTOCOL = `## Memory Protocol — gomemory (MANDATORY, ALWAYS ACTIVE)
 
@@ -677,13 +663,11 @@ content compressed, critical content never dropped silently). ${T_PACK_SHOW}
 and ${T_PACK_STATS} reformat/report on an already-built pack; ${T_PACK_COMPRESS}
 compresses arbitrary text on its own, no retrieval involved.
 
-EXTERNAL CODE GRAPH: if the codebase-memory-mcp MCP server is connected, use it
-ALWAYS for code exploration instead of reading files by hand: ${T_EXT_SEARCH_GRAPH},
-${T_EXT_TRACE_PATH}, ${T_EXT_GET_CODE_SNIPPET}, ${T_EXT_QUERY_GRAPH},
-${T_EXT_GET_ARCHITECTURE}, ${T_EXT_SEARCH_CODE}. Use the graph's tools to
-explore; use the atomic task tree to deliver a plan. What you find with the
-graph feeds the tree's leaves. If it is not connected, this guidance does not
-apply.
+EXTERNAL CODE GRAPH: if the codegraph MCP server is connected, use it ALWAYS for
+code exploration instead of reading files by hand: ${T_EXT_CODEGRAPH_EXPLORE}.
+Use the graph to explore; use the atomic task tree to deliver a plan. What you
+find with the graph feeds the tree's leaves. If it is not connected, this
+guidance does not apply.
 
 NATIVE TOOLS, NOT SHELL: do not read, search, or edit code through the shell
 (cat, sed, head, tail, awk, grep -r, rg, find, python -c). Read a file with the

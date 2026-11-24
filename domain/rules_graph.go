@@ -102,7 +102,7 @@ func evalGraphBeforeGrep(in RuleInput) (RuleAction, string) {
 		}
 		if tool, ext, ok := codeSearchTarget(toks, indexed); ok {
 			return RuleBlock, "buscar código " + ext + " con " + tool + " cuando el grafo ya lo indexa; " +
-				"usa codegraph_explore (o search_graph de codebase-memory-mcp, o search_code/get_symbol de gomemory), " +
+				"usa codegraph_explore (o search_code/get_symbol de gomemory), " +
 				"que devuelve el código con sus llamadores y su radio de impacto"
 		}
 		if len(covered) > 0 && recursiveSearch(name, toks[1:]) && !hasFileFilter(toks[1:]) {

@@ -3,7 +3,7 @@ package ports
 import "mem/domain"
 
 // CodeGraphProvider es un proveedor OPCIONAL y provider-agnóstico de
-// inteligencia de código externa YA indexada (p.ej. codebase-memory-mcp).
+// inteligencia de código externa YA indexada (CodeGraph).
 //
 // Principio: gomemory NUNCA depende de él. Si no hay proveedor disponible, el
 // contexto se arma igual con el grafo propio Fase-1. Es un brazo extensor

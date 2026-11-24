@@ -713,8 +713,8 @@ func buildIntegrationBlock() string {
 		"",
 		domain.CodeRetrievalPolicy,
 		"",
-		"Proveedor externo de grafo disponible cuando el proyecto lo requiera: " + bt + "codebase-memory-mcp" + bt +
-			" (" + bt + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, bt+", "+bt) + bt + ").",
+		"Proveedor externo de grafo disponible cuando el proyecto lo requiera: " + bt + "codegraph" + bt +
+			" (" + bt + strings.Join(domain.CodeGraphMCPDiscoveryTools, bt+", "+bt) + bt + ").",
 		"",
 		"Para entregar un plan usa el árbol de tareas atómicas. Lo que descubras con el grafo alimenta las hojas del árbol.",
 		"",

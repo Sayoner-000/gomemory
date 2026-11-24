@@ -195,36 +195,6 @@ func TestEnsureCodeGraphMCP_SoloFaltaAgy(t *testing.T) {
 	}
 }
 
-// HCD-020 G2: gomemory no registra codebase-memory-mcp en agy; solo avisa.
-func TestDoctorCodebaseMemoryMCP_Agy(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("el ejecutable simulado es un script de shell")
-	}
-	home, bin := t.TempDir(), t.TempDir()
-	_ = os.WriteFile(filepath.Join(bin, "codebase-memory-mcp"), []byte("#!/bin/sh\n"), 0o755)
-	t.Setenv("PATH", bin)
-	if _, warn := agyCodebaseMemoryWarning(home); warn {
-		t.Fatal("sin configuración de agy no hay nada que avisar")
-	}
-	dir := filepath.Join(home, ".gemini", "config")
-	_ = os.MkdirAll(dir, 0o755)
-	cfg := filepath.Join(dir, "mcp_config.json")
-	_ = os.WriteFile(cfg, []byte(`{"mcpServers":{"gomemory":{"command":"mem"}}}`), 0o644)
-	msg, warn := agyCodebaseMemoryWarning(home)
-	if !warn || !strings.Contains(msg, "codebase-memory-mcp install --clients=antigravity") || !strings.Contains(msg, "GEMINI.md") {
-		t.Fatalf("aviso = %q warn=%v", msg, warn)
-	}
-	_ = os.WriteFile(cfg, []byte(`{"mcpServers":{"codebase-memory-mcp":{"command":"codebase-memory-mcp"}}}`), 0o644)
-	if _, warn := agyCodebaseMemoryWarning(home); warn {
-		t.Fatal("registrado: sin aviso")
-	}
-	t.Setenv("PATH", t.TempDir())
-	_ = os.WriteFile(cfg, []byte(`{"mcpServers":{}}`), 0o644)
-	if _, warn := agyCodebaseMemoryWarning(home); warn {
-		t.Fatal("sin binario en PATH: cbm no está en uso, sin aviso")
-	}
-}
-
 // HCD-020 Q1: --target auto también conecta Gemini CLI y crea
 // ~/.gemini/GEMINI.md; gomemory nombra solo los agentes faltantes.
 func TestEnsureCodeGraphMCP_TargetsExplicitos(t *testing.T) {

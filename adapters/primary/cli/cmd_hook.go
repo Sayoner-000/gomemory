@@ -1680,19 +1680,17 @@ func gomemoryBootstrapToolNames(octopusEnabled bool) []string {
 // de las tools MCP diferidas de gomemory. Cuando includeCodeGraphProvider es
 // true (el interruptor "Grafo de código externo" de la TUI está activo, mismo
 // !settings.CodeGraphDisabled), añade al MISMO select: las tools de
-// descubrimiento del proveedor externo (codebase-memory-mcp) — una sola
-// llamada de ToolSearch materializa memoria + grafo propio + grafo externo, en
-// vez de depender de que el agente recuerde por su cuenta el mensaje CRITICAL
-// que ese proveedor inyecta por separado.
+// descubrimiento de CodeGraph — una sola llamada de ToolSearch materializa
+// memoria + grafo propio + grafo externo.
 //
 // Si el proveedor no está conectado, ToolSearch simplemente no encuentra esos
 // nombres — degradación silenciosa, sin necesidad de detectar su
-// disponibilidad de antemano (domain.CodebaseMemoryMCPDiscoveryTools).
+// disponibilidad de antemano (domain.CodeGraphMCPDiscoveryTools).
 func buildMemoryToolBootstrap(includeCodeGraphProvider, octopusEnabled bool) string {
 	names := gomemoryBootstrapToolNames(octopusEnabled)
 	if includeCodeGraphProvider {
 		names = append(append([]string{}, names...),
-			domain.MCPPrefixed(domain.CodebaseMemoryMCPPrefix, domain.CodebaseMemoryMCPDiscoveryTools)...)
+			domain.MCPPrefixed(domain.CodeGraphMCPPrefix, domain.CodeGraphMCPDiscoveryTools)...)
 	}
 	return `PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA, antes de responder al usuario, ` +
 		`para cargar las tools de memoria del proyecto:
@@ -1817,14 +1815,14 @@ func subagentNoticeFor(runtime string, includeCodeGraphProvider bool) string {
 	if runtime != "" && runtime != "claude" {
 		tools := "gomemory (" + strings.Join(subagentReadOnlyTools, ", ") + ")"
 		if includeCodeGraphProvider {
-			tools += " y codebase-memory-mcp (" + strings.Join(domain.CodebaseMemoryMCPDiscoveryTools, ", ") + ")"
+			tools += " y codegraph (" + strings.Join(domain.CodeGraphMCPDiscoveryTools, ", ") + ")"
 		}
 		return "Eres un subagente. Para explorar código o consultar decisiones previas usa solo " +
 			"estas tools de lectura: " + tools + ".\n" + cierre
 	}
 	names := domain.MCPPrefixed("mcp__gomemory__", subagentReadOnlyTools)
 	if includeCodeGraphProvider {
-		names = append(names, domain.MCPPrefixed(domain.CodebaseMemoryMCPPrefix, domain.CodebaseMemoryMCPDiscoveryTools)...)
+		names = append(names, domain.MCPPrefixed(domain.CodeGraphMCPPrefix, domain.CodeGraphMCPDiscoveryTools)...)
 	}
 	return `Eres un subagente. Para explorar código o consultar decisiones previas usa ` +
 		`estas tools de solo lectura (cárgalas con ToolSearch solo si las necesitas):

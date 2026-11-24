@@ -321,8 +321,8 @@ func TestHookSubagentStart_BootstrapVaEnAdditionalContext(t *testing.T) {
 		t.Errorf("hookEventName debía ser SubagentStart, got %v", hso["hookEventName"])
 	}
 	ctx, _ := hso["additionalContext"].(string)
-	if !strings.Contains(ctx, "select:") || !strings.Contains(ctx, "mcp__codebase-memory-mcp__") {
-		t.Fatalf("additionalContext del subagente debía incluir el select: con codebase-memory-mcp: %q", ctx)
+	if !strings.Contains(ctx, "select:") || !strings.Contains(ctx, "mcp__codegraph__codegraph_explore") {
+		t.Fatalf("additionalContext del subagente debía incluir el select: con codegraph: %q", ctx)
 	}
 }
 

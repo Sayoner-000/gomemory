@@ -13,7 +13,7 @@ import (
 func CmdSettings(deps *Deps, args []string) {
 	fs := newFlagSet("settings", flag.ContinueOnError)
 	autoApprove := fs.Bool("auto-approve", false, "Activar auto-approve en MCP")
-	codeGraph := fs.Bool("code-graph", true, "Activar el grafo de código externo (codebase-memory-mcp)")
+	codeGraph := fs.Bool("code-graph", true, "Activar el grafo de código externo (CodeGraph)")
 	codeGraphCmd := fs.String("code-graph-command", "", "Binario del proveedor de grafo externo (opcional, legado — ver --code-graph-providers)")
 	codeGraphProviders := fs.String("code-graph-providers", "", "Lista de proveedores candidatos separados por coma, en orden de prioridad (usa el primero disponible)")
 	codeImpactAnnotation := fs.Bool("code-impact-annotation", true, "Anotar impacto de código al guardar una memoria con archivo asociado")

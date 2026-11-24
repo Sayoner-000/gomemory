@@ -17,8 +17,8 @@ type CodeProviderSnapshot struct {
 	// "Users-x-repo"), el valor que sus tools exigen en `project`. Sin él los
 	// agentes adivinan el nombre corto del repo y la llamada falla.
 	Project string `json:"project,omitempty"`
-	// ProjectArg y ToolsHint permiten orientar a cada proveedor sin asumir que
-	// todos usan el parámetro `project` o las tools de codebase-memory-mcp.
+	// ProjectArg y ToolsHint permiten orientar al proveedor externo sin acoplar
+	// el formato a un único nombre de parámetro o herramienta.
 	ProjectArg string `json:"project_arg,omitempty"`
 	ToolsHint  string `json:"tools_hint,omitempty"`
 }

@@ -7,14 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"mem/adapters/secondary/codegraph/codebasememory"
 	"mem/adapters/secondary/codegraph/codegraphcli"
 	"mem/application/ports"
 )
 
-// NewProviders conserva el orden de prioridad configurado. Sin candidatos
-// explícitos autodetecta únicamente CodeGraph cuando su binario está en PATH,
-// evitando fricción con codebase-memory-mcp salvo configuración explícita.
+// NewProviders conserva el orden configurado para CodeGraph. Sin candidatos
+// explícitos autodetecta CodeGraph cuando su binario está en PATH; los comandos
+// legados ajenos a CodeGraph (p. ej. codebase-memory-mcp) se ignoran sin error.
 func NewProviders(root, memDir string, commands []string) []ports.CodeGraphProvider {
 	if len(commands) == 0 {
 		if _, err := exec.LookPath(codegraphcli.ProviderName); err == nil {
@@ -28,8 +27,6 @@ func NewProviders(root, memDir string, commands []string) []ports.CodeGraphProvi
 		name := strings.TrimSuffix(base, filepath.Ext(base))
 		if strings.EqualFold(name, codegraphcli.ProviderName) {
 			providers = append(providers, codegraphcli.New(root, memDir, command))
-		} else {
-			providers = append(providers, codebasememory.New(root, memDir, command))
 		}
 	}
 	return providers
