@@ -706,8 +706,8 @@ Discoveries / Accomplished / Next Steps / Relevant Files.`;
 // la nota lo dice para que el agente no se quede sin salida.
 const MEMORY_PROTOCOL_V2 =
   MEMORY_PROTOCOL.replace(/\bgomemory_([a-z_]+)/g, "tools.gomemory.$1").replace(
-    /\bcodebase-memory-mcp_([a-z_]+)/g,
-    'tools["codebase-memory-mcp"].$1',
+    /\bcodegraph_(codegraph_[a-z_]+)/g,
+    "tools.codegraph.$1",
   ) +
   `
 

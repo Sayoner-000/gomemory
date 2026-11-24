@@ -276,7 +276,7 @@ test('v2: the protocol names MCP tools as Code Mode sees them, v1 keeps prefixed
   const f = await v2Fixture();
   const protocol = (await f.system('context')).find(t => t.includes('Memory Protocol'));
   assert.ok(protocol.includes('tools.gomemory.save_memory'));
-  assert.ok(protocol.includes('tools["codebase-memory-mcp"].search_graph'));
+  assert.ok(protocol.includes('tools.codegraph.codegraph_explore'));
   assert.ok(protocol.includes('`execute`'));
   assert.ok(protocol.includes('codemode'));
   assert.doesNotMatch(protocol.replace(/`gomemory_<tool>`/g, ''), /\bgomemory_[a-z]/);
