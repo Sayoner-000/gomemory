@@ -3,8 +3,3 @@
 # marcadores con "\n", así que un checkout con CRLF cambiaba el binario y
 # rompía la suite.
 * text=auto eol=lf
-
-# Skill de terceros que se distribuye con sus CRLF originales; se conserva
-# byte a byte.
-infrastructure/templates/adversarial-consensus-review/SKILL.md -text
-skills/adversarial-consensus-review/SKILL.md -text
