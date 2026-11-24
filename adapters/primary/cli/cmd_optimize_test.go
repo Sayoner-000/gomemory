@@ -135,7 +135,7 @@ func (m *mockCodeProviderMaintainer) Optimize(ctx context.Context, dryRun bool, 
 
 func TestCmdOptimize_ExternalProviders(t *testing.T) {
 	mockProvider := &mockCodeProviderMaintainer{
-		name:      "codebase-memory-mcp",
+		name:      "codegraph",
 		available: true,
 		cleaned:   2,
 	}
@@ -148,7 +148,7 @@ func TestCmdOptimize_ExternalProviders(t *testing.T) {
 		CmdOptimize(deps, []string{"--yes", "--target=external", "--reindex-external"})
 	})
 
-	if !strings.Contains(out, "codebase-memory-mcp") {
+	if !strings.Contains(out, "codegraph") {
 		t.Errorf("se esperaba mención al proveedor externo en salida, got:\n%s", out)
 	}
 	if !strings.Contains(out, "snapshot(s) huérfano(s) purgado(s)") {

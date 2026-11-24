@@ -431,40 +431,28 @@ func blockRemedy(fname, content string, scope domain.AgentScope) string {
 // inspectClaudeHook cuenta las entradas registradas para (event, matcher) en
 // <dir>/.claude/settings.json que invocan cmdSuffix, y traduce la cuenta a
 // missing/ok/duplicated.
+//
+// En ámbito proyecto, un hook ausente que ya registra el settings.json del
+// usuario cuenta como cubierto: `mem install .` lo omite a propósito para que
+// cada evento no corra dos veces (feature 035). Sin esto el canal salía
+// missing y su remedio nunca convergía (HCD-063).
 func (a *ActivationInspector) inspectClaudeHook(agent domain.AgentCapability, dir string, scope domain.AgentScope, kind domain.ChannelKind, event, matcher, cmdSuffix string) domain.ActivationChannel {
 	ch := domain.ActivationChannel{Arm: domain.ArmGomemory, Agent: agent.Name, Scope: scope, Kind: kind}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".claude", "settings.json"))
-	if err != nil {
-		ch.State = domain.StateMissing
-		ch.Detail = "sin .claude/settings.json en " + dir
-		return ch
-	}
-
-	var settings struct {
-		Hooks map[string][]struct {
-			Matcher string `json:"matcher"`
-			Hooks   []struct {
-				Command string `json:"command"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-	if json.Unmarshal(data, &settings) != nil {
-		ch.State = domain.StateMissing
-		ch.Detail = "settings.json ilegible"
-		return ch
-	}
-
-	count := 0
-	for _, entry := range settings.Hooks[event] {
-		if entry.Matcher != matcher {
-			continue
-		}
-		for _, h := range entry.Hooks {
-			if hasCommandSuffix(h.Command, cmdSuffix) {
-				count++
+	count, readable, detail := countClaudeHook(dir, event, matcher, cmdSuffix)
+	if count == 0 && scope == domain.ScopeProject {
+		if home, err := os.UserHomeDir(); err == nil && home != "" && !sameDir(home, dir) {
+			if n, _, _ := countClaudeHook(home, event, matcher, cmdSuffix); n > 0 {
+				ch.State = domain.StateOK
+				ch.Detail = event + ":" + matcher + " → " + cmdSuffix + " (cubierto por ~/.claude/settings.json)"
+				return ch
 			}
 		}
+	}
+	if !readable {
+		ch.State = domain.StateMissing
+		ch.Detail = detail
+		return ch
 	}
 
 	switch count {
@@ -479,6 +467,40 @@ func (a *ActivationInspector) inspectClaudeHook(agent domain.AgentCapability, di
 		ch.Detail = event + ":" + matcher + " registrado " + itoa(count) + " veces"
 	}
 	return ch
+}
+
+// countClaudeHook cuenta en <dir>/.claude/settings.json las entradas de
+// (event, matcher) que invocan cmdSuffix. readable=false si el archivo falta o
+// no se puede interpretar; detail lo explica.
+func countClaudeHook(dir, event, matcher, cmdSuffix string) (count int, readable bool, detail string) {
+	data, err := os.ReadFile(filepath.Join(dir, ".claude", "settings.json"))
+	if err != nil {
+		return 0, false, "sin .claude/settings.json en " + dir
+	}
+
+	var settings struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if json.Unmarshal(data, &settings) != nil {
+		return 0, false, "settings.json ilegible"
+	}
+
+	for _, entry := range settings.Hooks[event] {
+		if entry.Matcher != matcher {
+			continue
+		}
+		for _, h := range entry.Hooks {
+			if hasCommandSuffix(h.Command, cmdSuffix) {
+				count++
+			}
+		}
+	}
+	return count, true, ""
 }
 
 func hasCommandSuffix(cmd, suffix string) bool {

@@ -1229,6 +1229,39 @@ tipo de canal — nunca se usa para ocultar un canal roto). Un canal `not_applic
 **degradación declarada**, no un problema; `outdated`, `duplicated` y `missing` sí cuentan para
 `--strict`.
 
+En ámbito proyecto, un hook de Claude que ya registra `~/.claude/settings.json` cuenta como
+cubierto: `mem install .` no lo repite en el proyecto para que cada evento no corra dos veces.
+
+### `mem doctor --fix` — reparar y volver a diagnosticar
+
+```bash
+mem doctor --fix --dry-run   # muestra el plan sin ejecutar nada
+mem doctor --fix             # pide confirmación y aplica
+mem doctor --fix --yes       # aplica todo sin preguntar
+```
+
+Ejecuta las correcciones que el informe ya propone, solo para lo que gestiona gomemory:
+
+| Problema | Acción | Ámbito |
+| :--- | :--- | :--- |
+| Canal de gomemory roto en el proyecto | `mem install . --yes` | proyecto |
+| Canal de gomemory roto en el usuario | `mem setup-mcp --scope global --agents <agente>` | máquina |
+| Plugin de OpenCode que no carga, o `gomemory.test.mjs` sobrante | `mem setup-mcp --scope global --agents opencode` | máquina |
+| Hooks de Claude repetidos en usuario y proyecto | retira del proyecto los que ya cubre el global | proyecto |
+| Almacén de originales al 90 % | `mem pack purge` | proyecto |
+| Servidor MCP de CodeGraph sin conectar | `codegraph install --target … --location global --yes` | máquina |
+
+Las acciones de proyecto se confirman juntas. Cada acción de ámbito máquina se confirma por
+separado y muestra que afecta a todos los proyectos. Después se repite el diagnóstico y se
+resume `problemas antes → después`; con `--strict`, el código de salida usa el estado final.
+Una reparación puede habilitar otra (CodeGraph solo se propone cuando ya existe la configuración
+del agente); si quedan acciones pendientes, vuelve a ejecutar `mem doctor --fix`.
+
+Nunca toca los canales del brazo de grafo de código, los plugins ajenos de OpenCode ni el binario
+(`mem update`). Con `--json` sin `--yes` solo simula; la clave `fixes` lista cada acción con su
+`resultado` (`aplicada`, `fallida`, `omitida` o `simulada`), `problemas_antes`,
+`problemas_despues` y `pendientes`. Nada se repara fuera de `mem doctor --fix`.
+
 ### Habilitar una sola vez para todos los proyectos
 
 ```bash

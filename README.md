@@ -5,11 +5,10 @@
   </picture>
 </p>
 
-<h3 align="center">Persistent, local and portable memory for AI coding agents</h3>
+<h3 align="center">Persistent, local memory for AI coding agents</h3>
 
 <p align="center">
-  <a href="https://github.com/Sayoner-000/gomemory/releases/tag/v2.58.0"><img src="https://img.shields.io/badge/version-2.58.0-blue" alt="Version 2.58.0"></a>
-  <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="GitHub Release"></a>
+  <a href="https://github.com/Sayoner-000/gomemory/releases/latest"><img src="https://img.shields.io/github/v/release/Sayoner-000/gomemory?style=flat&color=blue" alt="Latest release"></a>
   <a href="https://github.com/Sayoner-000/gomemory/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sayoner-000/gomemory/test.yml?branch=main&label=CI" alt="CI status"></a>
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white" alt="Go 1.27+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license"></a>
@@ -19,7 +18,6 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#how-it-works">How it works</a> ·
-  <a href="docs/README.md">Documentation</a> ·
   <a href="docs/MANUAL.md">Manual</a> ·
   <a href="INSTALLATION.md">Installation</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -27,89 +25,57 @@
 
 ---
 
-Your coding agent starts every session from zero. It doesn't remember why you
-picked that architecture last week, how the flaky test got fixed, or which
-approach you already tried and threw away. So you explain it again, and pay for
-those tokens again.
-
-gomemory keeps that context for it. Decisions, bug fixes, learnings and session
-checkpoints go into a local SQLite store, one per project, and come back to the
+Coding agents forget everything between sessions: why you chose an
+architecture, or how a flaky test finally got fixed. gomemory keeps that
+knowledge in a local SQLite database per project and hands it back to the
 agent through the [Model Context Protocol](https://modelcontextprotocol.io/)
-(MCP) when it needs them.
+(MCP).
 
-It is a single Go binary. There is no cloud service, no API key and no database
-server. Memory lives outside your repository; the project only gets a
-`.memory/` folder for settings and hook state, which `mem install` adds to
-`.gitignore`.
+It is one Go binary. It needs no cloud service or database server, and there is
+no API key to manage. The memory store lives in your user data directory, not in
+the repository. `mem install` writes the agent configuration (MCP entries, hooks
+and skills) into the project and your home directory, and adds `.memory/` and
+`mem` to `.gitignore`. If `mem` is not on your PATH, it can copy the binary into
+the project. [`INSTALLATION.md`](INSTALLATION.md) describes where each agent's
+configuration goes.
 
-## CodeGraph as single external graph in v2.58.0
-
-The legacy `codebase-memory-mcp` adapter has been removed. gomemory now uses
-[CodeGraph](https://github.com/colbymchenry/codegraph) as its only external
-code graph across MCP tool discovery, subagent notices, OpenCode's plugin,
-`graph-before-grep` and `mem doctor`. Existing `settings.json` files that still
-list `codebase-memory-mcp` keep working: unknown legacy commands are ignored
-without error.
-
-## HCD in v2.56.0
-
-Commands that change an HCD unit (`clarify`, `approve`, `close`, `cancel`,
-`promote`, `rename` and `review`) used to compute the code fingerprint twice.
-Each fingerprint runs four git processes and hashes every changed file; they
-now compute it once. `verify` still recomputes it after running the check,
-because the check can change the code. `mem hcd` also accepts `--client pi`, so
-approvals recorded from Pi keep their origin. See
-[HCD verification](docs/HCD-VERIFICATION.md).
-
-## Performance in v2.55.2
-
-Duplicate detection skips pairs with no shared tokens; context construction reads
-history metadata without loading every memory body. In the 10,000-memory test,
-sparse duplicate detection fell from 21.63 s to 119 ms, while context allocations
-fell by 60.1%. The duplicate index uses more memory and does not speed up dense
-corpora. See [measurements and reproduction](docs/PERFORMANCE.md) for the fixtures
-and limits.
+The manual, the installation guide and most CLI messages are in Spanish.
 
 ## Quick start
 
-**1. Install the binary**
+Install the binary on Linux or macOS:
 
 ```bash
-# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/Sayoner-000/gomemory/main/scripts/install.sh | bash
 ```
 
 On Windows, download `mem_windows_amd64.zip` from
 [Releases](https://github.com/Sayoner-000/gomemory/releases/latest), check it
-against `checksums.txt` and put `mem.exe` on your PATH. The exact PowerShell
-commands are in [`INSTALLATION.md`](INSTALLATION.md).
+against `checksums.txt` and put `mem.exe` on your PATH.
+[`INSTALLATION.md`](INSTALLATION.md) (Spanish) has the PowerShell commands.
 
-**2. Connect your agents**
+Connect your agents from the project root:
 
 ```bash
 cd /path/to/your/project
 mem install .
 ```
 
-The guided setup detects the agents you have installed, lets you choose your
-language (`es` or `en`), asks for the configuration scope and confirms before
-writing anything. In scripts and CI, use `mem install . --yes` or
-`mem install . --agents claude,codex --scope project --lang en`. You can switch
-the active project language at any time without restarting anything via
-`mem lang en` or `mem lang es`.
+The setup detects installed agents, asks which ones to connect and a few
+settings such as language (`es` or `en`), and confirms before writing. For
+scripts and CI, use `mem install . --yes` or pass `--agents`, `--scope` and
+`--lang` explicitly. To register Claude Code, Codex and OpenCode once for every
+project instead, run `mem setup-mcp --scope global`.
 
-**3. Try it**
+Then try it:
 
 ```bash
-mem save -t "API routing" -y decision "Use Fiber for HTTP routing"
+mem save -t "API routing" -y decision "Use Fiber for HTTP routing"   # -y is the type
 mem search "API routing"
-mem context        # what the agent receives at session start
-mem                # interactive terminal UI
+mem context        # the memory context agents receive at session start
+mem doctor         # check every agent integration
+mem                # terminal UI
 ```
-
-Memory lives in `~/.local/share/gomemory/` on Linux and macOS, and in
-`%LOCALAPPDATA%\gomemory\` on Windows. [`INSTALLATION.md`](INSTALLATION.md)
-covers global vs. project scope, `mem setup-mcp`, updates and troubleshooting.
 
 ## How it works
 
@@ -138,146 +104,74 @@ flowchart LR
     core --> db[("mem.db<br/>one SQLite store per project<br/>in your user data directory")]
     core --> instincts[("instincts.db<br/>patterns shared across projects")]
     core --> local["project/.memory/<br/>settings and hook state<br/>(gitignored)"]
-    core -.-> codegraph["Code graph<br/>built-in Go graph<br/>CodeGraph"]
+    core --> gograph["Built-in Go<br/>symbol graph"]
+    core -.-> codegraph["CodeGraph<br/>(external, optional)"]
 ```
 
-gomemory reaches your agent through two channels. Every supported agent
-launches `mem mcp` as a stdio subprocess and calls its tools to save and
-retrieve memory. Claude Code, Codex and OpenCode also run `mem hook` at points
-of their lifecycle: gomemory injects context when a session starts, captures
-checkpoints on its own (without spending agent tokens), compresses large tool
-output, applies the `expand` rules before a tool runs and keeps session memory
-across context compaction. Two agents working in the same project each get
-their own session, on Linux, macOS and Windows, so one starting or stopping
-doesn't make the other receive its context again. Running `mem` yourself in a
-terminal uses the same session as the agent; set `GOMEMORY_TERMINAL=<name>` if
-you want that terminal to have its own. In a sandbox that doesn't allow `ps`,
-the harness can pass `GOMEMORY_CONVERSATION_ID` to the hooks, the MCP server
-and the CLI so they keep the same conversation. Whatever the agent already
-got at startup isn't sent again when it asks for the full context. The first
-prompt of a session costs about 3,000 characters (about 4,200 with Octopus on).
-
-Antigravity CLI (`agy`) uses `mem hook` too. Turn it on with
-`mem install --agents agy`, or with `mem setup-mcp --scope global`, which
-includes it when `agy` is installed. It gets project context, tool guards and activity
-capture. Its hooks do not receive tool output and it has no compaction event,
-so gomemory does not compress its tool output automatically and does not
-restore context after compaction.
-
-The same use cases sit behind the MCP server, the hooks and the `mem` CLI, so
-what you see in the terminal is what the agent gets.
+Agents reach gomemory in two ways. They launch `mem mcp` and call its tools to
+save and retrieve memory. They also run `mem hook` at lifecycle events, which
+lets gomemory inject context when a session starts, record checkpoints without
+spending agent tokens, compress large tool output and restore memory after a
+context compaction. The MCP server, the hooks and the CLI share the same use
+cases, so the CLI shows the same memory the agent works with.
 
 | Agent | MCP | Lifecycle hooks |
 | :--- | :---: | :---: |
 | Claude Code | ✅ | ✅ |
 | Codex | ✅ | ✅ |
 | OpenCode | ✅ | ✅ |
-| Antigravity CLI (`agy`) | ✅ | ✅ Without automatic tool output compression |
+| Antigravity CLI (`agy`) | ✅ | ✅ (no tool output compression or post-compaction restore) |
+| Cursor | ✅ | ❌ |
 
-Using an agent that isn't listed? [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md)
-explains how to connect it.
+Antigravity CLI is enabled with `mem install --agents agy`. Its hooks do not
+receive tool output and it has no compaction event, so gomemory
+does not compress its tool output automatically and does not restore context
+after compaction.
 
-## What it does
+Each agent working in the same project gets its own session. For agents not
+listed here, see [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md).
 
-Memory is structured, not a text dump. Each entry has a type (`architecture`,
-`decision`, `bugfix`, `pattern`, `learning`, `discovery`, `preference` or
-`checkpoint`), and search uses SQLite FTS5 with BM25 ranking.
+## Features
 
-Context is budgeted. `get_context` stays within a token budget, and the agent
-asks `get_memory` for the full entry only when it needs it.
-`mem pack` builds context packs with reversible compression, and `mem usage`
-reports the tokens it actually saved.
-
-Related memories link to each other and are ranked by centrality (`mem mass`).
-Duplicates and memories that point to files that no longer exist are flagged for
-review. Nothing is deleted silently.
-
-On top of memory, gomemory ships tools for the work agents do with it:
-
-- `mem plan-context` gives the agent the project's history and an atomic
-  task-decomposition method before it plans.
+- Typed memory entries (`decision`, `bugfix`, `architecture`, `learning` and
+  others) with full-text search ranked by BM25.
+- Context under a token budget. The agent receives summaries and asks
+  `get_memory` for the full entry when it needs it. `mem usage` reports the
+  tokens saved.
+- Linked memories ranked by centrality (`mem mass`). Duplicates and memories
+  that cite missing files are flagged for review; nothing is deleted silently.
+- `mem plan-context` gives the agent the project history and a task
+  decomposition method before it plans.
 - `mem review` runs an adversarial review with two independent reviewers. A
-  defect counts only when both confirm it. A follow-up review
-  (`--since <review-id>`) keeps what the last one settled and only looks at
-  the files that changed, and it tells you roughly how many tokens that saved.
-- A built-in Go symbol graph answers code-structure questions. It reindexes
-  only what changed, and a call to a function you write later still shows up
-  once the function exists. [CodeGraph](https://github.com/colbymchenry/codegraph)
-  is supported as an optional multi-language external graph.
-- `mem install` and `mem update` keep a set of skills and guardrails current:
-  `defensive-qa-audit`, `socratica` (prompt refinement, and `/socratica-hu`
-  to prepare a checked, approved input for Spec Kit's `speckit-specify`) and
-  the `expand` protection rules.
-- The `expand` rules keep agents on their harness's own tools in every project
-  that has gomemory. Reading, searching or editing code through the shell
-  (`cat`, `sed -n`, `grep -r`, `sed -i`, `python -c`) is blocked, and the
-  message names the native tool or the code graph to use instead. This also
-  covers paths in other repositories. Codex has no native read tool, so there
-  the rules only warn.
-- Octopus AAR (opt-in) recommends whether to keep a task inline or hand it to a
-  subagent, and says why. It never launches agents itself.
+  severe defect that both confirm blocks approval, and a severe finding where
+  they contradict each other escalates the review.
+- A built-in Go symbol graph, plus [CodeGraph](https://github.com/colbymchenry/codegraph)
+  as the external multi-language graph.
+- `expand` rules that keep agents on their native read, search and edit tools
+  instead of `cat`, `grep -r` or `sed -i` in the shell.
+- `mem doctor --fix` repairs the integrations gomemory manages and runs the
+  diagnosis again. It asks once for the project changes and once for each
+  change that affects the whole machine; `--yes` skips the questions.
+- Optional Octopus AAR routing, which recommends whether to run a task inline
+  or in a subagent.
 
 `mem export` and `mem import` move memory between machines as JSON. The
-[user manual](docs/MANUAL.md) covers every feature in detail.
+[manual](docs/MANUAL.md) covers every feature.
 
-### HCD (Harness Continual Development)
+## HCD
 
-HCD is gomemory's own protocol for taking one unit of work (a feature, an
-evolution, a fix or a technical improvement) from intent to a verified delivery
-closed with your approval. It runs next to Spec Kit and never writes to `specs/`.
+HCD (Harness Continual Development) takes a unit of work from intent to a
+verified delivery that you approve. Each unit is one Markdown document in
+`hcd/` that travels with your pull request. The `mem hcd` engine derives the
+current step, accepts a task only after its check passed, requires a failing
+run before a fix and binds approvals to the exact revision you saw.
 
-- **Two lanes.** The full ceremony is `define → clarify → approve → slice →
-  tasks → implement → verify → close`. The fast track skips `approve` and
-  `slice` for ordinary work; its only approval is at closing. The agent picks
-  the lane and says why in one line: open decisions that affect each other, or
-  high risk, pick the full ceremony; size never does. A fast unit can be
-  promoted to the full ceremony without losing its work.
-- **How you drive it.** Type `/hcd` in Claude Code or OpenCode, or `$hcd` in
-  Codex. Each skill calls the `mem hcd` engine, which derives the step and the
-  next skill. `mem install` and `mem update` add ten skills: `hcd`,
-  `hcd-define`, `hcd-clarify`, `hcd-approve`, `hcd-slice`, `hcd-tasks`,
-  `hcd-implement`, `hcd-verify`, `hcd-analyze` and `hcd-close`.
-- **One document per unit.** Intent, scope, stories, clarifications, slices,
-  tasks and evidence live in `hcd/HCD-NNN-<slug>.md`, which travels in your PR.
-  SQLite keeps only control state in three tables (`hcd_units`, `hcd_evidence`,
-  `hcd_approvals`); decisions are mirrored into memory as `type=decision`.
-- **Gates the engine enforces.** A task counts as done only when `mem hcd
-  verify` ran its check and it passed; evidence expires when the code or the
-  tasks change. A fix needs an observed failing run (`--expect-fail`) before
-  the change. Approving binds to the exact definition revision; closing binds
-  to the exact work revision and is refused while `analyze` reports a
-  `CRITICAL` finding.
-- **Editing without a unit.** In Claude Code, editing code with no active unit
-  shows a one-time warning per session. It never blocks.
-- **Decision history and renaming.** Each unit, and each report in `docs/audits/`, keeps one
-  record in memory that the engine updates as the unit moves. When the agent is
-  about to edit a file, the records that cite it show up first. Query them with
-  `mem hcd history [text] [--file <path>]` or the `hcd_history` MCP tool;
-  `mem hcd index --apply` builds them for units that predate v2.50.0. To rename
-  a unit in any state without losing evidence or approvals, run
-  `mem hcd rename [unit] --title <title>` or `hcd_rename`; `mem hcd show`
-  also reconciles manual file moves or `# title` edits and retargets linked
-  memories.
-- **A reviewer with no memory.** The `splash` subagent starts without
-  gomemory's context, tools or instructions, so it reviews the work without
-  knowing the reasoning behind it. `mem setup` installs it for Claude Code,
-  OpenCode, Codex and agy. In the full ceremony, `/hcd-approve` offers a
-  `splash` review of the definition before asking for your approval; a Blocker
-  holds the approval until you fix it or dismiss it.
-- **What it doesn't guarantee.** It checks structure and evidence, not that the
-  code is correct. Approvals record your literal reply with its origin and
-  revision: auditable, but it relies on the agent passing your words faithfully.
-
-| Agent | Invocation | Status |
-|---|---|---|
-| Claude Code | `/hcd` | Verified in agent runs: HCD-048 went through the full ceremony and HCD-049 through the fast track |
-| Codex | `$hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending. Its `workspace-write` sandbox must be allowed to write `~/.local/share/gomemory`: add it to `[sandbox_workspace_write] writable_roots` in `~/.codex/config.toml`, or start with `codex --add-dir ~/.local/share/gomemory` |
-| OpenCode | `/hcd` | Engine verified end to end with the compiled binary; an agent run of HCD v2 is pending |
-
-`mem hcd` with no arguments prints the engine usage. The Spanish
-[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.56.html) walks through the
-ceremony step by step. See
-[`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) for the design.
+There is a fast track for ordinary work and a full ceremony for changes with
+open, interdependent decisions or high risk. Start with `/hcd` in Claude Code
+or OpenCode, or `$hcd` in Codex. The
+[SDD_HCD guide](docs/Guia-SDD_HCD_GOMEMORY-v2.56.html) (Spanish) walks through
+it, and [`docs/HCD-VERIFICATION.md`](docs/HCD-VERIFICATION.md) explains how
+evidence is recorded.
 
 ## Reference
 
@@ -286,20 +180,20 @@ ceremony step by step. See
 
 | Command | Purpose |
 | :--- | :--- |
-| `mem install .` | Guided setup for a project (`--lang es\|en`) |
-| `mem lang [es\|en]` | Switch the project language on the fly (direct or interactive) |
+| `mem install .` | Guided setup for a project |
+| `mem lang [es\|en]` | Switch the project language |
 | `mem save` / `mem search` / `mem list` | Write and query memory |
 | `mem context` / `mem plan-context` | Show what the agent receives |
 | `mem settings` | View or change project settings |
-| `mem doctor` | Check agent integration and installed binaries |
+| `mem doctor [--fix]` | Check agent integrations and repair what gomemory manages |
 | `mem update` | Update the binary (SHA-256 verified) |
-| `mem optimize` | Optimize graph relations, SQLite indexes and code providers |
-| `mem hook` | Lifecycle hooks (prompt, subagent-start, pre-tool expand, edit context) |
+| `mem optimize` | Clean graph relations and optimize SQLite indexes |
+| `mem hcd` | HCD engine |
 | `mem export` / `mem import` | Back up or move memory |
-| `mem uninstall` | Remove gomemory from a project, or everywhere with `--all` |
+| `mem uninstall` | Remove gomemory from a project, or everywhere with `--all`. In a terminal it asks what to do with the memory; with `--yes` or without a terminal it deletes it unless you pass `--keep-memory` or `--export <dir>` |
 
-Run `mem help` for the full command list and examples. Every setting is
-documented in [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
+Run `mem help` for the full list. Settings are documented in
+[`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
 </details>
 
@@ -314,7 +208,7 @@ The source of truth is [`domain/mcp_tools.go`](domain/mcp_tools.go).
 | Code graph | `index_project` `graph_status` `search_code` `get_symbol` `list_dependencies` |
 | Context packs | `pack_build` `pack_show` `pack_stats` `pack_compress` `pack_retrieve` `pack_savings` |
 | Consensus review | `review_start` `review_submit` `review_consensus` `review_status` `review_fix_record` `review_rejudge` `review_finalize` `review_promote_memory` |
-| Socratica | `socratica_flow` |
+| Socratica (prompt refinement) | `socratica_flow` |
 | Octopus AAR (optional) | `octopus_route_task` `octopus_route_plan` `octopus_report` `octopus_status` |
 
 Resources: `mem://context` · `mem://memory/{id}`
@@ -323,42 +217,39 @@ Resources: `mem://context` · `mem://memory/{id}`
 
 ## Security and privacy
 
-Your data stays on your machine, in files only your user can read, outside the
-repository. gomemory opens no network port. It goes online only to check for a
-new release, which you can turn off, and to download one when you run
+Data stays on your machine. The memory store sits outside the repository, and
+on Linux and macOS its files are readable only by your user. Per-project
+settings and hook state live in the gitignored `.memory/` folder. gomemory
+opens no network port. It goes online only to check for a
+new release (you can turn this off) and to download one when you run
 `mem update`.
 
-Common credential patterns are redacted before they are stored, and anything
-wrapped in `<private>…</private>` is never persisted.
-
-Don't sync `mem.db` directly. It runs in SQLite WAL mode, and a copy taken while
-it is open can be inconsistent. Use `mem export` instead. The
-[manual](docs/MANUAL.md) lists the details and limitations.
+Common credential patterns are redacted before storage, and anything wrapped in
+`<private>…</private>` is never saved. Don't sync `mem.db` directly: it runs in
+SQLite WAL mode, and a copy taken while it is open can be inconsistent. Use
+`mem export` instead.
 
 ## Documentation
 
 | Document | Contents |
 | :--- | :--- |
-| [`docs/README.md`](docs/README.md) | Documentation index, guide directory, and architecture map |
-| [`INSTALLATION.md`](INSTALLATION.md) | Installation, agent registration, updates, troubleshooting |
-| [`docs/MANUAL.md`](docs/MANUAL.md) | Complete user guide and CLI reference |
-| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Layered architecture, SQLite design, hostbind and splash subagent |
+| [`docs/README.md`](docs/README.md) | Documentation index |
+| [`INSTALLATION.md`](INSTALLATION.md) | Installation, updates and troubleshooting (Spanish) |
+| [`docs/MANUAL.md`](docs/MANUAL.md) | User guide and CLI reference (Spanish) |
+| [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) | Architecture and SQLite design (Spanish) |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Settings reference |
-| [`docs/architecture.md`](docs/architecture.md) | Internal architecture and hook lifecycle |
-| [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Memory protocol reference |
-| [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Integrating an agent gomemory doesn't support yet |
-| [`docs/socratica.md`](docs/socratica.md) · [`docs/expand.md`](docs/expand.md) | Socratica and expand supertools |
-| [`docs/USAGE-REPORT-CONTRACT.md`](docs/USAGE-REPORT-CONTRACT.md) · [`docs/CONSOLE-THEMES.md`](docs/CONSOLE-THEMES.md) | Usage report contract, TUI themes |
-| [`docs/Guia-Rapida-HCD_GOMEMORY-v2.56.html`](docs/Guia-Rapida-HCD_GOMEMORY-v2.56.html) · [`docs/Guia-SDD_HCD_GOMEMORY-v2.56.html`](docs/Guia-SDD_HCD_GOMEMORY-v2.56.html) · [`docs/Guia-Tecnica_GOMEMORY-v2.56.html`](docs/Guia-Tecnica_GOMEMORY-v2.56.html) | Printable visual guides (HCD Quick Guide, SDD_HCD Guide, Technical Guide) |
-| [`docs/Guia-Explicacion-Developers-GOMEMORY.html`](docs/Guia-Explicacion-Developers-GOMEMORY.html) · [`docs/Manual-Referencia-Developers-GOMEMORY.html`](docs/Manual-Referencia-Developers-GOMEMORY.html) | Developer visual guides (Architecture overview, 3 code graphs comparison, and `graph-before-grep` guardrail) |
+| [`docs/MEMORY-PROTOCOL.md`](docs/MEMORY-PROTOCOL.md) | Memory protocol |
+| [`docs/AGENT-INTEGRATION.md`](docs/AGENT-INTEGRATION.md) | Connecting an unsupported agent |
+| [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) | Benchmarks and how to reproduce them |
+| [`CHANGELOG.md`](CHANGELOG.md) | Changes by release |
 
 ## Contributing
 
-Bug reports and ideas go in [issues](https://github.com/Sayoner-000/gomemory/issues).
-Before sending a change, read [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+Report bugs and ideas in [issues](https://github.com/Sayoner-000/gomemory/issues).
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) and the
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before sending a change.
 
-To build from source you need Go 1.27+:
+Building from source requires Go 1.27+:
 
 ```bash
 git clone https://github.com/Sayoner-000/gomemory.git

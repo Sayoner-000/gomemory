@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"mem/adapters/primary/console"
-	"mem/adapters/primary/setup"
 	"mem/application/usecases"
 	"mem/domain"
 	"mem/version"
@@ -47,17 +46,24 @@ type doctorReportJSON struct {
 	// Binary (feature 034, FR-033): binario global, copias locales y aviso de
 	// versión. La clave "version" ya es la versión de gomemory.
 	Binary doctorBinaryJSON `json:"binary"`
+	// Fixes (HCD-063): solo con --fix; problems ya refleja el estado final.
+	Fixes *doctorFixReportJSON `json:"fixes,omitempty"`
 }
 
-// CmdDoctor implementa `mem doctor [--json] [--strict]`: el reporte de
-// cobertura de los dos brazos (feature 019, contracts/doctor-report.md).
+// CmdDoctor implementa `mem doctor [--json] [--strict] [--fix]`: el reporte
+// de cobertura de los dos brazos (feature 019, contracts/doctor-report.md).
 // Sin --strict, termina SIEMPRE con código 0 — un diagnóstico no debe romper
-// el flujo de quien lo consulta.
+// el flujo de quien lo consulta. Con --fix aplica las correcciones de lo que
+// gestiona gomemory y vuelve a diagnosticar (HCD-063).
 func CmdDoctor(deps *Deps, args []string) {
 	fs := newFlagSet("doctor", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "Salida JSON estable, para scripts")
 	strict := fs.Bool("strict", false, "Terminar con código != 0 si hay problemas")
 	shield := fs.Bool("shield", false, "Escanear configuración de agentes en solo lectura")
+	fix := fs.Bool("fix", false, "Aplicar las correcciones de lo que gestiona gomemory y volver a diagnosticar")
+	dryRun := fs.Bool("dry-run", false, "Con --fix: mostrar el plan sin ejecutar nada")
+	yes := fs.Bool("yes", false, "Con --fix: aplicar sin preguntar, también lo que afecta a toda la máquina")
+	fs.BoolVar(yes, "y", false, "Alias de --yes")
 	if err := fs.Parse(args); err != nil {
 		return
 	}
@@ -67,18 +73,25 @@ func CmdDoctor(deps *Deps, args []string) {
 		root, _ = deps.ProjectRepo.FindRoot()
 	}
 
-	report := usecases.BuildActivationReport(setup.NewActivationInspector(), root)
-	openCode := inspectOpenCode()
-	// Un plugin de OpenCode que no carga ya cuenta en report.Problems(): el
-	// inspector marca outdated los canales que sostiene (contrato 019).
-	problems := report.Problems()
-	if deps.InstinctGlobalErr != nil {
-		report.Degradations = append(report.Degradations, "instincts globales no disponibles ("+
-			domain.StripTerminalControls(deps.InstinctGlobalErr.Error())+"): mem expand instincts y mem sanitize fallarán hasta reparar instincts.db")
+	st := collectDoctor(deps, root)
+	var fixes *doctorFixReportJSON
+	if *fix {
+		mode := fixConfirm
+		switch {
+		case *dryRun:
+			mode = fixSimulate
+		case *yes:
+			mode = fixAll
+		case *asJSON:
+			// Un script que lee JSON no puede contestar preguntas.
+			mode = fixSimulate
+		}
+		var rep doctorFixReportJSON
+		st, rep = runDoctorFix(deps, root, st, mode, !*asJSON)
+		fixes = &rep
 	}
-	compressionState := buildDoctorCompression(deps, root)
-	problems += len(compressionState.Problems)
-	binaryState := buildDoctorBinary(deps, root)
+	report, openCode, problems := st.report, st.openCode, st.problems
+	compressionState, binaryState := st.compression, st.binary
 	var shieldReport *domain.ShieldReport
 	if *shield {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -96,6 +109,7 @@ func CmdDoctor(deps *Deps, args []string) {
 			OpenCode:     openCodeJSON(openCode),
 			Compression:  compressionState,
 			Binary:       binaryState,
+			Fixes:        fixes,
 		}
 		if out.Degradations == nil {
 			out.Degradations = []string{}

@@ -5,6 +5,20 @@ All notable changes to gomemory are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `mem doctor --fix` aplica las correcciones que el informe ya proponía para lo que gestiona gomemory: canales rotos (`mem install . --yes` o `mem setup-mcp --scope global`), plugin de OpenCode incompatible, hooks de Claude duplicados, almacén de originales al 90 % y servidor MCP de CodeGraph sin conectar. Confirma una vez las acciones de proyecto y una por una las que afectan a toda la máquina; `--yes` aplica sin preguntar y `--dry-run` solo muestra el plan. Al terminar repite el diagnóstico y resume los problemas antes y después. `--json` añade la clave `fixes`. [Detalles](docs/MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar).
+
+### Fixed
+
+- `mem doctor` marcaba `missing` los canales `plan_entry` y `plan_guard` de Claude en ámbito proyecto cuando el hook estaba en `~/.claude/settings.json`. `mem install .` los omite allí a propósito desde la feature 035, así que el remedio propuesto nunca resolvía el aviso. Ahora cuentan como cubiertos por el global.
+
+### Changed
+
+- README más corto: las novedades por versión viven solo en este archivo y se retira el badge de versión fija, que duplicaba el de la última release.
+
 ## [v2.58.0] - 2026-11-24
 
 ### Removed
@@ -547,8 +561,6 @@ La ceremonia se conserva entera; lo que se redujo es la maquinaria interna.
 
 - Se actualizan las guías SDD_HCD y técnica a gomemory 2.41, y se conserva solo la edición vigente.
 - `docs/MANUAL.md` suma la sección 22 (HCD). ADR 0002 (estado de control en SQLite) y ADR 0003 (retirada del catálogo HCD de desarrollo).
-
-## [Unreleased]
 
 ## [v2.40.3] - 2026-10-27
 
