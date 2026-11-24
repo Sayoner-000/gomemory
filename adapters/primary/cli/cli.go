@@ -257,7 +257,7 @@ COMMANDS
     verify --task N[,M] [--expect-fail] -- '<comando>' · verify --task N --manual "…"
     analyze                                         Coherencia de la unidad (no escribe)
     close --quote "…" · cancel --quote "…" · promote
-    Comunes: --json --client claude|codex|opencode|terminal|tui (antes de «--»)
+    Comunes: --json --client claude|codex|opencode|antigravity|gemini|pi|terminal|tui (antes de «--»)
   mem rules                        Ver las reglas de trabajo vigentes (atajo de docs show rules)
   mem export [--out <archivo>]     Exportar memorias + relaciones a un JSON portable (cross-OS)
                                    (default gomemory-export-<proyecto>-<YYYYMMDD>.json)

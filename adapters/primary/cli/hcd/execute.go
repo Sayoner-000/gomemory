@@ -16,7 +16,7 @@ import (
 
 var (
 	commands = map[string]bool{"start": true, "show": true, "next": true, "clarify": true, "review": true, "approve": true, "verify": true, "analyze": true, "close": true, "cancel": true, "promote": true, "rename": true, "index": true, "history": true}
-	clients  = map[string]bool{"terminal": true, "claude": true, "codex": true, "opencode": true, "tui": true, "antigravity": true, "gemini": true}
+	clients  = map[string]bool{"terminal": true, "claude": true, "codex": true, "opencode": true, "tui": true, "antigravity": true, "gemini": true, "pi": true}
 	// Flags que admite cada comando, además de --json y --client.
 	allowedFlags = map[string]map[string]bool{
 		"start":   {"kind": true, "lane": true, "title": true, "why": true, "intent": true},
