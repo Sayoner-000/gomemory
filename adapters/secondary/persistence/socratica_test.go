@@ -24,7 +24,10 @@ func socraticaTestRepo(t *testing.T) *SocraticaStore {
 	if err = migrate(db); err != nil {
 		t.Fatal(err)
 	}
-	return NewSocraticaStore(db, time.Second)
+	// El plazo de producción: con 1 s, una escritura en un runner de Windows con
+	// el disco cargado agotaba el contexto (run 45996080167). Las pruebas que
+	// miden el timeout fijan el suyo, como TestSocraticaRepositoryQueryTimeout.
+	return NewSocraticaStore(db, domain.DefaultQueryTimeout)
 }
 func socraticaTestFlow(id, client string) domain.RefinementFlow {
 	return domain.RefinementFlow{ID: id, SchemaVersion: 1, Project: "p", Client: client, Mode: domain.ModeRefine, OriginalPrompt: "original", ProposedPrompt: "proposal", Phase: domain.PhaseReview, LastStablePhase: domain.PhaseReview, CreatedAt: time.Unix(100, 0).UTC(), UpdatedAt: time.Unix(100, 0).UTC()}
