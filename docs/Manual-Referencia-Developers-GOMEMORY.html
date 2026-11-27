@@ -883,18 +883,18 @@
       <div class="chapter-inner">
         <div class="dropnum">A1</div>
         <div>
-          <h2>Anexo: <span>Los tres grafos de código y la regla <code>graph-before-grep</code></span></h2>
+          <h2>Anexo: <span>Los grafos de código y la regla <code>graph-before-grep</code></span></h2>
           <p class="pg-sub">Para qué sirve cada grafo, cómo se actualizan y por qué el hook bloquea <code>rg</code>/<code>grep</code> cuando el índice está activo.</p>
         </div>
       </div>
     </article>
 
     <p class="lead">
-      En un proyecto con <strong>gomemory</strong> pueden convivir hasta tres índices de código. Cada uno cubre un plano distinto: <strong>el grafo propio de gomemory</strong> indexa símbolos y paquetes Go sin depender de binarios externos; <strong>CodeGraph</strong> devuelve en una llamada el código fuente junto con sus llamadores e impacto en más de 30 lenguajes; y <strong>codebase-memory-mcp</strong> ofrece consultas estructurales y recorridos multi-salto sobre el grafo del repositorio.
+      En un proyecto con <strong>gomemory</strong> conviven dos índices de código. Cada uno cubre un plano distinto: <strong>el grafo propio de gomemory</strong> indexa símbolos y paquetes Go sin depender de binarios externos; <strong>CodeGraph</strong>, el único grafo externo, devuelve en una llamada el código fuente junto con sus llamadores e impacto en más de 30 lenguajes.
     </p>
 
     <div class="section-header">
-      <h3>Comparativa de los tres grafos</h3>
+      <h3>Comparativa de los dos grafos</h3>
       <p>Qué indexa cada herramienta, cómo se consulta y cómo se mantiene al día</p>
     </div>
 
@@ -902,10 +902,9 @@
       <table>
         <thead>
           <tr>
-            <th style="width: 18%;">Aspecto</th>
-            <th style="width: 27%;">Grafo propio (gomemory)</th>
-            <th style="width: 28%;">CodeGraph (<code>codegraph</code>)</th>
-            <th style="width: 27%;">codebase-memory-mcp</th>
+            <th style="width: 22%;">Aspecto</th>
+            <th style="width: 39%;">Grafo propio (gomemory)</th>
+            <th style="width: 39%;">CodeGraph (<code>codegraph</code>)</th>
           </tr>
         </thead>
         <tbody>
@@ -913,49 +912,41 @@
             <td><strong>Función principal</strong></td>
             <td><strong>Índice Go integrado en el binario.</strong> Funciona de serie sin instalar herramientas externas.</td>
             <td><strong>Exploración de código en una llamada.</strong> Sustituye varias rondas de <code>grep</code> y lectura de archivos por una consulta.</td>
-            <td><strong>Consultas estructurales y de arquitectura.</strong> Recorridos de llamadas, acoplamiento y consultas tipo Cypher.</td>
           </tr>
           <tr>
             <td><strong>Qué resuelve</strong></td>
             <td>Registra paquetes, funciones y llamadas Go en la base local y alimenta el resumen estructural de <code>mem context</code>.</td>
             <td>Con <code>codegraph_explore</code> entrega el código fuente con números de línea, llamadores e impacto de cambio.</td>
-            <td>Analiza puntos calientes, rutas entre funciones (<code>trace_path</code>), esquemas y consultas con <code>search_graph</code> o <code>query_graph</code>.</td>
           </tr>
           <tr>
             <td><strong>Lenguajes</strong></td>
             <td><span class="badge b-amber">Solo Go (.go)</span></td>
             <td><span class="badge b-mint">30+ lenguajes</span> (Go, TS, JS, Python, Rust, Java, C#, C/C++, PHP, Swift…)</td>
-            <td><span class="badge b-azure">Multilenguaje</span> (según las gramáticas del binario)</td>
           </tr>
           <tr>
             <td><strong>Tools MCP / CLI</strong></td>
             <td><code>search_code</code>, <code>get_symbol</code>, <code>list_dependencies</code>, <code>graph_status</code>.</td>
             <td><strong><code>codegraph_explore</code></strong>.</td>
-            <td><code>search_graph</code>, <code>trace_path</code>, <code>get_code_snippet</code>, <code>query_graph</code>, <code>get_architecture</code>.</td>
           </tr>
           <tr>
             <td><strong>Forma de consulta</strong></td>
             <td>Búsqueda puntual de símbolos, firmas y dependencias entre paquetes Go.</td>
             <td><strong>Una sola llamada:</strong> devuelve código fuente, quién lo invoca y qué archivos afecta.</td>
-            <td>Consultas por pasos: buscar nodos, trazar caminos y leer fragmentos concretos.</td>
           </tr>
           <tr>
             <td><strong>Actualización</strong></td>
             <td><strong>Incremental al cerrar el turno:</strong> el hook <code>turn-end</code> reindexa los archivos <code>.go</code> modificados.</td>
             <td><strong>Watcher en vivo</strong> (~1 s) con el servidor MCP activo y sincronización con <code>codegraph sync</code>.</td>
-            <td>Refresco en segundo plano con ventana de espera (~60 s) o indexado manual.</td>
           </tr>
           <tr>
             <td><strong>Reindexado manual</strong></td>
             <td><code>mem index</code>.</td>
             <td><code>codegraph index</code> o <code>mem index</code>.</td>
-            <td><code>codebase-memory-mcp cli index_repository</code> o <code>mem index</code>.</td>
           </tr>
           <tr>
             <td><strong>Cuándo elegirlo</strong></td>
             <td>Proyectos en Go sin proveedores externos o para consultar dependencias de paquetes Go.</td>
             <td><strong>Primera opción cuando está instalado</strong> para localizar símbolos, leer su implementación y ver quién los llama.</td>
-            <td>Auditorías de arquitectura, búsqueda de código sin llamadores o análisis de cadenas largas de dependencias.</td>
           </tr>
         </tbody>
       </table>

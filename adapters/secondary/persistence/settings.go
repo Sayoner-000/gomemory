@@ -21,18 +21,17 @@ type Settings struct {
 	Theme            string   `json:"theme,omitempty"`
 	AutoApprove      bool     `json:"auto_approve"`
 	AutoApproveTools []string `json:"auto_approve_tools"`
-	// CodeGraphDisabled apaga el proveedor de grafo de código EXTERNO
-	// (codebase-memory-mcp). Ausente/false = auto-detección activada.
+	// CodeGraphDisabled apaga el grafo de código EXTERNO (CodeGraph).
+	// Ausente/false = auto-detección activada.
 	CodeGraphDisabled bool `json:"code_graph_disabled,omitempty"`
-	// CodeGraphCommand permite apuntar a otro binario del proveedor. Vacío =
-	// se busca "codebase-memory-mcp" en el PATH. Campo LEGADO: se conserva
-	// por compatibilidad, pero ReadSettings lo normaliza a CodeGraphProviders
+	// CodeGraphCommand permite apuntar a otra ruta del binario de CodeGraph.
+	// Vacío = se busca "codegraph" en el PATH. Campo LEGADO: se conserva por
+	// compatibilidad, pero ReadSettings lo normaliza a CodeGraphProviders
 	// cuando esta lista viene vacía (feature 010).
 	CodeGraphCommand string `json:"code_graph_command,omitempty"`
-	// CodeGraphProviders es la lista ordenada de proveedores externos. La
-	// entrada "codegraph" usa su adaptador CLI; las demás conservan el
-	// adaptador de codebase-memory-mcp (incluidas rutas personalizadas).
-	// Vacía ⇒ se usa CodeGraphCommand legado o la autodetección histórica.
+	// CodeGraphProviders es la lista ordenada de rutas o nombres del binario de
+	// CodeGraph. ReadSettings descarta lo que no sea CodeGraph (HCD-065).
+	// Vacía ⇒ se usa CodeGraphCommand legado o la autodetección en PATH.
 	CodeGraphProviders []string `json:"code_graph_providers,omitempty"`
 	// AdrSyncEnabled activa la sincronización bidireccional de ADR (feature
 	// 010, Historia 2). Default false: opt-in explícito.
@@ -346,9 +345,25 @@ func applyExpandDefaults(s *Settings) {
 // (singular) a CodeGraphProviders (lista) cuando esta última no viene
 // explícita en el settings.json — así una base existente que solo conoce el
 // campo viejo sigue funcionando sin migración manual (feature 010).
+//
+// Solo CodeGraph es proveedor (HCD-065): lo demás que nombre un settings.json
+// heredado se descarta, y una lista vacía vuelve a la autodetección.
 func applyCodeGraphProvidersDefault(s *Settings) {
+	if !domain.IsCodeGraphCommand(s.CodeGraphCommand) {
+		s.CodeGraphCommand = ""
+	}
+	kept := s.CodeGraphProviders[:0]
+	for _, p := range s.CodeGraphProviders {
+		if domain.IsCodeGraphCommand(p) {
+			kept = append(kept, p)
+		}
+	}
+	s.CodeGraphProviders = kept
 	if len(s.CodeGraphProviders) == 0 && s.CodeGraphCommand != "" {
 		s.CodeGraphProviders = []string{s.CodeGraphCommand}
+	}
+	if len(s.CodeGraphProviders) == 0 {
+		s.CodeGraphProviders = nil
 	}
 }
 

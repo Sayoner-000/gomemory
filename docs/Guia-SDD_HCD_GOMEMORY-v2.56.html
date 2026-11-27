@@ -488,7 +488,7 @@
     <p class="cover-voice">Cómo montar, paso a paso, el entorno de trabajo de un agente de código. <i>Spec Kit define qué se construye y gomemory guarda por qué se decidió así.</i></p>
     <div class="cover-accent" aria-hidden="true"></div>
     <p class="subtitle">La guía cubre cuatro piezas: un agente CLI (Claude Code, OpenCode o Codex); Spec Kit <code>1.2.2</code>, con sus comandos, extensiones y workflows;
-    la memoria persistente de gomemory <code>2.40.3</code>, y dos grafos de código, codebase-memory-mcp y CodeGraph, que gomemory consulta para conocer la estructura del proyecto.</p>
+    la memoria persistente de gomemory <code>2.40.3</code>, y el grafo de código CodeGraph, que gomemory consulta para conocer la estructura del proyecto.</p>
 
     <div class="cover-route">
       <div class="eco-block"><div class="eco-label">Agente</div><div class="eco-title">CLI de código</div><div class="eco-ver">Claude Code · OpenCode · Codex</div></div>
@@ -497,14 +497,14 @@
       <div class="eco-link" aria-hidden="true"></div>
       <div class="eco-block main"><div class="eco-label">Memoria</div><div class="eco-title">gomemory</div><div class="eco-ver">v2.55.1 · 33 herramientas MCP</div></div>
       <div class="eco-link" aria-hidden="true"></div>
-      <div class="eco-block"><div class="eco-label">Estructura</div><div class="eco-title">Grafos de código</div><div class="eco-ver">codebase-memory-mcp · CodeGraph</div></div>
+      <div class="eco-block"><div class="eco-label">Estructura</div><div class="eco-title">Grafo de código</div><div class="eco-ver">CodeGraph</div></div>
     </div>
 
     <p class="cover-tags"><span>specify → plan → tasks → implement</span><span>/hcd → define → clarify → approve → slice → tasks → implement → verify → close</span><span>Vía rápida HCD</span><span>/speckit-converge</span><span>Extensiones y hooks</span><span>Workflows con aprobación por fase</span><span>Memoria SQLite local</span><span>CodeGraph</span><span>Context packs</span><span>Revisión adversarial</span><span>Guardarraíles expand</span><span>Socratica</span><span>Constitución en memoria</span><span>MCP stdio</span></p>
 
     <div class="cover-meta">
       <p><strong>Propósito</strong>Pasar de una idea a código verificable con especificación, plan y tareas atómicas, y que el agente recuerde decisiones entre sesiones</p>
-      <p><strong>Versiones probadas</strong>specify-cli 1.2.2 · gomemory 2.40.0 · Claude Code 2.1.308 · OpenCode 2.0.32 · codex-cli 0.163.0 · codebase-memory-mcp 0.12.0 · CodeGraph 1.6.2</p>
+      <p><strong>Versiones probadas</strong>specify-cli 1.2.2 · gomemory 2.40.0 · Claude Code 2.1.308 · OpenCode 2.0.32 · codex-cli 0.163.0 · CodeGraph 1.6.2</p>
       <p><strong>Plataformas</strong>macOS, Linux y Windows (PowerShell)</p>
       <p><strong>Estado</strong>Publicada con el tag <code>v2.55.1</code> (2026-11-21): endurece el renombre y la reconciliación HCD con validación de privacidad en rutas descubiertas y persistencia, recuperación durable de reapuntes pendientes en SQLite (esquema v14), guardado exclusivo de metadatos sin pisar cancelaciones concurrentes y renombre atómico no-replace por plataforma en <code>MoveDoc</code>. Sobre la v2.55.0: añade <code>mem hcd rename</code>, la tool MCP <code>hcd_rename</code>, reconciliación en <code>mem hcd show</code> (HCD-058) y los principios SOLID verificables (§3.1) en la Constitución Técnica 2.2.0. Sobre la v2.54.x: el hook bloquea leer y buscar código por consola en cualquier proyecto con gomemory, también sobre otros repositorios, y las reglas de trabajo por defecto pasan a la v3 con glosario de siglas (ACR, ADM, HCD). Sobre la v2.53.0: integra el examen socrático en <code>/hcd-define</code> y el control explícito de la revisión <code>splash</code> en <code>/hcd-approve</code> (HCD-057). Sobre la v2.52.0: añade idioma del proyecto (<code>es</code>/<code>en</code>) con <code>mem lang</code> (HCD-056) y diagnóstico de <code>agy</code> en <code>mem expand</code> (HCD-055).</p>
     </div>
@@ -521,7 +521,7 @@
       <a href="#cap-3"><span class="pool-n" aria-hidden="true">3</span><span class="pool-t">Instalar el agente CLI</span><span class="pool-s">Claude Code, OpenCode y Codex: instalación, verificación y login</span></a>
       <a href="#cap-4"><span class="pool-n" aria-hidden="true">4</span><span class="pool-t">Instalar Spec Kit</span><span class="pool-s">specify-cli 1.2.2, integraciones y convención de comandos por agente</span></a>
       <a href="#cap-5"><span class="pool-n" aria-hidden="true">5</span><span class="pool-t">Instalar gomemory 2.55.1</span><span class="pool-s">Instalación guiada, conexión de agentes, diagnóstico y saneamiento</span></a>
-      <a href="#cap-6"><span class="pool-n" aria-hidden="true">6</span><span class="pool-t">Grafos de código</span><span class="pool-s">Grafo Go propio, codebase-memory-mcp y CodeGraph en paralelo</span></a>
+      <a href="#cap-6"><span class="pool-n" aria-hidden="true">6</span><span class="pool-t">Grafos de código</span><span class="pool-s">Grafo Go propio y CodeGraph</span></a>
       <a href="#cap-7"><span class="pool-n" aria-hidden="true">7</span><span class="pool-t">Armar el harness, paso a paso</span><span class="pool-s">Ocho pasos en orden, cada uno con su resultado esperado</span></a>
       <a href="#cap-8"><span class="pool-n" aria-hidden="true">8</span><span class="pool-t">Constitución y reglas</span><span class="pool-s">Viven en la memoria y se sincronizan con Spec Kit</span></a>
     </div>
@@ -561,7 +561,7 @@
     <div class="card"><div class="card-title">Agente CLI</div><div class="card-body">Claude Code, OpenCode o Codex. Lee y edita archivos y ejecuta comandos. Es la única capa que actúa sobre el proyecto.</div></div>
     <div class="card azure"><div class="card-title">Contrato · Spec Kit</div><div class="card-body">Constitución, spec, plan y tareas. Define <strong>qué</strong> se construye y en qué orden.</div></div>
     <div class="card violet"><div class="card-title">Memoria · gomemory</div><div class="card-body">Decisiones, bugs, sesiones y reglas de trabajo. Recuerda <strong>por qué</strong> se hizo cada cosa.</div></div>
-    <div class="card mint"><div class="card-title">Estructura · grafos</div><div class="card-body">codebase-memory-mcp y CodeGraph. Responden <strong>dónde</strong> está el código y quién lo llama.</div></div>
+    <div class="card mint"><div class="card-title">Estructura · grafos</div><div class="card-body">Grafo Go propio y CodeGraph. Responden <strong>dónde</strong> está el código y quién lo llama.</div></div>
   </div>
 
   <div class="infobox dark">
@@ -575,7 +575,7 @@
       <tr><td><strong>¿Qué construimos y con qué criterio de aceptación?</strong></td><td>Spec Kit</td><td><code>specs/NNN-nombre/</code> en el repo</td></tr>
       <tr><td><strong>¿Qué reglas aplican al escribir código?</strong></td><td>Constitución (gomemory → Spec Kit)</td><td>Memoria fijada + <code>.specify/memory/constitution.md</code></td></tr>
       <tr><td><strong>¿Por qué se decidió esto? ¿Qué bug pasó?</strong></td><td>gomemory</td><td>SQLite fuera del repo (<code>~/.local/share/gomemory/</code>)</td></tr>
-      <tr><td><strong>¿Quién llama a esta función? ¿Qué rompe este diff?</strong></td><td>codebase-memory-mcp · CodeGraph</td><td>Índices locales por proyecto</td></tr>
+      <tr><td><strong>¿Quién llama a esta función? ¿Qué rompe este diff?</strong></td><td>CodeGraph</td><td>Índice local por proyecto (<code>.codegraph/</code>)</td></tr>
       <tr><td><strong>¿Funciona el cambio?</strong></td><td>Tú y el agente, contra el sistema en ejecución</td><td>Tests, logs, <code>curl</code>, navegador</td></tr>
     </tbody>
   </table></div>
@@ -595,7 +595,6 @@
       <tr><td><strong>Agente CLI</strong></td><td>Claude Code 2.1 · OpenCode 2.0 · Codex 0.163</td><td>Ejecuta el ciclo. Basta uno; pueden convivir</td><td><span class="badge b-rose">requerido</span></td></tr>
       <tr><td><strong>specify-cli</strong></td><td>1.2.2</td><td>CLI de Spec Kit: plantillas, skills, extensiones, workflows</td><td><span class="badge b-rose">requerido</span></td></tr>
       <tr><td><strong>gomemory</strong> (<code>mem</code>)</td><td>2.40.3</td><td>Memoria persistente, reglas, constitución, guardarraíles, hooks y MCP</td><td><span class="badge b-cyan">harness</span></td></tr>
-      <tr><td><strong>codebase-memory-mcp</strong></td><td>0.12.0</td><td>Grafo estructural multilenguaje, hotspots y ADR</td><td><span class="badge b-cyan">harness</span></td></tr>
       <tr><td><strong>CodeGraph</strong></td><td>1.6.2</td><td>Exploración de código, callers e impacto, tests afectados</td><td><span class="badge b-cyan">harness</span></td></tr>
       <tr><td><strong>GitHub CLI</strong> (<code>gh</code>)</td><td>actual</td><td>PRs, issues y <code>/speckit-taskstoissues</code></td><td><span class="badge b-gray">opcional</span></td></tr>
       <tr><td><strong>Node.js</strong></td><td>LTS</td><td>Solo si instalas agentes o CodeGraph vía npm</td><td><span class="badge b-gray">opcional</span></td></tr>
@@ -786,36 +785,32 @@ mem uninstall . --yes  <span class="c"># reverso de install en el proyecto</span
 
 <!-- ═══ 6 ═══ -->
 <div class="page" id="cap-6">
-  <div class="chapter" style="--rot:200deg"><div class="chapter-inner"><span class="dropnum">6</span><div><h2>Grafos de <span>código</span></h2><p class="pg-sub">Los grafos indexan la estructura del código: símbolos, llamadas y dependencias. Desde gomemory 2.28 se pueden usar dos proveedores externos a la vez.</p></div></div></div>
+  <div class="chapter" style="--rot:200deg"><div class="chapter-inner"><span class="dropnum">6</span><div><h2>Grafos de <span>código</span></h2><p class="pg-sub">Los grafos indexan la estructura del código: símbolos, llamadas y dependencias. CodeGraph es el único proveedor externo.</p></div></div></div>
 
-  <div class="grid g3">
+  <div class="grid g2">
     <div class="card"><div class="card-title">Grafo Go propio</div><div class="card-body"><p>Incluido en gomemory, sin dependencias. Indexa símbolos Go.</p><ul><li><code>index_project</code> · <code>graph_status</code></li><li><code>search_code</code> · <code>get_symbol</code></li><li><code>list_dependencies</code></li></ul></div></div>
-    <div class="card azure"><div class="card-title">codebase-memory-mcp</div><div class="card-body"><p>Grafo multilenguaje basado en tree-sitter. Detecta hotspots (el código que más cambia o más se llama), anota el impacto al guardar memorias y sincroniza los ADR.</p><ul><li><code>search_graph</code> · <code>trace_path</code></li><li><code>query_graph</code> (Cypher) · <code>get_architecture</code></li><li><code>detect_changes</code> · <code>manage_adr</code></li></ul></div></div>
-    <div class="card violet"><div class="card-title">CodeGraph <span class="badge b-new">nuevo</span></div><div class="card-body"><p>Responde preguntas sobre el código en una sola llamada y calcula quién llama a qué, el radio de impacto de un cambio y los tests afectados.</p><ul><li>MCP: <code>codegraph_explore</code></li><li>CLI: <code>callers</code>, <code>impact</code>, <code>affected</code></li><li><code>status</code> · <code>sync</code></li></ul></div></div>
+    <div class="card violet"><div class="card-title">CodeGraph</div><div class="card-body"><p>Responde preguntas sobre el código en una sola llamada y calcula quién llama a qué, el radio de impacto de un cambio y los tests afectados.</p><ul><li>MCP: <code>codegraph_explore</code></li><li>CLI: <code>callers</code>, <code>impact</code>, <code>affected</code></li><li><code>status</code> · <code>sync</code></li></ul></div></div>
   </div>
 
-  <div class="code"><div class="code-head"><span>instalar los dos proveedores externos</span><button class="copy" type="button">Copiar</button></div><pre><span class="c"># codebase-memory-mcp (Linux / macOS; añade --ui para la interfaz web)</span>
-curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash
-
-<span class="c"># CodeGraph</span>
+  <div class="code"><div class="code-head"><span>instalar CodeGraph</span><button class="copy" type="button">Copiar</button></div><pre><span class="c"># CodeGraph</span>
 curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh
 <span class="c">#   Windows: irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex</span>
 <span class="c">#   npm:     npm i -g @colbymchenry/codegraph</span>
 codegraph install      <span class="c"># conecta su servidor MCP a los agentes</span></pre></div>
 
-  <div class="section-header"><h3>Activarlos en el proyecto</h3></div>
+  <div class="section-header"><h3>Activarlo en el proyecto</h3></div>
   <div class="code"><div class="code-head"><span>.memory/settings.json</span><button class="copy" type="button">Copiar</button></div><pre>{
-  <span class="k">"code_graph_providers"</span>: [<span class="v">"codebase-memory-mcp"</span>, <span class="v">"codegraph"</span>]
+  <span class="k">"code_graph_providers"</span>: [<span class="v">"codegraph"</span>]
 }</pre></div>
-  <div class="code"><div class="code-head"><span>bash · por proyecto</span><button class="copy" type="button">Copiar</button></div><pre>mem settings --code-graph-providers=codebase-memory-mcp,codegraph   <span class="c"># equivalente al JSON; vacío = autodetectar</span>
+  <div class="code"><div class="code-head"><span>bash · por proyecto</span><button class="copy" type="button">Copiar</button></div><pre>mem settings --code-graph-providers=codegraph   <span class="c"># equivalente al JSON; vacío = autodetectar</span>
 codegraph init         <span class="c"># una vez por proyecto: crea el índice local (.codegraph/)</span>
 codegraph status       <span class="c"># nodos, relaciones y archivos pendientes</span>
 mem index              <span class="c"># grafo Go propio + reindexa cada proveedor en orden</span>
 mem index --skip-graph <span class="c"># solo el grafo propio</span>
-mem context            <span class="c"># muestra el estado de ambos proveedores</span></pre></div>
+mem context            <span class="c"># muestra el estado del grafo externo</span></pre></div>
 
-  <div class="infobox"><span class="lbl">Cómo se reparten el trabajo</span><p>gomemory consulta los proveedores en el orden de <code>code_graph_providers</code>. Para la anotación de hotspots y la sincronización de ADR usa el proveedor que ofrece esa función, codebase-memory-mcp. CodeGraph aporta totales, <code>codegraph_explore</code> y <code>codegraph affected</code>. Si uno falla, <code>mem index</code> informa y sigue con el otro. Los refrescos de CodeGraph se serializan con un lock del sistema operativo.</p></div>
-  <div class="infobox mint"><span class="lbl">Regla graph-before-grep</span><p>Cuando el grafo está indexado y el agente ejecuta <code>rg</code>, <code>grep</code> o <code>find</code> sobre código, el hook de pre-tool devuelve <code>locked by hook: gomemory expand · regla graph-before-grep</code> para que consulte <code>codegraph_explore</code> o las herramientas del grafo. Los hooks corren en un presupuesto de 150 ms y nunca lanzan reindexados. Consulta el Anexo A1 de <code>docs/Manual-Referencia-Developers-GOMEMORY.html</code> para la tabla comparativa de los tres grafos.</p></div>
+  <div class="infobox"><span class="lbl">Qué aporta CodeGraph</span><p>CodeGraph aporta los totales del índice, <code>codegraph_explore</code> y <code>codegraph affected</code>. Un <code>settings.json</code> heredado que nombre otro proveedor se normaliza al leerlo: solo queda CodeGraph. Si CodeGraph falla, <code>mem index</code> lo informa y termina el grafo propio. Los refrescos se serializan con un lock del sistema operativo. CodeGraph no expone hotspots ni ADR, así que la anotación de impacto al guardar y <code>mem adr-sync</code> no tienen efecto.</p></div>
+  <div class="infobox mint"><span class="lbl">Regla graph-before-grep</span><p>Cuando el grafo está indexado y el agente ejecuta <code>rg</code>, <code>grep</code> o <code>find</code> sobre código, el hook de pre-tool devuelve <code>locked by hook: gomemory expand · regla graph-before-grep</code> para que consulte <code>codegraph_explore</code> o las herramientas del grafo. Los hooks corren en un presupuesto de 150 ms y nunca lanzan reindexados. Consulta el Anexo A1 de <code>docs/Manual-Referencia-Developers-GOMEMORY.html</code> para la tabla comparativa de los grafos.</p></div>
   <div class="infobox mint"><span class="lbl">Leer y editar con el harness (v2.54)</span><p>Desde la v2.54 el hook también bloquea leer código con <code>cat</code>, <code>sed -n</code>, <code>head</code> o <code>python -c</code> (regla <code>native-read-over-shell</code>), y no solo editarlo. Vale en cualquier proyecto con gomemory y también cuando el comando apunta a otro repositorio. El agente usa la lectura y la edición nativas de su harness y el grafo para entender el código; en Codex, que no tiene lectura nativa, el hook solo avisa.</p></div>
   <div class="infobox amber"><span class="lbl">Ajustes útiles</span><p><code>mem settings --code-graph=false</code> apaga los proveedores externos · <code>--code-impact-annotation=false</code> quita la anotación de impacto al guardar · <code>--adr-sync=true</code> activa la sincronización bidireccional de ADR (<code>mem adr-sync status</code>).</p></div>
   <div class="footer"><span>Guía SDD_HCD · Edición 11</span><span>Capítulo 6</span></div>
@@ -828,10 +823,10 @@ mem context            <span class="c"># muestra el estado de ambos proveedores<
   <ol class="steps">
     <li>
       <h4>Instalar las herramientas base</h4>
-      <p class="why">Deja disponibles en la terminal uv, specify-cli, el agente CLI, gomemory y los dos grafos de código. Los capítulos 2 a 6 detallan cada instalación.</p>
+      <p class="why">Deja disponibles en la terminal uv, specify-cli, el agente CLI, gomemory y CodeGraph. Los capítulos 2 a 6 detallan cada instalación.</p>
       <div class="code"><div class="code-head"><span>verificar</span><button class="copy" type="button">Copiar</button></div><pre>specify version && mem --version && claude --version   <span class="c"># o opencode / codex</span>
-codebase-memory-mcp --version && codegraph --version</pre></div>
-      <p class="check">los cinco comandos muestran su versión sin errores.</p>
+codegraph --version</pre></div>
+      <p class="check">los cuatro comandos muestran su versión sin errores.</p>
     </li>
     <li>
       <h4>Preparar el repositorio</h4>
@@ -863,12 +858,12 @@ specify extension list</pre></div>
       <p class="check"><code>specify extension list</code> muestra «gomemory Project History Context» con <code>Hooks: 3</code> y estado <code>Enabled</code>. El hook carga el historial siempre antes de <code>specify</code>, y de forma opcional antes de <code>plan</code> y <code>clarify</code>.</p>
     </li>
     <li>
-      <h4>Activar los grafos de código</h4>
-      <p class="why">Con los grafos activos, el agente localiza el código por símbolos y llamadas en lugar de leer archivos completos.</p>
-      <div class="code"><div class="code-head"><span>bash</span><button class="copy" type="button">Copiar</button></div><pre>mem settings --code-graph-providers=codebase-memory-mcp,codegraph
+      <h4>Activar el grafo de código</h4>
+      <p class="why">Con el grafo activo, el agente localiza el código por símbolos y llamadas en lugar de leer archivos completos.</p>
+      <div class="code"><div class="code-head"><span>bash</span><button class="copy" type="button">Copiar</button></div><pre>mem settings --code-graph-providers=codegraph
 codegraph init
 mem index</pre></div>
-      <p class="check"><code>mem context</code> incluye la sección «Grafo de código externo» con los dos proveedores.</p>
+      <p class="check"><code>mem context</code> incluye la sección «Grafo de código externo (codegraph)».</p>
     </li>
     <li>
       <h4>Fijar constitución y reglas</h4>
@@ -1127,7 +1122,7 @@ specify init . --integration claude --extension git --force
 mem install . --agents claude --scope project
 cp -R .specify/extensions/gomemory-context /tmp/gomemory-context
 specify extension add --dev /tmp/gomemory-context --force
-mem settings --code-graph-providers=codebase-memory-mcp,codegraph
+mem settings --code-graph-providers=codegraph
 codegraph init && mem index
 mem constitution --sync
 mem expand status &amp;&amp; mem doctor --shield
@@ -1416,7 +1411,6 @@ mem hcd close --quote "apruebo"</pre></div>
     <ul class="refs">
       <li><a href="https://github.com/github/spec-kit">github/spec-kit</a> · Spec Kit</li>
       <li><a href="https://github.com/Sayoner-000/gomemory">Sayoner-000/gomemory</a> · memoria para agentes</li>
-      <li><a href="https://github.com/DeusData/codebase-memory-mcp">DeusData/codebase-memory-mcp</a> · grafo estructural</li>
       <li><a href="https://github.com/colbymchenry/codegraph">colbymchenry/codegraph</a> · CodeGraph</li>
       <li><code>docs/Manual-Referencia-Developers-GOMEMORY.html</code> · <code>docs/Guia-Explicacion-Developers-GOMEMORY.html</code> · referencia de protocolos, hooks y Anexo A1 de grafos</li>
       <li><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a> · Anthropic</li>

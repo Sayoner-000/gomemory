@@ -1,9 +1,25 @@
 package domain
 
-import "time"
+import (
+	"path/filepath"
+	"strings"
+	"time"
+)
 
-// CodeProviderSnapshot es el estado cacheado de un proveedor EXTERNO de grafo
-// de código (p.ej. codebase-memory-mcp). Se persiste en `.memory/` y es lo
+// CodeGraphProviderName es el único proveedor externo de grafo de código que
+// gomemory conoce (HCD-065).
+const CodeGraphProviderName = "codegraph"
+
+// IsCodeGraphCommand dice si command (un nombre o una ruta, con o sin
+// extensión) apunta al binario de CodeGraph. Lo que no lo es se ignora: un
+// settings.json heredado puede nombrar proveedores ya retirados.
+func IsCodeGraphCommand(command string) bool {
+	base := filepath.Base(strings.ReplaceAll(strings.TrimSpace(command), `\`, "/"))
+	return strings.EqualFold(strings.TrimSuffix(base, filepath.Ext(base)), CodeGraphProviderName)
+}
+
+// CodeProviderSnapshot es el estado cacheado del proveedor EXTERNO de grafo
+// de código (CodeGraph). Se persiste en `.memory/` y es lo
 // único que toca el hot path (armar contexto / decidir guardar): una lectura
 // local instantánea, nunca una llamada al proveedor. Ver
 // application/ports/code_graph_provider.go para el contrato de no-bloqueo.
@@ -66,8 +82,6 @@ type CodeHotspot struct {
 	Name  string `json:"name"`
 	FanIn int    `json:"fan_in"`
 	// File es la ruta (relativa al root del proyecto) donde vive el símbolo.
-	// get_architecture no la expone: se resuelve aparte vía search_code
-	// durante Refresh (ver adapters/secondary/codegraph/codebasememory).
 	// omitempty: un snapshot cacheado de una versión anterior sigue siendo
 	// JSON válido, simplemente sin este dato hasta el próximo refresco.
 	File string `json:"file,omitempty"`

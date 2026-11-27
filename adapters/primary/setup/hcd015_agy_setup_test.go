@@ -235,18 +235,18 @@ func TestInspectAgyEntry_FlexibleVersion(t *testing.T) {
 	}
 }
 
-// HCD-020: InstallAgyGlobal solo gestiona su entrada; codegraph y
-// codebase-memory-mcp los registran sus instaladores y deben sobrevivir.
+// HCD-020: InstallAgyGlobal solo gestiona su entrada; codegraph y otros
+// servidores MCP los registran sus instaladores y deben sobrevivir.
 func TestInstallAgyGlobal_ConservaMCPAjenos(t *testing.T) {
 	home := t.TempDir()
-	writeAgyFile(t, home, "mcp_config.json", `{"mcpServers":{"codegraph":{"command":"/bin/codegraph","args":["serve","--mcp"]},"codebase-memory-mcp":{"command":"/bin/codebase-memory-mcp","args":[]}},"otraClave":true}`)
+	writeAgyFile(t, home, "mcp_config.json", `{"mcpServers":{"codegraph":{"command":"/bin/codegraph","args":["serve","--mcp"]},"otro-mcp":{"command":"/bin/otro-mcp","args":[]}},"otraClave":true}`)
 	now := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)
 	if _, err := InstallAgyGlobal(home, agyRef, now); err != nil {
 		t.Fatal(err)
 	}
 	doc := readAgyJSON(t, home, "mcp_config.json")
 	servers, _ := doc["mcpServers"].(map[string]any)
-	for _, name := range []string{"gomemory", "codegraph", "codebase-memory-mcp"} {
+	for _, name := range []string{"gomemory", "codegraph", "otro-mcp"} {
 		if _, ok := servers[name]; !ok {
 			t.Fatalf("falta %s tras instalar: %v", name, servers)
 		}

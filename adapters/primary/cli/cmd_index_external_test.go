@@ -38,16 +38,16 @@ func plainFlow(out *bytes.Buffer) *console.Flow {
 func TestIndexExternalGraph_IndexaAmbosAunqueElPrimeroFalle(t *testing.T) {
 	var calls []string
 	deps := &Deps{CodeProviders: []ports.CodeGraphProvider{
-		indexGraphProvider{name: "codebase-memory-mcp", calls: &calls, err: errors.New("falló índice")},
+		indexGraphProvider{name: "otro-grafo", calls: &calls, err: errors.New("falló índice")},
 		indexGraphProvider{name: "codegraph", calls: &calls},
 	}}
 	var out bytes.Buffer
 	indexExternalGraph(deps, plainFlow(&out))
-	if got := strings.Join(calls, ","); got != "codebase-memory-mcp:full,codegraph:full" {
+	if got := strings.Join(calls, ","); got != "otro-grafo:full,codegraph:full" {
 		t.Fatalf("orden de indexado = %q", got)
 	}
 	text := out.String()
-	if !strings.Contains(text, "⚠ codebase-memory-mcp: falló índice") ||
+	if !strings.Contains(text, "⚠ otro-grafo: falló índice") ||
 		!strings.Contains(text, "✓ codegraph · 12 nodos · 34 aristas") {
 		t.Fatalf("salida no reporta ambos resultados:\n%s", text)
 	}
@@ -56,9 +56,9 @@ func TestIndexExternalGraph_IndexaAmbosAunqueElPrimeroFalle(t *testing.T) {
 func TestIndexExternalGraph_SenalaCodeGraphAusenteConPista(t *testing.T) {
 	var calls []string
 	deps := &Deps{CodeProviders: []ports.CodeGraphProvider{
-		indexGraphProvider{name: "codebase-memory-mcp", calls: &calls},
+		indexGraphProvider{name: "otro-grafo", calls: &calls},
 	}}
-	if got := strings.Join(externalGraphSteps(deps), ","); got != "codebase-memory-mcp,codegraph" {
+	if got := strings.Join(externalGraphSteps(deps), ","); got != "otro-grafo,codegraph" {
 		t.Fatalf("plan del grafo externo = %q", got)
 	}
 	var out bytes.Buffer

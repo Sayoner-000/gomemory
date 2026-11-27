@@ -46,9 +46,6 @@ func TestBuildMemoryToolBootstrap_ConProveedorIncluyeDescubrimiento(t *testing.T
 			t.Errorf("falta %q en el bootstrap con el proveedor habilitado", prefijada)
 		}
 	}
-	if strings.Contains(got, "codebase-memory-mcp") {
-		t.Error("el bootstrap no debe referenciar codebase-memory-mcp")
-	}
 	for _, tool := range domain.MCPAllTools() {
 		if !strings.Contains(got, "mcp__gomemory__"+tool) {
 			t.Errorf("falta mcp__gomemory__%s: habilitar el proveedor no debe desplazar las tools de gomemory", tool)

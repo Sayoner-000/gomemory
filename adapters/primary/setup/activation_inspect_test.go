@@ -291,6 +291,61 @@ func TestActivationInspect_CodegraphAusenteSeOmite(t *testing.T) {
 	}
 }
 
+// escribirClaudeSettingsUsuario deja settings en ~/.claude/settings.json.
+func escribirClaudeSettingsUsuario(t *testing.T, home, settings string) {
+	t.Helper()
+	dir := filepath.Join(home, ".claude")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir ~/.claude: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(settings), 0o644); err != nil {
+		t.Fatalf("write settings.json: %v", err)
+	}
+}
+
+// TestActivationInspect_CodegraphPresenteObservaElHookReal (HCD-065): el brazo
+// codegraph se reconoce por el hook que instala CodeGraph en Claude Code
+// (`codegraph prompt-hook`), no por scripts de un proveedor retirado.
+func TestActivationInspect_CodegraphPresenteObservaElHookReal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
+	escribirClaudeSettingsUsuario(t, home, `{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"codegraph prompt-hook"}]}]}}`)
+
+	var encontrados []domain.ActivationChannel
+	for _, c := range NewActivationInspector().Inspect(t.TempDir()) {
+		if c.Arm == domain.ArmCodegraph {
+			encontrados = append(encontrados, c)
+		}
+	}
+	if len(encontrados) != 1 {
+		t.Fatalf("con el hook de CodeGraph instalado debe haber un canal codegraph, got %+v", encontrados)
+	}
+	c := encontrados[0]
+	if c.Agent != "claude" || c.Scope != domain.ScopeUser || c.State != domain.StateOK {
+		t.Errorf("canal codegraph = %+v, esperaba claude/user ok", c)
+	}
+	if !strings.Contains(c.Detail, "codegraph prompt-hook") {
+		t.Errorf("el detalle debe nombrar el hook real, got %q", c.Detail)
+	}
+}
+
+// TestActivationInspect_CodegraphIgnoraHooksRetirados (HCD-065): los scripts
+// cbm-* de codebase-memory-mcp, retirado, no prueban que CodeGraph esté
+// enganchado; reportarlos como ok era un falso positivo.
+func TestActivationInspect_CodegraphIgnoraHooksRetirados(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // Windows
+	escribirClaudeSettingsUsuario(t, home, `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"~/.claude/hooks/cbm-session-reminder"}]}]}}`)
+
+	for _, c := range NewActivationInspector().Inspect(t.TempDir()) {
+		if c.Arm == domain.ArmCodegraph {
+			t.Fatalf("un hook cbm-* no debe producir canal codegraph: %+v", c)
+		}
+	}
+}
+
 // TestActivationInspect_InstruccionesDeProyectoNoAplican cubre FR-028 (feature
 // 021). Desde que `mem install` dejó de escribir el bloque de protocolo en
 // archivos del proyecto, reportar su ausencia como `missing` sería una FALSA

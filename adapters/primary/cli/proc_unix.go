@@ -9,7 +9,7 @@ import (
 
 // detach pone al hijo en su propia sesión (setsid) para que sobreviva a la
 // salida del hook que lo lanza y no reciba su SIGHUP. Mismo criterio que el
-// refresco del grafo (codebasememory).
+// refresco del grafo (codegraphcli).
 func detach(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 }

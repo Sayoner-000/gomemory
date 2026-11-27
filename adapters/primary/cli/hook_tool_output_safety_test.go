@@ -45,10 +45,16 @@ func TestToolOutputExclusion_NoExcluyeOtrosComandos(t *testing.T) {
 }
 
 func TestToolOutputExclusion_HerramientasDeConsultaExacta(t *testing.T) {
-	snippet, _ := json.Marshal(map[string]any{"tool_name": "mcp__codebase-memory-mcp__get_code_snippet",
+	// HCD-065 (Q3): codegraph_explore devuelve fuente literal numerada, apta
+	// para editar; comprimirla obligaría a releer el archivo.
+	explore, _ := json.Marshal(map[string]any{"tool_name": "mcp__codegraph__codegraph_explore",
 		"tool_response": []any{map[string]any{"type": "text", "text": strings.Repeat("x", 500)}}})
-	if out := rewriteToolOutput("claude", snippet, fakeCompress); out != nil {
-		t.Errorf("get_code_snippet devuelve código exacto: no se reescribe")
+	if out := rewriteToolOutput("claude", explore, fakeCompress); out != nil {
+		t.Errorf("codegraph_explore devuelve código exacto: no se reescribe en Claude")
+	}
+	opencode, _ := json.Marshal(map[string]any{"tool": "codegraph_codegraph_explore", "output": strings.Repeat("x", 500)})
+	if out := rewriteToolOutput("opencode", opencode, fakeCompress); out != nil {
+		t.Errorf("codegraph_explore devuelve código exacto: no se reescribe en OpenCode")
 	}
 	grep, _ := json.Marshal(map[string]any{"tool_name": "Grep",
 		"tool_response": map[string]any{"mode": "content", "content": strings.Repeat("a.go:1: x\n", 60)}})

@@ -814,11 +814,10 @@ mem review show acr_…        <span class="c"># target, revisores, consenso, co
     <thead><tr><th>Proveedor</th><th>Alcance</th><th>Integración</th></tr></thead>
     <tbody>
       <tr><td><strong>Grafo Go propio</strong></td><td>Símbolos, llamadas y dependencias Go (<code>code_*</code> + FTS5)</td><td><code>mem index</code>, herramientas <code>search_code</code>, <code>get_symbol</code>, <code>list_dependencies</code></td></tr>
-      <tr><td><strong>codebase-memory-mcp</strong></td><td>Multilenguaje (tree-sitter), hotspots, ADR</td><td>Anotación de impacto al guardar y <code>mem adr-sync</code></td></tr>
       <tr><td><strong>CodeGraph</strong></td><td>Exploración en una llamada, callers, impacto y tests afectados</td><td>Autodetección en el PATH; <code>mem install</code> conecta su MCP</td></tr>
     </tbody>
   </table></div>
-  <div class="code"><div class="code-head"><span>bash</span><button class="copy" type="button">Copiar</button></div><pre>mem settings --code-graph-providers=codebase-memory-mcp,codegraph   <span class="c"># vacío = autodetectar</span>
+  <div class="code"><div class="code-head"><span>bash</span><button class="copy" type="button">Copiar</button></div><pre>mem settings --code-graph-providers=codegraph   <span class="c"># vacío = autodetectar</span>
 mem index                 <span class="c"># grafo propio + cada proveedor, en orden; si uno falla, sigue</span>
 mem adr-sync              <span class="c"># estado de sincronización de ADR</span></pre></div>
   <div class="infobox azure"><span class="lbl">Concurrencia</span><p>Los refrescos de CodeGraph se serializan con un lock del sistema operativo y sus sondeos tienen plazo propio: el <code>status</code> final no hereda el tiempo restante del indexado.</p></div>

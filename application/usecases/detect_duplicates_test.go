@@ -169,7 +169,7 @@ func TestDetectDuplicateGroups_ExcludesCheckpoints(t *testing.T) {
 }
 
 func TestDetectDuplicateGroups_NeverGroupsAcrossTypes(t *testing.T) {
-	sameText := "El binario codebase-memory-mcp resuelve el proyecto por root_path exacto."
+	sameText := "El binario codegraph resuelve el proyecto por root_path exacto."
 	mems := []domain.Memory{
 		{ID: 1, Type: domain.Discovery, Title: "Hallazgo sobre el proveedor", Content: sameText},
 		{ID: 2, Type: domain.Architecture, Title: "Hallazgo sobre el proveedor", Content: sameText},

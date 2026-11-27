@@ -57,7 +57,7 @@ func TestEnsureCodeGraphMCP_RespetaGrafoApagadoYListaExplicita(t *testing.T) {
 	home := t.TempDir()
 	log := fakeCodeGraph(t, home)
 	_ = os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{}`), 0o644)
-	for _, s := range []ports.SettingsData{{CodeGraphDisabled: true}, {CodeGraphProviders: []string{"codebase-memory-mcp"}}} {
+	for _, s := range []ports.SettingsData{{CodeGraphDisabled: true}, {CodeGraphProviders: []string{"otro-grafo"}}} {
 		if _, ok := ensureCodeGraphMCP(s, home, ""); ok {
 			t.Fatalf("con %+v CodeGraph no está en uso", s)
 		}

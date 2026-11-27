@@ -73,7 +73,7 @@ Si el agente tiene conectada la memoria de gomemory (`search_memories`,
 - Respeta decisiones de arquitectura registradas; si un hallazgo las contradice,
   dilo explícitamente.
 
-Si hay un grafo de código disponible (`codegraph_explore`, `codebase-memory-mcp`,
+Si hay un grafo de código disponible (`codegraph_explore`, o
 `search_code`/`get_symbol` de gomemory), úsalo para encontrar llamadores, rutas de
 entrada y radio de impacto de cada hallazgo en lugar de leer archivos a ciegas.
 

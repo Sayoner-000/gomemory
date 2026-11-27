@@ -44,7 +44,7 @@ func writeClaudeSettings(t *testing.T, path string, subs map[string][]string) {
 		}
 		hooks[event] = entries
 	}
-	hooks["UserPromptSubmit"] = append(asSlice(hooks["UserPromptSubmit"]), map[string]any{"matcher": "", "hooks": []any{map[string]any{"type": "command", "command": "cbm-augment --prompt"}}})
+	hooks["UserPromptSubmit"] = append(asSlice(hooks["UserPromptSubmit"]), map[string]any{"matcher": "", "hooks": []any{map[string]any{"type": "command", "command": "otro-augment --prompt"}}})
 	hooks["Stop"] = append(asSlice(hooks["Stop"]), map[string]any{"matcher": "", "hooks": []any{map[string]any{"type": "command", "command": "herdr-agent-state stop"}}})
 	data, _ := json.MarshalIndent(map[string]any{"hooks": hooks}, "", "  ")
 	mustWrite(t, path, string(data))
@@ -102,7 +102,7 @@ func TestScopeDedup_InstallProyectoComplementaAlGlobal(t *testing.T) {
 	if readAll(t, global) != globalAntes {
 		t.Error("el settings.json global nunca se toca desde un proyecto")
 	}
-	if !strings.Contains(readAll(t, global), "cbm-augment") || !strings.Contains(readAll(t, global), "herdr-agent-state") {
+	if !strings.Contains(readAll(t, global), "otro-augment") || !strings.Contains(readAll(t, global), "herdr-agent-state") {
 		t.Error("los hooks ajenos del global deben quedar intactos")
 	}
 }
@@ -136,7 +136,7 @@ func TestScopeDedup_UpdateYaActualizadoRetiraDuplicados(t *testing.T) {
 	if got := gomemorySubsIn(t, proyecto); len(got) != 0 {
 		t.Errorf("update debía retirar del proyecto los subcomandos que ya cubre el global; quedan %v", got)
 	}
-	if c := readAll(t, proyecto); !strings.Contains(c, "cbm-augment") || !strings.Contains(c, "herdr-agent-state") {
+	if c := readAll(t, proyecto); !strings.Contains(c, "otro-augment") || !strings.Contains(c, "herdr-agent-state") {
 		t.Error("los hooks ajenos del proyecto deben quedar intactos")
 	}
 }

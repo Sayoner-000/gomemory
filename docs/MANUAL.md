@@ -196,16 +196,15 @@ mismo objeto. Verificado con los binarios reales 1.17.0, 1.18.20, 1.18.32 y
   cuenta las entradas `mcp` y `permission` que escribe gomemory.
 - **Diagnóstico**: `mem doctor` informa la versión detectada, si el plugin
   instalado carga en ella y qué hacer si no carga.
-- **`cbm-augment.ts` y otros plugins ajenos**: si OpenCode 2.x muestra el
-  mismo error para un plugin que no es `gomemory.ts` (por ejemplo
-  `cbm-augment.ts`, de codebase-memory-mcp), hay que actualizarlo en su
-  propio proyecto. `mem doctor` los lista, pero no los modifica.
+- **Plugins ajenos**: si OpenCode 2.x muestra el mismo error para un plugin
+  que no es `gomemory.ts`, hay que actualizarlo en su propio proyecto.
+  `mem doctor` los lista, pero no los modifica.
 - En OpenCode 2.x el fin de turno llega como `session.execution.*` y las tools
   `shell`/`subagent` reemplazan a `bash`/`task`. El plugin lo traduce solo, así
   que el checkpoint automático y la captura de subagentes funcionan igual.
 - En OpenCode 2.x las tools MCP se exponen en Code Mode: el agente las llama
   dentro de la tool `execute` como `tools.gomemory.<tool>` (y
-  `tools["codebase-memory-mcp"].<tool>`), no como `gomemory_<tool>`. El plugin
+  `tools.codegraph.codegraph_explore`), no como `gomemory_<tool>`. El plugin
   inyecta el protocolo y la regla Octopus con esos nombres; si un servidor se
   configura con `codemode: false`, vuelven a ser `gomemory_<tool>`. La tool de
   subagentes de 2.x exige `agent` (por ejemplo `general`), `description` y
@@ -677,9 +676,15 @@ mem docs reset rules                           # volver al de por defecto
 `mem docs list` distingue tres estados, derivados comparando con la plantilla
 embebida: `sin sembrar`, `por defecto` y `personalizado` (con su fecha).
 
-Desde la 2.54 las reglas por defecto (`workrules-v3`) tienen cuatro bloques:
+Las reglas por defecto (`workrules-v4` desde la 2.60.0) tienen cuatro bloques:
 evidencia antes que cambios, proceso, herramientas nativas y grafo, y memoria y
-contexto. Cierran con un glosario de siglas (ACR, ADM, HCD) para que el agente
+contexto. La v4 añade que antes de editar, aunque sea una línea, el agente
+consulta el grafo sobre lo que cambia para conocer el proyecto, quién lo llama y
+su impacto, y que usa el grafo antes de cualquier búsqueda de texto. También
+pide editar con la herramienta nativa los archivos de texto del proyecto, y
+buscar decisiones previas en `search_memories` y en `hcd/` cuando
+`mem hcd history` no devuelve nada. Los proyectos con la v3 sin editar la
+reciben con `mem update` o al arrancar el servidor MCP. Cierran con un glosario de siglas (ACR, ADM, HCD) para que el agente
 invoque la skill correspondiente sin preguntar qué significa cada una. Son
 genéricas para cualquier harness: hablan de "la herramienta nativa de lectura
 del harness" y dejan que el mensaje del hook nombre la concreta. Como gomemory
@@ -959,6 +964,12 @@ En cada proyecto también puedes ejecutar `mem index` para crear o reconstruir e
 agentes está conectado. CodeGraph aporta totales de nodos y relaciones, acceso a
 `codegraph_explore` y `codegraph affected`. El directorio local `.codegraph/` se
 ignora en este repositorio.
+
+CodeGraph es el único proveedor externo. Si un `.memory/settings.json` antiguo
+nombra otro en `code_graph_providers` o `code_graph_command`, gomemory lo
+descarta al leerlo; con la lista vacía, detecta `codegraph` en el `PATH`.
+`mem doctor` reconoce que CodeGraph está enganchado en Claude Code por su hook
+`codegraph prompt-hook` en `~/.claude/settings.json`.
 
 ## 10. Optimización de Contexto (mem pack)
 
@@ -1561,6 +1572,8 @@ mem settings --show
 La TUI expone las mismas opciones en la pantalla **Configuración**. Después de
 cambiar `--tool-output-compression`, ejecuta `mem install` para registrar o
 retirar el hook del runtime. Claude Code y OpenCode lo admiten. Codex 0.166.0 solo cubre shell, y únicamente después de confiar el hook. Antigravity CLI no lo admite: `PostToolUse` no entrega la salida.
+La salida de `codegraph_explore` nunca se comprime: es código fuente con número
+de línea, listo para editar, y recortarlo obligaría a releer el archivo.
 
 `get_context` y `get_plan_context` aceptan `full=true` para volver a recibir
 todo el contenido aunque ya se haya enviado durante la sesión. Úsalo cuando
@@ -1737,7 +1750,11 @@ con las herramientas del harness y con el grafo: `graph-before-grep` (buscar),
 `native-read-over-shell` (leer) y `native-edit-over-scripts` (editar). Actúan
 en todos los proyectos con gomemory y también sobre rutas de otros
 repositorios. En Codex, que no tiene lectura nativa, avisan en lugar de
-bloquear.
+bloquear. Buscar texto literal en código (un mensaje o un comentario, como
+`git grep -n 'no disponible' -- '*.go'`) solo genera un aviso, porque el grafo
+no indexa cadenas. La edición por consola se bloquea también en Markdown,
+plantillas, HTML y configuración del proyecto; el detalle está en
+[expand.md](expand.md#reglas-de-herramientas-nativas).
 
 Las reglas propias viven en `.gomemory/rules/*.md` y se versionan con el
 proyecto. Un bloqueo de `destructive-shell` es una pausa: si el comando era

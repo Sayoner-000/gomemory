@@ -1124,13 +1124,13 @@ func TestReindexExternalGraphCmd_PropagaResultado(t *testing.T) {
 }
 
 func TestConfigView_MuestraAmbosGrafos(t *testing.T) {
-	first := &fakeCodeIndexer{name: "codebase-memory-mcp", snapshot: domain.CodeProviderSnapshot{Available: true}}
+	first := &fakeCodeIndexer{name: "otro-grafo", snapshot: domain.CodeProviderSnapshot{Available: true}}
 	second := &fakeCodeIndexer{name: "codegraph", snapshot: domain.CodeProviderSnapshot{Available: true}}
 	m := newConfigTestModel(first, &ports.SettingsData{})
 	m.codeProviders = []ports.CodeGraphProvider{first, second}
 
 	view := m.configView()
-	for _, want := range []string{"codebase-memory-mcp: ", "codegraph: ", "Reindexar grafos externos (2 proveedores)"} {
+	for _, want := range []string{"otro-grafo: ", "codegraph: ", "Reindexar grafos externos (2 proveedores)"} {
 		if !strings.Contains(view, want) {
 			t.Errorf("falta %q en la vista:\n%s", want, view)
 		}
@@ -1138,7 +1138,7 @@ func TestConfigView_MuestraAmbosGrafos(t *testing.T) {
 }
 
 func TestReindexExternalGraphCmd_IndexaAmbosAunqueUnoFalle(t *testing.T) {
-	first := &fakeCodeIndexer{name: "codebase-memory-mcp", indexErr: errors.New("sin índice")}
+	first := &fakeCodeIndexer{name: "otro-grafo", indexErr: errors.New("sin índice")}
 	second := &fakeCodeIndexer{name: "codegraph", nodes: 42, edges: 84}
 	m := newConfigTestModel(first, &ports.SettingsData{})
 	m.codeProviders = []ports.CodeGraphProvider{first, second}
@@ -1149,7 +1149,7 @@ func TestReindexExternalGraphCmd_IndexaAmbosAunqueUnoFalle(t *testing.T) {
 	}
 	updated, _ := m.Update(done)
 	status := updated.(model).statusMsg
-	if !strings.Contains(status, "codebase-memory-mcp: sin índice") || !strings.Contains(status, "codegraph: 42 nodos, 84 aristas") {
+	if !strings.Contains(status, "otro-grafo: sin índice") || !strings.Contains(status, "codegraph: 42 nodos, 84 aristas") {
 		t.Fatalf("estado no refleja ambos resultados: %q", status)
 	}
 }
@@ -1177,7 +1177,7 @@ func TestUpdate_ExternalReindexDoneMsg_NoInstalado(t *testing.T) {
 	if m2.reindexInProgress {
 		t.Fatal("esperaba reindexInProgress=false tras el resultado")
 	}
-	if m2.statusMsg != "codebase-memory-mcp no disponible" {
+	if m2.statusMsg != "codegraph no disponible" {
 		t.Fatalf("statusMsg = %q", m2.statusMsg)
 	}
 }

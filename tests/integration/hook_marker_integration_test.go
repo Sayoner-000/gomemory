@@ -66,7 +66,7 @@ func repoRoot(t *testing.T) string {
 // Existe para cerrar una carrera real, y benigna, que hacía fallar tests al
 // azar sin que ninguna aserción fallara: al invocar el binario, el proveedor de
 // grafo lanza `mem code-refresh` como proceso DESACOPLADO
-// (codebasememory.Provider.MaybeRefresh) que escribe el snapshot dentro de
+// (codegraphcli.Provider.MaybeRefresh) que escribe el snapshot dentro de
 // `.memory/` de forma asíncrona. Si el test termina antes que ese hijo, la
 // escritura compite con la limpieza y t.TempDir() aborta el test con
 // "TempDir RemoveAll cleanup: directory not empty" — un test distinto cada vez,
@@ -189,7 +189,7 @@ func TestHookSessionEndResetsMarker(t *testing.T) {
 // Claude Code muestra el campo top-level "systemMessage" SOLO al humano en la
 // terminal — nunca lo inyecta en el contexto del modelo (confirmado contra la
 // documentación oficial de hooks). El bootstrap de ToolSearch que fuerza la
-// carga de gomemory + codebase-memory-mcp vivía en "systemMessage", así que el
+// carga de gomemory + el grafo de código vivía en "systemMessage", así que el
 // agente jamás ejecutaba el ToolSearch forzado: la instrucción "PRIMERA ACCIÓN"
 // nunca llegó a su contexto en ninguna sesión, solo se mostraba en la UI del
 // usuario. Este test falla si el bootstrap vuelve a viajar por ese campo.
@@ -287,7 +287,7 @@ func TestHookUserPromptSubmit_NudgeDeGuardadoVaEnAdditionalContext(t *testing.T)
 // subagente (tool Task, p. ej. tipo Explore) arranca en un contexto aislado que
 // NUNCA pasa por session-start ni por el primer prompt de user-prompt-submit,
 // así que sin este hook no recibía el bootstrap de ToolSearch ni el
-// recordatorio del protocolo — el subagente no sabía que codebase-memory-mcp
+// recordatorio del protocolo — el subagente no sabía que el grafo de código
 // existía y recurría a grep/glob manuales para explorar código. No requiere
 // session-start previo: un subagente puede arrancar sin que la sesión
 // principal haya corrido ese hook en este processo de test.

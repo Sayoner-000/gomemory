@@ -49,7 +49,7 @@ func TestDetectPluginShape(t *testing.T) {
 func TestForeignV1Plugins(t *testing.T) {
 	dir := t.TempDir()
 	archivos := map[string]string{
-		"cbm-augment.ts":    "export const CbmAugment = async () => ({});\n",
+		"otro-augment.ts":   "export const OtroAugment = async () => ({});\n",
 		"ok.ts":             "export default { id: \"ok\", setup() {} };\n",
 		"gomemory.ts":       "export const GomemoryPlugin = async () => ({});\n",
 		"gomemory.test.mjs": "import { test } from 'node:test';\n",
@@ -60,8 +60,8 @@ func TestForeignV1Plugins(t *testing.T) {
 			t.Fatalf("escribir %s: %v", n, err)
 		}
 	}
-	if got := ForeignV1Plugins(dir, 2); !reflect.DeepEqual(got, []string{"cbm-augment.ts"}) {
-		t.Errorf("ForeignV1Plugins(v2) = %v; want [cbm-augment.ts]", got)
+	if got := ForeignV1Plugins(dir, 2); !reflect.DeepEqual(got, []string{"otro-augment.ts"}) {
+		t.Errorf("ForeignV1Plugins(v2) = %v; want [otro-augment.ts]", got)
 	}
 	if got := ForeignV1Plugins(dir, 1); len(got) != 0 {
 		t.Errorf("en OpenCode 1.x los plugins v1 son válidos; got %v", got)

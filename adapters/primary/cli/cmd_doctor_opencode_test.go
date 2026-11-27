@@ -37,8 +37,8 @@ func TestPrintDoctorOpenCode(t *testing.T) {
 		{
 			nombre: "ajeno y artefacto",
 			st: setup.OpenCodeInstallStatus{Version: "2.0.16", Major: 2, PluginShape: setup.PluginShapeDual,
-				ForeignV1Plugins: []string{"cbm-augment.ts"}, StaleTestArtifact: true},
-			quiere: []string{"plugin ajeno con forma v1 en OpenCode 2.x", "cbm-augment.ts", "no es de gomemory",
+				ForeignV1Plugins: []string{"otro-augment.ts"}, StaleTestArtifact: true},
+			quiere: []string{"plugin ajeno con forma v1 en OpenCode 2.x", "otro-augment.ts", "no es de gomemory",
 				"artefacto de pruebas en la carpeta de plugins: gomemory.test.mjs"},
 		},
 	}

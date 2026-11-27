@@ -57,14 +57,14 @@ func TestNativePromptsHaveConnectedStates(t *testing.T) {
 func TestFlow_LineaConPlanCierraConConteosYSiguiente(t *testing.T) {
 	var out bytes.Buffer
 	flow := NewFlow(&out, plainEnv(), "Indexar")
-	flow.Plan("Código Go", "codegraph", "codebase-memory-mcp")
+	flow.Plan("Código Go", "codegraph", "otro-grafo")
 	flow.Next("mem context")
 	flow.Done(StepResult{Name: "Código Go", Meta: "3 nodos · 1ms"})
 	flow.Done(StepResult{Name: "codegraph", Status: StepSkip, Detail: "no instalado"})
-	flow.Done(StepResult{Name: "codebase-memory-mcp", Status: StepWarn, Detail: "falló", Manual: "codebase-memory-mcp index"})
+	flow.Done(StepResult{Name: "otro-grafo", Status: StepWarn, Detail: "falló", Manual: "otro-grafo index"})
 	flow.End("warn")
 	text := out.String()
-	for _, want := range []string{"✓ Código Go · 3 nodos · 1ms", "− codegraph: no instalado", "⚠ codebase-memory-mcp: falló → codebase-memory-mcp index", "1 ok · 1 aviso · 1 omitido", "siguiente → mem context"} {
+	for _, want := range []string{"✓ Código Go · 3 nodos · 1ms", "− codegraph: no instalado", "⚠ otro-grafo: falló → otro-grafo index", "1 ok · 1 aviso · 1 omitido", "siguiente → mem context"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("falta %q en:\n%s", want, text)
 		}
@@ -104,7 +104,7 @@ func TestFlow_LineaEstrechaConservaLaGuia(t *testing.T) {
 	var out bytes.Buffer
 	flow := NewFlow(&out, Env{Width: 30, Getenv: func(string) string { return "" }}, "Indexar")
 	flow.Next("mem context · mem tui")
-	flow.Done(StepResult{Name: "codebase-memory-mcp", Meta: "43 nodos · 43 aristas · 9ms"})
+	flow.Done(StepResult{Name: "grafo-externo-largo", Meta: "43 nodos · 43 aristas · 9ms"})
 	flow.End("")
 	lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
 	for i, line := range lines {

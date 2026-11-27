@@ -17,10 +17,10 @@ func snapProvider(name string, available bool) *fakeCodeProvider {
 
 func TestFirstAvailable_ReturnsFirstWithAvailableSnapshot(t *testing.T) {
 	unavailable := snapProvider("no-instalado", false)
-	available := snapProvider("codebase-memory-mcp", true)
+	available := snapProvider("codegraph", true)
 
 	got := usecases.FirstAvailable([]ports.CodeGraphProvider{unavailable, available})
-	if got == nil || got.Name() != "codebase-memory-mcp" {
+	if got == nil || got.Name() != "codegraph" {
 		t.Fatalf("esperaba el proveedor disponible, hubo %v", got)
 	}
 }

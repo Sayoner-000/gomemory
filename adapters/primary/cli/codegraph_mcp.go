@@ -13,6 +13,7 @@ import (
 
 	"mem/adapters/primary/console"
 	"mem/application/ports"
+	"mem/domain"
 )
 
 // codeGraphTargets traduce los agentes de gomemory a los ids de target del
@@ -49,7 +50,7 @@ func codeGraphOn(s ports.SettingsData) bool {
 		return true
 	}
 	for _, p := range s.CodeGraphProviders {
-		if strings.EqualFold(strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)), "codegraph") {
+		if domain.IsCodeGraphCommand(p) {
 			return true
 		}
 	}

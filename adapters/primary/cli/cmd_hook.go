@@ -672,7 +672,7 @@ func hookUserPromptSubmit(deps *Deps, args []string) {
 	// vivía antes en "systemMessage", que Claude Code muestra SOLO al humano en
 	// la terminal y NUNCA inyecta en el contexto del modelo (confirmado contra
 	// la documentación oficial de hooks) — por eso el agente nunca ejecutaba el
-	// ToolSearch forzado ni materializaba codebase-memory-mcp automáticamente:
+	// ToolSearch forzado ni materializaba el grafo de código automáticamente:
 	// la instrucción "PRIMERA ACCIÓN — ejecuta este ToolSearch AHORA" jamás
 	// llegaba a su contexto, solo aparecía como texto en la UI del usuario. El
 	// campo "tools": true que se usaba antes de eso tampoco era un campo
@@ -844,7 +844,7 @@ func hookTurnEnd(deps *Deps, args []string) {
 // hookUserPromptSubmit, así que sin este hook arrancaba sin el bootstrap de
 // ToolSearch ni el recordatorio del protocolo — el agente principal delega
 // exploración de código a un subagente (p. ej. tipo Explore) y este, al no
-// saber que codebase-memory-mcp existe, recurre a grep/glob manuales. Mismo
+// saber que el grafo de código existe, recurre a grep/glob manuales. Mismo
 // contenido que el primer prompt de la sesión principal, sin marker: cada
 // invocación de un subagente es una sesión corta de un solo uso, no hace falta
 // deduplicar entre turnos como si se repite en hookUserPromptSubmit.

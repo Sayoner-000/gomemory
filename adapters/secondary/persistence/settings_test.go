@@ -54,18 +54,40 @@ func TestReadSettings_MissingFile_UsesDefaults(t *testing.T) {
 func TestReadSettings_LegacyCodeGraphCommand_NormalizesToProvidersList(t *testing.T) {
 	root := t.TempDir()
 	writeRawSettings(t, root, map[string]any{
-		"code_graph_command": "mi-binario-legado",
+		"code_graph_command": "/opt/legado/codegraph",
 	})
 
 	s := ReadSettings(root)
 
-	want := []string{"mi-binario-legado"}
+	want := []string{"/opt/legado/codegraph"}
 	if !reflect.DeepEqual(s.CodeGraphProviders, want) {
 		t.Fatalf("CodeGraphProviders = %v, se esperaba %v (normalizado desde code_graph_command)", s.CodeGraphProviders, want)
 	}
 	// El campo legado se conserva tal cual para no romper lectores viejos.
-	if s.CodeGraphCommand != "mi-binario-legado" {
+	if s.CodeGraphCommand != "/opt/legado/codegraph" {
 		t.Errorf("CodeGraphCommand no debería perderse: %q", s.CodeGraphCommand)
+	}
+}
+
+// HCD-065: codegraph es el único proveedor externo. Un settings.json heredado
+// que nombra codebase-memory-mcp (u otro binario) se normaliza al leerlo: lo
+// que no es codegraph se descarta, y una lista que queda vacía vuelve a la
+// autodetección de codegraph.
+func TestReadSettings_DescartaProveedoresRetirados(t *testing.T) {
+	root := t.TempDir()
+	writeRawSettings(t, root, map[string]any{
+		"code_graph_providers": []string{"codebase-memory-mcp", "codegraph"},
+	})
+	if got := ReadSettings(root).CodeGraphProviders; !reflect.DeepEqual(got, []string{"codegraph"}) {
+		t.Fatalf("CodeGraphProviders = %v, se esperaba [codegraph]", got)
+	}
+
+	writeRawSettings(t, root, map[string]any{
+		"code_graph_command": "/usr/local/bin/codebase-memory-mcp",
+	})
+	s := ReadSettings(root)
+	if len(s.CodeGraphProviders) != 0 || s.CodeGraphCommand != "" {
+		t.Fatalf("un comando heredado ajeno a codegraph debe descartarse: providers=%v command=%q", s.CodeGraphProviders, s.CodeGraphCommand)
 	}
 }
 
@@ -74,13 +96,13 @@ func TestReadSettings_LegacyCodeGraphCommand_NormalizesToProvidersList(t *testin
 func TestReadSettings_ExplicitProvidersList_TakesPrecedenceOverLegacy(t *testing.T) {
 	root := t.TempDir()
 	writeRawSettings(t, root, map[string]any{
-		"code_graph_command":   "legado-ignorado",
-		"code_graph_providers": []string{"cmd-a", "cmd-b"},
+		"code_graph_command":   "/opt/legado/codegraph",
+		"code_graph_providers": []string{"/opt/a/codegraph", "codegraph"},
 	})
 
 	s := ReadSettings(root)
 
-	want := []string{"cmd-a", "cmd-b"}
+	want := []string{"/opt/a/codegraph", "codegraph"}
 	if !reflect.DeepEqual(s.CodeGraphProviders, want) {
 		t.Fatalf("CodeGraphProviders = %v, se esperaba %v (la lista explícita no debe pisarse)", s.CodeGraphProviders, want)
 	}

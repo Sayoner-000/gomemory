@@ -51,11 +51,11 @@ func TestStepLines_EstadosGlifosYMeta(t *testing.T) {
 	rows := []StepRow{
 		{Label: "Código Go", State: StateDone, Meta: "3 nodos · 1ms"},
 		{Label: "codegraph", State: StateRunning, Detail: "init --yes", Logs: []string{"a", "b", "c", "d"}},
-		{Label: "codebase-memory-mcp", State: StatePending},
+		{Label: "otro-grafo", State: StatePending},
 		{Label: "otro", State: StateSkip, Detail: "no instalado"},
 	}
 	got := strings.Join(l.StepLines(rows, "", 50), "\n")
-	for _, want := range []string{"✓ Código Go", "3 nodos · 1ms", "● codegraph · init --yes", "    b", "    d", "○ codebase-memory-mcp", "− otro · no instalado"} {
+	for _, want := range []string{"✓ Código Go", "3 nodos · 1ms", "● codegraph · init --yes", "    b", "    d", "○ otro-grafo", "− otro · no instalado"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("falta %q en:\n%s", want, got)
 		}

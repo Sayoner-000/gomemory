@@ -358,7 +358,7 @@ func CmdInstall(deps *Deps, args []string) {
 	// install siguen retirando lo que una versión anterior les escribió.
 
 	// CodeGraph en el grafo externo: su servidor MCP queda conectado a los
-	// agentes para que lo usen solos, como codebase-memory-mcp.
+	// agentes para que lo usen solos.
 	if home, err := os.UserHomeDir(); err == nil {
 		if step, ok := ensureCodeGraphMCP(deps.SettingsRepo.Read(target), home, target); ok {
 			recordStep(step)

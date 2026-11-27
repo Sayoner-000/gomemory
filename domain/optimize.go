@@ -23,7 +23,7 @@ func (r StorageOptimizationReport) TotalCleaned() int64 {
 }
 
 // ExternalProviderOptimizeReport resume el resultado del mantenimiento sobre
-// un proveedor externo de grafos (codebase-memory-mcp o codegraph).
+// el proveedor externo de grafos (codegraph).
 type ExternalProviderOptimizeReport struct {
 	Provider         string `json:"provider"`
 	Available        bool   `json:"available"`

@@ -17,10 +17,10 @@ type SettingsData struct {
 
 	AutoApprove      bool     `json:"auto_approve"`
 	AutoApproveTools []string `json:"auto_approve_tools"`
-	// CodeGraphDisabled apaga el proveedor de grafo de código externo
-	// (codebase-memory-mcp). Ausente/false = auto-detección activada.
+	// CodeGraphDisabled apaga el grafo de código externo (CodeGraph).
+	// Ausente/false = auto-detección activada.
 	CodeGraphDisabled bool `json:"code_graph_disabled,omitempty"`
-	// CodeGraphCommand apunta a otro binario del proveedor. Vacío = default.
+	// CodeGraphCommand apunta a otra ruta del binario de CodeGraph. Vacío = default.
 	// Legado: ver CodeGraphProviders (feature 010).
 	CodeGraphCommand string `json:"code_graph_command,omitempty"`
 	// CodeGraphProviders es la lista ordenada (prioridad) de proveedores de

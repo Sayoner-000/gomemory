@@ -5,15 +5,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"mem/adapters/secondary/codegraph/codegraphcli"
 	"mem/application/ports"
+	"mem/domain"
 )
 
 // NewProviders conserva el orden configurado para CodeGraph. Sin candidatos
 // explícitos autodetecta CodeGraph cuando su binario está en PATH; los comandos
-// legados ajenos a CodeGraph (p. ej. codebase-memory-mcp) se ignoran sin error.
+// legados ajenos a CodeGraph se ignoran sin error.
 func NewProviders(root, memDir string, commands []string) []ports.CodeGraphProvider {
 	if len(commands) == 0 {
 		if _, err := exec.LookPath(codegraphcli.ProviderName); err == nil {
@@ -23,9 +23,7 @@ func NewProviders(root, memDir string, commands []string) []ports.CodeGraphProvi
 	}
 	providers := make([]ports.CodeGraphProvider, 0, len(commands))
 	for _, command := range commands {
-		base := filepath.Base(command)
-		name := strings.TrimSuffix(base, filepath.Ext(base))
-		if strings.EqualFold(name, codegraphcli.ProviderName) {
+		if domain.IsCodeGraphCommand(command) {
 			providers = append(providers, codegraphcli.New(root, memDir, command))
 		}
 	}

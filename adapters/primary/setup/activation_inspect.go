@@ -519,27 +519,50 @@ func itoa(n int) string {
 	return string(digits)
 }
 
-// codegraphHookPattern reconoce los scripts del brazo extensor instalados
-// como hooks de Claude Code (ver ~/.claude/hooks/cbm-*, memoria 346).
-var codegraphHookPattern = regexp.MustCompile(`cbm-[a-z-]+`)
+// codegraphPromptHook es el hook que CodeGraph instala en Claude Code para
+// inyectar su contexto en cada prompt (`codegraph install`).
+const codegraphPromptHook = "codegraph prompt-hook"
 
 // inspectCodegraph observa —nunca escribe— la presencia del brazo extensor
 // de grafo de código (INV-1, INV-4): si no está instalado, no se reporta
 // ningún canal codegraph y no se emite ningún aviso por su ausencia.
 func (a *ActivationInspector) inspectCodegraph(root, home string) []domain.ActivationChannel {
-	if home == "" {
-		return nil
-	}
-	data, err := os.ReadFile(filepath.Join(home, ".claude", "settings.json"))
-	if err != nil {
-		return nil
-	}
-	if !codegraphHookPattern.Match(data) {
+	if home == "" || !claudeSettingsHasHook(filepath.Join(home, ".claude", "settings.json"), codegraphPromptHook) {
 		return nil
 	}
 	return []domain.ActivationChannel{{
 		Arm: domain.ArmCodegraph, Agent: "claude", Scope: domain.ScopeUser,
 		Kind: domain.KindInstructions, State: domain.StateOK,
-		Detail: "hooks cbm-* presentes en ~/.claude/settings.json (solo lectura)",
+		Detail: "hook " + codegraphPromptHook + " en ~/.claude/settings.json (solo lectura)",
 	}}
+}
+
+// claudeSettingsHasHook dice si algún hook de cualquier evento del settings.json
+// en path invoca cmd (el binario puede ir con ruta: /ruta/codegraph prompt-hook).
+func claudeSettingsHasHook(path, cmd string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var settings struct {
+		Hooks map[string][]struct {
+			Hooks []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if json.Unmarshal(data, &settings) != nil {
+		return false
+	}
+	for _, entries := range settings.Hooks {
+		for _, entry := range entries {
+			for _, h := range entry.Hooks {
+				c := strings.TrimSpace(h.Command)
+				if c == cmd || strings.HasSuffix(c, "/"+cmd) || strings.HasSuffix(c, `\`+cmd) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

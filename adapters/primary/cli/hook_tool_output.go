@@ -40,10 +40,13 @@ var toolOutputExcluded = map[string]bool{
 	"Read": true, "Edit": true, "Write": true, "MultiEdit": true, "NotebookEdit": true,
 	// OpenCode
 	"read": true, "edit": true, "write": true, "patch": true, "multiedit": true,
+	// codegraph_explore devuelve fuente literal numerada, apta para editar
+	// (HCD-065, Q3). Claude y OpenCode.
+	"mcp__codegraph__codegraph_explore": true, "codegraph_codegraph_explore": true,
 }
 
 func toolOutputIsExcluded(name string) bool {
-	if toolOutputExcluded[name] || name == "mcp__codebase-memory-mcp__get_code_snippet" {
+	if toolOutputExcluded[name] {
 		return true
 	}
 	return strings.HasPrefix(name, "mcp__gomemory__") || strings.HasPrefix(name, "gomemory_")

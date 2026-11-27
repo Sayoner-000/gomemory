@@ -14,7 +14,7 @@ func TestMigrate_CreatesADRSyncRecordsTable(t *testing.T) {
 		t.Fatalf("insert memory: %v", err)
 	}
 	_, err = InsertADRSyncRecord(db, &domain.ADRSyncRecord{
-		Project: "proj", MemoryID: &memID, Provider: "codebase-memory-mcp",
+		Project: "proj", MemoryID: &memID, Provider: "codegraph",
 		Section: domain.ADRSectionArchitecture, BlockKey: "id=1", Origin: domain.SyncOriginGomemory,
 		Status: domain.SyncStatusOK, ContentHash: "abc",
 	})

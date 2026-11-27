@@ -453,7 +453,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.err == nil:
 			m.statusMsg = fmt.Sprintf("Grafo externo reindexado: %d nodos, %d aristas", msg.nodes, msg.edges)
 		case errors.Is(msg.err, ports.ErrIndexerNotInstalled):
-			m.statusMsg = "codebase-memory-mcp no disponible"
+			m.statusMsg = "codegraph no disponible"
 		default:
 			m.statusMsg = console.Glyph(console.StateWarn) + " grafo externo: " + fmt.Sprint(msg.err)
 		}
@@ -2564,7 +2564,7 @@ func (m model) configView() string {
 	// UX que el CLI (indexExternalGraph).
 	reindexLabel := "Reindexar grafo externo: no disponible"
 	if m.hasExternalIndexer() {
-		reindexLabel = "Reindexar grafo externo (codebase-memory-mcp)"
+		reindexLabel = "Reindexar grafo externo (codegraph)"
 		if len(providers) > 1 {
 			reindexLabel = fmt.Sprintf("Reindexar grafos externos (%d proveedores)", len(providers))
 		} else if len(providers) == 1 {

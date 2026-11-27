@@ -309,7 +309,7 @@ func TestBuild_ExternalGraphAbsentWhenUnavailable(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	builder := usecases.New(persistence.NewMemoryRepository(db), persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
-	fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "codebase-memory-mcp", Available: false}}
+	fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "codegraph", Available: false}}
 	builder.CodeProviders = []ports.CodeGraphProvider{fake}
 
 	out, err := builder.Build()
@@ -349,7 +349,7 @@ func TestBuild_HotCodeSection_MatchAparece(t *testing.T) {
 
 	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
 	fake := &fakeCodeProvider{
-		snap: domain.CodeProviderSnapshot{Provider: "codebase-memory-mcp", Available: true, Architecture: &domain.CodeArchitecture{}},
+		snap: domain.CodeProviderSnapshot{Provider: "codegraph", Available: true, Architecture: &domain.CodeArchitecture{}},
 		impactByFile: map[string]domain.CodeImpactAnnotation{
 			"adapters/secondary/persistence/memory.go": {Hotspot: true, Symbol: "InsertMemory", FanIn: 41},
 		},
@@ -394,7 +394,7 @@ func TestBuild_HotCodeSection_AusenteSinMatchNiProveedor(t *testing.T) {
 		_, _ = memRepo.Insert(&domain.Memory{Project: "proj", Type: domain.Bugfix, Title: "algo", Content: "...", Filepath: "no/existe.go"})
 
 		builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
-		fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "codebase-memory-mcp", Available: true, Architecture: &domain.CodeArchitecture{}}}
+		fake := &fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "codegraph", Available: true, Architecture: &domain.CodeArchitecture{}}}
 		builder.CodeProviders = []ports.CodeGraphProvider{fake}
 
 		out, err := builder.Build()
