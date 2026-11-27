@@ -7,6 +7,27 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.60.0] - 2026-11-26
+
+### Fixed
+
+- `mem doctor` daba por enganchado CodeGraph en Claude Code cuando veía los scripts `cbm-*` de codebase-memory-mcp. Ahora lo reconoce por su propio hook, `codegraph prompt-hook`, en `~/.claude/settings.json`. Sin ese hook no aparece la fila, aunque queden scripts antiguos.
+- La salida de `codegraph_explore` se comprimía con el hook de salidas (`tool_output_compression`) y el agente recibía «cuerpo omitido» en lugar del código que iba a editar. Queda excluida en Claude Code y OpenCode, igual que lo estaba la lectura de fragmentos del proveedor anterior.
+- `native-edit-over-scripts` dejaba editar con `sed -i` o `perl -i` los archivos de texto del proyecto. Ahora cubre también `.md`, `.tmpl`, `.html`, `.css`, `.json`, `.yaml`, `.yml`, `.toml`, `.txt` y `.xml`: la edición en el sitio se bloquea siempre, y una redirección o un `tee` solo si la ruta es del proyecto. Guardar una salida en `/tmp` y leer un `.json` desde `python -c` siguen permitidos. [Detalles](docs/expand.md#reglas-de-herramientas-nativas).
+- `graph-before-grep` bloqueaba también la búsqueda de texto literal en código, que el grafo no indexa, y un harness sin búsqueda nativa se quedaba sin forma de encontrar mensajes o comentarios. Si el patrón contiene un espacio, un guion, `|`, un punto o comillas, ahora la regla avisa en lugar de bloquear. Un patrón con forma de identificador se sigue bloqueando. Aplica igual en Claude Code, Codex, OpenCode y Antigravity.
+- El motivo de bloqueo de `native-edit-over-scripts` repetía la frase «Si es intencionado…» y llamaba «código» a cualquier archivo.
+
+### Changed
+
+- Las reglas de trabajo que gomemory siembra por defecto pasan a la v4 (`gomemory-workrules-v4`). Antes de editar código, aunque sea una línea, el agente consulta el grafo sobre lo que cambia para conocer el proyecto, quién lo llama y su impacto, y usa el grafo antes de cualquier búsqueda de texto. La edición nativa se extiende a los archivos de texto del proyecto. Antes de definir un cambio, el agente busca decisiones previas también con `search_memories` y en `hcd/`, porque un historial vacío no prueba que no las haya. Vale en todos los proyectos y runtimes. Los proyectos con la v3 sin editar la reciben con `mem update` o al arrancar el servidor MCP; las reglas editadas por un equipo no se tocan. [Detalles](docs/MANUAL.md).
+- Al leer `.memory/settings.json`, gomemory descarta de `code_graph_providers` y `code_graph_command` lo que no sea CodeGraph. Una configuración antigua con `codebase-memory-mcp` deja de mostrarlo en `mem settings --show`; si la lista queda vacía, vuelve la detección automática de `codegraph`.
+- La plantilla de `get_context` (es/en) y la skill de auditoría defensiva nombran solo `codegraph_explore` como grafo externo.
+- La documentación (`INSTALLATION.md`, `docs/MANUAL.md`, `docs/ARQUITECTURA.md`, `docs/architecture.md` y las guías HTML) describe CodeGraph como único grafo externo y aclara que la sincronización de ADR y la anotación de hotspots no tienen efecto con él.
+
+### Removed
+
+- `scripts/test-codebase-memory-activation.sh`, que comprobaba herramientas MCP que gomemory ya no emite. Una prueba de contrato impide ahora que el nombre del proveedor retirado vuelva a aparecer en código, plantillas o documentación vigente.
+
 ## [v2.59.0] - 2026-11-24
 
 ### Added

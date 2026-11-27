@@ -1,8 +1,8 @@
 # Documentación de gomemory
 
-En v2.59.0 llega `mem doctor --fix` ([manual](MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar)), la huella HCD pasa a depender solo del contenido y `mem hcd verify --stale` sin comando reejecuta el comando de cada tarea ([Verificación HCD y sus límites](HCD-VERIFICATION.md)). En v2.58.0 CodeGraph quedó como único proveedor externo de grafo de código.
+En v2.60.0 desaparecen los últimos restos del proveedor de grafo anterior: `mem doctor` reconoce CodeGraph por su propio hook, los ajustes heredados se normalizan solos y la salida de `codegraph_explore` llega sin recortes. Las reglas de expand bloquean también la edición por consola de Markdown, plantillas y configuración, y dejan buscar texto literal en código ([expand.md](expand.md#reglas-de-herramientas-nativas)). Las reglas de trabajo por defecto pasan a la v4: el agente consulta el grafo antes de editar y antes de buscar, y busca decisiones previas antes de cambiar algo ([manual](MANUAL.md)). En v2.59.0 llegó `mem doctor --fix` ([manual](MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar)) y la huella HCD pasó a depender solo del contenido ([Verificación HCD y sus límites](HCD-VERIFICATION.md)).
 
-Índice y referencias técnicas de gomemory (versión 2.59.0).
+Índice y referencias técnicas de gomemory (versión 2.60.0).
 
 Consulta [Rendimiento](PERFORMANCE.md) para los cambios en duplicados y contexto, sus mediciones y sus límites.
 
@@ -20,7 +20,7 @@ gomemory mantiene memoria persistente para agentes de desarrollo (Claude Code, O
 | [AGENT-INTEGRATION.md](AGENT-INTEGRATION.md) | Guía de integración para arneses y agentes nuevos (niveles 1, 2 y 3). |
 | [MEMORY-PROTOCOL.md](MEMORY-PROTOCOL.md) | Formato de mensajes MCP, bloques de contexto y guardado de decisiones o aprendizajes. |
 | [socratica.md](socratica.md) | Herramienta de clarificación socrática para refinar tareas antes de codificar. |
-| [expand.md](expand.md) | Verificación de reglas operativas en pre-tool para evitar ediciones directas de código con scripts. |
+| [expand.md](expand.md) | Reglas operativas en pre-tool: bloquean editar código y archivos de texto del proyecto con scripts, y redirigen la búsqueda de código al grafo. |
 | [lessons.md](lessons.md) | Registro de incidentes técnicos y decisiones tomadas ante problemas de concurrencia o límites de entorno. |
 | [CONSOLE-THEMES.md](CONSOLE-THEMES.md) | Configuración de color y temas visuales para la interfaz de consola. |
 | [CLI-VISUAL-TDD.md](CLI-VISUAL-TDD.md) | Pruebas de contrato visual para interfaces de terminal. |
