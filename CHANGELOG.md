@@ -7,6 +7,12 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.60.1] - 2026-11-26
+
+### Fixed
+
+- `graph-before-grep` bloqueaba la búsqueda de texto literal cuando el patrón iba pegado a la opción (`grep -e'no disponible' --include=*.go src`, `rg -e'no disponible' -g'*.go' src`), mientras que con `-e 'no disponible'` solo avisaba. La regla tomaba la ruta `src` por el patrón y no veía el espacio del texto. Ahora `-ePATRÓN` se lee igual que `-e PATRÓN`. Con `-fARCHIVO` la ruta del archivo de patrones deja de confundirse con el patrón o con la ruta de búsqueda, y la regla sigue bloqueando porque no puede leer ese archivo. [Detalles](docs/expand.md#reglas-de-herramientas-nativas).
+
 ## [v2.60.0] - 2026-11-26
 
 ### Fixed

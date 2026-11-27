@@ -1,8 +1,8 @@
 # Documentación de gomemory
 
-En v2.60.0 desaparecen los últimos restos del proveedor de grafo anterior: `mem doctor` reconoce CodeGraph por su propio hook, los ajustes heredados se normalizan solos y la salida de `codegraph_explore` llega sin recortes. Las reglas de expand bloquean también la edición por consola de Markdown, plantillas y configuración, y dejan buscar texto literal en código ([expand.md](expand.md#reglas-de-herramientas-nativas)). Las reglas de trabajo por defecto pasan a la v4: el agente consulta el grafo antes de editar y antes de buscar, y busca decisiones previas antes de cambiar algo ([manual](MANUAL.md)). En v2.59.0 llegó `mem doctor --fix` ([manual](MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar)) y la huella HCD pasó a depender solo del contenido ([Verificación HCD y sus límites](HCD-VERIFICATION.md)).
+En v2.60.1 `graph-before-grep` reconoce el patrón pegado a la opción (`-e'texto'`) y deja buscar texto literal también así ([expand.md](expand.md#reglas-de-herramientas-nativas)). En v2.60.0 desaparecen los últimos restos del proveedor de grafo anterior: `mem doctor` reconoce CodeGraph por su propio hook, los ajustes heredados se normalizan solos y la salida de `codegraph_explore` llega sin recortes. Las reglas de expand bloquean también la edición por consola de Markdown, plantillas y configuración, y dejan buscar texto literal en código ([expand.md](expand.md#reglas-de-herramientas-nativas)). Las reglas de trabajo por defecto pasan a la v4: el agente consulta el grafo antes de editar y antes de buscar, y busca decisiones previas antes de cambiar algo ([manual](MANUAL.md)). En v2.59.0 llegó `mem doctor --fix` ([manual](MANUAL.md#mem-doctor---fix--reparar-y-volver-a-diagnosticar)) y la huella HCD pasó a depender solo del contenido ([Verificación HCD y sus límites](HCD-VERIFICATION.md)).
 
-Índice y referencias técnicas de gomemory (versión 2.60.0).
+Índice y referencias técnicas de gomemory (versión 2.60.1).
 
 Consulta [Rendimiento](PERFORMANCE.md) para los cambios en duplicados y contexto, sus mediciones y sus límites.
 
