@@ -11,14 +11,12 @@ import (
 )
 
 // EditContext reúne, para un archivo que se va a editar, lo que el proyecto
-// ya sabe de él (HCD-028): memorias ancladas, pruebas que lo cubren e impacto.
-// La sección de la Constitución la añade domain.RenderEditContext por la ruta.
+// ya sabe de él (HCD-028): memorias ancladas y pruebas que lo cubren. La
+// sección de la Constitución la añade domain.RenderEditContext por la ruta.
 // Cada fuente es opcional: la que falla o llega tras el plazo se omite y las
 // demás siguen (C-04).
 type EditContext struct {
-	Source ports.EditContextSource
-	// Impact consulta el snapshot cacheado del proveedor externo; nil = sin él.
-	Impact  func(path string) (domain.CodeImpactAnnotation, bool)
+	Source  ports.EditContextSource
 	Root    string
 	Project string
 }
@@ -51,11 +49,6 @@ func (e EditContext) Build(ctx context.Context, filePath string) domain.EditCont
 	if strings.HasSuffix(rel, ".go") {
 		if tests, err := e.Source.TestsCovering(e.Project, rel, 3); err == nil {
 			in.Tests = tests
-		}
-	}
-	if ctx.Err() == nil && e.Impact != nil {
-		if a, ok := e.Impact(rel); ok {
-			in.Impact = &a
 		}
 	}
 	return in

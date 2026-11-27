@@ -16,7 +16,7 @@ import (
 
 func TestHelpHasQuickStartCategoriesAndFocusedCommandHelp(t *testing.T) {
 	out := captureStdout(t, Usage)
-	for _, want := range []string{"INICIO RÁPIDO", "CÓDIGO Y ARQUITECTURA", "mem pack", "mem seed", "mem adr-sync", "--no-motion", "mem help <comando>"} {
+	for _, want := range []string{"INICIO RÁPIDO", "CÓDIGO Y ARQUITECTURA", "mem pack", "mem seed", "mem index", "--no-motion", "mem help <comando>"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("falta %q", want)
 		}

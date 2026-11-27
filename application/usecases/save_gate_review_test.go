@@ -22,12 +22,16 @@ func TestCheckNearDuplicates_MismaTopicKeyNoAvisa(t *testing.T) {
 	}
 }
 
+// legacyImpactNote es la nota que insertMemory anexaba antes de HCD-069: las
+// memorias antiguas la conservan y el gate debe seguir descontándola.
+const legacyImpactNote = "\n\n[impacto: BuildContext es un hotspot con 42 llamadores directos]"
+
 // S-003 (segunda revisión 031): la instantánea lleva la anotación de impacto
-// que insertMemory añade a las memorias de hotspots; la memoria nueva todavía
-// no. En cuerpos cortos esa nota diluía el Jaccard por debajo del umbral.
+// que insertMemory añadía a las memorias de hotspots; la memoria nueva no. En
+// cuerpos cortos esa nota diluía el Jaccard por debajo del umbral.
 func TestCheckNearDuplicates_IgnoraLaAnotacionDeImpacto(t *testing.T) {
 	saved := domain.Memory{Type: domain.Decision, Title: "alfa", Content: "redis"}
-	candidate := domain.Memory{ID: 4, Type: domain.Decision, Title: "beta", Content: "redis" + domain.ImpactAnnotation("BuildContext", 42)}
+	candidate := domain.Memory{ID: 4, Type: domain.Decision, Title: "beta", Content: "redis" + legacyImpactNote}
 	got := usecases.CheckNearDuplicates([]domain.Memory{candidate}, saved, 99)
 	if len(got.Candidates) != 1 || got.Candidates[0].ID != 4 {
 		t.Fatalf("la anotación de impacto no debe ocultar el duplicado: %#v", got)
@@ -37,7 +41,7 @@ func TestCheckNearDuplicates_IgnoraLaAnotacionDeImpacto(t *testing.T) {
 // S-002 (3ª revisión 031): la nota se descuenta en los dos lados. Si la memoria
 // nueva la trae pegada, la asimetría no debe reaparecer al revés.
 func TestCheckNearDuplicates_DescuentaLaNotaEnAmbosLados(t *testing.T) {
-	saved := domain.Memory{Type: domain.Decision, Title: "alfa", Content: "redis" + domain.ImpactAnnotation("BuildContext", 42)}
+	saved := domain.Memory{Type: domain.Decision, Title: "alfa", Content: "redis" + legacyImpactNote}
 	candidate := domain.Memory{ID: 6, Type: domain.Decision, Title: "beta", Content: "redis"}
 	got := usecases.CheckNearDuplicates([]domain.Memory{candidate}, saved, 99)
 	if len(got.Candidates) != 1 || got.Candidates[0].ID != 6 {

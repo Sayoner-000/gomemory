@@ -73,13 +73,11 @@ type Container struct {
 	RevisionFiles ports.RevisionFiles
 	// Conversation y HostBinding: la conversación de agente del proceso y su
 	// enlace con el host (HCD-036).
-	Conversation    ports.ConversationResolver
-	HostBinding     ports.HostBinding
-	CodeProviders   []ports.CodeGraphProvider
-	ADRSyncProvider ports.ADRSyncProvider
-	ADRSyncRepo     ports.ADRSyncRepository
-	Compressor      ports.Compressor
-	TokenCounter    ports.TokenCounter
+	Conversation  ports.ConversationResolver
+	HostBinding   ports.HostBinding
+	CodeProviders []ports.CodeGraphProvider
+	Compressor    ports.Compressor
+	TokenCounter  ports.TokenCounter
 	// CompressionLevel: nivel efectivo de compresión (feature 033).
 	CompressionLevel ports.CompressionLevel
 	// OriginalStore guarda los originales que el motor nativo omite, para
@@ -218,44 +216,6 @@ func NewContainer(root, channel string) (*Container, error) {
 	}
 	contextBuilder.CodeProviders = codeProviders
 
-	// Proveedor "activo" para los consumidores que necesitan una única
-	// fuente inequívoca (a diferencia de get_context, que muestra una
-	// sección por cada uno disponible): el primero de la lista cuyo
-	// snapshot cacheado esté disponible (feature 010, Historia 3).
-	activeProvider := usecases.FirstAvailable(codeProviders)
-
-	// Anotación de impacto al guardar (feature 010, Historia 1). nil si no
-	// hay proveedor activo o si la capacidad está apagada por settings.
-	if !settings.CodeImpactAnnotationDisabled {
-		impactProvider := activeProvider
-		for _, provider := range codeProviders {
-			snap := provider.Snapshot()
-			if snap.Available && snap.Architecture != nil && len(snap.Architecture.Hotspots) > 0 {
-				impactProvider = provider
-				break
-			}
-		}
-		persistence.SetCodeImpactProvider(impactProvider)
-	} else {
-		persistence.SetCodeImpactProvider(nil)
-	}
-
-	// ADR se elige por capacidad: si algún proveedor externo implementa
-	// ports.ADRSyncProvider, se conecta automáticamente; CodeGraph no expone
-	// manage_adr, por lo que queda inerte sin romper compatibilidad.
-	adrSyncRepo := persistence.NewADRSyncRepository(db)
-	var adrSyncProvider ports.ADRSyncProvider
-	for _, provider := range codeProviders {
-		if provider.Snapshot().Available {
-			if capable, ok := provider.(ports.ADRSyncProvider); ok {
-				adrSyncProvider = capable
-				break
-			}
-		}
-	}
-	persistence.SetAdrSyncEnabled(settings.AdrSyncEnabled)
-	persistence.SetADRSync(adrSyncProvider, adrSyncRepo)
-
 	// Registro de uso (feature 020): el repositorio y el grabador son
 	// opcionales en toda dependencia que los reciba. sessRepo.Active se
 	// resuelve EN EL MOMENTO de registrar (no aquí), porque la sesión puede
@@ -349,7 +309,6 @@ func NewContainer(root, channel string) (*Container, error) {
 		RevisionDiff:                 gitdiff.New(root),
 		RevisionFiles:                gitdiff.New(root),
 		CodeProviders:                codeProviders,
-		ADRSyncRepo:                  adrSyncRepo,
 		Compressor:                   engine,
 		OriginalStore:                originalStore,
 		AutomaticOriginalGrants:      persistence.NewAutomaticOriginalGrantsRepository(db),
@@ -389,9 +348,6 @@ func NewContainer(root, channel string) (*Container, error) {
 			Clock:          clock.SystemClock{},
 			NewRunID:       newSanitizeRunID,
 		}
-	}
-	if settings.AdrSyncEnabled {
-		c.ADRSyncProvider = adrSyncProvider
 	}
 
 	return c, nil
@@ -513,8 +469,6 @@ func (c *Container) ToDeps() *cli.Deps {
 		CodeProviders:                c.CodeProviders,
 		TUIProvider:                  c.tuiProvider(),
 		TUIProviders:                 c.tuiProviders(),
-		ADRSyncProvider:              c.ADRSyncProvider,
-		ADRSyncRepo:                  c.ADRSyncRepo,
 		Compressor:                   c.Compressor,
 		TokenCounter:                 c.TokenCounter,
 		SpecKitReader:                c.SpecKitReader,

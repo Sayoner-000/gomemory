@@ -86,7 +86,6 @@ var helpIndex = []struct {
 	}},
 	{"CÓDIGO Y ARQUITECTURA", []helpEntry{
 		{"index", "Indexar el código y los grafos externos"},
-		{"adr-sync", "Estado de sincronización de ADR"},
 	}},
 	{"INSTALACIÓN E INTEGRACIÓN", []helpEntry{
 		{"install", "Configurar memoria y agentes en un proyecto"},
@@ -291,7 +290,6 @@ COMMANDS
 
   Código y arquitectura
   mem index [--force]              Indexar el código Go del proyecto (grafo de símbolos)
-  mem adr-sync status              Estado de sincronización de ADR (solo lectura)
 
   Sistema
   mem project                      Detectar proyecto actual y mostrar información

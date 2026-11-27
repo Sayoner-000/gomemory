@@ -1012,9 +1012,6 @@ func (f *fakeCodeIndexer) Snapshot() domain.CodeProviderSnapshot {
 	return f.snapshot
 }
 func (f *fakeCodeIndexer) MaybeRefresh() {}
-func (f *fakeCodeIndexer) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
-	return domain.CodeImpactAnnotation{}, false
-}
 func (f *fakeCodeIndexer) IndexRepository(context.Context, string) (int, int, error) {
 	f.indexCalls++
 	return f.nodes, f.edges, f.indexErr
@@ -1030,9 +1027,6 @@ func (f fakeCodeProviderNoIndexer) Snapshot() domain.CodeProviderSnapshot {
 	return domain.CodeProviderSnapshot{}
 }
 func (f fakeCodeProviderNoIndexer) MaybeRefresh() {}
-func (f fakeCodeProviderNoIndexer) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
-	return domain.CodeImpactAnnotation{}, false
-}
 
 func newConfigTestModel(cp ports.CodeGraphProvider, data *ports.SettingsData) model {
 	return model{

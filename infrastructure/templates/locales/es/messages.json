@@ -13,8 +13,6 @@
   "settings_title": "CONFIGURACIÓN",
   "settings_auto_approve": "Auto-approve",
   "settings_code_graph": "Grafo de código externo",
-  "settings_impact_annotation": "Anotación de impacto al guardar",
-  "settings_adr_sync": "Sincronización de ADR",
   "settings_speckit": "Brazo extensor spec-kit",
   "settings_atomic_plan": "Planificación atómica en modo plan",
   "settings_language": "Idioma",

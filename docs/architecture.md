@@ -93,7 +93,6 @@ Dispatcher central. Enruta subcomandos a handlers según `os.Args[1]`.
 | `docs` / `seed` / `constitution` / `rules` | `adapters/primary/cli/cmd_docs.go`, `seeds.go`, `cmd_constitution.go` | Documentos fijados en memoria: listar, ver, exportar, importar, restablecer y sembrar los que falten |
 | `export` / `import` | `adapters/primary/cli/cmd_export.go`, `cmd_import.go` | Bundle JSON portable de memorias y relaciones (import con dedup) |
 | `usage` | `adapters/primary/cli/cmd_usage.go` | Benchmark medido de tokens emitidos frente a la línea base |
-| `adr-sync` | `adapters/primary/cli/cmd_adr_sync.go` | Estado y ejecución de la sincronización opt-in de ADR |
 | `consolidate` | `adapters/primary/cli/cmd_consolidate.go` | Funde memorias redundantes (mismo `topic_key` y registros de actividad duplicados) |
 | `sanitize` | `adapters/primary/cli/cmd_sanitize.go` | Sanea contenido privado histórico (previsualiza; `--apply` escribe) |
 | `version` | `adapters/primary/cli/dispatcher.go` | Imprime la versión instalada |
@@ -270,9 +269,6 @@ _Orden: masa = centralidad en el grafo de memorias sembrado en {semillas}; no mi
 - **título**: contenido (archivo relacionado)
 ...
 
-## 🔥 Memoria conectada a código activo
-- **título** — `archivo` (fan-in N, hotspot vigente)
-
 ## 🧭 Anclas sin evidencia
 > Hipótesis, no orden de borrado: verifica y usa judge_memories/forget_memory.
 - [id] «título» — `ruta` → movida a `otra/ruta` | movida (ambigua: N rutas…) | huérfana candidata
@@ -303,7 +299,7 @@ Los agentes reciben el contexto desde el servidor MCP y los hooks de ciclo de vi
   | `conflicts_with` / `not_conflict` | excluida (veredicto, no transición) |
   | extremo checkpoint o memoria borrada | excluida |
 
-  `usecases.ContextSeeds` siembra en la sesión activa y en las memorias ancladas a hotspots, o uniforme si no hay ninguna. Lo comparten `Build()` y `mem mass`. `BuildContextPack` siembra en los resultados de la búsqueda y añade hasta 5 vecinas opcionales cuando `ContextRequest.Relations` no es nil.
+  `usecases.ContextSeeds` siembra en las memorias de la sesión activa, o uniforme si no hay ninguna. Lo comparten `Build()` y `mem mass`. `BuildContextPack` siembra en los resultados de la búsqueda y añade hasta 5 vecinas opcionales cuando `ContextRequest.Relations` no es nil.
 
 #### Huella de contexto acotada (presupuesto + progressive disclosure)
 
@@ -327,17 +323,13 @@ Tunables en `.memory/settings.json`: `budget`, `compact_threshold`, `compact_age
 - **Indexado explícito.** `mem index` sí solicita el indexado completo de cada proveedor configurado, en orden. `--skip-graph` limita la operación al grafo propio. Si un proveedor falla o no está instalado, informa el resultado y continúa con los demás.
 - **Enchufable por settings:** `code_graph_disabled` y `code_graph_providers` controlan el brazo extensor; `code_graph_command` conserva compatibilidad con la configuración anterior. Sin proveedor/binario/snapshot disponible, se degrada sin bloquear el flujo normal.
 - **Agnóstico al agente:** vive en el binario `mem`; el bloque va en `get_context`, que todos los agentes consumen.
-- **Memoria conectada a código activo, recalculada en vivo (v1.23.0).** Además del resumen estructural, `Build()` cruza el `Filepath` de cada memoria contra `ImpactFor(filepath)` de cada proveedor **en cada llamada** (mismo contrato de no-bloqueo: solo lee el snapshot cacheado). Las que resuelven a un hotspot vigente aparecen en la sección `🔥 Memoria conectada a código activo`, ordenadas por fan-in. A diferencia de `annotateImpact` (que anota el `content` una única vez, al guardar, y queda congelado), esta relación se re-evalúa contra el snapshot vigente en cada `get_context` — si el código se reindexa y cambian los hotspots, la relevancia se actualiza sola sin tocar la memoria guardada. Hoy CodeGraph no expone fan-in por archivo en `status --json`, así que `ImpactFor` no devuelve hotspots y esta sección no aparece.
 
-El dominio del resumen compacto vive en `domain/code_provider.go` (`CodeProviderSnapshot`, `CodeArchitecture`: totales, lenguajes, clusters, hotspots).
+El dominio del resumen compacto vive en `domain/code_provider.go` (`CodeProviderSnapshot`, `CodeArchitecture`: totales y lenguajes).
 
 **Segundo consumidor: `BuildContextPack` / `mem pack build` (feature 018).** Hasta la
 feature 018, `CodeGraphProvider` solo lo consumía `build_context.go` (`mem context`).
 `application/usecases/build_context_pack.go` ahora también lo consulta, con el mismo
-contrato de solo-snapshot-cacheado: `boostHotspotCandidates` sube de `Optional` a
-`Relevant` la prioridad de un candidato cuyo `Filepath` es un hotspot vigente (mismo
-`ImpactFor`, iterando todos los proveedores como ya hacía la sección "🔥 Memoria
-conectada a código activo"), y `codeGraphArchitectureCandidate` puede agregar, como un
+contrato de solo-snapshot-cacheado: `codeGraphArchitectureCandidate` puede agregar, como un
 candidato más sujeto a presupuesto, el mismo resumen compacto (`formatCodeArchitecture`,
 extraído de `writeCodeProviderSection` para no duplicar el formato entre los dos
 consumidores) del primer proveedor disponible (`FirstAvailable`). `ContextRequest` ganó
@@ -360,52 +352,33 @@ libera el lock al terminar el proceso. El refresco automático conserva su cará
 desacoplado y solo sincroniza cambios pendientes, mientras que `mem index` solicita el
 indexado completo.
 
-#### Evolución del brazo extensor (feature 010): impacto, ADR y multi-proveedor
+#### Evolución del brazo extensor (feature 010): multi-proveedor
 
-Tres capacidades aditivas sobre la base anterior, todas opcionales y
-desactivables por separado (`specs/010-codegraph-integration-evolution/`):
+La feature 010 (`specs/010-codegraph-integration-evolution/`) añadió tres
+capacidades. HCD-069 retiró dos de ellas, porque dependían de hotspots y de un
+documento ADR que CodeGraph no expone y no hacían nada desde que CodeGraph
+quedó como único proveedor (HCD-065).
 
-- **Anotación de impacto al guardar (Historia 1).** Al guardar una memoria
-  con `filepath`, `InsertMemory` (`adapters/secondary/persistence/memory.go`)
-  llama `codeImpactProvider.ImpactFor(filepath)` (singleton de proceso, mismo
-  patrón que `dedupWindowDays`) y anexa una nota si el archivo casa con un
-  hotspot del snapshot cacheado — sin I/O nuevo en el hot path.
-  `get_architecture` no expone el archivo de cada hotspot, así que se
-  resuelve aparte: `resolveHotspotFiles()` pide `search_code` por
-  `qualified_name`, pero **solo dentro de `Refresh()`** (proceso detached),
-  nunca al guardar. `domain.CodeHotspot` ganó el campo `File`.
-  Toggle: `mem settings --code-impact-annotation=true|false` (default `true`).
+La primera era la anotación de impacto al guardar (Historia 1), junto con todo
+lo que leía hotspots: la sección «Memoria conectada a código activo», las
+semillas de masa por hotspot, el refuerzo de prioridad de `mem pack` y la línea
+de impacto del contexto de edición. La segunda era la sincronización
+bidireccional de ADR (Historia 2): el comando `adr-sync`, `ImportADRs`,
+`exportToADR` y sus puertos. La tabla `adr_sync_records` sigue en el esquema,
+sin uso, porque la Constitución §25.1 solo admite cambios aditivos.
+`domain.StripImpactAnnotation` se conserva: el gate de duplicados la usa para
+descontar la nota que quedó en memorias antiguas.
 
-- **Sincronización bidireccional de ADR (Historia 2).** `manage_adr` del
-  proveedor NO es un CRUD de múltiples ADR con ID (verificado en vivo) — es
-  **un documento único por proyecto** con 6 secciones fijas (`PURPOSE, STACK,
-  ARCHITECTURE, PATTERNS, TRADEOFFS, PHILOSOPHY`). Cada memoria
-  `architecture`/`decision` se representa como un bloque marcado
-  (`<!-- gomemory:id=N -->`) dentro de la sección que le corresponde
-  (`ARCHITECTURE`/`TRADEOFFS`). El parseo/render del documento es dominio
-  puro (`domain/adr_document.go`: `ParseADRDocument`, `Render`,
-  `UpsertBlock`), testeado sin CLI. Export (gomemory→proveedor) vive en el
-  mismo choke point que la anotación de impacto (`exportToADR` en
-  `memory.go`, síncrono con timeout de 4s — la capacidad es opt-in, así que
-  el costo solo se paga si está activa). Import (proveedor→gomemory) es la
-  única pieza de esta feature que amerita una capa de *usecase* propia
-  (`application/usecases/import_adrs.go`, `ImportADRs`), porque coordina
-  tres puertos; corre en el mismo ciclo de refresco detached que
-  `MaybeRefresh()`. Los bloques marcados nunca se reimportan (evita el
-  bucle); el estado de cada par memoria↔bloque vive en `adr_sync_records`
-  (`origin`, `status`, `content_hash` — sin timestamp real por bloque, el
-  conflicto se detecta comparando hashes, no fechas). Consultable con
-  `mem adr-sync status` (solo lectura, no expuesto vía MCP). Toggle:
-  `mem settings --adr-sync=true|false` (default `false`, opt-in).
+La tercera capacidad sigue vigente:
 
 - **Múltiples proveedores con fallback automático (Historia 3).**
   `build_context.go` ya iteraba `[]ports.CodeGraphProvider` mostrando una
   sección por cada uno disponible — no hizo falta un adaptador Composite
   nuevo, solo alimentar esa lista desde `settings.code_graph_providers`
   (`infrastructure/container.go:buildCodeProviders`, con fallback al legado
-  `code_graph_command` como lista de 1). Para los consumidores que sí
-  necesitan una única fuente (impacto y ADR), `usecases.FirstAvailable`
-  devuelve el primero con `Snapshot().Available=true`. Bug encontrado y
+  `code_graph_command` como lista de 1). Para el consumidor que necesita una
+  única fuente (el candidato de arquitectura de `mem pack`),
+  `usecases.FirstAvailable` devuelve el primero con `Snapshot().Available=true`. Bug encontrado y
   corregido durante la implementación: el snapshot cacheado era un archivo
   único por `.memory/` — con 2+ proveedores, el último en refrescar pisaba
   los datos del anterior. Fix: `snapshotPath()` deriva el nombre de archivo

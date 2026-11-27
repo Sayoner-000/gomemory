@@ -1,8 +1,6 @@
 package persistence
 
 import (
-	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -11,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"mem/application/ports"
 	"mem/domain"
 )
 
@@ -43,15 +40,9 @@ func SecondsSinceLastSave(db *sql.DB, project string) (int64, bool, error) {
 // depuración de secretos ni la deduplicación: esas son garantías del guardado,
 // no efectos opcionales (feature 021, data-model.md §3bis).
 type insertOpts struct {
-	// inerte omite formSynapse y exportToADR. Lo usan la siembra, la
-	// importación y la restauración de documentos fijados: una semilla no nace
-	// del trabajo de una sesión (no hay co-activación que enlazar) ni es una
-	// decisión de arquitectura recién tomada que merezca anunciarse fuera.
-	//
-	// Sin esto, sembrar la constitución —tipo Architecture, exportable según
-	// adrSectionForType— habría publicado el documento entero en el ADR externo
-	// de quien tuviera adr_sync_enabled=true, síncrono y sin pedirlo
-	// (research.md §R4).
+	// inerte omite formSynapse. Lo usan la siembra, la importación y la
+	// restauración de documentos fijados: una semilla no nace del trabajo de una
+	// sesión, así que no hay co-activación que enlazar.
 	inerte bool
 }
 
@@ -61,9 +52,8 @@ func InsertMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 }
 
 // InsertSeedMemory guarda una memoria por la vía INERTE: sin sinapsis
-// automática y sin publicación al proveedor externo de ADR, ni siquiera con la
-// sincronización activada. Conserva la depuración de secretos y el upsert por
-// clave de tópico.
+// automática. Conserva la depuración de secretos y el upsert por clave de
+// tópico.
 func InsertSeedMemory(db *sql.DB, m *domain.Memory) (int64, error) {
 	return insertMemory(db, m, insertOpts{inerte: true})
 }
@@ -78,12 +68,6 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 	if strings.TrimSpace(content) == "" {
 		return 0, fmt.Errorf("insert memory: contenido vacío tras redactar <private>")
 	}
-
-	// Anotación de impacto (feature 010, Historia 1): mismo choke point que
-	// provenance/sinapsis. Best-effort y no-bloqueante — codeImpactProvider
-	// solo lee su snapshot cacheado (ver ports.CodeGraphProvider.ImpactFor),
-	// nunca invoca al proveedor externo desde acá.
-	content = annotateImpact(content, m.Filepath)
 
 	// Provenance: si el llamador no fijó un prompt originante, se hereda del
 	// último prompt de la sesión activa (lo persiste el hook/plugin por turno).
@@ -124,9 +108,6 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 		if err := tx.Commit(); err != nil {
 			return 0, fmt.Errorf("commit dedup: %w", err)
 		}
-		if !opts.inerte {
-			exportToADR(m.Project, m.Type, title, content, existingID)
-		}
 		return existingID, nil
 	}
 
@@ -148,13 +129,10 @@ func insertMemory(db *sql.DB, m *domain.Memory, opts insertOpts) (int64, error) 
 		return 0, fmt.Errorf("commit insert: %w", err)
 	}
 
-	// --- Fuera de la transacción: operaciones best-effort / externas ---
-	// Ambas son canales laterales: la vía inerte los omite por completo.
-	if !opts.inerte {
-		if synapseEnabled {
-			formSynapse(db, m.Project, m.SessionID, id, m.Type)
-		}
-		exportToADR(m.Project, m.Type, title, content, id)
+	// --- Fuera de la transacción: canal lateral best-effort ---
+	// La vía inerte lo omite por completo.
+	if !opts.inerte && synapseEnabled {
+		formSynapse(db, m.Project, m.SessionID, id, m.Type)
 	}
 	return id, nil
 }
@@ -232,145 +210,6 @@ var (
 	anchorMu        sync.Mutex
 	lastAnchorCache = make(map[string]int64)
 )
-
-// codeImpactProvider es el proveedor de grafo de código "activo" para
-// anotación de impacto (feature 010, Historia 1). nil = capacidad
-// desactivada (sin proveedor disponible, o `code_impact_annotation_disabled`
-// en settings) — mismo patrón singleton que dedupWindowDays: el composition
-// root lo fija una vez al construir el proceso.
-var codeImpactProvider ports.CodeGraphProvider
-
-// SetCodeImpactProvider fija (o apaga, con nil) el proveedor usado por
-// annotateImpact. Llamarlo con nil es el modo por defecto: InsertMemory no
-// toca el content de nadie hasta que el composition root lo active.
-func SetCodeImpactProvider(p ports.CodeGraphProvider) { codeImpactProvider = p }
-
-// annotateImpact anexa una nota de impacto al content cuando filepath casa
-// con un hotspot del proveedor activo. Best-effort y silencioso: sin
-// proveedor, sin filepath, o sin match, devuelve content sin tocar — nunca
-// hace fallar el guardado ni añade latencia perceptible (ImpactFor solo lee
-// el snapshot cacheado).
-func annotateImpact(content, filepath string) string {
-	if codeImpactProvider == nil || strings.TrimSpace(filepath) == "" {
-		return content
-	}
-	ann, ok := codeImpactProvider.ImpactFor(filepath)
-	if !ok || !ann.Hotspot {
-		return content
-	}
-	return content + domain.ImpactAnnotation(ann.Symbol, ann.FanIn)
-}
-
-// adrSyncProvider/adrSyncRepo/settingsAdrSyncEnabled: sincronización
-// bidireccional de ADR (feature 010, Historia 2). Mismo patrón singleton que
-// codeImpactProvider — nil/false = capacidad desactivada (default: opt-in
-// explícito, a diferencia de la anotación de impacto que es opt-out).
-var (
-	adrSyncProvider        ports.ADRSyncProvider
-	adrSyncRepo            ports.ADRSyncRepository
-	settingsAdrSyncEnabled bool
-)
-
-// SetADRSync fija (o apaga, con ambos nil) el proveedor y repositorio usados
-// por exportToADR.
-func SetADRSync(provider ports.ADRSyncProvider, repo ports.ADRSyncRepository) {
-	adrSyncProvider = provider
-	adrSyncRepo = repo
-}
-
-// SetAdrSyncEnabled activa/desactiva el export a ADR (default false).
-func SetAdrSyncEnabled(enabled bool) { settingsAdrSyncEnabled = enabled }
-
-// adrSyncTimeout acota el peor caso de exportToADR (dos llamadas CLI:
-// get + update). Corre SÍNCRONO dentro de InsertMemory a propósito —no en
-// una goroutine— para que el estado de adr_sync_records sea observable
-// inmediatamente después de que InsertMemory retorna (útil para tests y para
-// `mem adr-sync status`); el timeout acotado + que la capacidad es opt-in
-// (default false) es lo que mantiene el guardado sin demora perceptible en
-// el caso común, en vez de asincronía real.
-const adrSyncTimeout = 4 * time.Second
-
-// adrSectionForType mapea el tipo de memoria a una de las 6 secciones fijas
-// del documento único de ADR del proveedor (no hay sección "decisions" en su
-// esquema, así que decision cae en TRADEOFFS — heurística documentada en
-// specs/010-codegraph-integration-evolution/research.md §2).
-func adrSectionForType(t domain.MemoryType) (string, bool) {
-	switch t {
-	case domain.Architecture:
-		return domain.ADRSectionArchitecture, true
-	case domain.Decision:
-		return domain.ADRSectionTradeoffs, true
-	default:
-		return "", false
-	}
-}
-
-// exportToADR refleja una memoria architecture/decision como bloque marcado
-// dentro del documento único de ADR del proveedor externo (gomemory→
-// proveedor). Best-effort en cada paso: cualquier fallo (proveedor
-// desactivado, no disponible, error de escritura) deja constancia en
-// adr_sync_records sin jamás propagar un error a InsertMemory.
-func exportToADR(project string, memType domain.MemoryType, title, content string, id int64) {
-	if adrSyncProvider == nil || adrSyncRepo == nil || !settingsAdrSyncEnabled {
-		return
-	}
-	section, ok := adrSectionForType(memType)
-	if !ok {
-		return
-	}
-	heading := strings.TrimSpace(title)
-	if heading == "" {
-		heading = fmt.Sprintf("Memoria #%d", id)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), adrSyncTimeout)
-	defer cancel()
-
-	existing, _ := adrSyncRepo.GetByMemory(project, id)
-	hash := contentHash(content)
-
-	// Si no se puede LEER el documento actual, no se debe escribir nada:
-	// reconstruir un doc "vacío" y hacer UpdateDocument lo pisaría por
-	// completo en el proveedor. Se registra pending y se reintenta en el
-	// próximo guardado/refresco.
-	docContent, err := adrSyncProvider.GetDocument(ctx)
-	if err != nil {
-		recordADRSyncAttempt(project, id, section, existing, domain.SyncStatusPending, hash)
-		return
-	}
-
-	doc := domain.ParseADRDocument(docContent)
-	doc.UpsertBlock(section, id, heading, content)
-
-	if err := adrSyncProvider.UpdateDocument(ctx, doc.Render()); err != nil {
-		recordADRSyncAttempt(project, id, section, existing, domain.SyncStatusFailed, hash)
-		return
-	}
-	recordADRSyncAttempt(project, id, section, existing, domain.SyncStatusOK, hash)
-}
-
-// recordADRSyncAttempt deja constancia del resultado de exportToADR:
-// actualiza el registro existente de la memoria si ya había uno (nunca
-// duplica), o crea uno nuevo con origin=gomemory y block_key=id=<memoryID>
-// (identidad estable del lado gomemory, ver ADRDocument). Best-effort: un
-// fallo acá nunca se propaga.
-func recordADRSyncAttempt(project string, memID int64, section string, existing *domain.ADRSyncRecord, status domain.SyncStatus, hash string) {
-	if existing != nil {
-		_ = adrSyncRepo.UpdateStatus(existing.ID, status, hash)
-		return
-	}
-	id := memID
-	_, _ = adrSyncRepo.Insert(&domain.ADRSyncRecord{
-		Project: project, MemoryID: &id, Provider: adrSyncProvider.Name(),
-		Section: section, BlockKey: fmt.Sprintf("id=%d", memID),
-		Origin: domain.SyncOriginGomemory, Status: status, ContentHash: hash,
-	})
-}
-
-func contentHash(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return fmt.Sprintf("%x", sum)
-}
 
 // findDuplicateTx variante transaccional de findDuplicate.
 func findDuplicateTx(tx *sql.Tx, m *domain.Memory, title, content string) (int64, bool, error) {
@@ -542,11 +381,6 @@ func GetMemoryByID(db *sql.DB, project string, id int64) (*domain.Memory, error)
 	return &m, nil
 }
 
-// UpdateMemoryContent actualiza título/contenido de una memoria existente
-// SIN pasar por el choke point de InsertMemory: no forma sinapsis ni dispara
-// exportToADR (mismo criterio "sin efectos en cadena" que ImportMemory) —
-// usado por ImportADRs para reflejar un bloque de ADR actualizado sobre la
-// memoria ya importada, sin reexportarla de vuelta al proveedor.
 // GetMemoryByTopicKey resuelve una memoria por su clave de tópico dentro de un
 // proyecto. Devuelve (nil, nil) cuando no existe: "no encontrado" no es un
 // error, según la regla explícita de la constitución.
@@ -582,6 +416,9 @@ func GetMemoryByTopicKey(db *sql.DB, project, topicKey string) (*domain.Memory, 
 	return &m, nil
 }
 
+// UpdateMemoryContent actualiza título/contenido de una memoria existente SIN
+// pasar por el choke point de InsertMemory: no forma sinapsis (mismo criterio
+// "sin efectos en cadena" que ImportMemory). Lo usa la consolidación.
 func UpdateMemoryContent(db *sql.DB, project string, id int64, title, content string) error {
 	redTitle := domain.RedactSecrets(domain.RedactPrivate(title))
 	redContent := domain.RedactSecrets(domain.RedactPrivate(content))

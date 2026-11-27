@@ -13,8 +13,6 @@
   "settings_title": "CONFIGURATION",
   "settings_auto_approve": "Auto-approve",
   "settings_code_graph": "External code graph",
-  "settings_impact_annotation": "Impact annotation on save",
-  "settings_adr_sync": "ADR synchronization",
   "settings_speckit": "Spec-kit extension arm",
   "settings_atomic_plan": "Atomic planning in plan mode",
   "settings_language": "Language",

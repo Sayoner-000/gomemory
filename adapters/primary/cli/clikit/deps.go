@@ -67,11 +67,6 @@ type Deps struct {
 	// TUIProviders incluye todos los candidatos configurados incluso cuando el
 	// grafo está desactivado, para mostrar su estado en Configuración.
 	TUIProviders []ports.CodeGraphProvider
-	// ADRSyncProvider/ADRSyncRepo (feature 010, Historia 2): nil si
-	// adr_sync_enabled=false o no hay proveedor disponible — el hook de
-	// refresco y `mem adr-sync status` deben chequear nil antes de usarlos.
-	ADRSyncProvider ports.ADRSyncProvider
-	ADRSyncRepo     ports.ADRSyncRepository
 	// Compressor/TokenCounter (feature 015): dependencias del Context
 	// Optimization Engine (`mem pack ...` y las tools MCP pack_*). Siempre
 	// construidos (sin toggle) porque son puro cómputo local, sin I/O externo.

@@ -72,10 +72,9 @@ func TestRenderEditContext(t *testing.T) {
 			{Name: "TestGraphBeforeGrep_Bloquea", Dir: "./domain"},
 			{Name: "TestDestructiveShellBuiltin", Dir: "./domain"},
 		},
-		Impact: &CodeImpactAnnotation{Hotspot: true, Symbol: "EvaluateRules", FanIn: 13},
 	}
 	out := RenderEditContext(in)
-	orden := []string{"domain/rules.go", "get_memory 1712", "get_memory 1690", "go test ./domain -run 'TestGraphBeforeGrep_Bloquea|TestDestructiveShellBuiltin'", "§3", "EvaluateRules", "13"}
+	orden := []string{"domain/rules.go", "get_memory 1712", "get_memory 1690", "go test ./domain -run 'TestGraphBeforeGrep_Bloquea|TestDestructiveShellBuiltin'", "§3"}
 	pos := -1
 	for _, want := range orden {
 		i := strings.Index(out, want)

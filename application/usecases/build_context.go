@@ -61,24 +61,6 @@ func formatCodeArchitecture(snap domain.CodeProviderSnapshot) string {
 	}
 	sb.WriteString("\n\n")
 
-	if len(a.Clusters) > 0 {
-		sb.WriteString("Módulos de facto (clusters):\n")
-		for _, c := range a.Clusters {
-			line := fmt.Sprintf("- **%s** — %d símbolos, cohesión %.2f", c.Label, c.Members, c.Cohesion)
-			if len(c.TopNodes) > 0 {
-				line += " · " + strings.Join(c.TopNodes, ", ")
-			}
-			sb.WriteString(line + "\n")
-		}
-		sb.WriteString("\n")
-	}
-	if len(a.Hotspots) > 0 {
-		names := make([]string, 0, len(a.Hotspots))
-		for _, h := range a.Hotspots {
-			names = append(names, fmt.Sprintf("%s (fan-in %d)", h.Name, h.FanIn))
-		}
-		sb.WriteString("Hotspots (más referenciados): " + strings.Join(names, ", ") + ".\n\n")
-	}
 	hint := snap.ToolsHint
 	if hint == "" {
 		hint = "codegraph_explore"
@@ -688,47 +670,6 @@ func (b *Builder) build() (string, error) {
 		cp.MaybeRefresh()
 	}
 
-	// Memoria conectada a código activo (dinámica): a diferencia de la
-	// anotación estática que InsertMemory pega al content al guardar
-	// (annotateImpact), esto recalcula la relación CADA VEZ que se arma el
-	// contexto contra el snapshot vigente del grafo — si el código se
-	// reindexó y cambiaron los hotspots, la relevancia se actualiza sola, sin
-	// tocar la memoria ya guardada. Reusa ImpactFor tal como está: cero
-	// cambios de puerto.
-	if len(b.CodeProviders) > 0 && b.fits(&sb, 80) {
-		type hotMemory struct {
-			mem   domain.Memory
-			fanIn int
-		}
-		fanInByID := hotspotMemoryIDs(mems, b.CodeProviders)
-		if len(fanInByID) > 0 {
-			hot := make([]hotMemory, 0, len(fanInByID))
-			for _, m := range mems {
-				if fanIn, ok := fanInByID[m.ID]; ok {
-					hot = append(hot, hotMemory{mem: m, fanIn: fanIn})
-				}
-			}
-			sort.Slice(hot, func(i, j int) bool {
-				if hot[i].fanIn != hot[j].fanIn {
-					return hot[i].fanIn > hot[j].fanIn
-				}
-				return hot[i].mem.ID < hot[j].mem.ID
-			})
-			sb.WriteString("## 🔥 Memoria conectada a código activo\n\n")
-			for i, h := range hot {
-				if i >= 8 {
-					break
-				}
-				line := fmt.Sprintf("- **%s** — `%s` (fan-in %d, hotspot vigente)\n", displayTitle(h.mem), h.mem.Filepath, h.fanIn)
-				if !b.fits(&sb, len(line)) {
-					break
-				}
-				sb.WriteString(line)
-			}
-			sb.WriteString("\n")
-		}
-	}
-
 	// La evidencia usa todas las memorias. El límite de 100 solo controla las
 	// secciones recientes del contexto.
 	b.writeAnchorEvidence(&sb, allMems)
@@ -808,31 +749,9 @@ func (b *Builder) loadRelations() ([]domain.Relation, error) {
 	return b.Relations.List(b.Project, 200)
 }
 
-// hotspotMemoryIDs devuelve, por memoria anclada a un hotspot vigente, el mayor
-// fan-in entre proveedores. Lo comparten la sección 🔥 y las semillas de masa.
-func hotspotMemoryIDs(mems []domain.Memory, providers []ports.CodeGraphProvider) map[int64]int {
-	out := make(map[int64]int)
-	for _, m := range mems {
-		if m.Filepath == "" {
-			continue
-		}
-		for _, cp := range providers {
-			if cp == nil {
-				continue
-			}
-			if ann, ok := cp.ImpactFor(m.Filepath); ok && ann.Hotspot {
-				if prev, seen := out[m.ID]; !seen || ann.FanIn > prev {
-					out[m.ID] = ann.FanIn
-				}
-			}
-		}
-	}
-	return out
-}
-
 func (b *Builder) massSeeds(all []domain.Memory) (map[int64]float64, string) {
 	sess, _ := b.Session.Active(b.Project)
-	return ContextSeeds(all, sess, b.CodeProviders)
+	return ContextSeeds(all, sess)
 }
 
 // writeSynapses ordena por masa las sinapsis cuyos dos extremos existen y no

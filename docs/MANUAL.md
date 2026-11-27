@@ -568,17 +568,6 @@ La deduplicación en la fuente evita filas casi idénticas: guardar una memoria 
 un `topic_key` ya usado (o el mismo tipo+título dentro de la ventana) **actualiza**
 la existente en vez de crear otra.
 
-### Memoria conectada a código activo
-
-`get_context` ahora cruza el `Filepath` de cada memoria contra el grafo de
-código externo (si hay un proveedor configurado) **en cada llamada**, no solo
-al guardar: si el archivo asociado es un hotspot vigente, aparece en una
-sección `🔥 Memoria conectada a código activo` con su fan-in actual. A
-diferencia de la anotación estática que se pega al `content` al guardar
-(ver "Anotación de impacto al guardar" en el README), esta relación se
-recalcula contra el snapshot vigente del grafo — si el código se reindexa y
-cambian los hotspots, la relevancia se actualiza sola.
-
 ### Aviso de posible duplicado al guardar (feature 031)
 
 `save_memory` y `mem save` comparan la memoria nueva con las existentes del
@@ -626,7 +615,7 @@ ser un archivo. Verifica y usa `judge_memories` o `forget_memory`.
 La masa es un PageRank personalizado sobre el grafo de memorias. Se reinicia
 en unas semillas:
 
-- en `get_context` y en `mem mass` sin tarea: la sesión activa y las memorias ancladas a hotspots; si no hay ninguna, todas por igual;
+- en `get_context` y en `mem mass` sin tarea: las memorias de la sesión activa; si no hay ninguna, todas por igual;
 - con `mem mass --task T` y en `pack_build`: los resultados de la búsqueda, con peso 1/(posición+1).
 
 Las aristas `related`, `compatible` y `scoped` van en los dos sentidos, con
@@ -716,8 +705,8 @@ mismas cuatro operaciones por las dos superficies.
   El mismo criterio se aplica a la copia de spec-kit que deja
   `mem constitution --sync` en `.specify/memory/constitution.md`: si está intacta
   se refresca, y si el equipo la editó se avisa sin tocarla.
-- **Importar no publica nada fuera.** Ni sinapsis automáticas ni exportación al
-  ADR externo, aunque `adr_sync_enabled` esté activo.
+- **Importar no forma sinapsis automáticas.** El documento importado no se
+  enlaza con las memorias de la sesión.
 - **La depuración de secretos sigue activa.** Un token pegado por error en el
   archivo importado no se persiste.
 - **Un import fallido no destruye nada.** Contenido vacío o ilegible se rechaza
@@ -937,17 +926,20 @@ o actualizas el binario con la TUI abierta, ciérrala y vuelve a ejecutarla.
 
 **Proveedor externo (opcional, "brazo extensor"):** si hay un binario CLI de
 grafo de código externo instalado, gomemory lo usa para enriquecer `mem
-context` (sección "Grafo de código externo" + "🔥 Memoria conectada a código
-activo") y `mem pack build` (§10) con clusters, hotspots y anotación de impacto
-al guardar — todo opcional, con degradación silenciosa si no hay proveedor.
-Ajustes relevantes (`mem settings` o `.memory/settings.json`):
+context` (sección "Grafo de código externo": totales y lenguajes del índice) y
+`mem pack build` (§10) con el mismo resumen — todo opcional, con degradación
+silenciosa si no hay proveedor. Ajustes relevantes (`mem settings` o
+`.memory/settings.json`):
 
 | Ajuste | Default | Qué hace |
 | :--- | :--- | :--- |
 | `code_graph_disabled` | `false` | Desactiva CodeGraph como proveedor externo |
 | `code_graph_providers` | *(ninguno: autodetección)* | Lista de comandos de proveedor (`codegraph`). Vacía, autodetecta `codegraph` en el PATH; los comandos heredados ajenos a CodeGraph se ignoran sin error |
-| `code_impact_annotation_disabled` | `false` | Desactiva la anotación de impacto al guardar una memoria con `--filepath` |
-| `adr_sync_enabled` | `false` | Sincronización de ADR (se conserva el puerto inerte por compatibilidad — ver `mem adr-sync status`) |
+
+Los ajustes `adr_sync_enabled` y `code_impact_annotation_disabled` se retiraron
+en HCD-069: CodeGraph no expone ADR ni hotspots. Un `settings.json` que aún los
+tenga sigue cargando, y la tabla `adr_sync_records` se conserva huérfana para
+no cambiar el esquema.
 
 Con `code_graph_providers` vacío, gomemory detecta `codegraph` en el PATH en
 cualquier proyecto y máquina. Si el proyecto aún no tiene `.codegraph/`, el
@@ -1053,12 +1045,9 @@ mem setup opencode              # Plugin para OpenCode
 mem setup claude-code           # Plugin para Claude Code
 
 # Configuración
-mem settings --show                       # Ver settings (auto-approve, grafo externo, ADR, etc.)
+mem settings --show                       # Ver settings (auto-approve, grafo externo, etc.)
 mem settings --code-graph=false           # Apagar el grafo de código externo
 mem settings --code-graph-providers=a,b   # Proveedores candidatos, en orden de prioridad
-mem settings --code-impact-annotation=false  # Apagar la anotación de impacto al guardar
-mem settings --adr-sync=true              # Activar la sincronización bidireccional de ADR
-mem adr-sync status                       # Ver el estado de la sincronización de ADR
 
 # Portabilidad de memorias
 mem export                          # Volcar memorias + relaciones a un JSON portable

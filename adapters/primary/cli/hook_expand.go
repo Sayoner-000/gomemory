@@ -494,17 +494,6 @@ func editContextSource(deps *Deps, root string) func(context.Context, string) do
 			return domain.EditContextInput{}
 		}
 		uc := usecases.EditContext{Source: full.EditContext, Root: root, Project: full.Project}
-		if len(full.CodeProviders) > 0 {
-			providers := full.CodeProviders
-			uc.Impact = func(p string) (domain.CodeImpactAnnotation, bool) {
-				for _, pr := range providers {
-					if a, ok := pr.ImpactFor(p); ok {
-						return a, true
-					}
-				}
-				return domain.CodeImpactAnnotation{}, false
-			}
-		}
 		return uc.Build(ctx, path)
 	}
 }

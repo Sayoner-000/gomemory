@@ -39,10 +39,7 @@ func TestEditContext(t *testing.T) {
 		},
 		tests: []domain.EditContextTest{{Name: "TestBloquea", Dir: "./domain"}},
 	}
-	uc := EditContext{Source: src, Root: root, Project: "proj",
-		Impact: func(p string) (domain.CodeImpactAnnotation, bool) {
-			return domain.CodeImpactAnnotation{Hotspot: true, Symbol: "EvaluateRules", FanIn: 13}, p == "domain/rules.go"
-		}}
+	uc := EditContext{Source: src, Root: root, Project: "proj"}
 
 	in := uc.Build(context.Background(), abs)
 	if in.Path != "domain/rules.go" {
@@ -58,8 +55,8 @@ func TestEditContext(t *testing.T) {
 	if len(ids) != 3 || ids[0] != 8 || ids[1] != 6 || ids[2] != 9 {
 		t.Fatalf("decisiones y bugfix antes que checkpoints, máximo 3: %v", ids)
 	}
-	if len(in.Tests) != 1 || in.Impact == nil || in.Impact.FanIn != 13 {
-		t.Fatalf("faltan pruebas o impacto: %+v", in)
+	if len(in.Tests) != 1 {
+		t.Fatalf("faltan las pruebas: %+v", in)
 	}
 
 	// Una fuente que falla se omite; las demás siguen.

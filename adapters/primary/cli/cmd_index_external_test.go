@@ -23,9 +23,6 @@ func (p indexGraphProvider) Snapshot() domain.CodeProviderSnapshot {
 	return domain.CodeProviderSnapshot{}
 }
 func (p indexGraphProvider) MaybeRefresh() {}
-func (p indexGraphProvider) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
-	return domain.CodeImpactAnnotation{}, false
-}
 func (p indexGraphProvider) IndexRepository(_ context.Context, mode string) (int, int, error) {
 	*p.calls = append(*p.calls, p.name+":"+mode)
 	return 12, 34, p.err

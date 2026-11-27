@@ -118,9 +118,6 @@ func (m *mockCodeProviderMaintainer) Snapshot() domain.CodeProviderSnapshot {
 	return domain.CodeProviderSnapshot{Available: m.available, Provider: m.name}
 }
 func (m *mockCodeProviderMaintainer) MaybeRefresh() {}
-func (m *mockCodeProviderMaintainer) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
-	return domain.CodeImpactAnnotation{}, false
-}
 func (m *mockCodeProviderMaintainer) Optimize(ctx context.Context, dryRun bool, reindex bool) (domain.ExternalProviderOptimizeReport, error) {
 	return domain.ExternalProviderOptimizeReport{
 		Provider:         m.name,

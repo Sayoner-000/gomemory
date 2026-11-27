@@ -11,7 +11,6 @@ import (
 
 func TestListMemoriesByFilepath(t *testing.T) {
 	db := openTestDB(t)
-	SetCodeImpactProvider(nil)
 	insert := func(project, title, path string, typ domain.MemoryType) int64 {
 		t.Helper()
 		id, err := InsertMemory(db, &domain.Memory{Project: project, Type: typ, Title: title, Content: "contenido de " + title, Filepath: path})

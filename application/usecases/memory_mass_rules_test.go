@@ -96,17 +96,14 @@ func TestRankMass_TareaSubeEnlazadasYAisladaConservaSuCuota(t *testing.T) {
 
 func TestDescribeSeeds(t *testing.T) {
 	for _, tc := range []struct {
-		session, hotspot int
-		uniform          bool
-		want             string
+		session int
+		want    string
 	}{
-		{0, 0, true, "todas las memorias (uniforme)"},
-		{2, 0, false, "sesión activa (2)"},
-		{0, 3, false, "anclas a hotspot (3)"},
-		{2, 3, false, "sesión activa (2) + anclas a hotspot (3)"},
+		{0, "todas las memorias (uniforme)"},
+		{2, "sesión activa (2)"},
 	} {
-		if got := usecases.DescribeSeeds(tc.session, tc.hotspot, tc.uniform); got != tc.want {
-			t.Fatalf("DescribeSeeds(%d,%d,%t) = %q, want %q", tc.session, tc.hotspot, tc.uniform, got, tc.want)
+		if got := usecases.DescribeSeeds(tc.session); got != tc.want {
+			t.Fatalf("DescribeSeeds(%d) = %q, want %q", tc.session, got, tc.want)
 		}
 	}
 }

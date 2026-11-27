@@ -33,15 +33,6 @@ type Settings struct {
 	// CodeGraph. ReadSettings descarta lo que no sea CodeGraph (HCD-065).
 	// Vacía ⇒ se usa CodeGraphCommand legado o la autodetección en PATH.
 	CodeGraphProviders []string `json:"code_graph_providers,omitempty"`
-	// AdrSyncEnabled activa la sincronización bidireccional de ADR (feature
-	// 010, Historia 2). Default false: opt-in explícito.
-	AdrSyncEnabled bool `json:"adr_sync_enabled,omitempty"`
-	// CodeImpactAnnotationDisabled apaga la anotación de impacto al guardar
-	// una memoria con filepath (feature 010, Historia 1). Ausente/false =
-	// activada por defecto — mismo patrón "disabled" que CodeGraphDisabled,
-	// necesario porque un bool JSON no distingue "ausente" de "false" y la
-	// anotación debe quedar ON sin que el usuario tenga que optar por ella.
-	CodeImpactAnnotationDisabled bool `json:"code_impact_annotation_disabled,omitempty"`
 	// Budget: techo blando (CARACTERES) de get_context. Semántica normalizada en
 	// ReadSettings: ausente/0 → default; negativo → sin límite (opt-out).
 	Budget int `json:"budget,omitempty"`

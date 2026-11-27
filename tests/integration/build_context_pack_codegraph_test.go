@@ -14,26 +14,20 @@ import (
 // fakeCodeGraphProvider implementa ports.CodeGraphProvider para pruebas de
 // integración de la feature 018, sin tocar ningún binario externo.
 type fakeCodeGraphProvider struct {
-	snap         domain.CodeProviderSnapshot
-	impactByFile map[string]domain.CodeImpactAnnotation
+	snap domain.CodeProviderSnapshot
 }
 
 func (f *fakeCodeGraphProvider) Name() string                          { return f.snap.Provider }
 func (f *fakeCodeGraphProvider) Snapshot() domain.CodeProviderSnapshot { return f.snap }
 func (f *fakeCodeGraphProvider) MaybeRefresh()                         {}
 
-func (f *fakeCodeGraphProvider) ImpactFor(filepath string) (domain.CodeImpactAnnotation, bool) {
-	ann, ok := f.impactByFile[filepath]
-	return ann, ok
-}
-
 var _ ports.CodeGraphProvider = (*fakeCodeGraphProvider)(nil)
 
 // TestBuildContextPack_NoCodeGraph_ExcludesArchitectureAndBoost cubre
 // spec.md (feature 018) Historia 3: con IncludeCodeGraph=false, un
-// CodeGraphProvider con hotspot y snapshot de arquitectura disponible no
-// aporta ningún ítem "codegraph:*" ni sube ninguna prioridad — mismo
-// resultado que si no hubiera proveedor configurado en absoluto (FR-009).
+// CodeGraphProvider con snapshot de arquitectura disponible no aporta ningún
+// ítem "codegraph:*" ni sube ninguna prioridad — mismo resultado que si no
+// hubiera proveedor configurado en absoluto (FR-009).
 func TestBuildContextPack_NoCodeGraph_ExcludesArchitectureAndBoost(t *testing.T) {
 	root := t.TempDir()
 	db, err := persistence.Init(root)
@@ -58,9 +52,6 @@ func TestBuildContextPack_NoCodeGraph_ExcludesArchitectureAndBoost(t *testing.T)
 				TotalNodes: 10,
 				TotalEdges: 20,
 			},
-		},
-		impactByFile: map[string]domain.CodeImpactAnnotation{
-			"hot.go": {Hotspot: true, FanIn: 10},
 		},
 	}
 

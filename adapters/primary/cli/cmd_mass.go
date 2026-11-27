@@ -77,14 +77,14 @@ func runMass(deps *Deps, task string, top int, w io.Writer) error {
 }
 
 // massSeedsFor siembra en los resultados de la tarea, con peso decreciente
-// según su posición, o en el contexto vigente (sesión y hotspots) sin tarea.
+// según su posición, o en la sesión activa sin tarea.
 func massSeedsFor(deps *Deps, mems []domain.Memory, task string) (map[int64]float64, string, error) {
 	if task == "" {
 		var sess *domain.Session
 		if deps.SessionRepo != nil {
 			sess, _ = deps.SessionRepo.Active(deps.Project)
 		}
-		seeds, label := usecases.ContextSeeds(mems, sess, deps.CodeProviders)
+		seeds, label := usecases.ContextSeeds(mems, sess)
 		return seeds, label, nil
 	}
 	found, err := deps.MemoryRepo.Search(deps.Project, task, 20)

@@ -15,8 +15,6 @@ TUI; `mem settings --show` prints the live values for the current project.
 | `plan_guard_disabled` | `false` | Disable the deterministic plan-shape guard (`mem hook plan-guard`) — see [`AGENT-INTEGRATION.md`](AGENT-INTEGRATION.md) |
 | `code_graph_disabled` | `false` | Disable the optional external code-graph provider entirely |
 | `code_graph_providers` | *(none)* | Ordered list of external code-graph provider commands (priority fallback) |
-| `code_impact_annotation_disabled` | `false` | Disable annotating saved memories with code-graph hotspot impact |
-| `adr_sync_enabled` | `false` | Opt-in bidirectional sync of architecture memories with the external provider's ADR document |
 | `review_max_fix_rounds` | `2` | Round budget for `mem review` fix/re-judgment cycles |
 | `review_auto_fix_severities` | `["CRITICAL","HIGH"]` | Severities eligible for automatic correction without explicit authorization |
 | `update_check_disabled` | `false` | Turn off the new-version notice and its background check (no network calls). `GOMEMORY_NO_UPDATE_CHECK=1` does the same for every project |

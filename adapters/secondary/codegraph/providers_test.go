@@ -65,9 +65,6 @@ func (p *refreshTestProvider) Snapshot() domain.CodeProviderSnapshot {
 	return domain.CodeProviderSnapshot{}
 }
 func (p *refreshTestProvider) MaybeRefresh() {}
-func (p *refreshTestProvider) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
-	return domain.CodeImpactAnnotation{}, false
-}
 func (p *refreshTestProvider) Refresh(context.Context) {
 	p.calls.Add(1)
 	if p.started != nil {

@@ -162,47 +162,6 @@ func TestInsertSeedMemory_NoFormaSinapsis(t *testing.T) {
 	}
 }
 
-// TestInsertSeedMemory_NoExportaADR cubre G3 (FR-034) — la brecha ACTIVA que la
-// primera auditoría dio por inofensiva. adrSectionForType mapea Architecture a
-// una sección exportable, y la semilla de constitución es de ese tipo: con
-// adr_sync_enabled=true, instalar habría publicado las 635 líneas en el
-// documento ADR externo de la persona, síncrono y sin que nadie lo pidiera.
-func TestInsertSeedMemory_NoExportaADR(t *testing.T) {
-	db := openTestDB(t)
-
-	prov := &adrProviderEspia{}
-	SetADRSync(prov, NewADRSyncRepository(db))
-	SetAdrSyncEnabled(true)
-	t.Cleanup(func() {
-		SetAdrSyncEnabled(false)
-		SetADRSync(nil, nil)
-	})
-
-	// Control: por la vía normal, una memoria architecture SÍ intenta exportar.
-	if _, err := InsertMemory(db, &domain.Memory{
-		Project: "proj", Type: domain.Architecture,
-		Title: "decisión normal", Content: "contenido de la decisión",
-	}); err != nil {
-		t.Fatalf("insert normal: %v", err)
-	}
-	if prov.llamadas == 0 {
-		t.Fatal("precondición rota: con adr_sync_enabled=true la vía normal debería intentar exportar")
-	}
-
-	prov.llamadas = 0
-
-	if _, err := InsertSeedMemory(db, &domain.Memory{
-		Project: "proj", Type: domain.Architecture,
-		Title: "Constitución del proyecto", Content: "texto de la constitución",
-		TopicKey: domain.TopicConstitution,
-	}); err != nil {
-		t.Fatalf("insert seed: %v", err)
-	}
-	if prov.llamadas != 0 {
-		t.Errorf("la siembra intentó exportar al ADR externo %d vez/veces; debe ser 0 incluso con la sincronización activada", prov.llamadas)
-	}
-}
-
 // TestInsertSeedMemory_ConservaLaDepuracionDeSecretos: la vía inerte omite los
 // canales laterales, NO la defensa de seguridad. Un token pegado por error en
 // un documento importado no puede persistirse (data-model.md §3bis).

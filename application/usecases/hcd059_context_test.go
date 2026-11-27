@@ -52,7 +52,7 @@ func TestHCD059ContextEquivalence(t *testing.T) {
 			if _, err := builder.Relations.(ports.RelationRepository).Insert(&domain.Relation{Project: "perf", MemoryIDA: 1, MemoryIDB: 3, Relation: domain.ConflictsWith, Confidence: 1}); err != nil {
 				t.Fatal(err)
 			}
-			builder.CodeProviders = []ports.CodeGraphProvider{hotspotProvider("missing/file0.go")}
+			builder.CodeProviders = []ports.CodeGraphProvider{&fakeCodeProvider{snap: domain.CodeProviderSnapshot{Provider: "fake-provider", Available: true}}}
 			for _, budget := range []int{0, 12000} {
 				for _, index := range []bool{false, true} {
 					t.Run(fmt.Sprintf("budget%d/index%v", budget, index), func(t *testing.T) {

@@ -9,11 +9,11 @@ import (
 
 // Contexto de edición (HCD-028): al ir a editar un archivo, el agente recibe
 // lo que el proyecto ya sabe de él — decisiones ancladas, pruebas que lo
-// cubren, la sección de la Constitución de su capa y su impacto —, solo con
-// punteros y con tope propio (Q1).
+// cubren y la sección de la Constitución de su capa —, solo con punteros y con
+// tope propio (Q1).
 
 // EditContextMaxRunes es el tope del contexto de edición (Q1): mayor que el
-// de los avisos de expand porque agrupa cuatro fuentes, y acotado para no
+// de los avisos de expand porque agrupa tres fuentes, y acotado para no
 // competir con la tarea.
 const EditContextMaxRunes = 1200
 
@@ -74,12 +74,11 @@ type EditContextInput struct {
 	Path     string
 	Memories []EditContextMemory
 	Tests    []EditContextTest
-	Impact   *CodeImpactAnnotation
 }
 
 // RenderEditContext compone el contexto de edición en orden fijo — memorias,
-// pruebas, Constitución e impacto —, con tope EditContextMaxRunes. Devuelve ""
-// si no hay nada que aportar.
+// pruebas y Constitución —, con tope EditContextMaxRunes. Devuelve "" si no hay
+// nada que aportar.
 func RenderEditContext(in EditContextInput) string {
 	var lines []string
 	for i, m := range in.Memories {
@@ -105,10 +104,7 @@ func RenderEditContext(in EditContextInput) string {
 	if hasSection {
 		lines = append(lines, fmt.Sprintf("- Constitución §%d %s → mem constitution", section.Number, section.Title))
 	}
-	if in.Impact != nil && in.Impact.Hotspot {
-		lines = append(lines, fmt.Sprintf("- Impacto: %s es un hotspot (fan-in %d); revisa sus llamadores", in.Impact.Symbol, in.Impact.FanIn))
-	}
-	if len(in.Memories) == 0 && len(in.Tests) == 0 && (in.Impact == nil || !in.Impact.Hotspot) && !hasSection {
+	if len(in.Memories) == 0 && len(in.Tests) == 0 && !hasSection {
 		return ""
 	}
 	out := "Contexto de " + in.Path + " (gomemory):\n" + strings.Join(lines, "\n")

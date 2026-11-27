@@ -248,7 +248,7 @@ func TestUsage_MencionaPackYFlujos(t *testing.T) {
 	texto := string(data)
 	for _, sub := range []string{
 		"mem pack build", "mem pack show|compress|stats|retrieve|savings|tune|purge",
-		"mem seed", "mem adr-sync status",
+		"mem seed", "mem index",
 		"COMMANDS", "EJEMPLOS COMUNES", "OPCIONES",
 		"Memoria diaria", "Contexto y ahorro", "Sesiones",
 		"Revisión adversarial", "Instalación e integración",

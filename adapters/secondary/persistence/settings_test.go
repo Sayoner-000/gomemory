@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"mem/domain"
@@ -28,12 +29,6 @@ func writeRawSettings(t *testing.T, root string, raw map[string]any) {
 
 func TestDefaultSettings_CodeGraphEvolutionDefaults(t *testing.T) {
 	s := DefaultSettings()
-	if s.AdrSyncEnabled {
-		t.Error("AdrSyncEnabled debería ser false por defecto (opt-in explícito)")
-	}
-	if s.CodeImpactAnnotationDisabled {
-		t.Error("CodeImpactAnnotationDisabled debería ser false por defecto (la anotación queda activa)")
-	}
 	if len(s.CodeGraphProviders) != 0 {
 		t.Errorf("CodeGraphProviders debería estar vacío por defecto, tiene %v", s.CodeGraphProviders)
 	}
@@ -43,7 +38,7 @@ func TestReadSettings_MissingFile_UsesDefaults(t *testing.T) {
 	root := t.TempDir()
 	s := ReadSettings(root)
 	want := DefaultSettings()
-	if s.AdrSyncEnabled != want.AdrSyncEnabled || s.CodeImpactAnnotationDisabled != want.CodeImpactAnnotationDisabled {
+	if s.CodeGraphDisabled != want.CodeGraphDisabled || s.Budget != want.Budget {
 		t.Fatalf("sin settings.json, se esperaban los defaults: %+v, hubo: %+v", want, s)
 	}
 }
@@ -123,23 +118,32 @@ func TestReadSettings_NoProviderConfigured_EmptyList(t *testing.T) {
 	}
 }
 
-// adr_sync_enabled y code_impact_annotation_disabled son bool simples: deben
-// preservar el valor explícito del JSON (incluido "true" para el disabled,
-// el caso que probaría un default mal implementado con puntero olvidado).
-func TestReadSettings_PreservesExplicitBooleans(t *testing.T) {
+// HCD-069: adr_sync_enabled y code_impact_annotation_disabled se retiraron. Un
+// settings.json que aún los tenga sigue cargando el resto de ajustes, y al
+// reescribirlo ya no se conservan.
+func TestHCD069_AjustesRetiradosSiguenCargando(t *testing.T) {
 	root := t.TempDir()
 	writeRawSettings(t, root, map[string]any{
 		"adr_sync_enabled":                true,
 		"code_impact_annotation_disabled": true,
+		"language":                        "en",
 	})
 
 	s := ReadSettings(root)
-
-	if !s.AdrSyncEnabled {
-		t.Error("adr_sync_enabled=true explícito debería preservarse")
+	if s.Language != "en" {
+		t.Fatalf("un settings.json con ajustes retirados debe seguir cargando el resto: language=%q", s.Language)
 	}
-	if !s.CodeImpactAnnotationDisabled {
-		t.Error("code_impact_annotation_disabled=true explícito debería preservarse")
+	if err := WriteSettings(root, s); err != nil {
+		t.Fatalf("WriteSettings: %v", err)
+	}
+	data, err := os.ReadFile(SettingsPath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"adr_sync_enabled", "code_impact_annotation_disabled"} {
+		if strings.Contains(string(data), key) {
+			t.Errorf("el ajuste retirado %q no debe reescribirse:\n%s", key, data)
+		}
 	}
 }
 

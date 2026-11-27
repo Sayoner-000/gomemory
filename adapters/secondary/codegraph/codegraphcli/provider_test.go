@@ -106,7 +106,7 @@ func TestParseStatus_ExigeIndiceActualDelProyecto(t *testing.T) {
 	root := "/tmp/project"
 	valid := fmt.Sprintf(`{"initialized":true,"projectPath":%q,"nodeCount":8297,"edgeCount":22677,"languages":["go","typescript"],"index":{"state":"complete"},"pendingChanges":{"added":0,"modified":0,"removed":0}}`, root)
 	arch, ok := parseStatus([]byte(valid), root)
-	if !ok || arch.TotalNodes != 8297 || arch.TotalEdges != 22677 || len(arch.Hotspots) != 0 || len(arch.LanguageNames) != 2 {
+	if !ok || arch.TotalNodes != 8297 || arch.TotalEdges != 22677 || len(arch.LanguageNames) != 2 {
 		t.Fatalf("status válido = %#v, %v", arch, ok)
 	}
 	for name, raw := range map[string]string{

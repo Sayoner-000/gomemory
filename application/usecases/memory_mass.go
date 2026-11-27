@@ -4,7 +4,6 @@ import (
 	"sort"
 	"strconv"
 
-	"mem/application/ports"
 	"mem/domain"
 )
 
@@ -63,47 +62,28 @@ func RankMass(mems []domain.Memory, rels []domain.Relation, seeds map[int64]floa
 }
 
 // ContextSeeds siembra la masa en lo que importa ahora: las memorias de la
-// sesión activa y las ancladas a código activo. Sin ninguna devuelve nil, que
-// ComputeMass trata como siembra uniforme.
-func ContextSeeds(all []domain.Memory, active *domain.Session, providers []ports.CodeGraphProvider) (map[int64]float64, string) {
+// sesión activa. Sin ninguna devuelve nil, que ComputeMass trata como siembra
+// uniforme.
+func ContextSeeds(all []domain.Memory, active *domain.Session) (map[int64]float64, string) {
 	seeds := make(map[int64]float64)
-	typeByID := make(map[int64]domain.MemoryType, len(all))
-	for _, m := range all {
-		typeByID[m.ID] = m.Type
-	}
-	sessionN := 0
 	if active != nil {
 		for _, m := range all {
 			if m.SessionID == active.ID && m.Type != domain.Checkpoint {
 				seeds[m.ID] = 1
-				sessionN++
 			}
 		}
 	}
-	hotspotN := 0
-	for id := range hotspotMemoryIDs(all, providers) {
-		if typeByID[id] == domain.Checkpoint {
-			continue
-		}
-		seeds[id] = 1
-		hotspotN++
-	}
 	if len(seeds) == 0 {
-		return nil, DescribeSeeds(0, 0, true)
+		return nil, DescribeSeeds(0)
 	}
-	return seeds, DescribeSeeds(sessionN, hotspotN, false)
+	return seeds, DescribeSeeds(len(seeds))
 }
 
-// DescribeSeeds es el texto {semillas} de la leyenda de masa.
-func DescribeSeeds(sessionN, hotspotN int, uniform bool) string {
-	switch {
-	case uniform:
+// DescribeSeeds es el texto {semillas} de la leyenda de masa; sin memorias de
+// la sesión activa, la siembra es uniforme.
+func DescribeSeeds(sessionN int) string {
+	if sessionN == 0 {
 		return "todas las memorias (uniforme)"
-	case sessionN > 0 && hotspotN > 0:
-		return "sesión activa (" + strconv.Itoa(sessionN) + ") + anclas a hotspot (" + strconv.Itoa(hotspotN) + ")"
-	case sessionN > 0:
-		return "sesión activa (" + strconv.Itoa(sessionN) + ")"
-	default:
-		return "anclas a hotspot (" + strconv.Itoa(hotspotN) + ")"
 	}
+	return "sesión activa (" + strconv.Itoa(sessionN) + ")"
 }

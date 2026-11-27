@@ -16,8 +16,6 @@ func CmdSettings(deps *Deps, args []string) {
 	codeGraph := fs.Bool("code-graph", true, "Activar el grafo de código externo (CodeGraph)")
 	codeGraphCmd := fs.String("code-graph-command", "", "Binario del proveedor de grafo externo (opcional, legado — ver --code-graph-providers)")
 	codeGraphProviders := fs.String("code-graph-providers", "", "Lista de proveedores candidatos separados por coma, en orden de prioridad (usa el primero disponible)")
-	codeImpactAnnotation := fs.Bool("code-impact-annotation", true, "Anotar impacto de código al guardar una memoria con archivo asociado")
-	adrSync := fs.Bool("adr-sync", false, "Sincronizar memorias architecture/decision como ADR con el proveedor externo")
 	speckitContext := fs.Bool("speckit-context", true, "Activar el brazo extensor hacia spec-kit (resumen de historial en /speckit-specify)")
 	atomicPlan := fs.Bool("atomic-plan", true, "Activar la planificación atómica en modo plan (método + contexto vía get_plan_context)")
 	compressionLevel := fs.String("compression-level", "", "Nivel de compresión del contexto: none|structural|max (feature 033)")
@@ -62,10 +60,6 @@ func CmdSettings(deps *Deps, args []string) {
 			settings.CodeGraphCommand = *codeGraphCmd
 		case "code-graph-providers":
 			settings.CodeGraphProviders = splitProviderList(*codeGraphProviders)
-		case "code-impact-annotation":
-			settings.CodeImpactAnnotationDisabled = !*codeImpactAnnotation
-		case "adr-sync":
-			settings.AdrSyncEnabled = *adrSync
 		case "speckit-context":
 			settings.SpeckitContextDisabled = !*speckitContext
 		case "atomic-plan":
@@ -126,8 +120,6 @@ func printSettings(deps *Deps, root string) {
 	} else if s.CodeGraphCommand != "" {
 		humanf("Binario del proveedor: %s\n", s.CodeGraphCommand)
 	}
-	humanf("%s: %v\n", cat.Get(lang, "settings_impact_annotation"), !s.CodeImpactAnnotationDisabled)
-	humanf("%s: %v\n", cat.Get(lang, "settings_adr_sync"), s.AdrSyncEnabled)
 	humanf("%s: %v\n", cat.Get(lang, "settings_speckit"), !s.SpeckitContextDisabled)
 	humanf("%s: %v\n", cat.Get(lang, "settings_atomic_plan"), !s.AtomicPlanDisabled)
 	humanf("%s: %s\n", cat.Get(lang, "settings_language"), s.Language)

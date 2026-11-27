@@ -73,11 +73,6 @@ func (p *Provider) Snapshot() domain.CodeProviderSnapshot {
 	return snap
 }
 
-func (p *Provider) ImpactFor(string) (domain.CodeImpactAnnotation, bool) {
-	// status --json no da fan-in por archivo. No inventar hotspots.
-	return domain.CodeImpactAnnotation{}, false
-}
-
 func (p *Provider) MaybeRefresh() {
 	if refreshDisabled() || !p.Snapshot().Stale(snapshotTTL) {
 		return

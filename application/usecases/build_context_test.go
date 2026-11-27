@@ -17,20 +17,11 @@ import (
 type fakeCodeProvider struct {
 	snap      domain.CodeProviderSnapshot
 	refreshed bool
-	// impactByFile permite configurar el resultado de ImpactFor por ruta,
-	// para probar la sección "Memoria conectada a código activo" de Build()
-	// sin depender de un proveedor real. Ruta ausente = sin match (false).
-	impactByFile map[string]domain.CodeImpactAnnotation
 }
 
 func (f *fakeCodeProvider) Name() string                          { return f.snap.Provider }
 func (f *fakeCodeProvider) Snapshot() domain.CodeProviderSnapshot { return f.snap }
 func (f *fakeCodeProvider) MaybeRefresh()                         { f.refreshed = true }
-
-func (f *fakeCodeProvider) ImpactFor(filepath string) (domain.CodeImpactAnnotation, bool) {
-	ann, ok := f.impactByFile[filepath]
-	return ann, ok
-}
 
 var _ ports.CodeGraphProvider = (*fakeCodeProvider)(nil)
 
@@ -176,8 +167,6 @@ func TestBuild_ExternalGraphSection(t *testing.T) {
 			TotalNodes: 2121,
 			TotalEdges: 4462,
 			Languages:  []domain.CodeLangStat{{Language: "Go", FileCount: 95}},
-			Clusters:   []domain.CodeCluster{{Label: "adapters", Members: 54, Cohesion: 0.94, TopNodes: []string{"IndexProject", "NodesByName"}}},
-			Hotspots:   []domain.CodeHotspot{{Name: "FindRoot", FanIn: 10}},
 		},
 	}}
 	builder.CodeProviders = []ports.CodeGraphProvider{fake}
@@ -192,9 +181,6 @@ func TestBuild_ExternalGraphSection(t *testing.T) {
 		"Proyecto indexado: `/repo/proj`", // valor real para el parámetro projectPath
 		"Grafo estructural indexado: 2121 nodos, 4462 relaciones",
 		"Go (95)",
-		"**adapters**",
-		"IndexProject",
-		"FindRoot (fan-in 10)",
 		"codegraph_explore", // nota de protocolo / división de trabajo
 	} {
 		if !strings.Contains(out, want) {
@@ -324,69 +310,11 @@ func TestBuild_ExternalGraphAbsentWhenUnavailable(t *testing.T) {
 	}
 }
 
-// TestBuild_HotCodeSection_MatchAparece verifica que una memoria cuyo
-// Filepath resuelve a un hotspot vigente del grafo externo aparece en la
-// nueva sección "Memoria conectada a código activo" — la relación se
-// recalcula en cada Build() contra ImpactFor, no queda congelada como la
-// anotación estática de InsertMemory.
-func TestBuild_HotCodeSection_MatchAparece(t *testing.T) {
-	root := t.TempDir()
-	db, err := persistence.Init(root)
-	if err != nil {
-		t.Fatalf("init db: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	memRepo := persistence.NewMemoryRepository(db)
-	_, _ = memRepo.Insert(&domain.Memory{
-		Project: "proj", Type: domain.Bugfix, Title: "fix parser de rutas",
-		Content: "...", Filepath: "adapters/secondary/persistence/memory.go",
-	})
-	_, _ = memRepo.Insert(&domain.Memory{
-		Project: "proj", Type: domain.Decision, Title: "no toca hotspot",
-		Content: "...", Filepath: "docs/README.md",
-	})
-
-	builder := usecases.New(memRepo, persistence.NewSessionRepository(db), persistence.NewRelationRepository(db), root, "proj")
-	fake := &fakeCodeProvider{
-		snap: domain.CodeProviderSnapshot{Provider: "codegraph", Available: true, Architecture: &domain.CodeArchitecture{}},
-		impactByFile: map[string]domain.CodeImpactAnnotation{
-			"adapters/secondary/persistence/memory.go": {Hotspot: true, Symbol: "InsertMemory", FanIn: 41},
-		},
-	}
-	builder.CodeProviders = []ports.CodeGraphProvider{fake}
-
-	out, err := builder.Build()
-	if err != nil {
-		t.Fatalf("build: %v", err)
-	}
-	if !strings.Contains(out, "Memoria conectada a código activo") {
-		t.Fatalf("esperaba la sección de hotspots en vivo, got:\n%s", out)
-	}
-	if !strings.Contains(out, "fix parser de rutas") || !strings.Contains(out, "fan-in 41") {
-		t.Fatalf("esperaba la memoria con match y su fan-in, got:\n%s", out)
-	}
-	// "no toca hotspot" SÍ aparece en el output (en su propia sección de
-	// Decisiones Técnicas, legítimamente) — lo que no debe hacer es aparecer
-	// DENTRO de la sección nueva de hotspots.
-	start := strings.Index(out, "## 🔥 Memoria conectada a código activo")
-	if start < 0 {
-		t.Fatalf("no se encontró la sección de hotspots en vivo, got:\n%s", out)
-	}
-	section := out[start:]
-	if end := strings.Index(section[len("## 🔥 Memoria conectada a código activo"):], "\n## "); end >= 0 {
-		section = section[:len("## 🔥 Memoria conectada a código activo")+end]
-	}
-	if strings.Contains(section, "no toca hotspot") {
-		t.Fatalf("una memoria sin match no debe aparecer en la sección de hotspots, got sección:\n%s", section)
-	}
-}
-
-// TestBuild_HotCodeSection_AusenteSinMatchNiProveedor cubre dos casos donde
-// la sección nueva no debe aparecer: sin ningún match de hotspot, y sin
-// CodeProviders configurados (no debe romper nada).
+// TestBuild_HotCodeSection_AusenteSinMatchNiProveedor: la sección de hotspots
+// se retiró en HCD-069 (CodeGraph no da fan-in); no aparece con proveedor ni
+// sin él, y construir el contexto no se rompe.
 func TestBuild_HotCodeSection_AusenteSinMatchNiProveedor(t *testing.T) {
-	t.Run("proveedor presente pero sin match", func(t *testing.T) {
+	t.Run("con proveedor disponible", func(t *testing.T) {
 		root := t.TempDir()
 		db, _ := persistence.Init(root)
 		defer func() { _ = db.Close() }()

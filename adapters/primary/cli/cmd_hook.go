@@ -791,16 +791,6 @@ func hookTurnEnd(deps *Deps, args []string) {
 		}
 	}
 
-	// Importación de ADR (feature 010, Historia 2, sentido proveedor→
-	// gomemory): mismo criterio best-effort/no-bloqueante que MaybeRefresh
-	// arriba — timeout corto, cualquier error (proveedor caído, no
-	// disponible) se ignora en silencio, nunca aborta el cierre del turno.
-	if deps.ADRSyncProvider != nil && deps.ADRSyncRepo != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		_ = usecases.ImportADRs(ctx, deps.ADRSyncProvider, deps.ADRSyncRepo, deps.MemoryRepo, deps.Project)
-		cancel()
-	}
-
 	// Recordatorio de compactación (feature 008): si la huella emitida por
 	// gomemory en la sesión superó el umbral, sugiere compactar de forma NEUTRAL
 	// (sin nombrar comandos de cliente) y no bloqueante. Va ANTES de
