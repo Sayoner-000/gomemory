@@ -42,6 +42,9 @@ jobs:
 
       - name: install.sh contra el último release (ruta documentada)
         if: always()
+        env:
+          # Solo lo usa el respaldo por la API si falla la redirección web.
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           bin="$RUNNER_TEMP/mem-release"
           GOMEMORY_BIN_DIR="$bin" bash scripts/install.sh </dev/null

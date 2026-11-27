@@ -140,16 +140,39 @@ uninstall() {
   exit 0
 }
 
+# latest_tag_from_redirect lee el tag de la redirección de la página web
+# `releases/latest` (…/releases/tag/vX.Y.Z). No pasa por api.github.com, cuyo
+# límite anónimo de 60 peticiones por hora se agota en IP compartidas, como
+# los runners de CI, y entonces responde 403.
+latest_tag_from_redirect() {
+  local url
+  url="$(curl -fsSLI -o /dev/null -w '%{url_effective}' --max-redirs 5 \
+    "https://github.com/${REPO}/releases/latest")" || return 1
+  printf '%s' "${url##*/}"
+}
+
+# latest_tag_from_api es el respaldo: consulta la API, autenticada si hay
+# GITHUB_TOKEN en el entorno.
+latest_tag_from_api() {
+  local api
+  local auth=()
+  [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  api="$(curl -fsSL --max-filesize "$MAX_METADATA_BYTES" ${auth[@]+"${auth[@]}"} \
+    "https://api.github.com/repos/${REPO}/releases/latest")" || return 1
+  printf '%s' "$api" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
+}
+
 # resolve_tag convierte la selección en UN tag estable concreto. `latest` se
 # consulta una sola vez: el archivo y checksums.txt se piden después a ese tag
 # exacto, así un release publicado entre ambas descargas no los mezcla.
 resolve_tag() {
   local tag="$VERSION"
   if [ "$tag" = "latest" ]; then
-    local api
-    api="$(curl -fsSL --max-filesize "$MAX_METADATA_BYTES" "https://api.github.com/repos/${REPO}/releases/latest")" \
-      || die "No se pudo consultar la última versión estable de ${REPO}."
-    tag="$(printf '%s' "$api" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+    tag="$(latest_tag_from_redirect || true)"
+    if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+      tag="$(latest_tag_from_api)" \
+        || die "No se pudo consultar la última versión estable de ${REPO}."
+    fi
   fi
   case "$tag" in
     v*) ;;
