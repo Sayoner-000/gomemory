@@ -407,8 +407,13 @@ func (h *HCD) verifyStaleEach(ctx context.Context, in HCDVerifyInput, view HCDVi
 		}
 		groups[e.Command] = append(groups[e.Command], id)
 	}
-	if len(order) == 0 {
+	// HCD-070: fail-closed antes de ejecutar nada. Revalidar solo el grupo con
+	// comando y devolver éxito dejaría las tareas manuales caducadas sin aviso.
+	if len(manual) > 0 {
 		return view, domain.Evidence{}, fmt.Errorf("%w: las tareas caducadas %s solo pasaron con evidencia manual: vuelve a observarlas con --task N --manual", domain.ErrValidation, strings.Join(manual, ", "))
+	}
+	if len(order) == 0 {
+		return view, domain.Evidence{}, fmt.Errorf("%w: no hay tareas caducadas reejecutables", domain.ErrValidation)
 	}
 	var last domain.Evidence
 	for _, command := range order {
