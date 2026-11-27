@@ -19,7 +19,7 @@ func TestGraphBeforeGrep_Bloquea(t *testing.T) {
 	for _, cmd := range []string{
 		`grep -rn "Foo" --include=*.go .`,
 		`grep -rn Foo --include='*.go' adapters`,
-		`egrep -r "a|b" --include=*.ts src`,
+		`egrep -r "ab" --include=*.ts src`,
 		`rg -n Foo -g '*.go'`,
 		`rg Foo -t go`,
 		`rg -tgo Foo`,
@@ -102,7 +102,8 @@ func TestGraphBeforeGrep_CoberturaPorRuta(t *testing.T) {
 		action RuleAction
 	}{
 		{`grep -rln "graph_status" /home/x/gomemory --include=*.py | head`, "opencode", RuleBlock},
-		{`grep -rn "def graph_status" /home/x/gomemory/adapters /home/x/gomemory/application`, "opencode", RuleBlock},
+		{`grep -rn "graph_status" /home/x/gomemory/adapters /home/x/gomemory/application`, "opencode", RuleBlock},
+		{`grep -rn "def graph_status" /home/x/gomemory/adapters`, "opencode", RuleWarn}, // texto literal (HCD-066)
 		{`cd /home/x/gomemory; grep -rn additionalProperties adapters/primary/cli`, "claude", RuleBlock},
 		{`rg graph_status /home/x/gomemory`, "claude", RuleBlock},
 		{`git grep -n Foo`, "claude", RuleAllow},            // cwd sin cobertura

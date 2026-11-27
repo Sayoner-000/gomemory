@@ -81,6 +81,42 @@ func TestGraphBeforeGrep_CuatroRuntimes(t *testing.T) {
 	}
 }
 
+// HCD-066 (Q2): una búsqueda de texto literal en código no se bloquea en
+// ninguno de los cuatro runtimes; una de símbolo, sí. La regla vive en domain y
+// el adaptador solo cambia el dialecto de la respuesta.
+func TestGraphBeforeGrep_LiteralCuatroRuntimes(t *testing.T) {
+	for cmd, wantBlock := range map[string]bool{
+		`git grep -n 'tiempo limite' -- '*.go'`: false,
+		`git grep -n NewProviders -- '*.go'`:    true,
+	} {
+		cases := []struct {
+			name, emit, payload string
+			blocked             func(hookRenderedOutput) bool
+		}{
+			{"claude", "", `{"hook_event_name":"PreToolUse","tool_name":"Bash","session_id":"s","tool_input":{"command":"` + cmd + `"}}`,
+				func(o hookRenderedOutput) bool { return strings.Contains(o.stdout, `"permissionDecision":"deny"`) }},
+			{"codex", "json", `{"tool_name":"Bash","session_id":"s","tool_input":{"command":"` + cmd + `"}}`,
+				func(o hookRenderedOutput) bool { return strings.Contains(o.stdout, `"permissionDecision":"deny"`) }},
+			{"agy", "agy", `{"tool_name":"Bash","session_id":"s","tool_input":{"command":"` + cmd + `"}}`,
+				func(o hookRenderedOutput) bool { return strings.HasPrefix(o.stdout, "BLOCK: ") }},
+			{"opencode", "text", `{"tool":"bash","sessionID":"s","args":{"command":"` + cmd + `"}}`,
+				func(o hookRenderedOutput) bool { return strings.HasPrefix(o.stdout, "BLOCK: ") }},
+		}
+		for _, c := range cases {
+			var rec []recorded
+			d := expandTestDeps(t, &rec)
+			d.hook = usecases.ExpandHookDeps{Rules: usecases.ExpandRules{
+				Source: expandStaticRules(domain.BuiltinRules()), Root: d.root,
+				IndexedExtensions: func() []string { return []string{".go"} },
+			}}
+			out := runHookExpand(context.Background(), d, "pre-tool", c.emit, []byte(c.payload))
+			if got := c.blocked(out); got != wantBlock {
+				t.Errorf("%s %q: bloqueado=%v, esperaba %v; salida %+v", c.name, cmd, got, wantBlock, out)
+			}
+		}
+	}
+}
+
 // El caso real: OpenCode abierto en un proyecto SIN grafo lee y busca por
 // shell el código de otro repositorio que sí está indexado. La cobertura sale
 // de la ruta del comando, no de la raíz de la sesión.

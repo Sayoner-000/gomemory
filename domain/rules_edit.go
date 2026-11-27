@@ -24,6 +24,14 @@ var codeFileExtensions = map[string]bool{
 	".dart": true, ".ex": true, ".exs": true, ".sql": true,
 }
 
+// textFileExtensions son los archivos de texto del proyecto que también se
+// editan con las herramientas nativas (HCD-066, Q1): documentación,
+// plantillas, skills y configuración.
+var textFileExtensions = map[string]bool{
+	".md": true, ".tmpl": true, ".html": true, ".css": true, ".json": true,
+	".yaml": true, ".yml": true, ".toml": true, ".txt": true, ".xml": true,
+}
+
 func isCodeFile(s string) (string, bool) {
 	s = strings.Trim(s, `"'`)
 	ext := strings.ToLower(filepath.Ext(s))
@@ -31,6 +39,33 @@ func isCodeFile(s string) (string, bool) {
 		return ext, true
 	}
 	return "", false
+}
+
+// editReason es el motivo de bloqueo común. La salida de escape («si es
+// intencionado…») la añade ruleReason a toda regla que bloquea.
+func editReason(ext, via string) string {
+	what := "el archivo " + ext
+	if codeFileExtensions[ext] {
+		what = "código " + ext
+	}
+	return "modificar " + what + " con " + via + " en lugar de las herramientas nativas; " +
+		"usa edit_file o Edit para garantizar diffs auditables y activar el contexto de grafo (HCD-028)"
+}
+
+// editedFile dice si s es un archivo cuya modificación exige la herramienta
+// nativa. El código, siempre. Un archivo de texto, siempre en la edición in
+// situ (sed -i, perl -i); en una redirección o un tee solo si la ruta es del
+// proyecto, porque escribir una salida en /tmp o en el home es legítimo (Q3).
+func editedFile(s string, inPlace bool) (string, bool) {
+	if ext, ok := isCodeFile(s); ok {
+		return ext, true
+	}
+	s = strings.Trim(s, `"'`)
+	ext := strings.ToLower(filepath.Ext(s))
+	if !textFileExtensions[ext] || (!inPlace && externalPath(s)) {
+		return "", false
+	}
+	return ext, true
 }
 
 // containsFileExtension verifica si script contiene ext (ej: ".h", ".go")
@@ -67,10 +102,8 @@ func evalNativeEditOverScripts(in RuleInput) (RuleAction, string) {
 		}
 		// 1. Redirecciones destructivas hacia código: `> code.ext`, `>> code.ext`
 		for _, redir := range c.Redirects {
-			if ext, ok := isCodeFile(redir); ok {
-				return RuleBlock, "modificar código " + ext + " con redirección de consola (" + redir + ") en lugar de las herramientas nativas; " +
-					"usa edit_file o Edit para garantizar diffs auditables y activar el contexto de grafo (HCD-028). " +
-					"Si es intencionado, ejecútalo en tu terminal física o desactiva la regla (mem expand off rules)"
+			if ext, ok := editedFile(redir, false); ok {
+				return RuleBlock, editReason(ext, "redirección de consola ("+redir+")")
 			}
 		}
 
@@ -87,10 +120,8 @@ func evalNativeEditOverScripts(in RuleInput) (RuleAction, string) {
 				if strings.HasPrefix(a, "-") {
 					continue
 				}
-				if ext, ok := isCodeFile(a); ok {
-					return RuleBlock, "modificar código " + ext + " con tee en lugar de las herramientas nativas; " +
-						"usa edit_file o Edit para garantizar diffs auditables y activar el contexto de grafo (HCD-028). " +
-						"Si es intencionado, ejecútalo en tu terminal física o desactiva la regla (mem expand off rules)"
+				if ext, ok := editedFile(a, false); ok {
+					return RuleBlock, editReason(ext, "tee")
 				}
 			}
 		}
@@ -109,10 +140,8 @@ func evalNativeEditOverScripts(in RuleInput) (RuleAction, string) {
 					if strings.HasPrefix(a, "-") {
 						continue
 					}
-					if ext, ok := isCodeFile(a); ok {
-						return RuleBlock, "modificar código " + ext + " con sed -i en lugar de las herramientas nativas; " +
-							"usa edit_file o Edit para garantizar diffs auditables y activar el contexto de grafo (HCD-028). " +
-							"Si es intencionado, ejecútalo en tu terminal física o desactiva la regla (mem expand off rules)"
+					if ext, ok := editedFile(a, true); ok {
+						return RuleBlock, editReason(ext, "sed -i")
 					}
 				}
 			}
@@ -132,10 +161,8 @@ func evalNativeEditOverScripts(in RuleInput) (RuleAction, string) {
 					if strings.HasPrefix(a, "-") {
 						continue
 					}
-					if ext, ok := isCodeFile(a); ok {
-						return RuleBlock, "modificar código " + ext + " con perl -i en lugar de las herramientas nativas; " +
-							"usa edit_file o Edit para garantizar diffs auditables y activar el contexto de grafo (HCD-028). " +
-							"Si es intencionado, ejecútalo en tu terminal física o desactiva la regla (mem expand off rules)"
+					if ext, ok := editedFile(a, true); ok {
+						return RuleBlock, editReason(ext, "perl -i")
 					}
 				}
 			}
@@ -166,9 +193,7 @@ func evalNativeEditOverScripts(in RuleInput) (RuleAction, string) {
 				fullScript := scriptText.String()
 				for ext := range codeFileExtensions {
 					if containsFileExtension(fullScript, ext) {
-						return RuleBlock, "modificar código " + ext + " con script inline de " + cmdName + " en lugar de las herramientas nativas; " +
-							"usa edit_file o Edit para garantizar diffs auditables y activar el contexto de grafo (HCD-028). " +
-							"Si es intencionado, ejecútalo en tu terminal física o desactiva la regla (mem expand off rules)"
+						return RuleBlock, editReason(ext, "script inline de "+cmdName)
 					}
 				}
 			}

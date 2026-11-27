@@ -17,6 +17,9 @@ func TestNativeEditOverScripts_Hook(t *testing.T) {
 		`sed -i 's/a/b/' src/app.ts`,
 		`python3 -c \"open('src/app.ts', 'w').write('x')\"`,
 		`cat content.txt | tee src/handler.go`,
+		// HCD-066 (Q1/Q3): un archivo de texto del proyecto editado in situ.
+		`sed -i 's/a/b/' docs/guia.md`,
+		`perl -0pi -e 's/a/b/' skills/x/SKILL.md`,
 	} {
 		cases := []struct {
 			name, emit, payload string

@@ -52,8 +52,11 @@ func TestNativeEditOverScripts_NoInterviene(t *testing.T) {
 		`node server.js`,
 		`cat src/main.go | grep func`,
 		`head -n 20 src/main.ts`,
-		`echo "hello" > README.md`,
-		`cat <<'EOF' > config.json
+		// Redirigir a un .md o .json del proyecto ya no es libre desde HCD-066
+		// (Q3): lo cubre TestNativeEditOverScripts_ArchivosDeTexto. Fuera del
+		// proyecto sigue siéndolo.
+		`echo "hello" > /tmp/README.md`,
+		`cat <<'EOF' > /tmp/config.json
 {"key": "value"}
 EOF`,
 		`python3 -c "print('reading docs/Guia.html')"`,

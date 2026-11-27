@@ -100,7 +100,15 @@ func evalGraphBeforeGrep(in RuleInput) (RuleAction, string) {
 		if len(indexed) == 0 {
 			continue
 		}
+		// Un patrón de texto literal (comentarios, cadenas, mensajes) no lo
+		// resuelve el grafo: se avisa en vez de bloquear, para que un harness
+		// sin búsqueda nativa conserve una vía legítima (HCD-066, Q2).
+		literal := literalSearch(name, toks[1:])
 		if tool, ext, ok := codeSearchTarget(toks, indexed); ok {
+			if literal {
+				return RuleWarn, "buscar texto literal en código " + ext + " con " + tool + ": el grafo no indexa comentarios ni cadenas, así que se permite; " +
+					"para símbolos, llamadores o impacto usa codegraph_explore (o search_code/get_symbol de gomemory)"
+			}
 			return RuleBlock, "buscar código " + ext + " con " + tool + " cuando el grafo ya lo indexa; " +
 				"usa codegraph_explore (o search_code/get_symbol de gomemory), " +
 				"que devuelve el código con sus llamadores y su radio de impacto"
@@ -110,7 +118,7 @@ func evalGraphBeforeGrep(in RuleInput) (RuleAction, string) {
 			if name == "git" {
 				tool = "git grep"
 			}
-			if !in.HasNativeReadTools() {
+			if !in.HasNativeReadTools() || literal {
 				return RuleWarn, "buscar con " + tool + " en " + covered[0] + ", que un grafo de código indexa; " +
 					"para código usa codegraph_explore o search_code/get_symbol de gomemory"
 			}
@@ -239,6 +247,70 @@ func searchPaths(name string, args []string) (paths []string, implicit bool) {
 		return []string{"."}, true
 	}
 	return out, false
+}
+
+// literalSearch dice si una búsqueda de grep/rg/ag/ack/git grep tiene un patrón
+// de texto literal: contiene espacio, guion, «|», punto o comillas, algo que no
+// es un identificador (HCD-066, Q2). find no tiene patrón de contenido.
+func literalSearch(name string, args []string) bool {
+	switch name {
+	case "grep", "egrep", "fgrep", "rg", "ag", "ack":
+	case "git":
+		sub, rest := gitSubcommandArgs(args)
+		if sub != "grep" {
+			return false
+		}
+		args = rest
+	default:
+		return false
+	}
+	for _, p := range searchPatterns(args) {
+		if strings.ContainsAny(p, " -|.\"'") {
+			return true
+		}
+	}
+	return false
+}
+
+// searchPatterns devuelve los patrones de una búsqueda: los valores de -e y
+// --regexp, o el primer argumento posicional si no hay ninguno. Recorre los
+// argumentos con las mismas reglas que searchPaths.
+func searchPatterns(args []string) []string {
+	var explicit []string
+	positional := ""
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			if positional == "" && len(explicit) == 0 && i+1 < len(args) {
+				positional = args[i+1]
+			}
+			i = len(args)
+		case a == "-e" || a == "--regexp":
+			if i+1 < len(args) {
+				explicit = append(explicit, args[i+1])
+			}
+			i++
+		case strings.HasPrefix(a, "--regexp="):
+			explicit = append(explicit, strings.TrimPrefix(a, "--regexp="))
+		case a == "-f" || a == "--file":
+			i++
+		case searchValueFlags[a]:
+			i++
+		case strings.HasPrefix(a, "-") && a != "-":
+		default:
+			if positional == "" {
+				positional = a
+			}
+		}
+	}
+	if len(explicit) > 0 {
+		return explicit
+	}
+	if positional == "" {
+		return nil
+	}
+	return []string{strings.Trim(positional, `'"`)}
 }
 
 // hasFileFilter dice si la búsqueda declara qué archivos mira (`--include`,

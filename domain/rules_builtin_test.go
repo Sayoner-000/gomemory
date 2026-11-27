@@ -121,9 +121,11 @@ func TestDestructiveShellBuiltin(t *testing.T) {
 		`bash <<<'rm -rf /tmp/x'`:                  RuleBlock,
 		`echo 'rm -rf /tmp/x' | sh`:                RuleBlock,
 		`printf 'ls\nrm -rf /tmp/x\n' | bash`:      RuleBlock,
-		"cat <<EOF > notes.md\nrm -rf /tmp/x\nEOF": RuleAllow,
-		"bash script.sh <<EOF\nrm -rf /tmp/x\nEOF": RuleAllow,
-		`echo 'rm -rf /tmp/x' | tee notes.md`:      RuleAllow,
+		// /tmp: escribir un .md del proyecto lo bloquea native-edit-over-scripts
+		// (HCD-066); aquí solo se mide destructive-shell.
+		"cat <<EOF > /tmp/notes.md\nrm -rf /tmp/x\nEOF": RuleAllow,
+		"bash script.sh <<EOF\nrm -rf /tmp/x\nEOF":      RuleAllow,
+		`echo 'rm -rf /tmp/x' | tee /tmp/notes.md`:      RuleAllow,
 		`echo 'rm -rf /tmp/x' | bash -c 'cat'`:     RuleAllow,
 		// C-006: más lanzadores.
 		`find . -name '*.o' | xargs rm -rf`:       RuleBlock,
@@ -248,7 +250,7 @@ func TestDestructiveShellBuiltin(t *testing.T) {
 		`printf '%s -rf /tmp/x' rm | bash`:      RuleBlock,
 		`printf '%s\n' ls 'rm -rf /tmp/x' | sh`: RuleBlock,
 		`printf '%q' x | bash`:                  RuleBlock,
-		`printf '%s %s' rm -rf | tee notes.md`:  RuleAllow,
+		`printf '%s %s' rm -rf | tee /tmp/notes.md`: RuleAllow,
 		`ls $(printf '%q' x)`:                   RuleAllow,
 		`$(printf '%s' ls) -la`:                 RuleAllow,
 		`echo $(printf '%05d' 42)`:              RuleAllow,

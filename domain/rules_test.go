@@ -157,8 +157,10 @@ func TestDestructiveShellHeredocAndContinuation(t *testing.T) {
 		cmd  string
 		want RuleAction
 	}{
-		{"cat <<'EOF' > doc.md\nrm -rf build\nEOF", RuleAllow},
-		{"cat <<EOF > doc.md\nrm -rf build\nEOF\nrm -rf build", RuleBlock},
+		// /tmp: la escritura de un .md del proyecto la bloquea otra regla
+		// (native-edit-over-scripts, HCD-066); aquí solo se mide destructive-shell.
+		{"cat <<'EOF' > /tmp/doc.md\nrm -rf build\nEOF", RuleAllow},
+		{"cat <<EOF > /tmp/doc.md\nrm -rf build\nEOF\nrm -rf build", RuleBlock},
 		{"rm -rf \\\nbuild", RuleBlock},
 		{"r\\\nm -r\\\nf build", RuleBlock},
 		{"echo 'rm -rf \\\nbuild'", RuleAllow},
