@@ -7,6 +7,20 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.61.0] - 2026-11-27
+
+### Removed
+
+- La sincronización de ADR: el comando `mem adr-sync`, la opción `mem settings --adr-sync` y el ajuste `adr_sync_enabled`. Necesitaba un proveedor con documento ADR y CodeGraph no lo tiene, así que desde v2.60.0 no hacía nada. Con ella desaparecen la importación que corría en cada fin de turno y la exportación que corría en cada guardado.
+- La anotación de impacto y todo lo que dependía de hotspots: la opción `mem settings --code-impact-annotation`, el ajuste `code_impact_annotation_disabled`, la sección «Memoria conectada a código activo» de `get_context`, las semillas de masa por hotspot, el refuerzo de prioridad de `mem pack` y la línea «Impacto» del contexto de edición. `codegraph status --json` no da fan-in, así que ninguna de estas piezas llegaba a activarse.
+
+### Changed
+
+- Un `.memory/settings.json` que todavía tenga `adr_sync_enabled` o `code_impact_annotation_disabled` sigue cargando el resto de ajustes. La próxima vez que gomemory lo guarde, esas dos claves desaparecen. [Detalles](docs/MANUAL.md).
+- La tabla `adr_sync_records` se queda en la base, sin uso, para que el esquema solo cambie de forma aditiva y una versión anterior siga abriendo la misma base.
+- Las memorias antiguas que conservan la nota `[impacto: …]` siguen contando como duplicadas cuando corresponde, porque el aviso de duplicados descuenta esa nota.
+- El refresco del grafo en segundo plano (`MaybeRefresh`) no cambia: sigue sincronizando CodeGraph al final de cada turno cuando su vigilante de archivos no está activo.
+
 ## [v2.60.1] - 2026-11-26
 
 ### Fixed
