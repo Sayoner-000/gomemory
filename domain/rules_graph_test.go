@@ -194,6 +194,9 @@ func TestSearchPaths(t *testing.T) {
 		{"grep", []string{"-rn", "Foo"}, []string{"."}},
 		{"grep", []string{"-A", "3", "-rn", "Foo", "src"}, []string{"src"}},
 		{"grep", []string{"-e", "Foo", "-r", "src"}, []string{"src"}},
+		{"grep", []string{"-eFoo", "-r", "src"}, []string{"src"}},
+		{"grep", []string{"-ffile.txt", "-r", "src"}, []string{"src"}},
+		{"rg", []string{"-eFoo", "-g", "*.go", "src"}, []string{"src"}},
 		{"rg", []string{"Foo", "-g", "*.go"}, []string{"."}},
 		{"git", []string{"grep", "-n", "Foo", "--", "dir"}, []string{"dir"}},
 		{"find", []string{"src", "-name", "*.go"}, []string{"src"}},
@@ -204,6 +207,30 @@ func TestSearchPaths(t *testing.T) {
 		got, _ := searchPaths(c.name, c.args)
 		if strings.Join(got, "|") != strings.Join(c.want, "|") {
 			t.Errorf("searchPaths(%s %v) = %v; esperaba %v", c.name, c.args, got, c.want)
+		}
+	}
+}
+
+// HCD-068: las formas adjuntas -ePATTERN y -fFILE deben comportarse como -e PATTERN
+// y -f FILE. El patrón literal adjunto se avisa; un identificador sigue
+// bloqueando y -f no infiere literalidad del archivo de patrones.
+func TestGraphBeforeGrep_FormasAdjuntas(t *testing.T) {
+	casos := []struct {
+		cmd  string
+		want RuleAction
+	}{
+		{`grep -e'no disponible' --include=*.go src`, RuleWarn},
+		{`grep -e "no disponible" --include=*.go src`, RuleWarn},
+		{`rg -e'no disponible' -g'*.go' src`, RuleWarn},
+		{`rg -e "no disponible" -g '*.go' src`, RuleWarn},
+		{`grep -e'Foo' --include=*.go src`, RuleBlock},
+		{`rg -e'Foo' -g'*.go' src`, RuleBlock},
+		{`grep -fpat.txt --include=*.go src`, RuleBlock},
+	}
+	for _, c := range casos {
+		v := EvaluateRules(RuleEventBash, RuleInput{Command: c.cmd, IndexedExtensions: goIndexed, Agent: "opencode"}, BuiltinRules())
+		if v.Action != c.want {
+			t.Errorf("%q → %s (%s); esperaba %s", c.cmd, v.Action, v.Reason, c.want)
 		}
 	}
 }

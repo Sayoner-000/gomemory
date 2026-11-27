@@ -188,6 +188,19 @@ var searchValueFlags = map[string]bool{
 	"--file-search-regex": true, "--ignore-dir": true,
 }
 
+// attachedPatternValue reconoce las formas adjuntas -ePATTERN y -fFILE de
+// grep/rg/ag/git grep y devuelve su valor. isPattern distingue el patrón (-e)
+// del archivo de patrones (-f): este último no se evalúa como texto (HCD-068).
+func attachedPatternValue(a string) (value string, isPattern bool, ok bool) {
+	if len(a) > 2 && strings.HasPrefix(a, "-e") {
+		return a[2:], true, true
+	}
+	if len(a) > 2 && strings.HasPrefix(a, "-f") {
+		return a[2:], false, true
+	}
+	return "", false, false
+}
+
 // searchPaths devuelve las rutas que busca un comando de búsqueda: los
 // argumentos posicionales tras el patrón. Sin ruta, rg/ag/ack/git grep y un
 // grep recursivo buscan en el directorio actual, y implicit lo indica. find
@@ -229,6 +242,10 @@ func searchPaths(name string, args []string) (paths []string, implicit bool) {
 			if a != "-" {
 				out = append(out, a)
 			}
+			continue
+		}
+		if _, _, attached := attachedPatternValue(a); attached {
+			patternPending = false
 			continue
 		}
 		switch {
@@ -280,6 +297,12 @@ func searchPatterns(args []string) []string {
 	positional := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
+		if v, isPattern, attached := attachedPatternValue(a); attached {
+			if isPattern {
+				explicit = append(explicit, v)
+			}
+			continue
+		}
 		switch {
 		case a == "--":
 			if positional == "" && len(explicit) == 0 && i+1 < len(args) {
@@ -417,6 +440,10 @@ func grepTarget(args []string, indexed map[string]bool, globFlags, typeFlags []s
 		if a == "-e" || a == "-f" || a == "--regexp" || a == "--file" {
 			patternPending = false
 			i++
+			continue
+		}
+		if _, _, attached := attachedPatternValue(a); attached {
+			patternPending = false
 			continue
 		}
 		if strings.HasPrefix(a, "--regexp=") || strings.HasPrefix(a, "--file=") {
