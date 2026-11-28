@@ -34,7 +34,7 @@ func seedsFromCatalog() []usecases.Seed {
 
 // seedDeps extrae del repositorio las dos capacidades que la siembra necesita.
 // Aserción de tipo en vez de ensanchar ports.MemoryRepository: mismo patrón que
-// el composition root usa con ADRSyncProvider.
+// el composition root usa con ports.MemoryTopicQuerier.
 func seedDeps(deps *Deps) (ports.MemorySeeder, ports.MemoryTopicQuerier, bool) {
 	seeder, ok1 := deps.MemoryRepo.(ports.MemorySeeder)
 	topics, ok2 := deps.MemoryRepo.(ports.MemoryTopicQuerier)

@@ -522,7 +522,7 @@ func TestSettings_FixAuthorizedAusenteEsAutorizado(t *testing.T) {
 func boolPtr(b bool) *bool { return &b }
 
 // octopus_enabled (feature 027) invierte la polaridad de los ajustes vecinos:
-// es opt-in, como adr_sync_enabled, no opt-out como speckit_context_disabled.
+// es opt-in, como compact_agent_notice, no opt-out como speckit_context_disabled.
 // Octopus AAR es un flujo nuevo completo y grande, no el refinamiento de uno
 // existente: quien no lo active debe obtener el comportamiento previo exacto.
 // Ausente en el JSON ⇒ APAGADO; explícito en true ⇒ se preserva.

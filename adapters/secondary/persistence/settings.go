@@ -49,7 +49,7 @@ type Settings struct {
 	DedupWindowDays int `json:"dedup_window_days,omitempty"`
 	// SynapseDisabled apaga la formación automática de sinapsis (aristas de
 	// co-activación en sesión) al guardar una memoria. Ausente/false = activada
-	// (misma lógica opt-out que CodeImpactAnnotationDisabled).
+	// (misma lógica opt-out que SpeckitContextDisabled).
 	SynapseDisabled bool `json:"synapse_disabled,omitempty"`
 	// SpeckitContextDisabled apaga el brazo extensor hacia spec-kit (feature
 	// 011): el hook before_specify de la extensión gomemory-context deja de
@@ -132,7 +132,7 @@ type Settings struct {
 	// aquellos refinan un flujo que ya existe y debe seguir activo sin que nadie
 	// opte por él; Octopus es un flujo nuevo completo y grande, y apagado debe
 	// significar huella observable cero (INV-AAR-019). Mismo patrón opt-in que
-	// AdrSyncEnabled.
+	// CompactAgentNotice.
 	OctopusEnabled bool `json:"octopus_enabled,omitempty"`
 	// --- Octopus AAR: topes y reparto del presupuesto (feature 027) ---
 	//

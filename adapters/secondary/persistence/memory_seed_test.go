@@ -1,7 +1,6 @@
 package persistence
 
 import (
-	"context"
 	"database/sql"
 	"strings"
 	"testing"
@@ -228,20 +227,4 @@ func contarRelaciones(t *testing.T, db *sql.DB, project string) int {
 		t.Fatalf("contar relaciones: %v", err)
 	}
 	return n
-}
-
-// adrProviderEspia implementa ports.ADRSyncProvider contando los intentos de
-// exportación, sin tocar nada externo.
-type adrProviderEspia struct{ llamadas int }
-
-func (p *adrProviderEspia) Name() string { return "espia" }
-
-func (p *adrProviderEspia) GetDocument(_ context.Context) (string, error) {
-	p.llamadas++
-	return "", nil
-}
-
-func (p *adrProviderEspia) UpdateDocument(_ context.Context, _ string) error {
-	p.llamadas++
-	return nil
 }
