@@ -7,6 +7,17 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.61.1] - 2026-11-28
+
+### Fixed
+
+- `install.sh` consultaba la API de GitHub sin autenticar para saber cuál es la última versión. En IP compartidas, como los runners de CI, el límite anónimo se agota, la API responde 403 y la instalación fallaba de vez en cuando. Ahora el tag sale de la redirección de `releases/latest`. La API queda como respaldo y usa `GITHUB_TOKEN` si está definido.
+- Las pruebas del store de Socrática daban a cada consulta 1 s, cinco veces menos que el plazo de producción, y en el runner de Windows alguna escritura fallaba con `context deadline exceeded`. Ahora usan el plazo de producción.
+
+### Removed
+
+- Lo que quedaba de la retirada de ADR sync en v2.61.0: un helper de prueba sin uso y seis comentarios que nombraban símbolos y ajustes que ya no existen. No cambia ningún comportamiento. [Informe de auditoría](docs/audits/2026-11-28-acr-adm-project.md).
+
 ## [v2.61.0] - 2026-11-27
 
 ### Removed
