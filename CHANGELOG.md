@@ -7,6 +7,16 @@ and versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [v2.61.2] - 2026-11-28
+
+### Fixed
+
+- `mem update` y el aviso de versión nueva consultaban la API de GitHub sin autenticar. Detrás de una IP compartida (NAT de empresa, VPN, runner de CI) el límite anónimo se agota: `mem update` terminaba con «GitHub API respondió 403» y el aviso dejaba de enterarse de las releases sin decir nada. Ahora los dos leen la redirección de `releases/latest`, que no cuenta para ese límite, y solo consultan la API si la redirección no da un tag `vX.Y.Z`. Con `GITHUB_TOKEN` definido, la API se consulta autenticada, y un 403 sin token lo sugiere en el mensaje de error. [Detalles](docs/MANUAL.md).
+
+### Changed
+
+- `mem update` obtiene la última versión por el mismo camino que el aviso de versión, en lugar de hacer su propia consulta a la API.
+
 ## [v2.61.1] - 2026-11-28
 
 ### Fixed
