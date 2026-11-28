@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -43,12 +45,56 @@ func New(apiBase, downloadBase, repo string, timeout time.Duration) *GitHub {
 // checksums.txt, como el instalador (installer/src/bootstrap.ts).
 const maxMetadataBytes = 1 << 20
 
+// tagInLocation es el criterio de latest_tag_from_redirect en
+// scripts/install.sh: el destino de releases/latest acaba en /tag/vX.Y.Z.
+var tagInLocation = regexp.MustCompile(`/tag/(v[0-9]+\.[0-9]+\.[0-9]+)$`)
+
+// Latest resuelve la última release por la redirección de releases/latest,
+// que no consume el límite de la API: anónima, la API admite 60 peticiones
+// por hora por IP y en una IP compartida las agotan otros (HCD-072). La API
+// queda como respaldo cuando la redirección no da un tag válido.
 func (g *GitHub) Latest(ctx context.Context, etag string) (string, string, bool, error) {
+	if tag, ok := g.latestFromRedirect(ctx); ok {
+		return tag, "", false, nil
+	}
+	return g.latestFromAPI(ctx, etag)
+}
+
+// latestFromRedirect lee el Location de releases/latest sin seguirlo. Un
+// fallo de red o una respuesta sin tag válido no es error: decide el respaldo.
+func (g *GitHub) latestFromRedirect(ctx context.Context) (string, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.downloadBase+"/latest", nil)
+	if err != nil {
+		return "", false
+	}
+	// Copia del cliente: Checksum sí debe seguir las redirecciones de descarga.
+	noFollow := *g.client
+	noFollow.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, err := noFollow.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 300 || resp.StatusCode > 399 {
+		return "", false
+	}
+	m := tagInLocation.FindStringSubmatch(resp.Header.Get("Location"))
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
+func (g *GitHub) latestFromAPI(ctx context.Context, etag string) (string, string, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.apiBase+"/repos/"+g.repo+"/releases/latest", nil)
 	if err != nil {
 		return "", "", false, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
+	// Con token, la API aplica el límite de la cuenta y no el de la IP.
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	if etag != "" {
 		req.Header.Set("If-None-Match", etag)
 	}
@@ -61,6 +107,11 @@ func (g *GitHub) Latest(ctx context.Context, etag string) (string, string, bool,
 	case http.StatusNotModified:
 		return "", etag, true, nil
 	case http.StatusOK:
+	case http.StatusForbidden, http.StatusTooManyRequests:
+		if os.Getenv("GITHUB_TOKEN") == "" {
+			return "", "", false, fmt.Errorf("API de releases: HTTP %d, probablemente el límite de peticiones anónimas; define GITHUB_TOKEN para consultar autenticado", resp.StatusCode)
+		}
+		return "", "", false, fmt.Errorf("API de releases: HTTP %d", resp.StatusCode)
 	default:
 		return "", "", false, fmt.Errorf("API de releases: HTTP %d", resp.StatusCode)
 	}

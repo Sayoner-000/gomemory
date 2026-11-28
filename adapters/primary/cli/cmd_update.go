@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -58,7 +57,9 @@ func CmdUpdate(deps *Deps, args []string) {
 
 	target := *versionFlag
 	if target == "" {
-		latest, err := latestReleaseTag(client)
+		// El mismo puerto que el aviso de versión: resuelve latest por la
+		// redirección de releases y deja la API como respaldo (HCD-072).
+		latest, _, _, err := releasePortOf(deps).Latest(context.Background(), "")
 		if err != nil {
 			fail("no se pudo consultar la última versión: %v", err)
 		}
@@ -292,10 +293,10 @@ func assetNameFor(goos, goarch string) string {
 
 // Topes de lo que mem update acepta de la red, alineados con el instalador
 // (installer/src/bootstrap.ts). Son variables para que las pruebas los bajen.
+// El tope de metadatos lo aplica el adaptador de releases (maxMetadataBytes).
 var (
-	maxUpdateMetadataBytes int64 = 1 << 20
-	maxUpdateArchiveBytes  int64 = 128 << 20
-	maxUpdateBinaryBytes   int64 = 256 << 20
+	maxUpdateArchiveBytes int64 = 128 << 20
+	maxUpdateBinaryBytes  int64 = 256 << 20
 )
 
 // copyLimited copia como mucho max bytes y falla si src trae más: una
@@ -309,38 +310,6 @@ func copyLimited(dst io.Writer, src io.Reader, max int64) error {
 		return fmt.Errorf("el contenido supera el límite de %d bytes", max)
 	}
 	return nil
-}
-
-func latestReleaseTag(client *http.Client) (string, error) {
-	url := releaseAPIBase + "/repos/" + releaseRepo + "/releases/latest"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "gomemory/"+version.Version)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxUpdateMetadataBytes))
-		return "", fmt.Errorf("GitHub API respondió %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	}
-
-	var payload struct {
-		TagName string `json:"tag_name"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxUpdateMetadataBytes)).Decode(&payload); err != nil {
-		return "", err
-	}
-	if payload.TagName == "" {
-		return "", fmt.Errorf("respuesta sin tag_name")
-	}
-	return payload.TagName, nil
 }
 
 func downloadFile(client *http.Client, url, destPath string) error {

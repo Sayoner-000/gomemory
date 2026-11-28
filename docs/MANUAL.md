@@ -108,6 +108,15 @@ un proyecto con `"update_check_disabled": true` en `.memory/settings.json`;
 desactivado no hace ninguna llamada de red. `mem doctor` muestra el binario
 global, las copias locales que queden y el estado de la última consulta.
 
+**Cómo se consulta la última versión.** `mem update` y el aviso de versión leen
+la redirección de `github.com/Sayoner-000/gomemory/releases/latest`, que no
+cuenta para el límite de la API de GitHub. Solo si esa redirección no da un tag
+`vX.Y.Z` consultan la API. Sin autenticar, la API admite 60 peticiones por hora
+por IP, y detrás de una IP compartida (NAT de empresa, VPN, runner de CI) pueden
+agotarlas otros: la consulta falla con HTTP 403. Si defines `GITHUB_TOKEN`, la
+API se consulta con ese token y aplica el límite de tu cuenta. El token solo se
+envía a la API, nunca a la descarga de releases.
+
 **Integridad.** `mem update` verifica el SHA-256 del archivo descargado con el
 `checksums.txt` de la release antes de sustituir el binario; si no coincide o no
 existe, aborta sin tocar nada. También limita lo que acepta de la red, con los

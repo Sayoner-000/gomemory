@@ -119,11 +119,17 @@ func writeUpdateCache(t *testing.T, s *lifecycleSandbox, latest string, checkedA
 }
 
 // apiServer cuenta las consultas; delay simula una API lenta o inalcanzable.
+// Sirve también de base de descargas (useReleaseServer): sin redirección en
+// /latest, la consulta usa la API, que es lo que miden estas pruebas (HCD-072).
 func apiServer(t *testing.T, tag string, delay time.Duration) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	skipIfNoLoopback(t)
 	var hits atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/latest" {
+			http.NotFound(w, r)
+			return
+		}
 		hits.Add(1)
 		select {
 		case <-time.After(delay):
@@ -138,12 +144,19 @@ func apiServer(t *testing.T, tag string, delay time.Duration) (*httptest.Server,
 	return srv, &hits
 }
 
+// useReleaseServer apunta la API y la base de descargas al servidor de prueba:
+// con solo la API, la redirección de releases/latest saldría a github.com.
+func useReleaseServer(s *lifecycleSandbox, srv *httptest.Server) {
+	s.Setenv("GOMEMORY_RELEASE_API_BASE", srv.URL)
+	s.Setenv("GOMEMORY_RELEASE_DOWNLOAD_BASE", srv.URL)
+}
+
 // FR-030: con una versión nueva en caché, la persona la ve una vez por sesión.
 func TestSessionStart_AvisoDeVersionUnaVez(t *testing.T) {
 	s := newLifecycleSandbox(t)
 	srv, _ := apiServer(t, "v99.0.0", 0)
 	s.Setenv("GOMEMORY_NO_UPDATE_CHECK", "")
-	s.Setenv("GOMEMORY_RELEASE_API_BASE", srv.URL)
+	useReleaseServer(s, srv)
 	p := s.Project("p1")
 	writeUpdateCache(t, s, "v99.0.0", time.Now())
 
@@ -163,7 +176,7 @@ func TestSessionStart_AvisoDesactivadoSinRed(t *testing.T) {
 		t.Run(via, func(t *testing.T) {
 			s := newLifecycleSandbox(t)
 			srv, hits := apiServer(t, "v99.0.0", 0)
-			s.Setenv("GOMEMORY_RELEASE_API_BASE", srv.URL)
+			useReleaseServer(s, srv)
 			p := s.Project("p1")
 			if via == "env" {
 				s.Setenv("GOMEMORY_NO_UPDATE_CHECK", "1")
@@ -194,7 +207,7 @@ func TestSessionStart_CacheCorrupta(t *testing.T) {
 	s := newLifecycleSandbox(t)
 	srv, _ := apiServer(t, "v99.0.0", 0)
 	s.Setenv("GOMEMORY_NO_UPDATE_CHECK", "")
-	s.Setenv("GOMEMORY_RELEASE_API_BASE", srv.URL)
+	useReleaseServer(s, srv)
 	p := s.Project("p1")
 	mustWrite(t, filepath.Join(s.Data, "update-check.json"), "{roto")
 	res, out := runSessionStartClaude(t, s, p)
@@ -243,7 +256,7 @@ func TestSessionStart_ConsultaEnSegundoPlano(t *testing.T) {
 	const apiDelay = 3 * time.Second
 	srv, hits := apiServer(t, "v99.1.0", apiDelay)
 	s.Setenv("GOMEMORY_NO_UPDATE_CHECK", "")
-	s.Setenv("GOMEMORY_RELEASE_API_BASE", srv.URL)
+	useReleaseServer(s, srv)
 	p := s.Project("p1")
 	cache := writeUpdateCache(t, s, "v2.0.0", time.Now().Add(-72*time.Hour))
 

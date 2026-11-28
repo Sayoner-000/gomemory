@@ -179,7 +179,12 @@ func TestUpdateCheckDoesNotMutate(t *testing.T) {
 
 	cmd := exec.Command(dummyBin, "update", "--check")
 	cmd.Dir = target
-	cmd.Env = updateTestEnv("GOMEMORY_RELEASE_API_BASE=" + srv.URL)
+	// La base de descargas también al servidor fake: si no, la redirección de
+	// releases/latest saldría a github.com. Sin ruta /latest, decide la API.
+	cmd.Env = updateTestEnv(
+		"GOMEMORY_RELEASE_API_BASE="+srv.URL,
+		"GOMEMORY_RELEASE_DOWNLOAD_BASE="+srv.URL,
+	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("mem update --check: %v\n%s", err, out)

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -61,43 +60,18 @@ func inMemoryClient(h http.Handler) *http.Client {
 	return &http.Client{Transport: handlerTransport{h}}
 }
 
-// useTestReleaseBase apunta la API de releases al host ficticio.
-func useTestReleaseBase(t *testing.T) {
-	t.Helper()
+// HCD-072: mem update consulta la última versión por el ReleasePort, el mismo
+// que usa el aviso de versión, y no con una llamada propia a la API.
+func TestCmdUpdateCheck_UsaReleasePort(t *testing.T) {
+	t.Setenv("GOMEMORY_NO_UPDATE_CHECK", "1")
 	orig := releaseAPIBase
-	releaseAPIBase = testReleaseBase
+	releaseAPIBase = "http://127.0.0.1:0"
 	t.Cleanup(func() { releaseAPIBase = orig })
-}
 
-func TestLatestReleaseTag(t *testing.T) {
-	client := inMemoryClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/repos/Sayoner-000/gomemory/releases/latest" {
-			t.Errorf("ruta inesperada: %s", r.URL.Path)
-		}
-		if err := json.NewEncoder(w).Encode(map[string]string{"tag_name": "v1.9.0"}); err != nil {
-			t.Errorf("encode: %v", err)
-		}
-	}))
-	useTestReleaseBase(t)
-
-	tag, err := latestReleaseTag(client)
-	if err != nil {
-		t.Fatalf("latestReleaseTag: %v", err)
-	}
-	if tag != "v1.9.0" {
-		t.Errorf("esperaba v1.9.0, got %s", tag)
-	}
-}
-
-func TestLatestReleaseTagErrorStatus(t *testing.T) {
-	client := inMemoryClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte("not found"))
-	}))
-	useTestReleaseBase(t)
-
-	if _, err := latestReleaseTag(client); err == nil {
-		t.Fatal("esperaba error ante status 404")
+	rel := &lifecycleReleaseStub{tag: "v9.9.9"}
+	out := captureStdout(t, func() { CmdUpdate(&Deps{ReleasePort: rel}, []string{"--check"}) })
+	if !strings.Contains(out, "Disponible: v9.9.9") {
+		t.Fatalf("la versión no salió del ReleasePort:\n%s", out)
 	}
 }
 
@@ -440,18 +414,6 @@ func TestExtractBinaryRejectsOversizedBinary(t *testing.T) {
 	}
 	if err := extractBinaryFromZip(zp, memBinaryName(), filepath.Join(dir, "out-zip")); err == nil || !strings.Contains(err.Error(), "límite") {
 		t.Errorf("zip: err = %v, want límite", err)
-	}
-}
-
-func TestLatestReleaseTagBoundsMetadata(t *testing.T) {
-	defer func(v int64) { maxUpdateMetadataBytes = v }(maxUpdateMetadataBytes)
-	maxUpdateMetadataBytes = 64
-	client := inMemoryClient(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"pad":"` + strings.Repeat("x", 128) + `","tag_name":"v9.9.9"}`))
-	}))
-	useTestReleaseBase(t)
-	if tag, err := latestReleaseTag(client); err == nil {
-		t.Fatalf("metadatos por encima del límite aceptados: %q", tag)
 	}
 }
 
